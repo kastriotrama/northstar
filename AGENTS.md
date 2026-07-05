@@ -69,6 +69,8 @@
 - Use GitHub MCP for repository, issue, pull request, workflow, and release context that is not available from local git.
 - Before implementing a Jira story, create or switch to a story branch first using `feature/<jira-key>-<short-slug>`.
 - Include the Jira key in branch names and commit messages when the work is tied to a Jira issue.
+- Only transition, comment on, or mark Jira subtasks that were explicitly started or directly worked in the current task.
+- Do not update sibling subtasks just because their acceptance criteria are related to the same parent story.
 - Do not add custom Jira or GitHub REST integration code unless explicitly requested.
 - Confirm before creating or bulk-editing Jira issues.
 - Confirm before pushing branches, opening pull requests, triggering workflows, or changing issue statuses.
