@@ -9,6 +9,7 @@ Keep the latest 10 task entries only.
 - Added unit tests for ingestion config, logging, datastore wrapper construction, and CLI command registration.
 - Corrected Jira workflow handling: only `SCRUM-24` should be treated as started for this request; untouched sibling subtasks were returned to To Do.
 - Added agent rule to avoid transitioning or commenting on sibling Jira subtasks unless they were explicitly started or directly worked.
+- Added agent rule requiring simple plain-language Jira completion comments covering what changed, why, verification, and remaining risk or next step.
 - Jira Rovo direct JQL works against `https://northstarmasterdata.atlassian.net`; broad Rovo search may select another Atlassian instance.
 - Moved `SCRUM-20`, `SCRUM-21`, and `SCRUM-22` to the review lane (`In Progress`) with ready-for-review comments.
 - Added `infra/staging` Terraform skeleton for `SCRUM-23`, including region, environment, sizing, networking, and secret-reference variables.

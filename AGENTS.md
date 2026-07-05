@@ -71,6 +71,8 @@
 - Include the Jira key in branch names and commit messages when the work is tied to a Jira issue.
 - Only transition, comment on, or mark Jira subtasks that were explicitly started or directly worked in the current task.
 - Do not update sibling subtasks just because their acceptance criteria are related to the same parent story.
+- When finishing a Jira task, add a plain-language Jira comment explaining what was done, why it was needed, how to use or verify it, and any remaining risk or next step.
+- Keep completion comments simple enough for a non-specialist project teammate to learn from them.
 - Do not add custom Jira or GitHub REST integration code unless explicitly requested.
 - Confirm before creating or bulk-editing Jira issues.
 - Confirm before pushing branches, opening pull requests, triggering workflows, or changing issue statuses.
