@@ -26,6 +26,11 @@ api/
       jira/
       openai/
     shared/
+ingestion/
+  cli.py
+  config.py
+  datastores.py
+  jobs.py
 tests/
   unit/
   integration/
@@ -39,7 +44,9 @@ tests/
 - Services own business logic.
 - Repositories own database access.
 - Integrations own external provider details.
-- Settings are read only in `api/app/core/settings.py`.
+- Batch ingestion jobs live under `ingestion/` and expose commands through `northstar-ingest`.
+- API settings are read only in `api/app/core/settings.py`.
+- Ingestion settings are read only in `ingestion/config.py`.
 - Tests are mandatory for every backend change.
 
 ## Testing Pattern
