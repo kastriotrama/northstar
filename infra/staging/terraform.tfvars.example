@@ -1,6 +1,32 @@
+# Example variable values for the staging environment.
+#
+# IMPORTANT — provider neutrality:
+# The Terraform modules in this repo are provider-neutral: they define WHAT we
+# need (a Postgres of some size, a private network, secret references) without
+# committing to WHO provides it. No cloud provider has been chosen yet.
+#
+# The sizing values below (db.t4g.micro, cache.t4g.micro, t3.small.search, ...)
+# are AWS product names used purely as EXAMPLES of the expected shape. If we
+# pick a different provider, replace them with that provider's equivalents,
+# e.g. for Hetzner a single "cpx41" server running Docker Compose, or for
+# DigitalOcean "db-s-1vcpu-2gb" managed databases. The variable structure
+# (name, network, sizing, secret references) stays the same either way.
+#
+# Same for `network`: vpc/subnet IDs are AWS terminology; on Hetzner/DO this
+# would map to a private network ID + firewall rules. The placeholders below
+# are not real resources.
+#
+# Secret names reference entries in a secret manager (AWS Secrets Manager,
+# Vault, provider equivalent). Only the NAME lives here — never the value.
+#
+# Copy to terraform.tfvars and adjust. Never commit terraform.tfvars.
+
 project_name = "northstar"
 environment  = "staging"
-region       = "eu-north-1"
+
+# Provider region (example: AWS eu-north-1 / Stockholm). For Hetzner this
+# would be e.g. "hel1", for DigitalOcean "ams3".
+region = "eu-north-1"
 
 network = {
   vpc_id              = "vpc-placeholder"
@@ -9,7 +35,7 @@ network = {
 }
 
 postgres = {
-  instance_class       = "db.t4g.micro"
+  instance_class       = "db.t4g.micro" # provider-specific size (AWS RDS example)
   allocated_storage_gb = 20
   database_name        = "app"
   username_secret_name = "northstar/staging/postgres/username"
@@ -17,20 +43,20 @@ postgres = {
 }
 
 neo4j = {
-  instance_type        = "t4g.small"
+  instance_type        = "t4g.small" # provider-specific size (AWS EC2 example)
   volume_size_gb       = 30
   username_secret_name = "northstar/staging/neo4j/username"
   password_secret_name = "northstar/staging/neo4j/password"
 }
 
 elasticsearch = {
-  instance_type  = "t3.small.search"
+  instance_type  = "t3.small.search" # provider-specific size (AWS OpenSearch example)
   instance_count = 1
   volume_size_gb = 20
 }
 
 redis = {
-  node_type        = "cache.t4g.micro"
+  node_type        = "cache.t4g.micro" # provider-specific size (AWS ElastiCache example)
   replica_count    = 0
   auth_secret_name = "northstar/staging/redis/auth"
 }

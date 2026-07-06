@@ -20,6 +20,7 @@ pip install -e ".[dev]"
 ## Services
 
 - FastAPI API
+- Python ingestion CLI
 - PostgreSQL
 - Neo4j
 - Elasticsearch
@@ -33,11 +34,20 @@ pip install -e ".[dev]"
 - Services own business logic.
 - Repositories own database access.
 - Integrations own external APIs.
-- Environment variables are read only from `api/app/core/settings.py`.
+- API environment variables are read only from `api/app/core/settings.py`.
+- Ingestion environment variables are read only from `ingestion/config.py`.
 - No secrets in repo files.
 
 ## Health Check
 
 ```sh
 curl http://localhost:8000/health
+```
+
+## Ingestion CLI
+
+```sh
+northstar-ingest list-commands
+northstar-ingest tecdoc
+northstar-ingest transportstyrelsen
 ```

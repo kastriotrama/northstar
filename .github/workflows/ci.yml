@@ -59,7 +59,7 @@ jobs:
         run: ruff check .
 
       - name: Type check
-        run: mypy api
+        run: mypy api ingestion
 
       - name: Test
         run: pytest

@@ -26,8 +26,11 @@ dev = [
   "mypy>=1.10.0"
 ]
 
+[project.scripts]
+northstar-ingest = "ingestion.cli:main"
+
 [tool.setuptools.packages.find]
-include = ["api*"]
+include = ["api*", "ingestion*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
