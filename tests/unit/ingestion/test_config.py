@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from ingestion.config import IngestionSettings
 
 
@@ -27,4 +30,23 @@ def test_ingestion_settings_loads_environment_aliases() -> None:
     assert settings.ingestion_batch_size == 25
     assert settings.tecdoc_source_path == "/tmp/tecdoc"
     assert settings.transportstyrelsen_source_path == "/tmp/transportstyrelsen"
+    assert settings.source_paths == {
+        "tecdoc": "/tmp/tecdoc",
+        "transportstyrelsen": "/tmp/transportstyrelsen",
+    }
 
+
+def test_log_level_is_normalized() -> None:
+    settings = IngestionSettings(LOG_LEVEL="debug")
+
+    assert settings.log_level == "DEBUG"
+
+
+def test_invalid_log_level_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="LOG_LEVEL must be one of"):
+        IngestionSettings(LOG_LEVEL="verbose")
+
+
+def test_batch_size_must_be_positive() -> None:
+    with pytest.raises(ValidationError, match="INGESTION_BATCH_SIZE must be greater than 0"):
+        IngestionSettings(INGESTION_BATCH_SIZE=0)
