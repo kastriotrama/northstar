@@ -26,6 +26,12 @@ class PostgresClient:
         with psycopg.connect(self.database_url) as connection:
             yield connection
 
+    def ping(self) -> bool:
+        with self.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                return cursor.fetchone() == (1,)
+
 
 @dataclass(frozen=True)
 class Neo4jClient:
@@ -44,6 +50,11 @@ class Neo4jClient:
     def driver(self) -> Driver:
         return GraphDatabase.driver(self.uri, auth=(self.username, self.password))
 
+    def ping(self) -> bool:
+        with self.driver() as driver:
+            driver.verify_connectivity()
+        return True
+
 
 @dataclass(frozen=True)
 class ElasticsearchClient:
@@ -56,6 +67,9 @@ class ElasticsearchClient:
     def client(self) -> Elasticsearch:
         return Elasticsearch(self.url)
 
+    def ping(self) -> bool:
+        return self.client().ping()
+
 
 @dataclass(frozen=True)
 class RedisClient:
@@ -67,6 +81,9 @@ class RedisClient:
 
     def client(self) -> Redis:
         return redis.Redis.from_url(self.url)
+
+    def ping(self) -> bool:
+        return bool(self.client().ping())
 
 
 @dataclass(frozen=True)
@@ -85,3 +102,10 @@ class DatastoreClients:
             redis=RedisClient.from_settings(settings),
         )
 
+    def healthcheck(self) -> dict[str, bool]:
+        return {
+            "postgres": self.postgres.ping(),
+            "neo4j": self.neo4j.ping(),
+            "elasticsearch": self.elasticsearch.ping(),
+            "redis": self.redis.ping(),
+        }

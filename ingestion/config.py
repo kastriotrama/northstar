@@ -1,7 +1,9 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SUPPORTED_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
 class IngestionSettings(BaseSettings):
@@ -31,8 +33,34 @@ class IngestionSettings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("log_level")
+    @classmethod
+    def normalize_log_level(cls, value: str) -> str:
+        normalized_value = value.upper()
+        if normalized_value not in SUPPORTED_LOG_LEVELS:
+            supported_values = ", ".join(sorted(SUPPORTED_LOG_LEVELS))
+            message = f"LOG_LEVEL must be one of: {supported_values}"
+            raise ValueError(message)
+
+        return normalized_value
+
+    @field_validator("ingestion_batch_size")
+    @classmethod
+    def validate_batch_size(cls, value: int) -> int:
+        if value < 1:
+            message = "INGESTION_BATCH_SIZE must be greater than 0"
+            raise ValueError(message)
+
+        return value
+
+    @property
+    def source_paths(self) -> dict[str, str | None]:
+        return {
+            "tecdoc": self.tecdoc_source_path,
+            "transportstyrelsen": self.transportstyrelsen_source_path,
+        }
+
 
 @lru_cache
 def get_ingestion_settings() -> IngestionSettings:
     return IngestionSettings()
-

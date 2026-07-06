@@ -1,5 +1,6 @@
 import argparse
 import logging
+from uuid import uuid4
 from collections.abc import Sequence
 
 from ingestion.config import get_ingestion_settings
@@ -20,7 +21,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("list-commands", help="List available ingestion commands.")
 
     for job in list_jobs():
-        subparsers.add_parser(job.name, help=job.description)
+        job_parser = subparsers.add_parser(job.name, help=job.description)
+        job_parser.add_argument(
+            "--batch-id",
+            default=None,
+            help="Optional batch identifier for logs and job bookkeeping.",
+        )
 
     return parser
 
@@ -34,18 +40,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "list-commands":
         for job in list_jobs():
-            print(f"{job.name}\t{job.description}")
+            print(f"{job.name}\t{job.source_name}\t{job.description}")
         return 0
 
     datastores = DatastoreClients.from_settings(settings)
     job = get_job(args.command)
+    batch_id = args.batch_id or f"{job.name}-{uuid4()}"
 
-    logger.info("Starting ingestion job: %s", job.name)
-    exit_code = job.run(settings=settings, datastores=datastores)
-    logger.info("Finished ingestion job: %s", job.name)
+    logger.info(
+        "Starting ingestion job",
+        extra={"job_name": job.name, "batch_id": batch_id, "source": job.source_name},
+    )
+    exit_code = job.run(settings=settings, datastores=datastores, batch_id=batch_id)
+    logger.info(
+        "Finished ingestion job",
+        extra={
+            "job_name": job.name,
+            "batch_id": batch_id,
+            "source": job.source_name,
+            "exit_code": exit_code,
+        },
+    )
     return exit_code
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
