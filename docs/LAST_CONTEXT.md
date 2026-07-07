@@ -7,6 +7,7 @@ Keep the latest 10 task entries only.
 - Started `SCRUM-10` on `feature/SCRUM-10-fastapi-resolve-api-july-7` from `origin/develop`.
 - Scaffolded the FastAPI resolve API module with `router.py`, `service.py`, `schemas.py`, `/resolve/status`, and stub `POST /resolve`.
 - Added unit and integration tests proving resolve routes work and OpenAPI includes the resolve endpoints.
+- Completed `SCRUM-29` with constructor-injected datastore health clients for Postgres, Redis, Neo4j, and Elasticsearch; validation passed with pytest, ruff, and mypy; next step is wiring per-store status into `/health`.
 
 ## 2026-07-06
 
