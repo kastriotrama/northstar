@@ -2,6 +2,12 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-07
+
+- Started `SCRUM-10` on `feature/SCRUM-10-fastapi-resolve-api-july-7` from `origin/develop`.
+- Scaffolded the FastAPI resolve API module with `router.py`, `service.py`, `schemas.py`, `/resolve/status`, and stub `POST /resolve`.
+- Added unit and integration tests proving resolve routes work and OpenAPI includes the resolve endpoints.
+
 ## 2026-07-06
 
 - Completed `SCRUM-25` with log-level and batch-size validation, source-path helpers, and JSON log extra fields.
