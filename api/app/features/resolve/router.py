@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from api.app.features.resolve.schemas import ResolveRequest, ResolveResponse, ResolveStatusResponse
 from api.app.features.resolve.service import ResolveService
 
-router = APIRouter(prefix="/resolve", tags=["resolve"])
+router = APIRouter(prefix="/v1/resolve", tags=["resolve"])
 
 
 def get_resolve_service() -> ResolveService:

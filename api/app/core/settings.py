@@ -35,6 +35,12 @@ class Settings(BaseSettings):
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
+    health_check_timeout_seconds: int = Field(
+        default=2,
+        alias="HEALTH_CHECK_TIMEOUT_SECONDS",
+        ge=1,
+    )
+
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
 
     model_config = SettingsConfigDict(
