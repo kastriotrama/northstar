@@ -1,29 +1,10 @@
-from dataclasses import dataclass
-from typing import Any, Literal, Protocol
-
 import psycopg
 from elasticsearch import Elasticsearch
 from neo4j import GraphDatabase
 from redis import Redis
 
+from api.app.core.health import DatastoreHealthClient, StoreHealth
 from api.app.core.settings import Settings
-
-
-StoreHealthStatus = Literal["ok", "error"]
-
-
-@dataclass(frozen=True)
-class StoreHealth:
-    name: str
-    status: StoreHealthStatus
-    detail: str | None = None
-
-
-class DatastoreHealthClient(Protocol):
-    name: str
-
-    def check(self) -> StoreHealth:
-        """Return the datastore's current health."""
 
 
 class PostgresHealthClient:
@@ -31,15 +12,13 @@ class PostgresHealthClient:
 
     def __init__(self, settings: Settings) -> None:
         self._database_url = settings.database_url
+        self._timeout = settings.health_check_timeout_seconds
 
     def check(self) -> StoreHealth:
-        try:
-            with psycopg.connect(self._database_url) as connection:
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT 1")
-            return StoreHealth(name=self.name, status="ok")
-        except Exception as exc:
-            return _error_health(self.name, exc)
+        with psycopg.connect(self._database_url, connect_timeout=self._timeout) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        return StoreHealth(name=self.name, status="ok")
 
 
 class RedisHealthClient:
@@ -47,14 +26,19 @@ class RedisHealthClient:
 
     def __init__(self, settings: Settings) -> None:
         self._redis_url = settings.redis_url
+        self._timeout = settings.health_check_timeout_seconds
 
     def check(self) -> StoreHealth:
+        client = Redis.from_url(
+            self._redis_url,
+            socket_connect_timeout=self._timeout,
+            socket_timeout=self._timeout,
+        )
         try:
-            client = Redis.from_url(self._redis_url)
             client.ping()
-            return StoreHealth(name=self.name, status="ok")
-        except Exception as exc:
-            return _error_health(self.name, exc)
+        finally:
+            client.close()
+        return StoreHealth(name=self.name, status="ok")
 
 
 class Neo4jHealthClient:
@@ -64,19 +48,19 @@ class Neo4jHealthClient:
         self._uri = settings.neo4j_uri
         self._user = settings.neo4j_user
         self._password = settings.neo4j_password
+        self._timeout = settings.health_check_timeout_seconds
 
     def check(self) -> StoreHealth:
-        driver: Any | None = None
-
+        driver = GraphDatabase.driver(
+            self._uri,
+            auth=(self._user, self._password),
+            connection_timeout=self._timeout,
+        )
         try:
-            driver = GraphDatabase.driver(self._uri, auth=(self._user, self._password))
             driver.verify_connectivity()
-            return StoreHealth(name=self.name, status="ok")
-        except Exception as exc:
-            return _error_health(self.name, exc)
         finally:
-            if driver is not None:
-                driver.close()
+            driver.close()
+        return StoreHealth(name=self.name, status="ok")
 
 
 class ElasticsearchHealthClient:
@@ -84,20 +68,16 @@ class ElasticsearchHealthClient:
 
     def __init__(self, settings: Settings) -> None:
         self._url = settings.elasticsearch_url
+        self._timeout = settings.health_check_timeout_seconds
 
     def check(self) -> StoreHealth:
-        client: Any | None = None
-
+        client = Elasticsearch(self._url, request_timeout=self._timeout)
         try:
-            client = Elasticsearch(self._url)
             if not client.ping():
                 return StoreHealth(name=self.name, status="error", detail="Ping returned false")
-            return StoreHealth(name=self.name, status="ok")
-        except Exception as exc:
-            return _error_health(self.name, exc)
         finally:
-            if client is not None:
-                client.close()
+            client.close()
+        return StoreHealth(name=self.name, status="ok")
 
 
 def build_datastore_health_clients(settings: Settings) -> tuple[DatastoreHealthClient, ...]:
@@ -107,7 +87,3 @@ def build_datastore_health_clients(settings: Settings) -> tuple[DatastoreHealthC
         Neo4jHealthClient(settings),
         ElasticsearchHealthClient(settings),
     )
-
-
-def _error_health(name: str, exc: Exception) -> StoreHealth:
-    return StoreHealth(name=name, status="error", detail=exc.__class__.__name__)

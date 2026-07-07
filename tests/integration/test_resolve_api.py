@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def test_resolve_status_endpoint_returns_stub_status(client: TestClient) -> None:
-    response = client.get("/resolve/status")
+    response = client.get("/v1/resolve/status")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -12,7 +12,7 @@ def test_resolve_status_endpoint_returns_stub_status(client: TestClient) -> None
 
 
 def test_resolve_endpoint_returns_empty_stub_candidates(client: TestClient) -> None:
-    response = client.post("/resolve", json={"query": "volvo xc90"})
+    response = client.post("/v1/resolve", json={"query": "volvo xc90"})
 
     assert response.status_code == 200
     assert response.json() == {
@@ -23,7 +23,7 @@ def test_resolve_endpoint_returns_empty_stub_candidates(client: TestClient) -> N
 
 
 def test_resolve_endpoint_rejects_empty_query(client: TestClient) -> None:
-    response = client.post("/resolve", json={"query": ""})
+    response = client.post("/v1/resolve", json={"query": ""})
 
     assert response.status_code == 422
 
@@ -33,6 +33,6 @@ def test_openapi_includes_resolve_routes(client: TestClient) -> None:
 
     assert response.status_code == 200
     paths = response.json()["paths"]
-    assert "/resolve/status" in paths
-    assert "/resolve" in paths
+    assert "/v1/resolve/status" in paths
+    assert "/v1/resolve" in paths
 
