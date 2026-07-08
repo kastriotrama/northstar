@@ -12,6 +12,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Validates that both service images build; publishing happens in a separate
+  # workflow on merge, never on PRs.
+  images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build --target api -t northstar-api:ci .
+
+      - name: Build ingestion image
+        run: docker build --target ingestion -t northstar-ingestion:ci .
+
+      - name: Smoke test API image
+        run: docker run --rm northstar-api:ci python -c "import api.app.main"
+
+      - name: Smoke test ingestion image
+        run: docker run --rm northstar-ingestion:ci list-commands
+
   backend:
     runs-on: ubuntu-latest
 
