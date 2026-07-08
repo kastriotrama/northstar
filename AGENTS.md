@@ -78,6 +78,16 @@
 - Confirm before pushing branches, opening pull requests, triggering workflows, or changing issue statuses.
 - Never persist Jira, GitHub, or API tokens in repo files.
 
+## PR Completion Workflow
+
+- When a PR appears to complete Jira subtasks, map the PR changes to each Jira acceptance criterion before adding comments or changing status.
+- Validate the PR merge result, not only the PR head, before merging.
+- If GitHub MCP or `gh` is unavailable, fetch `refs/pull/<id>/head` and `refs/pull/<id>/merge`, validate in a temporary worktree, then merge or push only after explicit user approval.
+- When a user asks to review Jira completion comments first, show the exact proposed comment before posting it.
+- When marking a parent story Done, add a parent-level completion comment summarizing completed subtasks, validation, and remaining risk.
+- After completing a story branch, create a PR targeting `develop` and wait for manual review/merge; do not merge it directly unless the user explicitly asks.
+- Treat runtime logs as sensitive when provider exceptions may include connection details, even if HTTP responses are sanitized.
+
 ## Review Guidelines
 
 - Prioritize correctness, regressions, data integrity, authentication, unsafe write paths, and credential exposure.

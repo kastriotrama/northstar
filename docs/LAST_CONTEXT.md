@@ -2,6 +2,11 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-08
+
+- Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
+- Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.
+
 ## 2026-07-07
 
 - Started `SCRUM-10` on `feature/SCRUM-10-fastapi-resolve-api-july-7` from `origin/develop`.
