@@ -16,6 +16,10 @@ api/
         router.py
         service.py
         schemas.py
+      resolve/
+        router.py
+        service.py
+        schemas.py
       example_feature/
         router.py
         service.py
