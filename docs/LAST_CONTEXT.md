@@ -6,6 +6,7 @@ Keep the latest 10 task entries only.
 
 - Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
 - Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.
+- Completed `SCRUM-33` by adding Neo4j and Elasticsearch CI service containers plus live datastore health validation; local Docker Compose health check passed for all four stores.
 
 ## 2026-07-07
 
