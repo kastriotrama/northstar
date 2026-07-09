@@ -129,7 +129,7 @@ resolves to exactly one live VehicleVariant.
 
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
-| `market` | string[] | required | `["SE", "DE"]` | ISO 3166-1 alpha-2 markets where sold; grows as sources confirm |
+| `market` | string[] | required, may be empty | `["SE", "DE"]` | ISO 3166-1 alpha-2 markets where sold. Starts as `[]` on TecDoc-derived nodes (TecDoc does not carry market data) and grows as registration sources confirm; never null |
 | `trim_level` | string | nullable | `"Avantgarde"` | Trim/equipment line when known |
 | `drive_type` | enum(`fwd`, `rwd`, `awd`) | nullable | `"rwd"` | |
 | `year_from` | year | required | `2009` | Variant production start |
@@ -149,9 +149,15 @@ string — is an Alias pointing at exactly one live node via `REFERS_TO`.
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
 | `alias_text` | string | required | `"ABC123"` | Normalized form (Epic 4 Stage 1a) of the external string |
-| `source_system` | enum(`tecdoc`, `transportstyrelsen`, `plate`, `vin`, `manual`) | required | `"plate"` | Where this vocabulary comes from; new sources extend the enum |
+| `alias_type` | enum(`k_type`, `engine_code`, `body_code`, `plate`, `vin`, `model_name`) | required | `"plate"` | What kind of identifier this is; independent of where it came from |
+| `source_system` | enum(`tecdoc`, `transportstyrelsen`, `manual`) | required | `"transportstyrelsen"` | Which source asserted this mapping; new sources extend the enum |
 | `external_code` | string | nullable | `"12345"` | The source's own identifier when distinct from `alias_text` (e.g. TecDoc k-type number for a display string) |
 | `confidence` | float | required | `0.97` | 0.0–1.0 confidence of the mapping, from the Epic 4 scoring gate |
+
+`alias_type` and `source_system` are deliberately separate dimensions: a
+plate is asserted by Transportstyrelsen, a k-type by TecDoc, and the same
+model-name string may be asserted by both. Conflating them would make "all
+aliases from source X" and "all plate aliases" unanswerable.
 
 **Rules (deliberate, load-bearing):**
 
@@ -167,7 +173,9 @@ string — is an Alias pointing at exactly one live node via `REFERS_TO`.
   nodes directly.
 - Aliases are per-source: the same text `"E350"` from TecDoc and from a
   clerk-typed Transportstyrelsen field are two Alias nodes with different
-  `source_system` and confidence.
+  `source_system` and confidence. Uniqueness is over
+  (`alias_type`, `source_system`, `alias_text`), matching the composite
+  index planned in Story 2.4.
 
 ## 4. `:Provisional` secondary label
 
@@ -208,12 +216,15 @@ its engine with the ML 350 CDI. IDs shortened for readability.
                  {id: "VEH-08H", market: ["SE"], trim_level: null,
                   drive_type: "awd", year_from: 2009, year_to: 2011})   // ML 350 CDI, single-source
 
-(:Alias {id: "ALI-09I", alias_text: "13902", source_system: "tecdoc",
-         external_code: "13902", confidence: 1.0})       // k-type -> VEH-07G
-(:Alias {id: "ALI-10J", alias_text: "ABC123", source_system: "plate",
-         external_code: null, confidence: 0.97})          // Swedish plate -> VEH-07G
-(:Alias {id: "ALI-11K", alias_text: "OM642", source_system: "tecdoc",
-         external_code: "642", confidence: 1.0})          // engine code -> ENG-04D
+(:Alias {id: "ALI-09I", alias_text: "13902", alias_type: "k_type",
+         source_system: "tecdoc", external_code: "13902",
+         confidence: 1.0})                                // k-type -> VEH-07G
+(:Alias {id: "ALI-10J", alias_text: "ABC123", alias_type: "plate",
+         source_system: "transportstyrelsen", external_code: null,
+         confidence: 0.97})                               // Swedish plate -> VEH-07G
+(:Alias {id: "ALI-11K", alias_text: "OM642", alias_type: "engine_code",
+         source_system: "tecdoc", external_code: "642",
+         confidence: 1.0})                                // engine code -> ENG-04D
 ```
 
 What the example demonstrates:
@@ -243,8 +254,8 @@ checked against:
       required/nullable decision.
 - [ ] Enum-like values are either in the §2/§3 enum lists or added to the
       Epic 4 dictionaries in the same PR.
-- [ ] k-type appears only as an Alias (`source_system: "tecdoc"`), never as
-      a label or a VehicleVariant property.
+- [ ] k-type appears only as an Alias (`alias_type: "k_type"`), never as a
+      label or a VehicleVariant property.
 - [ ] New-node write paths set `:Provisional` for the 0.65–0.90 confidence
       band and record provenance to the enrichment ledger.
 - [ ] IDs are never reused; merged-away nodes become `:Superseded`, not
