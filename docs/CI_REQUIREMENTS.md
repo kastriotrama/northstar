@@ -26,6 +26,12 @@ A pull request should not be merged when:
 - New backend behavior has no test coverage.
 - A bug fix has no regression test and no explanation.
 
+## Image Publishing
+
+Images are built on every PR but never published from PR jobs. Publishing
+rules, registry choice, tag strategy, and required secrets are documented in
+`docs/CI_PUBLISHING.md`.
+
 ## Secrets
 
 CI must not require production secrets.

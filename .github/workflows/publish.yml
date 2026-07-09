@@ -1,0 +1,65 @@
+name: Publish images
+
+# Merge-only publishing: this workflow never runs on pull requests.
+# Rules, registry choice, and tag strategy live in docs/CI_PUBLISHING.md.
+on:
+  push:
+    branches:
+      - develop
+      - main
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: meta
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          tags="sha-${GITHUB_SHA::7}"
+
+          case "${GITHUB_REF}" in
+            refs/heads/develop) tags="${tags} develop" ;;
+            refs/heads/main) tags="${tags} latest" ;;
+            refs/tags/v*) tags="${tags} ${GITHUB_REF#refs/tags/}" ;;
+          esac
+
+          echo "owner=${owner}" >> "${GITHUB_OUTPUT}"
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build images
+        run: |
+          docker build --target api -t northstar-api:build .
+          docker build --target ingestion -t northstar-ingestion:build .
+
+      - name: Smoke test images
+        run: |
+          docker run --rm northstar-api:build python -c "import api.app.main"
+          docker run --rm northstar-ingestion:build list-commands
+
+      - name: Push images
+        run: |
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            for image in northstar-api northstar-ingestion; do
+              docker tag "${image}:build" "ghcr.io/${{ steps.meta.outputs.owner }}/${image}:${tag}"
+              docker push "ghcr.io/${{ steps.meta.outputs.owner }}/${image}:${tag}"
+            done
+          done
