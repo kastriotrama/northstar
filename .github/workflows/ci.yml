@@ -5,8 +5,33 @@ on:
   push:
     branches:
       - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Validates that both service images build; publishing happens in a separate
+  # workflow on merge, never on PRs.
+  images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build --target api -t northstar-api:ci .
+
+      - name: Build ingestion image
+        run: docker build --target ingestion -t northstar-ingestion:ci .
+
+      - name: Smoke test API image
+        run: docker run --rm northstar-api:ci python -c "import api.app.main"
+
+      - name: Smoke test ingestion image
+        run: docker run --rm northstar-ingestion:ci list-commands
+
   backend:
     runs-on: ubuntu-latest
 
@@ -79,6 +104,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install package
         run: python -m pip install -e ".[dev]"
@@ -92,26 +118,26 @@ jobs:
           import json
           import time
 
-          from api.app.features.health.repository import build_datastore_health_clients
+          from api.app.core.health import run_health_checks
           from api.app.core.settings import get_settings
+          from api.app.features.health.repository import build_datastore_health_clients
 
+          clients = build_datastore_health_clients(get_settings())
           deadline = time.monotonic() + 90
-          last_payload = []
 
           while True:
-              clients = build_datastore_health_clients(get_settings())
-              results = [client.check() for client in clients]
-              last_payload = [
+              results = run_health_checks(clients)
+              payload = [
                   {"name": result.name, "status": result.status, "detail": result.detail}
                   for result in results
               ]
 
               if all(result.status == "ok" for result in results):
-                  print(json.dumps(last_payload, indent=2))
+                  print(json.dumps(payload, indent=2))
                   break
 
               if time.monotonic() >= deadline:
-                  print(json.dumps(last_payload, indent=2))
+                  print(json.dumps(payload, indent=2))
                   raise SystemExit("One or more datastore health checks failed")
 
               time.sleep(3)
