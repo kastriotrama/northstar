@@ -5,8 +5,33 @@ on:
   push:
     branches:
       - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Validates that both service images build; publishing happens in a separate
+  # workflow on merge, never on PRs.
+  images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build --target api -t northstar-api:ci .
+
+      - name: Build ingestion image
+        run: docker build --target ingestion -t northstar-ingestion:ci .
+
+      - name: Smoke test API image
+        run: docker run --rm northstar-api:ci python -c "import api.app.main"
+
+      - name: Smoke test ingestion image
+        run: docker run --rm northstar-ingestion:ci list-commands
+
   backend:
     runs-on: ubuntu-latest
 
@@ -35,6 +60,33 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/change_me
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       ENVIRONMENT: test
       LOG_LEVEL: INFO
@@ -44,6 +96,7 @@ jobs:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: change_me
       ELASTICSEARCH_URL: http://localhost:9200
+      HEALTH_CHECK_TIMEOUT_SECONDS: 5
 
     steps:
       - uses: actions/checkout@v4
@@ -51,15 +104,50 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: python -m pip install -e ".[dev]"
 
-      - name: Lint
-        run: ruff check .
+      - name: Compile API and ingestion
+        run: python -m compileall api ingestion
 
-      - name: Type check
-        run: mypy api ingestion
+      - name: Validate live datastore health
+        run: |
+          python - <<'PY'
+          import json
+          import time
 
-      - name: Test
-        run: pytest
+          from api.app.core.health import run_health_checks
+          from api.app.core.settings import get_settings
+          from api.app.features.health.repository import build_datastore_health_clients
+
+          clients = build_datastore_health_clients(get_settings())
+          deadline = time.monotonic() + 90
+
+          while True:
+              results = run_health_checks(clients)
+              payload = [
+                  {"name": result.name, "status": result.status, "detail": result.detail}
+                  for result in results
+              ]
+
+              if all(result.status == "ok" for result in results):
+                  print(json.dumps(payload, indent=2))
+                  break
+
+              if time.monotonic() >= deadline:
+                  print(json.dumps(payload, indent=2))
+                  raise SystemExit("One or more datastore health checks failed")
+
+              time.sleep(3)
+          PY
+
+      - name: Lint API and ingestion
+        run: python -m ruff check .
+
+      - name: Type check API and ingestion
+        run: python -m mypy api ingestion
+
+      - name: Test API and ingestion
+        run: python -m pytest
