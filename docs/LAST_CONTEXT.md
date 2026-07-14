@@ -4,6 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-07-14
 
+- Corrected PR #16's SCRUM-13 contract: reduced the catalog to seven canonical relationships, removed duplicate hierarchy/provenance edges, made Alias resolves candidate-safe, fixed all six traversals, and added Markdown contract plus live Neo4j tests; next step: merge after CI and review.
 - Finalized the SCRUM-12 schema review fixes: separated manual record/assertion identity, replaced mutable-content hashes with persisted provenance or supersession, added explicit single-live-target `REFERS_TO` examples, and hardened recursive repository-bound Markdown link validation; next step: merge the stacked fix into PR #11 after CI and review.
 
 ## 2026-07-09
@@ -19,4 +20,3 @@ Keep the latest 10 task entries only.
 
 - Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
 - Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.
-- Completed `SCRUM-33` by adding Neo4j and Elasticsearch CI service containers plus live datastore health validation; local Docker Compose health check passed for all four stores.
