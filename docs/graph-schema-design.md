@@ -343,6 +343,9 @@ Invalid writes include:
 - Names are stable uppercase `SNAKE_CASE` verb phrases.
 - The name reads naturally from start to end: *variant USES engine*,
   *platform PLATFORM OF family*, *alias REFERS TO target*.
+- `PLATFORM_OF` is an accepted exception to the verb-phrase rule (it reads
+  as a noun). It is kept deliberately — do not rename it for symmetry; the
+  stability rule outweighs the aesthetic one.
 - Do not add generic `HAS`, `LINKED_TO`, `RELATED_TO`, or inverse duplicates.
 - A new name must be added to §5.2 in the same PR that introduces it.
 
@@ -352,6 +355,14 @@ The six read patterns below reach their resolution target in three hops or
 fewer from an indexed entry point. Alias text remains non-unique: resolve
 queries therefore include `source_system` and return candidates with their
 assertion identities instead of silently choosing a target.
+
+Scope note: the identifier-resolve patterns (5.5.1, 5.5.2) return candidate
+variant IDs plus assertion identity — deliberately not the full resolve
+response. The component-expansion query (engine, body, platform, family,
+manufacturer for a resolved variant) is owned by the resolve API work
+(Phase 1 plan, Story 9.3) and will be added here as another executable
+query block when that story lands. Do not treat 5.5.1 as the complete API
+contract.
 
 | Pattern | Indexed entry dependency (SCRUM-15) | Hops to result |
 |---|---|---|
