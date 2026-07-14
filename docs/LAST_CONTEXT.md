@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-14
+
+- Corrected the SCRUM-12 action plan so the Alias property table renders intact and unstable source values use persisted provenance or explicit supersession instead of mutable-content hashes; validation: Markdown structure and diff checks; next step: merge this stacked fix into the PR #13 branch.
+
 ## 2026-07-13
 
 - Added a detailed SCRUM-12 schema review action plan covering the recommended Alias identity model, Jira alignment, PR #11 revision scope, PR #12 disposition, acceptance-criteria mapping, and merge validation; validation: Markdown and diff checks; next step: team approval of the Alias contract.
@@ -19,4 +23,3 @@ Keep the latest 10 task entries only.
 
 - Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
 - Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.
-- Completed `SCRUM-33` by adding Neo4j and Elasticsearch CI service containers plus live datastore health validation; local Docker Compose health check passed for all four stores.
