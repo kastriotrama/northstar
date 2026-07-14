@@ -84,8 +84,13 @@ Alias for the same source assertion instead of updating the existing Alias.
 | `alias_text` | string | yes | Normalized, non-unique lookup value |
 | `alias_type` | enum | yes | Meaning of the alias, such as `k_type`, `engine_code`, `plate`, `vin`, or `model_name` |
 | `source_system` | enum | yes | Provider that made the assertion |
-| `source_record_key` | string | yes | Stable provider record containing the assertion |
+| `source_record_key` | string | yes* | Stable provider record containing the assertion |
 | `source_assertion_key` | string | yes | Stable source-local identity for this individual alias assertion |
+
+\* For `source_system = manual` there is no provider record; use the
+assertion key itself (or another synthetic stable value) as
+`source_record_key` so the requirement holds without inventing fake
+provider records.
 | `confidence` | float | yes | Mapping confidence in the range `0.0` to `1.0` |
 | `created_at` | datetime | yes | First write timestamp |
 | `updated_at` | datetime | yes | Last write timestamp |
@@ -103,6 +108,14 @@ stable source-local components, for example:
 ```text
 <source-record-key>:<field-name>:<value-position>
 ```
+
+Positional derivation (`<value-position>`) is only valid when the source
+guarantees stable value order within a record across dumps. If order is not
+guaranteed, positions shift and assertion identity silently changes —
+reintroducing the instability this model exists to remove. In that case use
+the provider's stable per-value identifier, or a hash of stable value
+content, and document the chosen derivation per source in the ingestion
+service.
 
 Examples:
 
