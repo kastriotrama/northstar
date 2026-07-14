@@ -178,9 +178,14 @@ string — is an Alias pointing at exactly one live node via `REFERS_TO`.
 | `alias_text` | string | required | `"ABC123"` | Normalized form (Epic 4 Stage 1a) of the external string; **non-unique lookup value**, mutable when normalization rules improve |
 | `alias_type` | enum(`k_type`, `engine_code`, `body_code`, `plate`, `vin`, `model_name`) | required | `"plate"` | What kind of identifier this is; independent of where it came from |
 | `source_system` | enum(`tecdoc`, `transportstyrelsen`, `manual`) | required | `"transportstyrelsen"` | Which source asserted this mapping; new sources extend the enum |
-| `source_record_key` | string | required* | `"vehicle-abc123"` | Stable provider record containing the assertion. *For `source_system = manual` there is no provider record; use the assertion key itself (or another synthetic stable value) |
+| `source_record_key` | string | required | `"vehicle-abc123"` | Stable provider record containing the assertion; for manual assertions, use a stable change-request or batch key |
 | `source_assertion_key` | string | required | `"vehicle-abc123:plate:0"` | Stable source-local identity for this individual alias assertion |
 | `confidence` | float | required | `0.97` | 0.0–1.0 confidence of the mapping, from the Epic 4 scoring gate; mutable |
+
+For manual assertions, keep record and assertion identity separate. Use a
+stable key such as `manual:<change-request-or-batch-id>` for
+`source_record_key` and a distinct `manual:<individual-assertion-id>` for
+`source_assertion_key`.
 
 `alias_type` and `source_system` are deliberately separate dimensions: a
 plate is asserted by Transportstyrelsen, a k-type by TecDoc, and the same
@@ -209,9 +214,13 @@ deterministically from stable source-local components:
 
 Positional derivation (`<value-position>`) is only valid when the source
 guarantees stable value order within a record across dumps. If order is not
-guaranteed, use the provider's stable per-value identifier or a hash of
-stable value content instead, and document the chosen derivation per source
-in the ingestion service.
+guaranteed, use the provider's stable per-value identifier. If none exists,
+the ingestion service must persist a generated assertion key in its
+provenance mapping and reuse it only when the source can correlate an update
+to the same assertion. If that correlation is impossible, create a new
+assertion and explicitly retract or supersede the old assertion. Do not derive
+stable identity from a hash of mutable value content. Document the chosen
+strategy per source in the ingestion service.
 
 Examples:
 
@@ -271,55 +280,65 @@ illustrative only, invalid for real writes (see §1).
 (:ModelFamily   {id: "FAM-02C", canonical_name: "M-Class", segment: "suv"})
 (:Platform      {id: "PLT-03C", platform_code: "W212", generation: "4",
                  year_from: 2009, year_to: 2016, facelift: false})
-(:Engine        {id: "ENG-04D", engine_code: "OM642", displacement_cc: 2987,
+(eng04:Engine   {id: "ENG-04D", engine_code: "OM642", displacement_cc: 2987,
                  fuel_type: "diesel", configuration: "V6"})
 (:Transmission  {id: "TRN-05E", transmission_code: "722.9",
                  canonical_name: "7G-TRONIC", type: "automatic", gears: 7})
 (:BodyType      {id: "BDY-06F", canonical_name: "sedan", door_count: 4})
 
-(:VehicleVariant {id: "VEH-07G", market: ["SE", "DE"], trim_level: "Avantgarde",
+(veh07:VehicleVariant {id: "VEH-07G", market: ["SE", "DE"], trim_level: "Avantgarde",
                   drive_type: "rwd", year_from: 2009, year_to: 2013})   // E 350 CDI sedan
-(:VehicleVariant:Provisional
+(veh08:VehicleVariant:Provisional
                  {id: "VEH-08H", market: ["SE"], trim_level: null,
                   drive_type: "awd", year_from: 2009, year_to: 2011})   // ML 350 CDI, single-source
+(veh15:VehicleVariant {id: "VEH-15P", market: ["DE"], trim_level: "Avantgarde",
+                  drive_type: "awd", year_from: 2009, year_to: 2013})   // E 350 CDI 4MATIC
 
-(:Alias {id: "ALI-09I", alias_text: "13902", alias_type: "k_type",
+(ali09:Alias {id: "ALI-09I", alias_text: "13902", alias_type: "k_type",
          source_system: "tecdoc",
          source_record_key: "vehicle-82931",
          source_assertion_key: "vehicle-82931:k_type:0",
-         confidence: 1.0})                                // k-type -> VEH-07G
-(:Alias {id: "ALI-10J", alias_text: "ABC123", alias_type: "plate",
+         confidence: 1.0})
+(ali10:Alias {id: "ALI-10J", alias_text: "ABC123", alias_type: "plate",
          source_system: "transportstyrelsen",
          source_record_key: "vehicle-abc123",
          source_assertion_key: "vehicle-abc123:plate:0",
-         confidence: 0.97})                               // Swedish plate -> VEH-07G
-(:Alias {id: "ALI-11K", alias_text: "OM642", alias_type: "engine_code",
+         confidence: 0.97})
+(ali11:Alias {id: "ALI-11K", alias_text: "OM642", alias_type: "engine_code",
          source_system: "tecdoc",
          source_record_key: "engine-642",
          source_assertion_key: "engine-642:engine_code:0",
-         confidence: 1.0})                                // engine code -> ENG-04D
+         confidence: 1.0})
 
 // Same source, identical text, different targets: two TecDoc records both
 // expose the model name "E350" — one for the sedan, one for another variant.
 // Distinct assertion keys keep them apart; text alone never merges them.
-(:Alias {id: "ALI-12L", alias_text: "E350", alias_type: "model_name",
+(ali12:Alias {id: "ALI-12L", alias_text: "E350", alias_type: "model_name",
          source_system: "tecdoc",
          source_record_key: "vehicle-82931",
          source_assertion_key: "vehicle-82931:model_name:0",
-         confidence: 0.92})                               // -> VEH-07G
-(:Alias {id: "ALI-13M", alias_text: "E350", alias_type: "model_name",
+         confidence: 0.92})
+(ali13:Alias {id: "ALI-13M", alias_text: "E350", alias_type: "model_name",
          source_system: "tecdoc",
          source_record_key: "vehicle-82940",
          source_assertion_key: "vehicle-82940:model_name:0",
-         confidence: 0.90})                               // -> a different VEH-
+         confidence: 0.90})
 
 // Identical text asserted by a second, independent source: its own Alias
 // node with its own identity and confidence.
-(:Alias {id: "ALI-14N", alias_text: "E350", alias_type: "model_name",
+(ali14:Alias {id: "ALI-14N", alias_text: "E350", alias_type: "model_name",
          source_system: "transportstyrelsen",
          source_record_key: "vehicle-abc123",
          source_assertion_key: "vehicle-abc123:model_name:0",
-         confidence: 0.81})                               // -> VEH-07G
+         confidence: 0.81})
+
+// Exactly one outgoing REFERS_TO edge per Alias; every target is live.
+(ali09)-[:REFERS_TO]->(veh07)
+(ali10)-[:REFERS_TO]->(veh07)
+(ali11)-[:REFERS_TO]->(eng04)
+(ali12)-[:REFERS_TO]->(veh07)
+(ali13)-[:REFERS_TO]->(veh15)
+(ali14)-[:REFERS_TO]->(veh07)
 ```
 
 What the example demonstrates:
@@ -330,9 +349,11 @@ What the example demonstrates:
 - **Dual-alias pattern:** the k-type alias targets the VehicleVariant; the
   engine-code alias targets the Engine directly.
 - **Duplicate text, stable identity:** `ALI-12L` and `ALI-13M` share the text
-  `"E350"` within the same source but map to different variants; `ALI-14N`
-  shows the same text from another source. Identity is
+  `"E350"` within the same source but map to `VEH-07G` and `VEH-15P`;
+  `ALI-14N` shows the same text from another source. Identity is
   `(source_system, source_assertion_key)`, never the text.
+- **Single live target:** every Alias has exactly one explicit outgoing
+  `REFERS_TO` edge, and each edge targets a live canonical node.
 - **Normalization correction:** if Stage 1a later normalizes `"E 350"` to
   `"E350"`, the affected Alias keeps its assertion key and its `alias_text`
   is updated in place — no duplicate Alias is minted.
