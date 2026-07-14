@@ -1,17 +1,44 @@
 # Graph Schema Design — Node Labels & Properties
 
+| Field | Value |
+|---|---|
+| Version | `0.1` |
+| Status | Draft node contract |
+| Owner | NorthStar backend team |
+| Jira story | SCRUM-12 |
+| Scope | Node labels, properties, examples, and invariants only |
+| Last reviewed | 2026-07-14 |
+
 Canonical node model for the Neo4j knowledge graph (Phase 1, Story 2.1 /
-SCRUM-12). Relationship types and edge properties are Story 2.2 and will be
-added to this document by that story; where an example below needs an edge, it
-uses the relationship names from the Phase 1 plan (`docs/PHASE_1_PLAN.md`).
+SCRUM-12). This document is canonical but incomplete until later Epic 2
+stories extend it.
+
+Relationship names shown in examples are provisional. SCRUM-13 owns
+relationship names, direction, cardinality, and edge properties and will
+update this canonical document after those decisions are accepted.
+
+## Decision ownership
+
+| Decision | Owner |
+|---|---|
+| Labels, properties, types, and nullability | SCRUM-12 |
+| Alias node semantics and invariants | SCRUM-12 |
+| Relationship names, direction, and cardinality | SCRUM-13 |
+| ID minting implementation | SCRUM-14 |
+| Constraints, indexes, and migrations | SCRUM-15 |
+| Merge/split mechanics and `:Superseded` lifecycle | SCRUM-68 |
 
 ## 1. Core principles
 
 1. **Opaque internal IDs.** Every node is keyed by an internal ID that carries
-   no source meaning: `<PREFIX>-<ULID>` (e.g. `ENG-01J1QYVN4T9GZ0`). External
+   no source meaning: `<PREFIX>-<ULID>`, e.g.
+   `ENG-01ARZ3NDEKTSV4RRFFQ69G5FAV` (prefix + 26-character ULID). External
    codes (TecDoc k-type, engine codes, plates, VINs) are NEVER node IDs — they
    enter the graph only as `Alias` nodes. IDs are never reused, including
-   after node merges or splits.
+   after node merges or splits. Prefixes are accepted by SCRUM-12; the ULID
+   payload and generation utility are finalized by SCRUM-14. Shortened IDs in
+   diagrams and examples (e.g. `ENG-04D`) are illustrative only and invalid
+   for real writes.
 2. **Intrinsic vs. pairing facts.** A property lives on a node only if it is
    true of the thing itself everywhere it appears. Anything specific to a
    combination (the 231 hp vs 258 hp tune of the same OM642 engine) lives on
@@ -46,7 +73,7 @@ and can be enriched later. Required properties are never null.
 
 | Property | Type | Required | Meaning |
 |---|---|---|---|
-| `id` | string | required, unique per label | `<PREFIX>-<ULID>`, minted by the central ID utility (Story 2.3) |
+| `id` | string | required, unique per label | `<PREFIX>-<ULID>`, minted by the central ID utility (SCRUM-14) |
 | `created_at` | datetime | required | First write |
 | `updated_at` | datetime | required | Last write |
 
@@ -91,7 +118,7 @@ A generation/chassis of a model family: W212 is "the 2009–2016 E-Class".
 
 An engine design, shared across every vehicle that uses it. **Intrinsic
 facts only** — power, torque, and emission standard vary per installation and
-live on the `USES_ENGINE` edge (Story 2.2).
+live on the `USES_ENGINE` edge (SCRUM-13).
 
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
@@ -148,24 +175,63 @@ string — is an Alias pointing at exactly one live node via `REFERS_TO`.
 
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
-| `alias_text` | string | required | `"ABC123"` | Normalized form (Epic 4 Stage 1a) of the external string |
+| `alias_text` | string | required | `"ABC123"` | Normalized form (Epic 4 Stage 1a) of the external string; **non-unique lookup value**, mutable when normalization rules improve |
 | `alias_type` | enum(`k_type`, `engine_code`, `body_code`, `plate`, `vin`, `model_name`) | required | `"plate"` | What kind of identifier this is; independent of where it came from |
 | `source_system` | enum(`tecdoc`, `transportstyrelsen`, `manual`) | required | `"transportstyrelsen"` | Which source asserted this mapping; new sources extend the enum |
-| `external_code` | string | nullable | `"12345"` | The source's own identifier when distinct from `alias_text` (e.g. TecDoc k-type number for a display string) |
-| `confidence` | float | required | `0.97` | 0.0–1.0 confidence of the mapping, from the Epic 4 scoring gate |
+| `source_record_key` | string | required* | `"vehicle-abc123"` | Stable provider record containing the assertion. *For `source_system = manual` there is no provider record; use the assertion key itself (or another synthetic stable value) |
+| `source_assertion_key` | string | required | `"vehicle-abc123:plate:0"` | Stable source-local identity for this individual alias assertion |
+| `confidence` | float | required | `0.97` | 0.0–1.0 confidence of the mapping, from the Epic 4 scoring gate; mutable |
 
 `alias_type` and `source_system` are deliberately separate dimensions: a
 plate is asserted by Transportstyrelsen, a k-type by TecDoc, and the same
 model-name string may be asserted by both. Conflating them would make "all
 aliases from source X" and "all plate aliases" unanswerable.
 
+**Identity.** Logical uniqueness is over:
+
+```text
+(source_system, source_assertion_key)
+```
+
+Identity fields (`source_system`, `source_record_key`,
+`source_assertion_key`, `alias_type`) are immutable once written; lookup and
+scoring fields (`alias_text`, `confidence`) are mutable. This keeps assertion
+identity stable when normalization rules improve or a provider corrects a
+value — the existing Alias is updated instead of a duplicate being minted.
+
+When the provider supplies a stable identifier for an individual assertion,
+use it directly as `source_assertion_key`. Otherwise derive it
+deterministically from stable source-local components:
+
+```text
+<source-record-key>:<field-name>:<value-position>
+```
+
+Positional derivation (`<value-position>`) is only valid when the source
+guarantees stable value order within a record across dumps. If order is not
+guaranteed, use the provider's stable per-value identifier or a hash of
+stable value content instead, and document the chosen derivation per source
+in the ingestion service.
+
+Examples:
+
+```text
+tecdoc:vehicle-82931:k_type:0
+transportstyrelsen:vehicle-abc123:plate:0
+manual:assertion-01ARZ3NDEKTSV4RRFFQ69G5FAV
+```
+
 **Rules (deliberate, load-bearing):**
 
 - **No `target_node_id` property.** The `REFERS_TO` edge is the single source
   of the alias-to-node mapping. A property copy would diverge from the edge
-  the first time a node merge re-points edges (Story 2.5) and silently
-  corrupt resolution. Uniqueness of the mapping = each Alias has exactly one
-  outgoing `REFERS_TO` edge to a live node.
+  the first time a node merge re-points edges (SCRUM-68) and silently
+  corrupt resolution. Every Alias has exactly one outgoing `REFERS_TO` edge
+  to a live node.
+- **`alias_text` is indexed but never unique.** Two source assertions may
+  expose identical text without being forced into the same Alias node or the
+  same canonical target — engine codes and model names are not guaranteed
+  unique within a provider.
 - **k-type is always an Alias**, never a label or a property on
   VehicleVariant. One variant may map to multiple k-types (TecDoc splits
   finer than we do in places). Dual-alias pattern: k-type aliases point at
@@ -173,9 +239,9 @@ aliases from source X" and "all plate aliases" unanswerable.
   nodes directly.
 - Aliases are per-source: the same text `"E350"` from TecDoc and from a
   clerk-typed Transportstyrelsen field are two Alias nodes with different
-  `source_system` and confidence. Uniqueness is over
-  (`alias_type`, `source_system`, `alias_text`), matching the composite
-  index planned in Story 2.4.
+  `source_system` and confidence.
+- The exact Neo4j constraint and lookup indexes implementing this identity
+  are owned by SCRUM-15.
 
 ## 4. `:Provisional` secondary label
 
@@ -186,17 +252,18 @@ Nodes created from records scoring 0.65–0.90 in the normalization gate carry
 - Excluded from customer-facing resolves by default (resolve queries filter
   `NOT n:Provisional`).
 - Promoted by removing the label when a second independent source confirms
-  the node; demotion/merge handled by the Story 2.5 merge procedure.
+  the node; demotion/merge handled by the SCRUM-68 merge procedure.
 - `:Provisional` carries no properties of its own; the confidence that put it
   there lives on the Alias/edge that created it and in the enrichment ledger.
 
 Nodes retired by a merge receive `:Superseded` plus a `SUPERSEDED_BY` edge
-(Story 2.5); they are never deleted, so ledger rows stay resolvable.
+(SCRUM-68); they are never deleted, so ledger rows stay resolvable.
 
 ## 5. Examples
 
 A real shared-component cluster: Mercedes E 350 CDI (W212, Sweden) sharing
-its engine with the ML 350 CDI. IDs shortened for readability.
+its engine with the ML 350 CDI. IDs are shortened for readability —
+illustrative only, invalid for real writes (see §1).
 
 ```
 (:Manufacturer  {id: "MFR-01A", canonical_name: "Mercedes-Benz", country: "DE"})
@@ -217,14 +284,42 @@ its engine with the ML 350 CDI. IDs shortened for readability.
                   drive_type: "awd", year_from: 2009, year_to: 2011})   // ML 350 CDI, single-source
 
 (:Alias {id: "ALI-09I", alias_text: "13902", alias_type: "k_type",
-         source_system: "tecdoc", external_code: "13902",
+         source_system: "tecdoc",
+         source_record_key: "vehicle-82931",
+         source_assertion_key: "vehicle-82931:k_type:0",
          confidence: 1.0})                                // k-type -> VEH-07G
 (:Alias {id: "ALI-10J", alias_text: "ABC123", alias_type: "plate",
-         source_system: "transportstyrelsen", external_code: null,
+         source_system: "transportstyrelsen",
+         source_record_key: "vehicle-abc123",
+         source_assertion_key: "vehicle-abc123:plate:0",
          confidence: 0.97})                               // Swedish plate -> VEH-07G
 (:Alias {id: "ALI-11K", alias_text: "OM642", alias_type: "engine_code",
-         source_system: "tecdoc", external_code: "642",
+         source_system: "tecdoc",
+         source_record_key: "engine-642",
+         source_assertion_key: "engine-642:engine_code:0",
          confidence: 1.0})                                // engine code -> ENG-04D
+
+// Same source, identical text, different targets: two TecDoc records both
+// expose the model name "E350" — one for the sedan, one for another variant.
+// Distinct assertion keys keep them apart; text alone never merges them.
+(:Alias {id: "ALI-12L", alias_text: "E350", alias_type: "model_name",
+         source_system: "tecdoc",
+         source_record_key: "vehicle-82931",
+         source_assertion_key: "vehicle-82931:model_name:0",
+         confidence: 0.92})                               // -> VEH-07G
+(:Alias {id: "ALI-13M", alias_text: "E350", alias_type: "model_name",
+         source_system: "tecdoc",
+         source_record_key: "vehicle-82940",
+         source_assertion_key: "vehicle-82940:model_name:0",
+         confidence: 0.90})                               // -> a different VEH-
+
+// Identical text asserted by a second, independent source: its own Alias
+// node with its own identity and confidence.
+(:Alias {id: "ALI-14N", alias_text: "E350", alias_type: "model_name",
+         source_system: "transportstyrelsen",
+         source_record_key: "vehicle-abc123",
+         source_assertion_key: "vehicle-abc123:model_name:0",
+         confidence: 0.81})                               // -> VEH-07G
 ```
 
 What the example demonstrates:
@@ -234,6 +329,13 @@ What the example demonstrates:
   on those edges, which is why `Engine` has no power property.
 - **Dual-alias pattern:** the k-type alias targets the VehicleVariant; the
   engine-code alias targets the Engine directly.
+- **Duplicate text, stable identity:** `ALI-12L` and `ALI-13M` share the text
+  `"E350"` within the same source but map to different variants; `ALI-14N`
+  shows the same text from another source. Identity is
+  `(source_system, source_assertion_key)`, never the text.
+- **Normalization correction:** if Stage 1a later normalizes `"E 350"` to
+  `"E350"`, the affected Alias keeps its assertion key and its `alias_text`
+  is updated in place — no duplicate Alias is minted.
 - **Provisional lifecycle:** `VEH-08H` exists only from Transportstyrelsen
   data (single source, 0.65–0.90 band), so it is `:Provisional` and excluded
   from customer resolves until confirmed.
@@ -256,6 +358,11 @@ checked against:
       Epic 4 dictionaries in the same PR.
 - [ ] k-type appears only as an Alias (`alias_type: "k_type"`), never as a
       label or a VehicleVariant property.
+- [ ] Alias identity is `(source_system, source_assertion_key)`; identity
+      fields are never mutated, and `alias_text` stays a non-unique lookup
+      value.
+- [ ] Every Alias has exactly one outgoing `REFERS_TO` edge to a live
+      (non-`:Superseded`) node.
 - [ ] New-node write paths set `:Provisional` for the 0.65–0.90 confidence
       band and record provenance to the enrichment ledger.
 - [ ] IDs are never reused; merged-away nodes become `:Superseded`, not
