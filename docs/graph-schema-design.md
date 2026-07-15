@@ -1,21 +1,21 @@
-# Graph Schema Design — Node Labels & Properties
+# Graph Schema Design — Nodes & Relationships
 
 | Field | Value |
 |---|---|
-| Version | `0.1` |
-| Status | Draft node contract |
+| Version | `0.2` |
+| Status | Accepted node and relationship contract |
 | Owner | NorthStar backend team |
-| Jira story | SCRUM-12 |
-| Scope | Node labels, properties, examples, and invariants only |
+| Jira story | SCRUM-12 (nodes), SCRUM-13 (relationships) |
+| Scope | Node labels, properties, relationships, cardinality, query patterns, examples, and invariants |
 | Last reviewed | 2026-07-14 |
 
-Canonical node model for the Neo4j knowledge graph (Phase 1, Story 2.1 /
-SCRUM-12). This document is canonical but incomplete until later Epic 2
+Canonical graph model for the Neo4j knowledge graph (Phase 1, Stories 2.1
+and 2.2). This document is canonical but incomplete until later Epic 2
 stories extend it.
 
-Relationship names shown in examples are provisional. SCRUM-13 owns
-relationship names, direction, cardinality, and edge properties and will
-update this canonical document after those decisions are accepted.
+Relationship names, direction, cardinality, and edge properties are defined
+in §5 (SCRUM-13). ID minting, constraints/indexes, and merge/split mechanics
+remain owned by their stories per the table below.
 
 ## Decision ownership
 
@@ -268,23 +268,276 @@ Nodes created from records scoring 0.65–0.90 in the normalization gate carry
 Nodes retired by a merge receive `:Superseded` plus a `SUPERSEDED_BY` edge
 (SCRUM-68); they are never deleted, so ledger rows stay resolvable.
 
-## 5. Examples
+## 5. Relationships
+
+### 5.1 Direction and ownership rule
+
+Store every edge in the direction shown in §5.2. Queries may traverse either
+way, but writers must not create inverse duplicates for read convenience.
+The hierarchy has one source of truth: a variant reaches its family only via
+`BUILT_ON` and `PLATFORM_OF`; there is no direct variant-to-family edge that
+could disagree with its platform.
+
+Canonical domain relationships are singular facts, not per-source assertion
+records. A writer resolves evidence before updating the edge and retains the
+source assertions in the ingestion/enrichment ledger. It must not create
+parallel domain edges for conflicting evidence because repeated ingestion
+would otherwise be unable to update those assertions idempotently.
+
+### 5.2 Relationship catalog
+
+| Relationship | Start label | End label | Intent | Phase 1 properties |
+|---|---|---|---|---|
+| `MADE_BY` | `ModelFamily` | `Manufacturer` | Assign one marketed family to its manufacturer | None |
+| `PLATFORM_OF` | `Platform` | `ModelFamily` | Assign one chassis/generation to its model family | None |
+| `BUILT_ON` | `VehicleVariant` | `Platform` | Select the platform for a sellable variant | None |
+| `USES_ENGINE` | `VehicleVariant` | `Engine` | Select the resolved engine installation | `power_kw`, `torque_nm`, `emission_standard` |
+| `USES_TRANSMISSION` | `VehicleVariant` | `Transmission` | Select the resolved transmission design | None |
+| `HAS_BODY` | `VehicleVariant` | `BodyType` | Select the variant's body configuration | None |
+| `REFERS_TO` | `Alias` | Any non-`Alias` canonical node | Map one source assertion to one live canonical target | None; identity, provenance, and confidence remain on `Alias` |
+
+Only `USES_ENGINE` carries Phase 1 pairing facts:
+
+| Property | Type | Required | Meaning |
+|---|---|---|---|
+| `power_kw` | int | nullable | Rated output for this vehicle installation, in kilowatts |
+| `torque_nm` | int | nullable | Rated peak torque for this installation, in newton-metres |
+| `emission_standard` | string | nullable | Homologation standard for this installation, such as `"Euro 5"` |
+
+`SUPERSEDED_BY` is intentionally excluded from this catalog. SCRUM-68 owns
+its target rules, lifecycle, and migration behavior.
+
+### 5.3 Cardinality and write rules
+
+Incoming cardinality is `0..*` for all seven relationships. Outgoing rules
+are:
+
+| Relationship | Outgoing cardinality | Provisional exception |
+|---|---|---|
+| `MADE_BY` | `ModelFamily` `1..1` | None |
+| `PLATFORM_OF` | `Platform` `1..1` | None |
+| `BUILT_ON` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
+| `USES_ENGINE` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
+| `USES_TRANSMISSION` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
+| `HAS_BODY` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
+| `REFERS_TO` | `Alias` `1..1` | None; do not create a zero-target Alias |
+
+`:Provisional` relaxes only the listed minimum; it never relaxes a maximum.
+Every graph writer validates the current outgoing set in the same transaction
+as its write and uses `MERGE` on the complete start/relationship/end pattern.
+Parallel duplicates are invalid even when they point to the same endpoint.
+New `REFERS_TO` edges may target provisional nodes, but never `:Superseded`
+nodes; customer-facing resolves continue to filter provisional targets.
+
+Invalid writes include:
+
+```text
+(Engine)-[:USES_ENGINE]->(VehicleVariant)              // inverted
+(variant)-[:BUILT_ON]->(w212), (variant)-[:BUILT_ON]->(w213)
+(alias)-[:REFERS_TO]->(engine), (alias)-[:REFERS_TO]->(variant)
+(alias)-[:REFERS_TO]->(:VehicleVariant:Superseded)
+```
+
+### 5.4 Naming rules
+
+- Names are stable uppercase `SNAKE_CASE` verb phrases.
+- The name reads naturally from start to end: *variant USES engine*,
+  *platform PLATFORM OF family*, *alias REFERS TO target*.
+- `PLATFORM_OF` is an accepted exception to the verb-phrase rule (it reads
+  as a noun). It is kept deliberately — do not rename it for symmetry; the
+  stability rule outweighs the aesthetic one.
+- Do not add generic `HAS`, `LINKED_TO`, `RELATED_TO`, or inverse duplicates.
+- A new name must be added to §5.2 in the same PR that introduces it.
+
+### 5.5 Core query patterns
+
+The six read patterns below reach their resolution target in three hops or
+fewer from an indexed entry point. Alias text remains non-unique: resolve
+queries therefore include `source_system` and return candidates with their
+assertion identities instead of silently choosing a target.
+
+Scope note: the identifier-resolve patterns (5.5.1, 5.5.2) return candidate
+variant IDs plus assertion identity — deliberately not the full resolve
+response. The component-expansion query (engine, body, platform, family,
+manufacturer for a resolved variant) is owned by the resolve API work
+(Phase 1 plan, Story 9.3) and will be added here as another executable
+query block when that story lands. Do not treat 5.5.1 as the complete API
+contract.
+
+| Pattern | Indexed entry dependency (SCRUM-15) | Hops to result |
+|---|---|---|
+| Plate resolve | `Alias(source_system, alias_type, alias_text)` | 1 |
+| k-type resolve | `Alias(source_system, alias_type, alias_text)` | 1 |
+| Sibling amortization | unique `VehicleVariant.id` | 2 |
+| Structured-form search | `ModelFamily.canonical_name`, `Manufacturer.canonical_name` | 3 to engine-filtered variant |
+| Conflict lookup | `Alias.alias_text` | 1 |
+| Gap detection | unique `VehicleVariant.id` | 1 |
+
+#### 5.5.1 Plate resolve
+
+Input: normalized `$alias_text` and `$source_system`. Output: every live,
+customer-visible candidate plus its stable assertion identity. The service
+returns a single resolution only when the candidate set is unambiguous.
+
+<!-- query:plate_resolve:start -->
+```cypher
+MATCH (a:Alias {
+  source_system: $source_system,
+  alias_type: "plate",
+  alias_text: $alias_text
+})-[:REFERS_TO]->(v:VehicleVariant)
+WHERE NOT v:Provisional AND NOT v:Superseded
+RETURN a.id AS alias_id,
+       a.source_assertion_key AS assertion_key,
+       a.confidence AS confidence,
+       v.id AS variant_id
+ORDER BY confidence DESC, assertion_key
+```
+<!-- query:plate_resolve:end -->
+
+Expected for `transportstyrelsen` / `ABC123`: one candidate, `VEH-07G`.
+
+#### 5.5.2 k-type resolve
+
+Input and output match plate resolve, with `source_system = "tecdoc"` and an
+`alias_type` of `k_type`.
+
+<!-- query:k_type_resolve:start -->
+```cypher
+MATCH (a:Alias {
+  source_system: $source_system,
+  alias_type: "k_type",
+  alias_text: $alias_text
+})-[:REFERS_TO]->(v:VehicleVariant)
+WHERE NOT v:Provisional AND NOT v:Superseded
+RETURN a.id AS alias_id,
+       a.source_assertion_key AS assertion_key,
+       a.confidence AS confidence,
+       v.id AS variant_id
+ORDER BY confidence DESC, assertion_key
+```
+<!-- query:k_type_resolve:end -->
+
+Expected for `tecdoc` / `13902`: one candidate, `VEH-07G`.
+
+#### 5.5.3 Sibling amortization
+
+Input: `$variant_id`. Output: other visible variants sharing its engine. The
+explicit inequality prevents the input variant from appearing as its own
+sibling.
+
+<!-- query:sibling_amortization:start -->
+```cypher
+MATCH (v:VehicleVariant {id: $variant_id})-[:USES_ENGINE]->(e:Engine)
+      <-[:USES_ENGINE]-(sibling:VehicleVariant)
+WHERE sibling.id <> v.id
+  AND NOT sibling:Provisional
+  AND NOT sibling:Superseded
+WITH e, sibling ORDER BY sibling.id
+RETURN e.engine_code AS engine_code,
+       collect(DISTINCT sibling.id) AS sibling_variant_ids
+```
+<!-- query:sibling_amortization:end -->
+
+Expected for `VEH-07G`: engine `OM642` and sibling `VEH-15P`; provisional
+`VEH-08H` is excluded.
+
+#### 5.5.4 Structured-form search
+
+Input: `$make`, `$model`, `$year`, and `$fuel`. Output: visible variants and
+their resolved engines. Starting at the indexed family, the path to the
+engine-filtered variant is three hops.
+
+<!-- query:structured_form_search:start -->
+```cypher
+MATCH (f:ModelFamily {canonical_name: $model})-[:MADE_BY]->
+      (m:Manufacturer {canonical_name: $make})
+MATCH (platform:Platform)-[:PLATFORM_OF]->(f)
+MATCH (v:VehicleVariant)-[:BUILT_ON]->(platform)
+MATCH (v)-[:USES_ENGINE]->(e:Engine {fuel_type: $fuel})
+WHERE v.year_from <= $year
+  AND (v.year_to IS NULL OR v.year_to >= $year)
+  AND NOT v:Provisional
+  AND NOT v:Superseded
+RETURN v.id AS variant_id, e.id AS engine_id
+ORDER BY variant_id
+```
+<!-- query:structured_form_search:end -->
+
+Expected for Mercedes-Benz / E-Class / 2011 / diesel: `VEH-07G` and
+`VEH-15P`.
+
+#### 5.5.5 Conflict lookup
+
+Input: normalized `$alias_text`. Output: source assertions only when identical
+text points at more than one live canonical target.
+
+<!-- query:conflict_lookup:start -->
+```cypher
+MATCH (a:Alias {alias_text: $alias_text})-[:REFERS_TO]->(target)
+WHERE NOT target:Superseded
+WITH a.alias_text AS alias_text,
+     collect(DISTINCT target.id) AS target_ids,
+     collect(DISTINCT {
+       alias_id: a.id,
+       source_system: a.source_system,
+       assertion_key: a.source_assertion_key,
+       target_id: target.id,
+       confidence: a.confidence
+     }) AS assertions
+WHERE size(target_ids) > 1
+RETURN alias_text, target_ids, assertions
+```
+<!-- query:conflict_lookup:end -->
+
+Expected for `E350`: targets `VEH-07G` and `VEH-15P`, with each assertion's
+source and stable assertion key retained.
+
+#### 5.5.6 Gap detection
+
+Input: an indexed batch of `$variant_ids`. Output: complete, non-provisional
+variants missing any required structural relationship.
+
+<!-- query:gap_detection:start -->
+```cypher
+UNWIND $variant_ids AS variant_id
+MATCH (v:VehicleVariant {id: variant_id})
+WHERE NOT v:Provisional
+  AND NOT v:Superseded
+  AND (
+    NOT EXISTS { MATCH (v)-[:BUILT_ON]->(:Platform) }
+    OR NOT EXISTS { MATCH (v)-[:USES_ENGINE]->(:Engine) }
+    OR NOT EXISTS { MATCH (v)-[:USES_TRANSMISSION]->(:Transmission) }
+    OR NOT EXISTS { MATCH (v)-[:HAS_BODY]->(:BodyType) }
+  )
+RETURN v.id AS variant_id
+ORDER BY variant_id
+```
+<!-- query:gap_detection:end -->
+
+The integration fixture includes `VEH-GAP`; an input batch containing it and
+`VEH-07G` returns only `VEH-GAP`.
+
+## 6. Examples
 
 A real shared-component cluster: Mercedes E 350 CDI (W212, Sweden) sharing
 its engine with the ML 350 CDI. IDs are shortened for readability —
 illustrative only, invalid for real writes (see §1).
 
 ```
-(:Manufacturer  {id: "MFR-01A", canonical_name: "Mercedes-Benz", country: "DE"})
-(:ModelFamily   {id: "FAM-02B", canonical_name: "E-Class", segment: "executive"})
-(:ModelFamily   {id: "FAM-02C", canonical_name: "M-Class", segment: "suv"})
-(:Platform      {id: "PLT-03C", platform_code: "W212", generation: "4",
+(mfr01:Manufacturer  {id: "MFR-01A", canonical_name: "Mercedes-Benz", country: "DE"})
+(fam02b:ModelFamily  {id: "FAM-02B", canonical_name: "E-Class", segment: "executive"})
+(fam02c:ModelFamily  {id: "FAM-02C", canonical_name: "M-Class", segment: "suv"})
+(plt03:Platform      {id: "PLT-03C", platform_code: "W212", generation: "4",
                  year_from: 2009, year_to: 2016, facelift: false})
+(plt16:Platform      {id: "PLT-16Q", platform_code: "W164", generation: "2",
+                 year_from: 2005, year_to: 2011, facelift: false})
 (eng04:Engine   {id: "ENG-04D", engine_code: "OM642", displacement_cc: 2987,
                  fuel_type: "diesel", configuration: "V6"})
-(:Transmission  {id: "TRN-05E", transmission_code: "722.9",
+(trn05:Transmission  {id: "TRN-05E", transmission_code: "722.9",
                  canonical_name: "7G-TRONIC", type: "automatic", gears: 7})
-(:BodyType      {id: "BDY-06F", canonical_name: "sedan", door_count: 4})
+(bdy06:BodyType      {id: "BDY-06F", canonical_name: "sedan", door_count: 4})
+(bdy17:BodyType      {id: "BDY-17R", canonical_name: "suv", door_count: 5})
 
 (veh07:VehicleVariant {id: "VEH-07G", market: ["SE", "DE"], trim_level: "Avantgarde",
                   drive_type: "rwd", year_from: 2009, year_to: 2013})   // E 350 CDI sedan
@@ -339,13 +592,37 @@ illustrative only, invalid for real writes (see §1).
 (ali12)-[:REFERS_TO]->(veh07)
 (ali13)-[:REFERS_TO]->(veh15)
 (ali14)-[:REFERS_TO]->(veh07)
+
+// Canonical hierarchy and shared-component relationships (§5.2).
+(fam02b)-[:MADE_BY]->(mfr01)
+(fam02c)-[:MADE_BY]->(mfr01)
+(plt03)-[:PLATFORM_OF]->(fam02b)
+(plt16)-[:PLATFORM_OF]->(fam02c)
+(veh07)-[:BUILT_ON]->(plt03)
+(veh08)-[:BUILT_ON]->(plt16)
+(veh15)-[:BUILT_ON]->(plt03)
+(veh07)-[:USES_ENGINE {power_kw: 170, torque_nm: 540,
+                       emission_standard: "Euro 5"}]->(eng04)
+(veh08)-[:USES_ENGINE {power_kw: 165, torque_nm: 510,
+                       emission_standard: "Euro 5"}]->(eng04)
+(veh15)-[:USES_ENGINE {power_kw: 170, torque_nm: 540,
+                       emission_standard: "Euro 5"}]->(eng04)
+(veh07)-[:USES_TRANSMISSION]->(trn05)
+(veh08)-[:USES_TRANSMISSION]->(trn05)
+(veh15)-[:USES_TRANSMISSION]->(trn05)
+(veh07)-[:HAS_BODY]->(bdy06)
+(veh08)-[:HAS_BODY]->(bdy17)
+(veh15)-[:HAS_BODY]->(bdy06)
 ```
 
 What the example demonstrates:
 
-- **Shared component:** both variants will hold `USES_ENGINE` edges to the
-  single `ENG-04D`; the E 350's 231 hp and the ML 350's 224 hp tunes belong
-  on those edges, which is why `Engine` has no power property.
+- **Shared component:** all three variants hold one `USES_ENGINE` edge to the
+  single `ENG-04D`; installation-specific output lives on those edges, which
+  is why `Engine` has no power property.
+- **Connected vocabulary:** `MADE_BY` and `PLATFORM_OF` provide the only path
+  from a variant's platform to its family and manufacturer. Transmission and
+  body nodes are connected without duplicating those hierarchy facts.
 - **Dual-alias pattern:** the k-type alias targets the VehicleVariant; the
   engine-code alias targets the Engine directly.
 - **Duplicate text, stable identity:** `ALI-12L` and `ALI-13M` share the text
@@ -363,7 +640,7 @@ What the example demonstrates:
 - **No name on VehicleVariant:** "Mercedes-Benz E 350 CDI Avantgarde" is
   assembled by traversal, never stored.
 
-## 6. Schema PR review checklist
+## 7. Schema PR review checklist
 
 Every PR that touches this schema (or code writing to the graph) must be
 checked against:
@@ -390,3 +667,12 @@ checked against:
       deleted.
 - [ ] Year ranges use `year_from`/`year_to` with `null` = current; no other
       date encodings.
+- [ ] Every relationship follows the §5.2 direction and appears in its
+      catalog; new names are added there in the same PR.
+- [ ] Cardinality expectations from §5.3 hold; no inverse or parallel
+      duplicate domain edge is written for read convenience or provenance.
+- [ ] Complete variants have exactly one `BUILT_ON`, `USES_ENGINE`,
+      `USES_TRANSMISSION`, and `HAS_BODY` target; only `:Provisional` variants
+      may temporarily omit one.
+- [ ] Pairing-specific facts (power, torque, emission standard) are on
+      edges, never copied onto component nodes.
