@@ -30,7 +30,7 @@ dev = [
 northstar-ingest = "ingestion.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["api*", "ingestion*"]
+include = ["api*", "ingestion*", "northstar*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

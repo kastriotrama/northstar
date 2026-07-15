@@ -15,6 +15,7 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
 
 COPY api ./api
 COPY ingestion ./ingestion
+COPY northstar ./northstar
 
 RUN pip install --no-deps . \
     && useradd --create-home appuser
