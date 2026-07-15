@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-15
+
+- Started `SCRUM-14` documentation work on `feature/SCRUM-14-opaque-id-generation`; added a stakeholder identity decision guide and agent rules covering plate-to-k-type reuse, lookup-before-mint, useful feedback boundaries, and future merge scope; documentation checks, Ruff, mypy, and 39 runnable tests passed.
+
 ## 2026-07-14
 
 - Corrected PR #16's SCRUM-13 contract: reduced the catalog to seven canonical relationships, removed duplicate hierarchy/provenance edges, made Alias resolves candidate-safe, fixed all six traversals, and added Markdown contract plus live Neo4j tests; next step: merge after CI and review.
@@ -19,4 +23,3 @@ Keep the latest 10 task entries only.
 ## 2026-07-08
 
 - Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
-- Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.

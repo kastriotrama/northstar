@@ -21,6 +21,16 @@
 - Keep entries concise.
 - Keep only the latest 10 entries.
 
+## Stakeholder Feedback and Decision Discipline
+
+- Read `docs/STAKEHOLDER_DECISION_GUIDE.md` before work involving internal IDs, external identifiers, Alias behavior, re-imports, corrections, or merge/split discussions.
+- Separate accepted technical invariants from user-visible operational choices and future-story concerns before requesting stakeholder feedback.
+- Do not ask stakeholders to choose implementation mechanisms such as ULID encoding, entropy, parsers, or collision algorithms; ask about observable workflows, visibility, searchability, history, and evidence.
+- When an accepted plate-to-k-type mapping exists, describe the normal behavior as both aliases resolving to one canonical VehicleVariant; do not present duplicate canonical IDs as the expected flow.
+- Require lookup and reconciliation before minting a new canonical ID; ID generation alone does not provide ingestion idempotency.
+- Record useful future feedback without expanding the current story automatically; accepted work needs an explicit owner and Jira scope.
+- Keep merge/split and old-ID redirect behavior with its owning story while preserving the invariant that internal IDs are never reused.
+
 ## Backend Pattern
 
 - FastAPI app entrypoint stays thin.
