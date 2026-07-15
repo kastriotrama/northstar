@@ -31,11 +31,21 @@ def test_documented_production_example_is_valid() -> None:
     assert all(is_valid_node_id(example) for example in examples)
 
 
+def contains_phrase(text: str, phrase: str) -> bool:
+    """Match a documented phrase regardless of markdown line wrapping."""
+
+    pattern = r"\s+".join(re.escape(word) for word in phrase.split())
+    return re.search(pattern, text) is not None
+
+
 def test_documentation_keeps_external_codes_out_of_node_ids() -> None:
     text = schema_text()
+    guide_text = (REPO_ROOT / "docs" / "STAKEHOLDER_DECISION_GUIDE.md").read_text(
+        encoding="utf-8"
+    )
 
-    assert "`ABC123` and `13902` never become node IDs" in text
-    assert re.search(r"look up and reconcile existing\s+identity before minting", text)
-    assert "ID generation provides uniqueness; lookup and reconciliation" in (
-        REPO_ROOT / "docs" / "STAKEHOLDER_DECISION_GUIDE.md"
-    ).read_text(encoding="utf-8")
+    assert contains_phrase(text, "`ABC123` and `13902` never become node IDs")
+    assert contains_phrase(text, "look up and reconcile existing identity before minting")
+    assert contains_phrase(
+        guide_text, "ID generation provides uniqueness; lookup and reconciliation"
+    )

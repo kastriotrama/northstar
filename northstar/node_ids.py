@@ -12,6 +12,7 @@ CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 ULID_LENGTH = 26
 ULID_ENTROPY_BYTES = 10
 NODE_ID_SEPARATOR = "-"
+PREFIX_LENGTH = 3
 MAX_ULID_TIMESTAMP_MS = (1 << 48) - 1
 
 _ULID_BITS = 128
@@ -144,19 +145,19 @@ def parse_node_id(value: str) -> ParsedNodeId:
     if not isinstance(value, str):
         raise TypeError("Node ID must be a string")
 
-    expected_length = len(NodeIdPrefix.MANUFACTURER.value) + len(NODE_ID_SEPARATOR) + ULID_LENGTH
+    expected_length = PREFIX_LENGTH + len(NODE_ID_SEPARATOR) + ULID_LENGTH
     if len(value) != expected_length:
         raise InvalidNodeIdError(f"Node ID must contain exactly {expected_length} characters")
-    if value[3] != NODE_ID_SEPARATOR:
+    if value[PREFIX_LENGTH] != NODE_ID_SEPARATOR:
         raise InvalidNodeIdError("Node ID must separate its prefix and ULID with one hyphen")
 
-    prefix_text = value[:3]
+    prefix_text = value[:PREFIX_LENGTH]
     try:
         prefix = NodeIdPrefix(prefix_text)
     except ValueError as exc:
         raise InvalidNodeIdError(f"Unsupported node ID prefix: {prefix_text!r}") from exc
 
-    ulid = value[4:]
+    ulid = value[PREFIX_LENGTH + len(NODE_ID_SEPARATOR) :]
     decoded = _decode_ulid(ulid)
     return ParsedNodeId(prefix=prefix, ulid=ulid, timestamp_ms=decoded >> _ENTROPY_BITS)
 

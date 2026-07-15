@@ -5,6 +5,7 @@ import pytest
 from northstar.node_ids import (
     CROCKFORD_ALPHABET,
     MAX_ULID_TIMESTAMP_MS,
+    PREFIX_LENGTH,
     InvalidNodeIdError,
     NodeIdGenerator,
     NodeIdPrefix,
@@ -39,6 +40,11 @@ class IncrementingEntropy:
         current = self.value
         self.value += 1
         return current.to_bytes(size, byteorder="big")
+
+
+@pytest.mark.parametrize("prefix", list(NodeIdPrefix))
+def test_every_prefix_has_the_canonical_length(prefix: NodeIdPrefix) -> None:
+    assert len(prefix.value) == PREFIX_LENGTH
 
 
 @pytest.mark.parametrize("prefix", list(NodeIdPrefix))
