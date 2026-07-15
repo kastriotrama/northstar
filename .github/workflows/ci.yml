@@ -109,8 +109,8 @@ jobs:
       - name: Install package
         run: python -m pip install -e ".[dev]"
 
-      - name: Compile API and ingestion
-        run: python -m compileall api ingestion
+      - name: Compile application packages
+        run: python -m compileall api ingestion northstar
 
       - name: Validate live datastore health
         run: |
@@ -143,11 +143,11 @@ jobs:
               time.sleep(3)
           PY
 
-      - name: Lint API and ingestion
+      - name: Lint application packages
         run: python -m ruff check .
 
-      - name: Type check API and ingestion
-        run: python -m mypy api ingestion
+      - name: Type check application packages
+        run: python -m mypy api ingestion northstar
 
-      - name: Test API and ingestion
+      - name: Test application packages
         run: python -m pytest

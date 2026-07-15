@@ -2,20 +2,21 @@
 
 | Field | Value |
 |---|---|
-| Version | `0.2` |
-| Status | Accepted node and relationship contract |
+| Version | `0.3` |
+| Status | Accepted node, relationship, and ID contract |
 | Owner | NorthStar backend team |
-| Jira story | SCRUM-12 (nodes), SCRUM-13 (relationships) |
-| Scope | Node labels, properties, relationships, cardinality, query patterns, examples, and invariants |
-| Last reviewed | 2026-07-14 |
+| Jira story | SCRUM-12 (nodes), SCRUM-13 (relationships), SCRUM-14 (IDs) |
+| Scope | Node labels, properties, relationships, cardinality, IDs, query patterns, examples, and invariants |
+| Last reviewed | 2026-07-15 |
 
-Canonical graph model for the Neo4j knowledge graph (Phase 1, Stories 2.1
-and 2.2). This document is canonical but incomplete until later Epic 2
+Canonical graph model for the Neo4j knowledge graph (Phase 1, Stories 2.1,
+2.2, and 2.3). This document is canonical but incomplete until later Epic 2
 stories extend it.
 
 Relationship names, direction, cardinality, and edge properties are defined
-in §5 (SCRUM-13). ID minting, constraints/indexes, and merge/split mechanics
-remain owned by their stories per the table below.
+in §5 (SCRUM-13), and ID generation is defined in §7 (SCRUM-14).
+Constraints/indexes and merge/split mechanics remain owned by their stories
+per the table below.
 
 ## Decision ownership
 
@@ -36,9 +37,9 @@ remain owned by their stories per the table below.
    codes (TecDoc k-type, engine codes, plates, VINs) are NEVER node IDs — they
    enter the graph only as `Alias` nodes. IDs are never reused, including
    after node merges or splits. Prefixes are accepted by SCRUM-12; the ULID
-   payload and generation utility are finalized by SCRUM-14. Shortened IDs in
-   diagrams and examples (e.g. `ENG-04D`) are illustrative only and invalid
-   for real writes.
+   payload and generation utility are defined in §7 by SCRUM-14. Shortened IDs
+   in diagrams and examples (e.g. `ENG-04D`) are illustrative only and
+   invalid for real writes.
 2. **Intrinsic vs. pairing facts.** A property lives on a node only if it is
    true of the thing itself everywhere it appears. Anything specific to a
    combination (the 231 hp vs 258 hp tune of the same OM642 engine) lives on
@@ -640,7 +641,131 @@ What the example demonstrates:
 - **No name on VehicleVariant:** "Mercedes-Benz E 350 CDI Avantgarde" is
   assembled by traversal, never stored.
 
-## 7. Schema PR review checklist
+## 7. Opaque ID generation (SCRUM-14)
+
+### 7.1 Canonical format and prefixes
+
+Every persisted graph node ID has exactly 30 characters:
+
+```text
+<three-character prefix>-<26-character ULID>
+ENG-01ARZ3NDEKTSV4RRFFQ69G5FAV
+```
+
+The ULID payload is the uppercase canonical Crockford Base32 alphabet
+`0123456789ABCDEFGHJKMNPQRSTVWXYZ`. Lowercase payloads and the ambiguous
+characters `I`, `L`, `O`, and `U` are invalid. The leading ULID character is
+limited to `0` through `7` so the payload fits exactly 128 bits.
+
+| Node label | Prefix | Example shape |
+|---|---|---|
+| `Manufacturer` | `MFR` | `MFR-<ULID>` |
+| `ModelFamily` | `FAM` | `FAM-<ULID>` |
+| `Platform` | `PLT` | `PLT-<ULID>` |
+| `Engine` | `ENG` | `ENG-<ULID>` |
+| `Transmission` | `TRN` | `TRN-<ULID>` |
+| `BodyType` | `BDY` | `BDY-<ULID>` |
+| `VehicleVariant` | `VEH` | `VEH-<ULID>` |
+| `Alias` | `ALI` | `ALI-<ULID>` |
+
+Prefixes communicate canonical node type only. They never identify a source,
+tenant, country, environment, or ingestion job.
+
+### 7.2 ULID construction and collision model
+
+The shared generator builds the 128-bit ULID payload from:
+
+- a 48-bit Unix timestamp in milliseconds; and
+- 80 bits of cryptographically secure random entropy.
+
+The timestamp makes ULID payloads, and full IDs with the same prefix,
+lexicographically sortable across different milliseconds. Generation is
+intentionally stateless and does not promise a stable ordering among IDs
+minted within the same millisecond. The 80-bit random field provides
+approximately 1.2 x 10^24 possible values per millisecond; the Story 2.4
+database uniqueness constraints remain the final integrity backstop.
+
+ULID was selected over a source-derived key or plain UUID because it combines
+source independence, a compact unambiguous uppercase representation,
+operationally useful time ordering, and an explicit node-type prefix. The
+timestamp is not a business creation date and must not replace `created_at`.
+
+### 7.3 Shared utility contract
+
+`northstar.node_ids` is the only application utility that may mint, parse, or
+validate canonical graph IDs. It is a pure shared module usable by ingestion
+and future API graph-write paths.
+
+```python
+from northstar.node_ids import NodeIdGenerator, NodeIdPrefix, parse_node_id
+
+generator = NodeIdGenerator()
+vehicle_id = generator.mint(NodeIdPrefix.VEHICLE_VARIANT)
+parsed = parse_node_id(vehicle_id)
+
+assert parsed.prefix is NodeIdPrefix.VEHICLE_VARIANT
+```
+
+Public behavior:
+
+- `NodeIdGenerator.mint(prefix)` accepts only one of the eight canonical
+  prefixes and returns a new 30-character ID.
+- `mint_node_id(prefix)` is the production convenience function using the
+  system clock and cryptographically secure entropy.
+- `parse_node_id(value)` rejects malformed, lowercase, unknown-prefix, and
+  overflowing values and returns the typed prefix, ULID, and timestamp.
+- `is_valid_node_id(value)` provides a non-raising validation predicate.
+- Tests may inject a clock and entropy source into `NodeIdGenerator`; business
+  code must use the secure defaults.
+
+### 7.4 Lookup before minting
+
+Generation provides unique IDs, but it does not provide ingestion
+idempotency. Every graph write path must look up and reconcile existing
+identity before minting:
+
+```text
+1. Look up (source_system, source_assertion_key).
+2. Reuse the existing Alias and canonical target when present.
+3. Follow any accepted plate-to-k-type mapping to an existing variant.
+4. Reconcile remaining canonical candidates.
+5. Mint only when no canonical match exists.
+```
+
+When a plate and k-type are already connected, they remain separate source
+assertions with separate `ALI-<ULID>` IDs and share one `VEH-<ULID>` target:
+
+```text
+(plate_alias:Alias {id: "ALI-01ARZ3NDEKTSV4RRFFQ69G5FAV", alias_type: "plate",
+                     alias_text: "ABC123",
+                     source_system: "transportstyrelsen"})
+  -[:REFERS_TO]->(variant:VehicleVariant {
+      id: "VEH-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+    })
+
+(k_type_alias:Alias {id: "ALI-01ARZ3NDEKTSV4RRFFQ69G5FAW", alias_type: "k_type",
+                      alias_text: "13902", source_system: "tecdoc"})
+  -[:REFERS_TO]->(variant)
+```
+
+`ABC123` and `13902` never become node IDs. Re-importing either source
+assertion reuses its existing Alias and target rather than minting another
+canonical variant.
+
+### 7.5 Lifecycle and ownership boundaries
+
+- IDs are immutable and never recycled.
+- Correcting `alias_text` does not change the Alias ID.
+- A source-system rename does not change existing canonical IDs.
+- IDs may appear in APIs, stable URLs, logs, audits, integrations, exports,
+  and support tooling. Product stories decide whether they appear in primary
+  user-facing screens.
+- Duplicate reconciliation, old-ID redirects, merge reversal, and
+  `:Superseded` lifecycle mechanics remain owned by SCRUM-68. They do not
+  change the no-reuse rule established here.
+- Database uniqueness constraints and migrations remain owned by SCRUM-15.
+
+## 8. Schema PR review checklist
 
 Every PR that touches this schema (or code writing to the graph) must be
 checked against:
@@ -665,6 +790,8 @@ checked against:
       band and record provenance to the enrichment ledger.
 - [ ] IDs are never reused; merged-away nodes become `:Superseded`, not
       deleted.
+- [ ] New graph write paths use `northstar.node_ids` and perform lookup and
+      reconciliation before minting.
 - [ ] Year ranges use `year_from`/`year_to` with `null` = current; no other
       date encodings.
 - [ ] Every relationship follows the §5.2 direction and appears in its

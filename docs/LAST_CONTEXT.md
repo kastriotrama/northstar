@@ -2,6 +2,11 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-15
+
+- Implemented the `SCRUM-14` prefixed-ULID contract and dependency-free `northstar.node_ids` mint/parse/validate utility with all eight prefixes, injected time/entropy, package/CI/Docker inclusion, and 41 focused ID tests; full validation passed with 80 tests and six Neo4j skips, while Docker image validation remains pending because the daemon was stopped.
+- Started `SCRUM-14` documentation work on `feature/SCRUM-14-opaque-id-generation`; added a stakeholder identity decision guide and agent rules covering plate-to-k-type reuse, lookup-before-mint, useful feedback boundaries, and future merge scope; documentation checks, Ruff, mypy, and 39 runnable tests passed.
+
 ## 2026-07-14
 
 - Corrected PR #16's SCRUM-13 contract: reduced the catalog to seven canonical relationships, removed duplicate hierarchy/provenance edges, made Alias resolves candidate-safe, fixed all six traversals, and added Markdown contract plus live Neo4j tests; next step: merge after CI and review.
@@ -15,8 +20,3 @@ Keep the latest 10 task entries only.
 - Pinned `elasticsearch<9` in `pyproject.toml` after the 9.x client silently failed ping against the 8.14 server; client majors should match server majors.
 - Added `docs/PHASE_1_PLAN.md` capturing the Phase 1 roadmap (epics 1-10) with a repo status mapping.
 - Remaining follow-ups flagged: publish images on merge (GHCR), Terraform fmt/validate in CI, move `pytest`/`httpx` from runtime deps to the `dev` extra, staging provider decision for `infra/staging`.
-
-## 2026-07-08
-
-- Completed `SCRUM-10` Jira closure after user-managed PR merge to `develop`; started `SCRUM-11` from updated `origin/develop` on `feature/SCRUM-11-ci-pipeline-foundation` and added PR completion workflow rules to `AGENTS.md`.
-- Completed `SCRUM-32` CI command alignment with explicit API/ingestion compile, lint, type-check, and test steps; local validation passed with compileall, ruff, mypy, and pytest.
