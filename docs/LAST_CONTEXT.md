@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-07-16
 
-- Hardened PR #18 for `SCRUM-15`: replaced delimiter-concatenated Alias identity with the shared versioned compact-JSON encoder, added collision/Unicode/input tests, verified duplicate IDs across all eight Neo4j labels, and made live migration checks compare labels, ordered properties, and schema types; local compile, Ruff, mypy, and 107 runnable tests passed, while live Neo4j validation remains delegated to CI because Docker is stopped.
+- Hardened PR #18 for `SCRUM-15`: replaced delimiter-concatenated Alias identity with the shared versioned compact-JSON encoder, added collision/Unicode/input tests, verified duplicate IDs across all eight Neo4j labels, and made live migration checks compare labels, ordered properties, and schema types while excluding unrelated Neo4j built-in indexes; local compile, Ruff, mypy, and 107 runnable tests passed, with live Neo4j validation delegated to CI because Docker is stopped.
 
 ## 2026-07-15
 

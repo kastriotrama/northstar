@@ -158,21 +158,35 @@ class GraphSchemaObject:
 
 
 def fetch_constraint_definitions(driver: Driver) -> dict[str, GraphSchemaObject]:
+    names = [
+        statement.name
+        for statement in GRAPH_MIGRATION_STATEMENTS
+        if statement.kind == "constraint"
+    ]
     with driver.session() as session:
         records = session.run(
             "SHOW CONSTRAINTS "
             "YIELD name, labelsOrTypes, properties, type "
-            "RETURN name, labelsOrTypes, properties, type"
+            "WHERE name IN $names "
+            "RETURN name, labelsOrTypes, properties, type",
+            names=names,
         ).data()
     return _schema_objects_by_name(records)
 
 
 def fetch_index_definitions(driver: Driver) -> dict[str, GraphSchemaObject]:
+    names = [
+        statement.name
+        for statement in GRAPH_MIGRATION_STATEMENTS
+        if statement.kind == "index"
+    ]
     with driver.session() as session:
         records = session.run(
             "SHOW INDEXES "
             "YIELD name, labelsOrTypes, properties, type "
-            "RETURN name, labelsOrTypes, properties, type"
+            "WHERE name IN $names "
+            "RETURN name, labelsOrTypes, properties, type",
+            names=names,
         ).data()
     return _schema_objects_by_name(records)
 
