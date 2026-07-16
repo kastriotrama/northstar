@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-16
+
+- Hardened PR #18 for `SCRUM-15`: replaced delimiter-concatenated Alias identity with the shared versioned compact-JSON encoder, added collision/Unicode/input tests, verified duplicate IDs across all eight Neo4j labels, and made live migration checks compare labels, ordered properties, and schema types; local compile, Ruff, mypy, and 107 runnable tests passed, while live Neo4j validation remains delegated to CI because Docker is stopped.
+
 ## 2026-07-15
 
 - Implemented the `SCRUM-14` prefixed-ULID contract and dependency-free `northstar.node_ids` mint/parse/validate utility with all eight prefixes, injected time/entropy, package/CI/Docker inclusion, and 41 focused ID tests; full validation passed with 80 tests and six Neo4j skips, while Docker image validation remains pending because the daemon was stopped.
@@ -19,4 +23,3 @@ Keep the latest 10 task entries only.
 - Validated live: both images build, API image serves `/health` ok against Docker Compose datastores, `API_PORT=9000` override works, graceful shutdown in 1s; pytest 33 passed, ruff and mypy clean.
 - Pinned `elasticsearch<9` in `pyproject.toml` after the 9.x client silently failed ping against the 8.14 server; client majors should match server majors.
 - Added `docs/PHASE_1_PLAN.md` capturing the Phase 1 roadmap (epics 1-10) with a repo status mapping.
-- Remaining follow-ups flagged: publish images on merge (GHCR), Terraform fmt/validate in CI, move `pytest`/`httpx` from runtime deps to the `dev` extra, staging provider decision for `infra/staging`.

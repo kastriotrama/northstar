@@ -181,7 +181,7 @@ string — is an Alias pointing at exactly one live node via `REFERS_TO`.
 | `source_system` | enum(`tecdoc`, `transportstyrelsen`, `manual`) | required | `"transportstyrelsen"` | Which source asserted this mapping; new sources extend the enum |
 | `source_record_key` | string | required | `"vehicle-abc123"` | Stable provider record containing the assertion; for manual assertions, use a stable change-request or batch key |
 | `source_assertion_key` | string | required | `"vehicle-abc123:plate:0"` | Stable source-local identity for this individual alias assertion |
-| `assertion_identity` | string | required | `"transportstyrelsen:vehicle-abc123:plate:0"` | Writer-computed `source_system + ":" + source_assertion_key`. Exists only to give the `(source_system, source_assertion_key)` identity a single-property uniqueness constraint on Neo4j Community edition (§8); never set by hand |
+| `assertion_identity` | string | required | `v1:["transportstyrelsen","vehicle-abc123:plate:0"]` | Writer-computed by `northstar.build_assertion_identity`. The versioned compact JSON array preserves component boundaries and gives `(source_system, source_assertion_key)` a single-property uniqueness constraint on Neo4j Community edition (§8); never concatenate or set this property by hand |
 | `confidence` | float | required | `0.97` | 0.0–1.0 confidence of the mapping, from the Epic 4 scoring gate; mutable |
 
 For manual assertions, keep record and assertion identity separate. Use a
@@ -223,6 +223,19 @@ to the same assertion. If that correlation is impossible, create a new
 assertion and explicitly retract or supersede the old assertion. Do not derive
 stable identity from a hash of mutable value content. Document the chosen
 strategy per source in the ingestion service.
+
+`assertion_identity` is constructed only through the shared helper:
+
+```python
+from northstar import build_assertion_identity
+
+identity = build_assertion_identity(source_system, source_assertion_key)
+```
+
+The canonical representation is `v1:` followed by a compact JSON array. It
+is versioned, deterministic, preserves Unicode, and cannot confuse component
+boundaries: `("a:b", "c")` and `("a", "b:c")` produce different identities.
+Empty or whitespace-only components are rejected.
 
 Examples:
 
@@ -796,7 +809,8 @@ below are a stable contract asserted by the doc contract tests.
 **Community-edition note:** Neo4j Community does not support composite
 uniqueness (node key) constraints — they are Enterprise-only, and compose/CI
 run `neo4j:5` Community. The Alias identity is therefore enforced through
-the writer-computed `assertion_identity` property (§3.8) under a plain
+the writer-computed, collision-safe `assertion_identity` property (§3.8)
+under a plain
 uniqueness constraint. Composite lookup *indexes* are supported on Community
 and are used below.
 

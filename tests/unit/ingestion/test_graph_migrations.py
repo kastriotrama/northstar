@@ -48,3 +48,8 @@ def test_statement_kinds_match_cypher() -> None:
     for statement in GRAPH_MIGRATION_STATEMENTS:
         expected = "CREATE CONSTRAINT" if statement.kind == "constraint" else "CREATE INDEX"
         assert statement.cypher.startswith(expected)
+        assert f"(n:{statement.label})" in statement.cypher
+        assert statement.properties
+        assert statement.schema_type == (
+            "UNIQUENESS" if statement.kind == "constraint" else "RANGE"
+        )

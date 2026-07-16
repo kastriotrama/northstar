@@ -38,6 +38,9 @@ class GraphMigrationStatement:
 
     name: str
     kind: Literal["constraint", "index"]
+    label: str
+    properties: tuple[str, ...]
+    schema_type: Literal["UNIQUENESS", "RANGE"]
     cypher: str
 
 
@@ -55,6 +58,9 @@ def _node_id_constraint(label: str) -> GraphMigrationStatement:
     return GraphMigrationStatement(
         name=name,
         kind="constraint",
+        label=label,
+        properties=("id",),
+        schema_type="UNIQUENESS",
         cypher=(
             f"CREATE CONSTRAINT {name} IF NOT EXISTS "
             f"FOR (n:{label}) REQUIRE n.id IS UNIQUE"
@@ -69,6 +75,9 @@ NODE_ID_CONSTRAINTS: tuple[GraphMigrationStatement, ...] = tuple(
 ALIAS_IDENTITY_CONSTRAINT = GraphMigrationStatement(
     name="alias_assertion_identity_unique",
     kind="constraint",
+    label="Alias",
+    properties=("assertion_identity",),
+    schema_type="UNIQUENESS",
     cypher=(
         "CREATE CONSTRAINT alias_assertion_identity_unique IF NOT EXISTS "
         "FOR (n:Alias) REQUIRE n.assertion_identity IS UNIQUE"
@@ -79,6 +88,9 @@ LOOKUP_INDEXES: tuple[GraphMigrationStatement, ...] = (
     GraphMigrationStatement(
         name="alias_resolve_entry",
         kind="index",
+        label="Alias",
+        properties=("source_system", "alias_type", "alias_text"),
+        schema_type="RANGE",
         cypher=(
             "CREATE INDEX alias_resolve_entry IF NOT EXISTS "
             "FOR (n:Alias) ON (n.source_system, n.alias_type, n.alias_text)"
@@ -87,6 +99,9 @@ LOOKUP_INDEXES: tuple[GraphMigrationStatement, ...] = (
     GraphMigrationStatement(
         name="alias_text_lookup",
         kind="index",
+        label="Alias",
+        properties=("alias_text",),
+        schema_type="RANGE",
         cypher=(
             "CREATE INDEX alias_text_lookup IF NOT EXISTS "
             "FOR (n:Alias) ON (n.alias_text)"
@@ -95,6 +110,9 @@ LOOKUP_INDEXES: tuple[GraphMigrationStatement, ...] = (
     GraphMigrationStatement(
         name="model_family_canonical_name_lookup",
         kind="index",
+        label="ModelFamily",
+        properties=("canonical_name",),
+        schema_type="RANGE",
         cypher=(
             "CREATE INDEX model_family_canonical_name_lookup IF NOT EXISTS "
             "FOR (n:ModelFamily) ON (n.canonical_name)"
@@ -103,6 +121,9 @@ LOOKUP_INDEXES: tuple[GraphMigrationStatement, ...] = (
     GraphMigrationStatement(
         name="manufacturer_canonical_name_lookup",
         kind="index",
+        label="Manufacturer",
+        properties=("canonical_name",),
+        schema_type="RANGE",
         cypher=(
             "CREATE INDEX manufacturer_canonical_name_lookup IF NOT EXISTS "
             "FOR (n:Manufacturer) ON (n.canonical_name)"
@@ -126,13 +147,58 @@ def run_graph_migrations(driver: Driver) -> tuple[str, ...]:
     return tuple(statement.name for statement in GRAPH_MIGRATION_STATEMENTS)
 
 
-def fetch_constraint_names(driver: Driver) -> set[str]:
-    with driver.session() as session:
-        records = session.run("SHOW CONSTRAINTS YIELD name RETURN name").data()
-    return {record["name"] for record in records}
+@dataclass(frozen=True)
+class GraphSchemaObject:
+    """Relevant database metadata for one constraint or index."""
+
+    name: str
+    labels_or_types: tuple[str, ...]
+    properties: tuple[str, ...]
+    schema_type: str
 
 
-def fetch_index_names(driver: Driver) -> set[str]:
+def fetch_constraint_definitions(driver: Driver) -> dict[str, GraphSchemaObject]:
     with driver.session() as session:
-        records = session.run("SHOW INDEXES YIELD name RETURN name").data()
-    return {record["name"] for record in records}
+        records = session.run(
+            "SHOW CONSTRAINTS "
+            "YIELD name, labelsOrTypes, properties, type "
+            "RETURN name, labelsOrTypes, properties, type"
+        ).data()
+    return _schema_objects_by_name(records)
+
+
+def fetch_index_definitions(driver: Driver) -> dict[str, GraphSchemaObject]:
+    with driver.session() as session:
+        records = session.run(
+            "SHOW INDEXES "
+            "YIELD name, labelsOrTypes, properties, type "
+            "RETURN name, labelsOrTypes, properties, type"
+        ).data()
+    return _schema_objects_by_name(records)
+
+
+def _schema_objects_by_name(
+    records: list[dict[str, object]],
+) -> dict[str, GraphSchemaObject]:
+    objects: dict[str, GraphSchemaObject] = {}
+    for record in records:
+        name = record["name"]
+        labels_or_types = record["labelsOrTypes"]
+        properties = record["properties"]
+        schema_type = record["type"]
+        if (
+            not isinstance(name, str)
+            or not isinstance(labels_or_types, list)
+            or not all(isinstance(value, str) for value in labels_or_types)
+            or not isinstance(properties, list)
+            or not all(isinstance(value, str) for value in properties)
+            or not isinstance(schema_type, str)
+        ):
+            raise TypeError("Neo4j returned invalid schema metadata")
+        objects[name] = GraphSchemaObject(
+            name=name,
+            labels_or_types=tuple(labels_or_types),
+            properties=tuple(properties),
+            schema_type=schema_type,
+        )
+    return objects

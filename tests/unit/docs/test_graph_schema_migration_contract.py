@@ -23,3 +23,11 @@ def test_documented_names_match_migration_module_exactly() -> None:
 def test_documented_runner_command_exists() -> None:
     text = SCHEMA_DOC.read_text(encoding="utf-8")
     assert "northstar-ingest migrate-graph" in text
+
+
+def test_documented_alias_identity_uses_collision_safe_shared_helper() -> None:
+    text = SCHEMA_DOC.read_text(encoding="utf-8")
+
+    assert "northstar.build_assertion_identity" in text
+    assert 'v1:["transportstyrelsen","vehicle-abc123:plate:0"]' in text
+    assert 'source_system + ":" + source_assertion_key' not in text
