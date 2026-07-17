@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-17
+
+- Hardened PR #19 for `SCRUM-16`: COPY loads now validate source/written/landed counts before commit and roll back mismatches, while staging migrations verify exact columns, defaults, nullability, and primary keys; compile, Ruff, mypy, 135 runnable tests, and five live PostgreSQL tests passed, with 16 unrelated Neo4j tests skipped locally.
+
 ## 2026-07-16
 
 - Hardened PR #18 for `SCRUM-15`: replaced delimiter-concatenated Alias identity with the shared versioned compact-JSON encoder, added collision/Unicode/input tests, verified duplicate IDs across all eight Neo4j labels, and made live migration checks compare labels, ordered properties, and schema types while excluding unrelated Neo4j built-in indexes; local compile, Ruff, mypy, and 107 runnable tests passed, with live Neo4j validation delegated to CI because Docker is stopped.

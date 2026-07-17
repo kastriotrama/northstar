@@ -28,6 +28,18 @@ _RAW_LANDING_COLUMNS_SQL = (
     "raw_record JSONB NOT NULL"
 )
 
+_RAW_LANDING_COLUMN_CONTRACT = (
+    ("id", "bigint", False, "sequence"),
+    ("source_batch_id", "text", False, None),
+    ("ingested_at", "timestamp with time zone", False, "now"),
+    ("raw_record", "jsonb", False, None),
+)
+_RAW_LANDING_PRIMARY_KEY = ("id",)
+
+
+class StagingSchemaContractError(RuntimeError):
+    """Raised when an existing staging table does not match the shared shape."""
+
 
 @dataclass(frozen=True)
 class StagingMigrationStatement:
@@ -103,11 +115,80 @@ ALLOWED_STAGING_TABLES: frozenset[str] = frozenset(
 def run_staging_migrations(connection: Connection) -> tuple[str, ...]:
     """Apply every staging migration statement; return applied names in order."""
 
-    with connection.cursor() as cursor:
-        for statement in STAGING_MIGRATION_STATEMENTS:
-            cursor.execute(statement.sql)
-    connection.commit()
+    try:
+        with connection.cursor() as cursor:
+            for statement in STAGING_MIGRATION_STATEMENTS:
+                cursor.execute(statement.sql)
+        verify_staging_schema_contract(connection)
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
     return tuple(statement.name for statement in STAGING_MIGRATION_STATEMENTS)
+
+
+def _classify_column_default(default: str | None) -> str | None:
+    if default is None:
+        return None
+    if default.startswith("nextval("):
+        return "sequence"
+    if default == "now()":
+        return "now"
+    return default
+
+
+def verify_staging_schema_contract(connection: Connection) -> None:
+    """Ensure every registered staging table has the exact shared contract."""
+
+    for qualified_table in sorted(ALLOWED_STAGING_TABLES):
+        schema_name, table_name = qualified_table.split(".", 1)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT column_name, data_type, is_nullable, column_default "
+                "FROM information_schema.columns "
+                "WHERE table_schema = %s AND table_name = %s "
+                "ORDER BY ordinal_position",
+                (schema_name, table_name),
+            )
+            columns = tuple(
+                (
+                    str(row[0]),
+                    str(row[1]),
+                    str(row[2]) == "YES",
+                    _classify_column_default(
+                        None if row[3] is None else str(row[3])
+                    ),
+                )
+                for row in cursor.fetchall()
+            )
+            cursor.execute(
+                "SELECT key_usage.column_name "
+                "FROM information_schema.table_constraints AS constraints "
+                "JOIN information_schema.key_column_usage AS key_usage "
+                "ON constraints.constraint_name = key_usage.constraint_name "
+                "AND constraints.constraint_schema = key_usage.constraint_schema "
+                "AND constraints.table_schema = key_usage.table_schema "
+                "AND constraints.table_name = key_usage.table_name "
+                "WHERE constraints.table_schema = %s "
+                "AND constraints.table_name = %s "
+                "AND constraints.constraint_type = 'PRIMARY KEY' "
+                "ORDER BY key_usage.ordinal_position",
+                (schema_name, table_name),
+            )
+            primary_key = tuple(str(row[0]) for row in cursor.fetchall())
+
+        if columns != _RAW_LANDING_COLUMN_CONTRACT:
+            message = (
+                f"{qualified_table} column contract mismatch: "
+                f"expected {_RAW_LANDING_COLUMN_CONTRACT!r}, got {columns!r}"
+            )
+            raise StagingSchemaContractError(message)
+        if primary_key != _RAW_LANDING_PRIMARY_KEY:
+            message = (
+                f"{qualified_table} primary key mismatch: "
+                f"expected {_RAW_LANDING_PRIMARY_KEY!r}, got {primary_key!r}"
+            )
+            raise StagingSchemaContractError(message)
 
 
 def fetch_staging_schema_names(connection: Connection) -> set[str]:

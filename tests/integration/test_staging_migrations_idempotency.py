@@ -5,12 +5,19 @@ import pytest
 from psycopg import Connection
 
 from ingestion.config import get_ingestion_settings
-from ingestion.staging_loaders import copy_raw_records, count_batch_rows
+from ingestion.staging_loaders import (
+    BatchRowCountMismatchError,
+    copy_raw_records,
+    count_batch_rows,
+)
+from ingestion import staging_migrations
 from ingestion.staging_migrations import (
     STAGING_MIGRATION_STATEMENTS,
+    StagingSchemaContractError,
     fetch_staging_schema_names,
     fetch_staging_table_names,
     run_staging_migrations,
+    verify_staging_schema_contract,
 )
 
 
@@ -67,6 +74,7 @@ def test_copy_raw_records_loads_transportstyrelsen_raw_via_copy(
             pg_connection,
             table="staging.transportstyrelsen_raw",
             source_batch_id=batch_id,
+            expected_source_count=len(records),
             records=records,
         )
         landed = count_batch_rows(
@@ -112,6 +120,7 @@ def test_copy_raw_records_loads_tecdoc_manufacturer_via_copy(
             pg_connection,
             table="staging.tecdoc_manufacturer",
             source_batch_id=batch_id,
+            expected_source_count=len(records),
             records=records,
         )
         assert written == 1
@@ -128,4 +137,58 @@ def test_copy_raw_records_loads_tecdoc_manufacturer_via_copy(
     finally:
         with pg_connection.cursor() as cursor:
             cursor.execute(cleanup_sql, (batch_id,))
+        pg_connection.commit()
+
+
+def test_copy_raw_records_rolls_back_row_count_mismatch(
+    pg_connection: Connection,
+) -> None:
+    run_staging_migrations(pg_connection)
+    batch_id = "scrum16-test-mismatch"
+    records = [{"plate": "ABC123"}, {"plate": "XYZ789"}]
+    cleanup_sql = "DELETE FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s"
+
+    with pg_connection.cursor() as cursor:
+        cursor.execute(cleanup_sql, (batch_id,))
+    pg_connection.commit()
+
+    with pytest.raises(BatchRowCountMismatchError, match="row-count mismatch"):
+        copy_raw_records(
+            pg_connection,
+            table="staging.transportstyrelsen_raw",
+            source_batch_id=batch_id,
+            expected_source_count=3,
+            records=records,
+        )
+
+    assert count_batch_rows(
+        pg_connection,
+        table="staging.transportstyrelsen_raw",
+        source_batch_id=batch_id,
+    ) == 0
+
+
+def test_schema_verification_rejects_malformed_existing_table(
+    pg_connection: Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qualified_table = "staging.scrum16_malformed_contract"
+    with pg_connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS staging")
+        cursor.execute(f"DROP TABLE IF EXISTS {qualified_table}")
+        cursor.execute(f"CREATE TABLE {qualified_table} (id BIGINT PRIMARY KEY)")
+    pg_connection.commit()
+
+    monkeypatch.setattr(
+        staging_migrations,
+        "ALLOWED_STAGING_TABLES",
+        frozenset({qualified_table}),
+    )
+    try:
+        with pytest.raises(StagingSchemaContractError, match="column contract mismatch"):
+            verify_staging_schema_contract(pg_connection)
+    finally:
+        pg_connection.rollback()
+        with pg_connection.cursor() as cursor:
+            cursor.execute(f"DROP TABLE IF EXISTS {qualified_table}")
         pg_connection.commit()

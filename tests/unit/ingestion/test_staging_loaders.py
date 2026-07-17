@@ -9,6 +9,7 @@ def test_copy_raw_records_rejects_table_outside_allow_list() -> None:
             connection=None,  # type: ignore[arg-type]
             table="staging.not_a_real_table",
             source_batch_id="batch-1",
+            expected_source_count=0,
             records=[],
         )
 
@@ -21,7 +22,31 @@ def test_copy_raw_records_validates_before_touching_connection() -> None:
             connection=None,  # type: ignore[arg-type]
             table="staging.also_not_real",
             source_batch_id="batch-1",
+            expected_source_count=1,
             records=[{"a": 1}],
+        )
+
+
+@pytest.mark.parametrize("source_batch_id", ["", " ", "\t"])
+def test_copy_raw_records_rejects_empty_batch_id(source_batch_id: str) -> None:
+    with pytest.raises(ValueError, match="source_batch_id must not be empty"):
+        copy_raw_records(
+            connection=None,  # type: ignore[arg-type]
+            table="staging.transportstyrelsen_raw",
+            source_batch_id=source_batch_id,
+            expected_source_count=0,
+            records=[],
+        )
+
+
+def test_copy_raw_records_rejects_negative_expected_count() -> None:
+    with pytest.raises(ValueError, match="expected_source_count must be non-negative"):
+        copy_raw_records(
+            connection=None,  # type: ignore[arg-type]
+            table="staging.transportstyrelsen_raw",
+            source_batch_id="batch-1",
+            expected_source_count=-1,
+            records=[],
         )
 
 

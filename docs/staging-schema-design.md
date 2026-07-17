@@ -104,6 +104,7 @@ row_count = copy_raw_records(
     connection,
     table="staging.transportstyrelsen_raw",
     source_batch_id="2026-07-16-full-export",
+    expected_source_count=source_record_count,
     records=extracted_records,  # Iterable[dict], one dict per source row
 )
 ```
@@ -123,31 +124,29 @@ Rules:
   are responsible for choosing a `source_batch_id` and not re-running a
   completed batch.
 
-**Row-count validation is required.** Every load must verify that three
-numbers agree: the record count extracted from the source, the row count
-returned by `copy_raw_records`, and the landed count from
-`count_batch_rows`:
+**Row-count validation is required and atomic.** Every caller passes the
+record count extracted from the source as `expected_source_count`.
+`copy_raw_records` verifies that this equals both the number written through
+COPY and the landed count for `source_batch_id`. It commits only when all
+three agree; any mismatch raises `BatchRowCountMismatchError` and rolls the
+transaction back:
 
 ```python
-from ingestion.staging_loaders import copy_raw_records, count_batch_rows
+from ingestion.staging_loaders import copy_raw_records
 
 written = copy_raw_records(
     connection,
     table="staging.transportstyrelsen_raw",
     source_batch_id=batch_id,
+    expected_source_count=source_record_count,
     records=extracted_records,
 )
-landed = count_batch_rows(
-    connection,
-    table="staging.transportstyrelsen_raw",
-    source_batch_id=batch_id,
-)
-if not (written == landed == source_record_count):
-    raise RuntimeError(f"Batch {batch_id}: source={source_record_count} written={written} landed={landed}")
+assert written == source_record_count
 ```
 
-A mismatch means the load failed; the batch must be investigated (and its
-rows removed or the batch id retired) before normalization runs against it.
+A mismatch means the load failed and no rows from that transaction remain.
+The separate `count_batch_rows` helper remains available for monitoring and
+post-load investigation.
 The same three-way check applies to every `tecdoc_<entity>` table — this is
 the "row counts match source" acceptance rule from the Phase 1 plan,
 Stories 5.1 and 6.1.
@@ -159,8 +158,11 @@ northstar-ingest migrate-staging
 ```
 
 Every statement uses `IF NOT EXISTS`, so the migration is idempotent ---
-running it twice succeeds and the second run is a no-op. Statement names
-below are a stable contract asserted by the doc contract tests.
+running it twice succeeds and the second run is a no-op. Before committing,
+the runner verifies every registered staging table's column order, data types,
+nullability, defaults, and `id` primary key. An incompatible existing table
+raises `StagingSchemaContractError` instead of being silently accepted.
+Statement names below are a stable contract asserted by the doc contract tests.
 
 | Name | Kind | Object |
 |---|---|---|
