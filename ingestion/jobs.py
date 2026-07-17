@@ -5,6 +5,7 @@ from typing import Protocol
 from ingestion.config import IngestionSettings
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
+from ingestion.staging_migrations import run_staging_migrations
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,36 @@ class MigrateGraphJob:
 
 
 @dataclass(frozen=True)
+class MigrateStagingJob:
+    """Apply idempotent PostgreSQL staging schema migrations before load."""
+
+    name: str = "migrate-staging"
+    description: str = "Apply PostgreSQL staging schema migrations (idempotent)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_staging_migrations(connection)
+        logger.info(
+            "Staging migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -93,6 +124,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
         source_name="system",
     ),
     MigrateGraphJob(),
+    MigrateStagingJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",
