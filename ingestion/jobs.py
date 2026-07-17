@@ -1,10 +1,62 @@
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 
 from ingestion.config import IngestionSettings
 from ingestion.datastores import DatastoreClients
+from ingestion.graph_migrations import run_graph_migrations
 
 logger = logging.getLogger(__name__)
+
+
+class IngestionJob(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def source_name(self) -> str: ...
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        """Run the job and return an exit code."""
+        ...
+
+
+@dataclass(frozen=True)
+class MigrateGraphJob:
+    """Apply idempotent Neo4j constraint and index migrations before load."""
+
+    name: str = "migrate-graph"
+    description: str = "Apply Neo4j constraint and index migrations (idempotent)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.neo4j.driver() as driver:
+            applied = run_graph_migrations(driver)
+        logger.info(
+            "Graph migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
 
 
 @dataclass(frozen=True)
@@ -34,12 +86,13 @@ class StubIngestionJob:
         return 0
 
 
-AVAILABLE_JOBS: tuple[StubIngestionJob, ...] = (
+AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     StubIngestionJob(
         name="healthcheck",
         description="Stub ingestion dependency healthcheck command.",
         source_name="system",
     ),
+    MigrateGraphJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",
@@ -73,11 +126,11 @@ AVAILABLE_JOBS: tuple[StubIngestionJob, ...] = (
 )
 
 
-def list_jobs() -> tuple[StubIngestionJob, ...]:
+def list_jobs() -> tuple[IngestionJob, ...]:
     return AVAILABLE_JOBS
 
 
-def get_job(command_name: str) -> StubIngestionJob:
+def get_job(command_name: str) -> IngestionJob:
     for job in AVAILABLE_JOBS:
         if job.name == command_name:
             return job
