@@ -31,6 +31,7 @@ def test_documented_contract_covers_story_criteria() -> None:
     # SCRUM-56: columns and index strategy, JSONB/array justified.
     for column in (
         "source",
+        "event_id",
         "cost_eur",
         "attributes_added",
         "target_node_id",
@@ -45,6 +46,8 @@ def test_documented_contract_covers_story_criteria() -> None:
     assert "append-only" in text
     assert "correction pattern" in text
     assert "corrects_ledger_id" in text
+    assert "Correction chains are linear and node-local" in text
+    assert "one event cannot be recorded twice" in text
     assert "Every graph write records a ledger entry" in text
     # SCRUM-59: examples with source and confidence for both sources.
     assert 'source="tecdoc"' in text

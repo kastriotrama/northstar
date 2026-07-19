@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-19
+
+- Hardened PR #20 for `SCRUM-17`: added UUID-based retry idempotency, node-local linear correction constraints, complete schema-contract verification, corrected ledger documentation, and cross-store provenance rules in `AGENTS.md`; Ruff, mypy, 162 tests, and all 10 live PostgreSQL ledger tests passed, with 16 unrelated Neo4j tests skipped.
+
 ## 2026-07-17
 
 - Hardened PR #19 for `SCRUM-16`: COPY loads now validate source/written/landed counts before commit and roll back mismatches, while staging migrations verify exact columns, defaults, nullability, and primary keys; compile, Ruff, mypy, 135 runnable tests, and five live PostgreSQL tests passed, with 16 unrelated Neo4j tests skipped locally.
@@ -25,5 +29,3 @@ Keep the latest 10 task entries only.
 - Fixed CI workflow gaps on `feature/SCRUM-11-ci-pipeline-foundation`: added `develop` to push triggers (default branch previously never ran CI post-merge), concurrency cancellation, pip caching, and fixed the datastore health retry loop to use `run_health_checks` so a raising client retries instead of crashing.
 - Completed the Docker image build subtask (parent `SCRUM-11`): added multi-stage `Dockerfile` (`api` and `ingestion` targets, non-root user, dependency-layer caching, env-driven `API_HOST`/`API_PORT` with exec-form PID 1 signal handling), `.dockerignore`, and a CI `images` job that builds and smoke-tests both images on PRs with no publish step.
 - Validated live: both images build, API image serves `/health` ok against Docker Compose datastores, `API_PORT=9000` override works, graceful shutdown in 1s; pytest 33 passed, ruff and mypy clean.
-- Pinned `elasticsearch<9` in `pyproject.toml` after the 9.x client silently failed ping against the 8.14 server; client majors should match server majors.
-- Added `docs/PHASE_1_PLAN.md` capturing the Phase 1 roadmap (epics 1-10) with a repo status mapping.

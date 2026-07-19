@@ -49,6 +49,15 @@
 - Use constructor-injected services, repositories, and adapters.
 - Keep sync code paths fully sync and async code paths fully async.
 
+## Cross-Store Provenance Pattern
+
+- Generate one collision-safe operation UUID before a logical write that spans datastores, retain it durably, and reuse it for every retry.
+- Make append-only writers idempotent with a database unique constraint; the same operation ID and payload returns the existing row, while different content for that ID is rejected.
+- Keep correction chains linear and scoped to one canonical target; enforce both rules in the database rather than relying only on service validation.
+- Put durable invariants in named database constraints, indexes, and triggers, then verify their definitions and enabled state after idempotent migrations.
+- Test cross-store retry ambiguity, invalid correction links, schema drift, and database-enforced immutability with integration tests.
+- Treat graph-without-provenance and provenance-without-graph states as reconciliation defects with observable repair paths.
+
 ## Testing Policy
 
 - Every new feature, service, repository, integration adapter, and utility must include tests in the same change.

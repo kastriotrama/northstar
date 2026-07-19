@@ -21,6 +21,7 @@ def test_table_statement_covers_required_ledger_columns() -> None:
         if statement.name == "create_enrichment_ledger_table"
     )
     for fragment in (
+        "event_id UUID NOT NULL",
         "source TEXT NOT NULL",
         "target_node_id TEXT NOT NULL",
         "attributes_added TEXT[] NOT NULL",
@@ -28,7 +29,8 @@ def test_table_statement_covers_required_ledger_columns() -> None:
         "cost_eur NUMERIC(12,4) NOT NULL",
         "confidence DOUBLE PRECISION NOT NULL",
         "evidence JSONB NOT NULL",
-        "corrects_ledger_id BIGINT REFERENCES",
+        "corrects_ledger_id BIGINT",
+        "FOREIGN KEY (corrects_ledger_id, target_node_id)",
         "created_at TIMESTAMPTZ NOT NULL",
     ):
         assert fragment in table_sql, fragment
@@ -36,9 +38,7 @@ def test_table_statement_covers_required_ledger_columns() -> None:
 
 def test_append_only_triggers_cover_update_delete_and_truncate() -> None:
     trigger_sqls = [
-        statement.sql
-        for statement in LEDGER_MIGRATION_STATEMENTS
-        if statement.kind == "trigger"
+        statement.sql for statement in LEDGER_MIGRATION_STATEMENTS if statement.kind == "trigger"
     ]
     assert len(trigger_sqls) == 2
     assert any("BEFORE UPDATE OR DELETE" in sql for sql in trigger_sqls)
@@ -65,4 +65,26 @@ def test_statement_kinds_match_sql() -> None:
         "trigger": "CREATE OR REPLACE TRIGGER",
     }
     for statement in LEDGER_MIGRATION_STATEMENTS:
-        assert statement.sql.startswith(expected_prefixes[statement.kind])
+        if statement.kind == "index":
+            assert statement.sql.startswith(("CREATE INDEX", "CREATE UNIQUE INDEX"))
+        else:
+            assert statement.sql.startswith(expected_prefixes[statement.kind])
+
+
+def test_correction_and_retry_integrity_are_database_enforced() -> None:
+    table_sql = next(
+        statement.sql
+        for statement in LEDGER_MIGRATION_STATEMENTS
+        if statement.name == "create_enrichment_ledger_table"
+    )
+    correction_index_sql = next(
+        statement.sql
+        for statement in LEDGER_MIGRATION_STATEMENTS
+        if statement.name == "enrichment_ledger_corrects_once_index"
+    )
+
+    assert "UNIQUE (event_id)" in table_sql
+    assert "UNIQUE (id, target_node_id)" in table_sql
+    assert "FOREIGN KEY (corrects_ledger_id, target_node_id)" in table_sql
+    assert "CREATE UNIQUE INDEX" in correction_index_sql
+    assert "WHERE corrects_ledger_id IS NOT NULL" in correction_index_sql

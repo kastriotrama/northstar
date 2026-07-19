@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -27,6 +28,7 @@ class LedgerEntry:
     """One immutable provenance row."""
 
     id: int
+    event_id: UUID
     source: str
     target_node_id: str
     attributes_added: tuple[str, ...]
@@ -42,6 +44,7 @@ class LedgerEntry:
 def record_ledger_entry(
     connection: Connection,
     *,
+    event_id: UUID,
     source: str,
     target_node_id: str,
     confidence: float,
@@ -59,7 +62,8 @@ def record_ledger_entry(
     logical operation. Standalone callers must commit afterwards.
     """
 
-    if not source.strip():
+    normalized_source = source.strip()
+    if not normalized_source:
         raise ValueError("source must not be empty")
     if not is_valid_node_id(target_node_id):
         raise ValueError(f"target_node_id is not a canonical node id: {target_node_id!r}")
@@ -73,11 +77,13 @@ def record_ledger_entry(
     with connection.cursor() as cursor:
         cursor.execute(
             f"INSERT INTO {LEDGER_TABLE} "
-            "(source, target_node_id, attributes_added, nodes_benefited, "
+            "(event_id, source, target_node_id, attributes_added, nodes_benefited, "
             "cost_eur, confidence, evidence, source_batch_id, corrects_ledger_id) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (event_id) DO NOTHING RETURNING id",
             (
-                source,
+                event_id,
+                normalized_source,
                 target_node_id,
                 list(attributes_added),
                 nodes_benefited,
@@ -89,9 +95,42 @@ def record_ledger_entry(
             ),
         )
         row = cursor.fetchone()
-    if row is None:
-        raise RuntimeError("ledger insert returned no id")
-    return int(row[0])
+        if row is not None:
+            return int(row[0])
+        cursor.execute(
+            "SELECT id, source, target_node_id, attributes_added, nodes_benefited, "
+            "cost_eur, confidence, evidence, source_batch_id, corrects_ledger_id "
+            f"FROM {LEDGER_TABLE} WHERE event_id = %s",
+            (event_id,),
+        )
+        existing = cursor.fetchone()
+    expected = (
+        normalized_source,
+        target_node_id,
+        list(attributes_added),
+        nodes_benefited,
+        cost_eur,
+        confidence,
+        evidence or {},
+        source_batch_id,
+        corrects_ledger_id,
+    )
+    if existing is None:
+        raise RuntimeError("ledger event conflict returned no existing row")
+    actual = (
+        str(existing[1]),
+        str(existing[2]),
+        list(existing[3]),
+        int(existing[4]),
+        Decimal(existing[5]),
+        float(existing[6]),
+        dict(existing[7]),
+        None if existing[8] is None else str(existing[8]),
+        None if existing[9] is None else int(existing[9]),
+    )
+    if actual != expected:
+        raise ValueError(f"event_id {event_id} is already used by a different ledger event")
+    return int(existing[0])
 
 
 def fetch_entries_for_node(
@@ -105,7 +144,7 @@ def fetch_entries_for_node(
 
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT id, source, target_node_id, attributes_added, nodes_benefited, "
+            "SELECT id, event_id, source, target_node_id, attributes_added, nodes_benefited, "
             "cost_eur, confidence, evidence, source_batch_id, corrects_ledger_id, "
             f"created_at FROM {LEDGER_TABLE} "
             "WHERE target_node_id = %s ORDER BY id",
@@ -116,16 +155,17 @@ def fetch_entries_for_node(
     return tuple(
         LedgerEntry(
             id=int(row[0]),
-            source=str(row[1]),
-            target_node_id=str(row[2]),
-            attributes_added=tuple(row[3]),
-            nodes_benefited=int(row[4]),
-            cost_eur=Decimal(row[5]),
-            confidence=float(row[6]),
-            evidence=dict(row[7]),
-            source_batch_id=None if row[8] is None else str(row[8]),
-            corrects_ledger_id=None if row[9] is None else int(row[9]),
-            created_at=row[10],
+            event_id=row[1],
+            source=str(row[2]),
+            target_node_id=str(row[3]),
+            attributes_added=tuple(row[4]),
+            nodes_benefited=int(row[5]),
+            cost_eur=Decimal(row[6]),
+            confidence=float(row[7]),
+            evidence=dict(row[8]),
+            source_batch_id=None if row[9] is None else str(row[9]),
+            corrects_ledger_id=None if row[10] is None else int(row[10]),
+            created_at=row[11],
         )
         for row in rows
     )

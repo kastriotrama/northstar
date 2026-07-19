@@ -44,7 +44,8 @@ ownership assumptions as staging apply.
 
 | Column | Type | Nullable | Meaning |
 |---|---|---|---|
-| `id` | `BIGSERIAL` | no (PK) | Ledger entry id; referenced by corrections |
+| `id` | `BIGINT GENERATED ALWAYS AS IDENTITY` | no (PK) | Database-issued ledger entry id; referenced by corrections |
+| `event_id` | `UUID` | no (unique) | Caller-generated identity of the logical event. The same value is reused across retries so one event cannot be recorded twice |
 | `source` | `TEXT` | no, non-empty | Who asserted this event: `tecdoc`, `transportstyrelsen`, `manual`, later enrichment providers. Pipeline-enforced vocabulary, same convention as Alias `source_system` |
 | `target_node_id` | `TEXT` | no, length 30 | The canonical `<PREFIX>-<ULID>` node this entry is about; format validated by the writer via `northstar.is_valid_node_id` |
 | `attributes_added` | `TEXT[]` | no, default `{}` | Names of node/edge attributes this event added or resolved. Array, not JSONB: it is a flat list of names queried with containment — no nesting needed |
@@ -53,7 +54,7 @@ ownership assumptions as staging apply.
 | `confidence` | `DOUBLE PRECISION` | no, 0.0–1.0 | Confidence of the assertion, same scale as Alias confidence |
 | `evidence` | `JSONB` | no, default `{}` | Structured evidence: conflicting source values, merge/split rationale, normalization traces. JSONB, not columns: shape varies per event kind and is read as a document, never filtered column-wise |
 | `source_batch_id` | `TEXT` | yes | Ties the entry to a staging load batch when applicable |
-| `corrects_ledger_id` | `BIGINT` | yes, FK → `id` | Set only on compensating correction entries (§5) |
+| `corrects_ledger_id` | `BIGINT` | yes, same-target FK → `id`, unique when present | Set only on compensating correction entries (§5); the database rejects cross-node and branching correction chains |
 | `created_at` | `TIMESTAMPTZ` | no, default `now()` | Server-assigned append time |
 
 ## 4. Indexes
@@ -82,10 +83,18 @@ row, carrying the corrected values and an `evidence` note explaining why.
 Readers reconstruct current truth by taking the latest entry in a
 correction chain; the original stays visible forever.
 
+Correction chains are linear and node-local. A correction must have the same
+`target_node_id` as the entry it corrects, and an entry can be directly
+corrected only once. If the correction itself is later wrong, append another
+entry that corrects that correction.
+
 ## 6. Writing and reading — sanctioned entry points
 
 The only sanctioned write path is `record_ledger_entry`; it validates the
-node-id format, confidence range, and count/cost bounds before inserting.
+node-id format, confidence range, and count/cost bounds before inserting. The
+caller supplies a UUID `event_id` created before the cross-store operation.
+Replaying the same event and payload returns the original ledger id; reusing
+an event id for different content is rejected.
 
 **Transaction ownership:** `record_ledger_entry` does not commit — the
 caller owns the transaction, so a ledger entry commits atomically with any
@@ -93,19 +102,27 @@ other Postgres changes of the same logical operation. Standalone callers
 commit afterwards.
 
 **Cross-store ordering (Neo4j + Postgres cannot share a transaction):**
-write the graph first, then append the ledger entry, then commit Postgres.
+generate and durably retain an `event_id`, write the graph, append the ledger
+entry with that event id, then commit Postgres.
 If the ledger append fails after a successful graph write, the operation
-must be retried until the entry lands — a graph change without provenance
-is a defect, and the Epic 10 data-quality report reconciles graph writes
-against ledger entries to catch any that slip through.
+must be retried with the same `event_id` until the entry lands. The unique key
+makes ambiguous retries safe: they return the original row instead of adding
+an undeletable duplicate. A graph change without provenance is a defect, and
+the Epic 10 data-quality report reconciles graph writes against ledger entries
+to catch any that slip through.
 
 ```python
 from decimal import Decimal
+from uuid import uuid4
 from ingestion.ledger import record_ledger_entry, fetch_entries_for_node
+
+# Generate once before the cross-store operation and retain it for retries.
+tecdoc_event_id = uuid4()
 
 # TecDoc load provenance (Phase 1 typical: cost 0, confidence 1.0)
 entry_id = record_ledger_entry(
     connection,
+    event_id=tecdoc_event_id,
     source="tecdoc",
     target_node_id="ENG-01ARZ3NDEKTSV4RRFFQ69G5FAV",
     confidence=1.0,
@@ -118,6 +135,7 @@ entry_id = record_ledger_entry(
 # edge; the disagreement is preserved here.
 record_ledger_entry(
     connection,
+    event_id=uuid4(),
     source="transportstyrelsen",
     target_node_id="VEH-01ARZ3NDEKTSV4RRFFQ69G5FAV",
     confidence=0.78,
@@ -155,8 +173,9 @@ northstar-ingest migrate-ledger
 
 Every statement is idempotent (`IF NOT EXISTS` / `CREATE OR REPLACE`);
 running the migration twice succeeds and the second run is a no-op. Before
-committing, the runner verifies the existing table's columns, primary key,
-and the presence of the append-only trigger, raising
+committing, the runner verifies columns, defaults, identity generation,
+constraints, indexes, trigger events, trigger functions and enabled state,
+raising
 `LedgerSchemaContractError` on drift. Statement names below are a stable
 contract asserted by the doc contract tests.
 
@@ -164,6 +183,7 @@ contract asserted by the doc contract tests.
 |---|---|
 | `create_core_schema` | schema |
 | `create_enrichment_ledger_table` | table |
+| `enrichment_ledger_corrects_once_index` | index |
 | `enrichment_ledger_target_node_id_index` | index |
 | `enrichment_ledger_created_at_index` | index |
 | `enrichment_ledger_append_only_function` | function |
@@ -173,7 +193,8 @@ contract asserted by the doc contract tests.
 ## 8. Review checklist
 
 - [ ] Every new graph-write code path records provenance via
-      `record_ledger_entry` in the same logical operation.
+      `record_ledger_entry` in the same logical operation and retains one
+      `event_id` across every retry.
 - [ ] No code updates or deletes ledger rows; corrections append
       compensating entries with `corrects_ledger_id`.
 - [ ] Conflicting evidence goes into `evidence` here, never into parallel
