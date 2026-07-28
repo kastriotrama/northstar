@@ -17,6 +17,7 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "TecDoc" in output
     assert "transportstyrelsen" in output
     assert "Transportstyrelsen" in output
+    assert "migrate-review-queue" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
