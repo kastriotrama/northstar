@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-07-29
 
-- Implemented SCRUM-19 on a branch stacked from PR #21: added contract-verified `core.ingest_job_runs` migrations, retry-safe job/batch claiming, completed-batch no-op behavior, failure retry, balanced counts, sanitized error summaries, CLI migration support, documentation, and tests; Ruff, strict mypy, all 217 tests, four focused live PostgreSQL tests, and the real migration command passed.
+- Published SCRUM-19 as draft stacked PR #22 targeting the SCRUM-18 branch/PR #21: added contract-verified `core.ingest_job_runs` migrations, retry-safe job/batch claiming, completed-batch no-op behavior, failure retry, balanced counts, sanitized error summaries, CLI migration support, documentation, and tests; Ruff, strict mypy, all 217 tests, four focused live PostgreSQL tests, and the real migration command passed, with retargeting to `develop` required after PR #21 merges.
 - Published SCRUM-18 as draft PR #21 targeting `develop`, reran validation with 181 tests passing and 22 datastore tests skipped because PostgreSQL was unavailable, and moved SCRUM-18 plus directly completed subtasks SCRUM-60 through SCRUM-63 to In Progress with issue-specific Jira comments; manual review, CI completion, merge validation, and final Done transitions remain.
 
 ## 2026-07-28
