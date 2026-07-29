@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-29
+
+- Published SCRUM-18 as draft PR #21 targeting `develop`, reran validation with 181 tests passing and 22 datastore tests skipped because PostgreSQL was unavailable, and moved SCRUM-18 plus directly completed subtasks SCRUM-60 through SCRUM-63 to In Progress with issue-specific Jira comments; manual review, CI completion, merge validation, and final Done transitions remain.
+
 ## 2026-07-28
 
 - Implemented SCRUM-18 on `feature/SCRUM-18-review-queue`: added a contract-verified `core.review_queue` migration, idempotent enqueueing, status worklists, controlled resolution lifecycle, raw staging references, candidate evidence, normalization routing documentation, and sanitized manufacturer/hybrid examples.
@@ -28,9 +32,3 @@ Keep the latest 10 task entries only.
 
 - Corrected PR #16's SCRUM-13 contract: reduced the catalog to seven canonical relationships, removed duplicate hierarchy/provenance edges, made Alias resolves candidate-safe, fixed all six traversals, and added Markdown contract plus live Neo4j tests; next step: merge after CI and review.
 - Finalized the SCRUM-12 schema review fixes: separated manual record/assertion identity, replaced mutable-content hashes with persisted provenance or supersession, added explicit single-live-target `REFERS_TO` examples, and hardened recursive repository-bound Markdown link validation; next step: merge the stacked fix into PR #11 after CI and review.
-
-## 2026-07-09
-
-- Fixed CI workflow gaps on `feature/SCRUM-11-ci-pipeline-foundation`: added `develop` to push triggers (default branch previously never ran CI post-merge), concurrency cancellation, pip caching, and fixed the datastore health retry loop to use `run_health_checks` so a raising client retries instead of crashing.
-- Completed the Docker image build subtask (parent `SCRUM-11`): added multi-stage `Dockerfile` (`api` and `ingestion` targets, non-root user, dependency-layer caching, env-driven `API_HOST`/`API_PORT` with exec-form PID 1 signal handling), `.dockerignore`, and a CI `images` job that builds and smoke-tests both images on PRs with no publish step.
-- Validated live: both images build, API image serves `/health` ok against Docker Compose datastores, `API_PORT=9000` override works, graceful shutdown in 1s; pytest 33 passed, ruff and mypy clean.
