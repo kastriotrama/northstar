@@ -25,7 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
         job_parser.add_argument(
             "--batch-id",
             default=None,
-            help="Optional batch identifier for logs and job bookkeeping.",
+            required=job.name == "normalize",
+            help=(
+                "Required source staging batch identifier."
+                if job.name == "normalize"
+                else "Optional batch identifier for logs and job bookkeeping."
+            ),
         )
 
     return parser

@@ -50,4 +50,9 @@ curl http://localhost:8000/health
 northstar-ingest list-commands
 northstar-ingest tecdoc
 northstar-ingest transportstyrelsen
+northstar-ingest normalize --batch-id <source-batch-id>
 ```
+
+The normalization command is retry-safe, requires an explicit staging batch,
+and routes uncertain records to the durable review queue. See
+[`docs/normalization-command.md`](docs/normalization-command.md).

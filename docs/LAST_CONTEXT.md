@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-07-30
+
+- Implemented SCRUM-82 on `feature/SCRUM-82-ts-normalizer`: added versioned sanitized normalization results, accepted/candidate rule separation, deterministic review routing, retry-safe batch execution, explicit-batch CLI behavior, a fixed-width pilot reader, documentation, and tests; the isolated full suite passed with 229 tests, Ruff and strict mypy passed, and a real 1,000-vehicle pilot completed with zero technical failures and a verified no-op retry. The retained pilot requires manufacturer review because the legacy source lacks `Tillverkare`; Jira, push, and PR remain unchanged pending approval.
+
 ## 2026-07-29
 
 - Published SCRUM-19 as draft stacked PR #22 targeting the SCRUM-18 branch/PR #21: added contract-verified `core.ingest_job_runs` migrations, retry-safe job/batch claiming, completed-batch no-op behavior, failure retry, balanced counts, sanitized error summaries, CLI migration support, documentation, and tests; Ruff, strict mypy, all 217 tests, four focused live PostgreSQL tests, and the real migration command passed, with retargeting to `develop` required after PR #21 merges.

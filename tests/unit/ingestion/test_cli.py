@@ -1,3 +1,4 @@
+import pytest
 from pytest import CaptureFixture
 
 from ingestion.cli import build_parser, main
@@ -42,3 +43,13 @@ def test_parser_registers_stub_job_commands() -> None:
 def test_stub_job_command_runs_with_batch_id() -> None:
     assert main(["tecdoc", "--batch-id", "tecdoc-batch-1"]) == 0
     assert main(["healthcheck", "--batch-id", "healthcheck-1"]) == 0
+
+
+def test_normalize_requires_an_explicit_source_batch() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["normalize"])
+
+    args = parser.parse_args(["normalize", "--batch-id", "ts-pilot"])
+    assert args.batch_id == "ts-pilot"

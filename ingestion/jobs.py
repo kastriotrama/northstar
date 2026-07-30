@@ -7,6 +7,8 @@ from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.ledger_migrations import run_ledger_migrations
+from ingestion.normalization_migrations import run_normalization_migrations
+from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import run_review_queue_migrations
 from ingestion.staging_migrations import run_staging_migrations
 
@@ -210,6 +212,56 @@ class StubIngestionJob:
         return 0
 
 
+@dataclass(frozen=True)
+class NormalizeTransportstyrelsenJob:
+    """Normalize one explicitly selected Transportstyrelsen staging batch."""
+
+    name: str = "normalize"
+    description: str = "Normalize an existing Transportstyrelsen staging batch."
+    source_name: str = "Transportstyrelsen"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        try:
+            with datastores.postgres.connect() as connection:
+                run_staging_migrations(connection)
+                run_review_queue_migrations(connection)
+                run_job_bookkeeping_migrations(connection)
+                run_normalization_migrations(connection)
+                summary = normalize_batch(connection, batch_id=batch_id)
+        except Exception as error:
+            logger.error(
+                "Normalization job stopped safely",
+                extra={
+                    "job_name": self.name,
+                    "batch_id": batch_id,
+                    "source": self.source_name,
+                    "error_code": type(error).__name__,
+                },
+            )
+            return 1
+        logger.info(
+            "Normalization job completed",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "processed": summary.processed,
+                "resolved": summary.resolved,
+                "provisional": summary.provisional,
+                "review_required": summary.review_required,
+                "failed": summary.failed,
+                "already_completed": summary.already_completed,
+            },
+        )
+        return 0
+
+
 AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     StubIngestionJob(
         name="healthcheck",
@@ -226,11 +278,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
         description="Stub raw source loading command.",
         source_name="pipeline",
     ),
-    StubIngestionJob(
-        name="normalize",
-        description="Stub source normalization command.",
-        source_name="pipeline",
-    ),
+    NormalizeTransportstyrelsenJob(),
     StubIngestionJob(
         name="graph-write",
         description="Stub graph write command.",
