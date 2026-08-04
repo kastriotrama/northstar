@@ -63,7 +63,7 @@ def test_record_rejects_negative_cost() -> None:
             source="tecdoc",
             target_node_id=VALID_NODE_ID,
             confidence=1.0,
-            cost_eur=Decimal("-1"),
+            cost_eur=Decimal(-1),
         )
 
 

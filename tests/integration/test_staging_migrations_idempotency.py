@@ -4,13 +4,13 @@ import psycopg
 import pytest
 from psycopg import Connection
 
+from ingestion import staging_migrations
 from ingestion.config import get_ingestion_settings
 from ingestion.staging_loaders import (
     BatchRowCountMismatchError,
     copy_raw_records,
     count_batch_rows,
 )
-from ingestion import staging_migrations
 from ingestion.staging_migrations import (
     STAGING_MIGRATION_STATEMENTS,
     StagingSchemaContractError,

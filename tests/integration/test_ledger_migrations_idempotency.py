@@ -82,7 +82,7 @@ def test_ledger_round_trip_and_provenance_query(pg_connection: Connection) -> No
     assert [entry.id for entry in entries] == [first_id, correction_id]
     assert entries[0].attributes_added == ("engine_code", "fuel_type")
     assert entries[0].source == TEST_SOURCE
-    assert entries[0].cost_eur == Decimal("0")
+    assert entries[0].cost_eur == Decimal(0)
     assert entries[1].corrects_ledger_id == first_id
     assert entries[1].evidence == {"note": "corrected engine_code after review"}
     assert all(entry.created_at is not None for entry in entries)
@@ -102,22 +102,19 @@ def test_ledger_rejects_update_and_delete_at_database_level(
     )
     pg_connection.commit()
 
-    with pytest.raises(RaiseException, match="append-only"):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(
-                f"UPDATE {LEDGER_TABLE} SET confidence = 0.5 WHERE id = %s",
-                (entry_id,),
-            )
+    with pytest.raises(RaiseException, match="append-only"), pg_connection.cursor() as cursor:
+        cursor.execute(
+            f"UPDATE {LEDGER_TABLE} SET confidence = 0.5 WHERE id = %s",
+            (entry_id,),
+        )
     pg_connection.rollback()
 
-    with pytest.raises(RaiseException, match="append-only"):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(f"DELETE FROM {LEDGER_TABLE} WHERE id = %s", (entry_id,))
+    with pytest.raises(RaiseException, match="append-only"), pg_connection.cursor() as cursor:
+        cursor.execute(f"DELETE FROM {LEDGER_TABLE} WHERE id = %s", (entry_id,))
     pg_connection.rollback()
 
-    with pytest.raises(RaiseException, match="append-only"):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(f"TRUNCATE {LEDGER_TABLE}")
+    with pytest.raises(RaiseException, match="append-only"), pg_connection.cursor() as cursor:
+        cursor.execute(f"TRUNCATE {LEDGER_TABLE}")
     pg_connection.rollback()
 
     entries = fetch_entries_for_node(pg_connection, node_id)

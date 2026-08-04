@@ -6,6 +6,7 @@ from ingestion.config import IngestionSettings
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.ledger_migrations import run_ledger_migrations
+from ingestion.review_queue_migrations import run_review_queue_migrations
 from ingestion.staging_migrations import run_staging_migrations
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,36 @@ class MigrateLedgerJob:
 
 
 @dataclass(frozen=True)
+class MigrateReviewQueueJob:
+    """Apply the durable normalization review-queue schema."""
+
+    name: str = "migrate-review-queue"
+    description: str = "Apply review-queue migrations (idempotent, contract verified)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_review_queue_migrations(connection)
+        logger.info(
+            "Review queue migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -157,6 +188,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     MigrateGraphJob(),
     MigrateStagingJob(),
     MigrateLedgerJob(),
+    MigrateReviewQueueJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",

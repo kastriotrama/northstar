@@ -50,7 +50,7 @@ def record_ledger_entry(
     confidence: float,
     attributes_added: Sequence[str] = (),
     nodes_benefited: int = 1,
-    cost_eur: Decimal = Decimal("0"),
+    cost_eur: Decimal = Decimal(0),
     evidence: dict[str, Any] | None = None,
     source_batch_id: str | None = None,
     corrects_ledger_id: int | None = None,
