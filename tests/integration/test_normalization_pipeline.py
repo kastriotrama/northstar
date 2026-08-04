@@ -84,6 +84,12 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
                 (batch_id,),
             )
             assert cursor.fetchone() == (2,)
+            cursor.execute(
+                f"SELECT DISTINCT pipeline_version FROM {NORMALIZATION_RESULTS_TABLE} "
+                "WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+            assert cursor.fetchall() == [("normalization-pipeline-v1",)]
     finally:
         pg_connection.rollback()
         with pg_connection.cursor() as cursor:

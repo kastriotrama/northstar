@@ -15,7 +15,12 @@ from ingestion.normalization_repository import (
     store_normalization_result,
     summarize_batch,
 )
-from ingestion.normalization_rules import MAPPING_VERSION, RULE_VERSION, normalize_ts_record
+from ingestion.normalization_rules import (
+    MAPPING_VERSION,
+    PIPELINE_VERSION,
+    RULE_VERSION,
+    normalize_ts_record,
+)
 from ingestion.review_queue import CandidateMatch, enqueue_review_item
 
 JOB_NAME = "normalize"
@@ -67,13 +72,21 @@ def normalize_batch(
                             candidate_reference=rule_id,
                             candidate_type="translation_rule",
                             confidence=outcome.confidence,
-                            evidence={"mapping_version": MAPPING_VERSION},
+                            evidence={
+                                "mapping_version": MAPPING_VERSION,
+                                "pipeline_version": PIPELINE_VERSION,
+                            },
                         )
                         for rule_id in outcome.candidate_rule_ids
                     )
                     enqueue_review_item(
                         connection,
-                        review_id=review_uuid(record.id, MAPPING_VERSION, RULE_VERSION),
+                        review_id=review_uuid(
+                            record.id,
+                            MAPPING_VERSION,
+                            RULE_VERSION,
+                            PIPELINE_VERSION,
+                        ),
                         source_system="Transportstyrelsen",
                         source_batch_id=batch_id,
                         source_table="staging.transportstyrelsen_raw",

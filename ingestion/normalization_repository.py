@@ -77,10 +77,12 @@ def normalization_uuid(
     source_record_id: int,
     mapping_version: str,
     rule_version: str,
+    pipeline_version: str,
 ) -> UUID:
     return uuid5(
         NORMALIZATION_NAMESPACE,
-        f"{SOURCE_TABLE}:{source_record_id}:{mapping_version}:{rule_version}",
+        f"{SOURCE_TABLE}:{source_record_id}:{mapping_version}:{rule_version}:"
+        f"{pipeline_version}",
     )
 
 
@@ -88,10 +90,12 @@ def review_uuid(
     source_record_id: int,
     mapping_version: str,
     rule_version: str,
+    pipeline_version: str,
 ) -> UUID:
     return uuid5(
         REVIEW_NAMESPACE,
-        f"{SOURCE_TABLE}:{source_record_id}:{mapping_version}:{rule_version}",
+        f"{SOURCE_TABLE}:{source_record_id}:{mapping_version}:{rule_version}:"
+        f"{pipeline_version}",
     )
 
 
@@ -105,7 +109,12 @@ def store_normalization_result(
 ) -> int:
     """Insert once, accepting only an identical deterministic retry."""
 
-    result_id = normalization_uuid(record.id, mapping_version, rule_version)
+    result_id = normalization_uuid(
+        record.id,
+        mapping_version,
+        rule_version,
+        outcome.pipeline_version,
+    )
     payload = outcome.to_payload()
     expected = (
         "Transportstyrelsen",
@@ -114,6 +123,7 @@ def store_normalization_result(
         record.id,
         mapping_version,
         rule_version,
+        outcome.pipeline_version,
         outcome.status,
         payload,
         list(outcome.applied_rule_ids),
@@ -124,18 +134,19 @@ def store_normalization_result(
         cursor.execute(
             f"INSERT INTO {NORMALIZATION_RESULTS_TABLE} "
             "(normalization_id, source_system, source_batch_id, source_table, "
-            "source_record_id, mapping_version, rule_version, status, normalized_payload, "
-            "applied_rule_ids, review_reasons, confidence) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "source_record_id, mapping_version, rule_version, pipeline_version, status, "
+            "normalized_payload, applied_rule_ids, review_reasons, confidence) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (normalization_id) DO NOTHING RETURNING id",
-            (result_id, *expected[:7], Jsonb(payload), *expected[8:]),
+            (result_id, *expected[:8], Jsonb(payload), *expected[9:]),
         )
         inserted = cursor.fetchone()
         if inserted is not None:
             return int(inserted[0])
         cursor.execute(
             f"SELECT id, source_system, source_batch_id, source_table, source_record_id, "
-            "mapping_version, rule_version, status, normalized_payload, applied_rule_ids, "
+            "mapping_version, rule_version, pipeline_version, status, normalized_payload, "
+            "applied_rule_ids, "
             f"review_reasons, confidence FROM {NORMALIZATION_RESULTS_TABLE} "
             "WHERE normalization_id = %s",
             (result_id,),
@@ -151,10 +162,11 @@ def store_normalization_result(
         str(existing[5]),
         str(existing[6]),
         str(existing[7]),
-        dict(existing[8]),
-        list(existing[9]),
+        str(existing[8]),
+        dict(existing[9]),
         list(existing[10]),
-        float(existing[11]),
+        list(existing[11]),
+        float(existing[12]),
     )
     if actual != expected:
         raise ValueError(f"normalization_id {result_id} already has a different payload")

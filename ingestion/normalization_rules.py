@@ -10,12 +10,21 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Literal
 
+from ingestion.normalization_pipeline import (
+    DecisionTraceEntry,
+    NormalizationContext,
+    NormalizationPipeline,
+    Transformer,
+)
+
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = "ts-translation-v1"
+PIPELINE_VERSION = "normalization-pipeline-v1"
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
 
@@ -31,6 +40,16 @@ class NormalizationOutcome:
     candidate_rule_ids: tuple[str, ...]
     review_reasons: tuple[str, ...]
     confidence: float
+    pipeline_version: str
+    decision_trace: tuple[DecisionTraceEntry, ...]
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+        expected_sequence = tuple(range(1, len(self.decision_trace) + 1))
+        actual_sequence = tuple(entry.sequence for entry in self.decision_trace)
+        if actual_sequence != expected_sequence:
+            raise ValueError("decision trace sequence must be contiguous and ordered")
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -38,7 +57,86 @@ class NormalizationOutcome:
             "candidates": self.candidates,
             "candidate_rule_ids": list(self.candidate_rule_ids),
             "confidence": self.confidence,
+            "pipeline_version": self.pipeline_version,
+            "decision_trace": [entry.to_payload() for entry in self.decision_trace],
         }
+
+
+RuleHandler = Callable[[NormalizationContext], None]
+
+
+@dataclass(frozen=True)
+class _RuleTransformer(Transformer):
+    transformer_id: str
+    order: int
+    default_rule_id: str
+    handler: RuleHandler
+    source_fields: tuple[str, ...] = ()
+    normalized_confidence_effect: float = 0.0
+    candidate_confidence_effect: float = 0.0
+    review_confidence_effect: float = -0.2
+
+    def _source_evidence(self, context: NormalizationContext) -> Any:
+        evidence = {
+            field_name: context.raw_record[field_name]
+            for field_name in self.source_fields
+            if context.raw_record.get(field_name) not in (None, "")
+        }
+        if len(evidence) == 1:
+            return next(iter(evidence.values()))
+        return evidence or None
+
+    def apply(self, context: NormalizationContext) -> None:
+        normalized_before = dict(context.normalized)
+        candidates_before = dict(context.candidates)
+        applied_offset = len(context.applied_rule_ids)
+        candidate_offset = len(context.candidate_rule_ids)
+        reason_offset = len(context.review_reasons)
+
+        self.handler(context)
+
+        applied_rules = tuple(context.applied_rule_ids[applied_offset:]) or (
+            self.default_rule_id,
+        )
+        candidate_rules = tuple(context.candidate_rule_ids[candidate_offset:]) or (
+            self.default_rule_id,
+        )
+        for field_name in sorted(context.normalized.keys() | normalized_before.keys()):
+            before = normalized_before.get(field_name)
+            after = context.normalized.get(field_name)
+            if before != after:
+                context.record_change(
+                    transformer_id=self.transformer_id,
+                    target="normalized",
+                    field_name=field_name,
+                    rule_ids=applied_rules,
+                    before=before if before is not None else self._source_evidence(context),
+                    after=after,
+                    confidence_effect=self.normalized_confidence_effect,
+                )
+        for field_name in sorted(context.candidates.keys() | candidates_before.keys()):
+            before = candidates_before.get(field_name)
+            after = context.candidates.get(field_name)
+            if before != after:
+                context.record_change(
+                    transformer_id=self.transformer_id,
+                    target="candidate",
+                    field_name=field_name,
+                    rule_ids=candidate_rules,
+                    before=before if before is not None else self._source_evidence(context),
+                    after=after,
+                    confidence_effect=self.candidate_confidence_effect,
+                )
+        for reason in context.review_reasons[reason_offset:]:
+            context.record_change(
+                transformer_id=self.transformer_id,
+                target="review",
+                field_name="review_reason",
+                rule_ids=tuple(dict.fromkeys((*applied_rules, *candidate_rules))),
+                before=self._source_evidence(context),
+                after=reason,
+                confidence_effect=self.review_confidence_effect,
+            )
 
 
 _TRANSMISSION_RULES: dict[str, tuple[str, str, str | None]] = {
@@ -215,6 +313,16 @@ def normalize_ts_record(raw_record: object) -> NormalizationOutcome:
     """Normalize one TS raw record without copying sensitive identifiers."""
 
     if not isinstance(raw_record, dict):
+        context = NormalizationContext(raw_record={})
+        context.record_change(
+            transformer_id="ts.input-contract",
+            target="review",
+            field_name="review_reason",
+            rule_ids=("INPUT-OBJECT-REQUIRED",),
+            before=None,
+            after="raw_record_not_object",
+            confidence_effect=-1.0,
+        )
         return NormalizationOutcome(
             status="failed",
             normalized={},
@@ -223,31 +331,16 @@ def normalize_ts_record(raw_record: object) -> NormalizationOutcome:
             candidate_rule_ids=(),
             review_reasons=("raw_record_not_object",),
             confidence=0.0,
+            pipeline_version=PIPELINE_VERSION,
+            decision_trace=tuple(context.decision_trace),
         )
 
-    normalized: dict[str, Any] = {
-        "market": ["SE"],
-        "alias_types_present": _alias_types_present(raw_record),
-    }
-    candidates: dict[str, Any] = {}
-    applied: list[str] = []
-    candidate_rules: list[str] = []
-    reasons: list[str] = []
-
-    _normalize_manufacturer(
-        raw_record,
-        normalized,
-        candidates,
-        applied,
-        candidate_rules,
-        reasons,
-    )
-    _normalize_model_family(raw_record, normalized, candidates)
-    _normalize_production_year(raw_record, normalized, reasons)
-    _normalize_transmission(raw_record, normalized, applied, reasons)
-    _normalize_bodywork(raw_record, normalized, applied, reasons)
-    _normalize_drive(raw_record, candidates, candidate_rules, reasons)
-    _normalize_fuel(raw_record, candidates, candidate_rules, reasons)
+    context = DEFAULT_PIPELINE.run(raw_record)
+    normalized = context.normalized
+    candidates = context.candidates
+    applied = context.applied_rule_ids
+    candidate_rules = context.candidate_rule_ids
+    reasons = context.review_reasons
 
     if reasons:
         status: NormalizationStatus = "review_required"
@@ -267,6 +360,8 @@ def normalize_ts_record(raw_record: object) -> NormalizationOutcome:
         candidate_rule_ids=tuple(dict.fromkeys(candidate_rules)),
         review_reasons=tuple(dict.fromkeys(reasons)),
         confidence=confidence,
+        pipeline_version=PIPELINE_VERSION,
+        decision_trace=tuple(context.decision_trace),
     )
 
 
@@ -547,3 +642,141 @@ def _alias_types_present(raw: dict[str, Any]) -> list[str]:
     if normalize_text(raw.get("model")) is not None:
         aliases.append("model_name")
     return aliases
+
+
+def _initialize_context(context: NormalizationContext) -> None:
+    context.normalized["market"] = ["SE"]
+    context.normalized["alias_types_present"] = _alias_types_present(context.raw_record)
+
+
+def _apply_manufacturer(context: NormalizationContext) -> None:
+    _normalize_manufacturer(
+        context.raw_record,
+        context.normalized,
+        context.candidates,
+        context.applied_rule_ids,
+        context.candidate_rule_ids,
+        context.review_reasons,
+    )
+
+
+def _apply_model_family(context: NormalizationContext) -> None:
+    _normalize_model_family(
+        context.raw_record,
+        context.normalized,
+        context.candidates,
+    )
+
+
+def _apply_production_year(context: NormalizationContext) -> None:
+    _normalize_production_year(
+        context.raw_record,
+        context.normalized,
+        context.review_reasons,
+    )
+
+
+def _apply_transmission(context: NormalizationContext) -> None:
+    _normalize_transmission(
+        context.raw_record,
+        context.normalized,
+        context.applied_rule_ids,
+        context.review_reasons,
+    )
+
+
+def _apply_bodywork(context: NormalizationContext) -> None:
+    _normalize_bodywork(
+        context.raw_record,
+        context.normalized,
+        context.applied_rule_ids,
+        context.review_reasons,
+    )
+
+
+def _apply_drive(context: NormalizationContext) -> None:
+    _normalize_drive(
+        context.raw_record,
+        context.candidates,
+        context.candidate_rule_ids,
+        context.review_reasons,
+    )
+
+
+def _apply_fuel(context: NormalizationContext) -> None:
+    _normalize_fuel(
+        context.raw_record,
+        context.candidates,
+        context.candidate_rule_ids,
+        context.review_reasons,
+    )
+
+
+DEFAULT_PIPELINE = NormalizationPipeline(
+    version=PIPELINE_VERSION,
+    transformers=(
+        _RuleTransformer(
+            transformer_id="ts.initialize",
+            order=10,
+            default_rule_id="SYS-TS-INIT",
+            handler=_initialize_context,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.manufacturer",
+            order=20,
+            default_rule_id="MFR-CLASSIFY-V1",
+            handler=_apply_manufacturer,
+            source_fields=("manufacturer", "brand", "base_manufacturer"),
+            normalized_confidence_effect=0.2,
+            candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.model-family",
+            order=30,
+            default_rule_id="MODEL-CANDIDATE-V1",
+            handler=_apply_model_family,
+            source_fields=("model",),
+            candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.production-year",
+            order=40,
+            default_rule_id="DATE-EXTRACT-V1",
+            handler=_apply_production_year,
+            source_fields=("build_date", "build_month", "model_year", "vehicle_year"),
+            normalized_confidence_effect=0.1,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.transmission",
+            order=50,
+            default_rule_id="TRN-LOOKUP-V1",
+            handler=_apply_transmission,
+            source_fields=("gearbox",),
+            normalized_confidence_effect=0.1,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.bodywork",
+            order=60,
+            default_rule_id="BDY-LOOKUP-V1",
+            handler=_apply_bodywork,
+            source_fields=("body_code", "eu_category", "vehicle_type"),
+            normalized_confidence_effect=0.1,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.drive",
+            order=70,
+            default_rule_id="DRV-LOOKUP-V1",
+            handler=_apply_drive,
+            source_fields=("is_4wd",),
+            candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.fuel",
+            order=80,
+            default_rule_id="FUEL-LOOKUP-V1",
+            handler=_apply_fuel,
+            source_fields=("fuel1", "fuel2", "fuel3", "fuel_combo", "ev_config"),
+            candidate_confidence_effect=0.1,
+        ),
+    ),
+)

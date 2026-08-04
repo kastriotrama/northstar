@@ -20,6 +20,7 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
             source_record_id BIGINT NOT NULL,
             mapping_version TEXT NOT NULL,
             rule_version TEXT NOT NULL,
+            pipeline_version TEXT NOT NULL,
             status TEXT NOT NULL CHECK (
                 status IN ('resolved', 'provisional', 'review_required', 'failed')
             ),
@@ -29,8 +30,90 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
             confidence DOUBLE PRECISION NOT NULL CHECK (confidence BETWEEN 0 AND 1),
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            UNIQUE (source_table, source_record_id, mapping_version, rule_version)
+            CONSTRAINT normalization_results_source_version_key UNIQUE (
+                source_table,
+                source_record_id,
+                mapping_version,
+                rule_version,
+                pipeline_version
+            )
         )
+        """,
+    ),
+    (
+        "add_normalization_pipeline_version",
+        f"ALTER TABLE {NORMALIZATION_RESULTS_TABLE} "
+        "ADD COLUMN IF NOT EXISTS pipeline_version TEXT NOT NULL "
+        "DEFAULT 'normalization-pipeline-v0'",
+    ),
+    (
+        "drop_legacy_normalization_source_version_constraint",
+        f"""
+        DO $$
+        DECLARE legacy_constraint TEXT;
+        BEGIN
+            SELECT constraint_name
+            INTO legacy_constraint
+            FROM information_schema.table_constraints
+            WHERE table_schema = 'core'
+              AND table_name = 'normalization_results'
+              AND constraint_type = 'UNIQUE'
+              AND constraint_name <> 'normalization_results_source_version_key'
+              AND constraint_name IN (
+                  SELECT tc.constraint_name
+                  FROM information_schema.table_constraints AS tc
+                  JOIN information_schema.constraint_column_usage AS ccu
+                    ON ccu.constraint_schema = tc.constraint_schema
+                   AND ccu.constraint_name = tc.constraint_name
+                  WHERE tc.table_schema = 'core'
+                    AND tc.table_name = 'normalization_results'
+                    AND tc.constraint_type = 'UNIQUE'
+                  GROUP BY tc.constraint_name
+                  HAVING array_agg(
+                      ccu.column_name::TEXT
+                      ORDER BY ccu.column_name::TEXT
+                  ) =
+                    ARRAY[
+                        'mapping_version',
+                        'rule_version',
+                        'source_record_id',
+                        'source_table'
+                    ]::TEXT[]
+              )
+            LIMIT 1;
+            IF legacy_constraint IS NOT NULL THEN
+                EXECUTE format(
+                    'ALTER TABLE {NORMALIZATION_RESULTS_TABLE} DROP CONSTRAINT %I',
+                    legacy_constraint
+                );
+            END IF;
+        END
+        $$;
+        """,
+    ),
+    (
+        "create_normalization_source_version_constraint",
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE table_schema = 'core'
+                  AND table_name = 'normalization_results'
+                  AND constraint_name = 'normalization_results_source_version_key'
+            ) THEN
+                ALTER TABLE {NORMALIZATION_RESULTS_TABLE}
+                ADD CONSTRAINT normalization_results_source_version_key UNIQUE (
+                    source_table,
+                    source_record_id,
+                    mapping_version,
+                    rule_version,
+                    pipeline_version
+                );
+            END IF;
+        END
+        $$;
         """,
     ),
     (

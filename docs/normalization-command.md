@@ -19,6 +19,9 @@ reuses deterministic normalization and review IDs.
 ## Safety behavior
 
 - Raw staging rows are read-only.
+- Every output field change records its ordered transformer, rule IDs,
+  sanitized before/after values, and preliminary confidence effect. See
+  [the normalization pipeline contract](normalization-pipeline-contract.md).
 - Plate and VIN values are never copied into normalized results, review items,
   logs, or pilot reports.
 - Accepted manufacturer, bodywork, transmission, and production-date decisions

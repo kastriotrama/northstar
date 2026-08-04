@@ -19,6 +19,25 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["bodywork_form"] == "wagon"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
+    assert outcome.pipeline_version == "normalization-pipeline-v1"
+    assert [entry.sequence for entry in outcome.decision_trace] == list(
+        range(1, len(outcome.decision_trace) + 1)
+    )
+    traced_fields = {
+        (entry.transformer_id, entry.field, entry.rule_ids)
+        for entry in outcome.decision_trace
+    }
+    assert ("ts.manufacturer", "manufacturer", ("MFR-102",)) in traced_fields
+    assert ("ts.bodywork", "bodywork_form", ("BDY-110",)) in traced_fields
+    assert ("ts.transmission", "transmission_type", ("TRN-008",)) in traced_fields
+    manufacturer_trace = next(
+        entry
+        for entry in outcome.decision_trace
+        if entry.transformer_id == "ts.manufacturer"
+        and entry.field == "manufacturer"
+    )
+    assert manufacturer_trace.before == "Volvo Car Corporation"
+    assert manufacturer_trace.after == "Volvo"
     assert "ABC123" not in str(outcome.to_payload())
     assert "SENSITIVEVIN123456" not in str(outcome.to_payload())
 
@@ -89,3 +108,5 @@ def test_non_object_raw_record_fails_without_raising() -> None:
     outcome = normalize_ts_record("not-an-object")
     assert outcome.status == "failed"
     assert outcome.review_reasons == ("raw_record_not_object",)
+    assert outcome.decision_trace[0].transformer_id == "ts.input-contract"
+    assert outcome.decision_trace[0].confidence_effect == -1.0
