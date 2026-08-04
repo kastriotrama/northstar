@@ -5,6 +5,7 @@ from typing import Protocol
 from ingestion.config import IngestionSettings
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
+from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.ledger_migrations import run_ledger_migrations
 from ingestion.review_queue_migrations import run_review_queue_migrations
 from ingestion.staging_migrations import run_staging_migrations
@@ -153,6 +154,36 @@ class MigrateReviewQueueJob:
 
 
 @dataclass(frozen=True)
+class MigrateJobBookkeepingJob:
+    """Apply the durable ingest-job bookkeeping schema."""
+
+    name: str = "migrate-job-bookkeeping"
+    description: str = "Apply ingest-job bookkeeping migrations (idempotent)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_job_bookkeeping_migrations(connection)
+        logger.info(
+            "Job-bookkeeping migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -189,6 +220,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     MigrateStagingJob(),
     MigrateLedgerJob(),
     MigrateReviewQueueJob(),
+    MigrateJobBookkeepingJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",

@@ -4,6 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-07-29
 
+- Published SCRUM-19 as draft stacked PR #22 targeting the SCRUM-18 branch/PR #21: added contract-verified `core.ingest_job_runs` migrations, retry-safe job/batch claiming, completed-batch no-op behavior, failure retry, balanced counts, sanitized error summaries, CLI migration support, documentation, and tests; Ruff, strict mypy, all 217 tests, four focused live PostgreSQL tests, and the real migration command passed, with retargeting to `develop` required after PR #21 merges.
 - Published SCRUM-18 as draft PR #21 targeting `develop`, reran validation with 181 tests passing and 22 datastore tests skipped because PostgreSQL was unavailable, and moved SCRUM-18 plus directly completed subtasks SCRUM-60 through SCRUM-63 to In Progress with issue-specific Jira comments; manual review, CI completion, merge validation, and final Done transitions remain.
 
 ## 2026-07-28
@@ -31,4 +32,3 @@ Keep the latest 10 task entries only.
 ## 2026-07-14
 
 - Corrected PR #16's SCRUM-13 contract: reduced the catalog to seven canonical relationships, removed duplicate hierarchy/provenance edges, made Alias resolves candidate-safe, fixed all six traversals, and added Markdown contract plus live Neo4j tests; next step: merge after CI and review.
-- Finalized the SCRUM-12 schema review fixes: separated manual record/assertion identity, replaced mutable-content hashes with persisted provenance or supersession, added explicit single-live-target `REFERS_TO` examples, and hardened recursive repository-bound Markdown link validation; next step: merge the stacked fix into PR #11 after CI and review.
