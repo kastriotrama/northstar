@@ -1,4 +1,8 @@
-from api.app.features.resolve.schemas import ResolveCandidate, ResolveResponse, ResolveStatusResponse
+from api.app.features.resolve.schemas import (
+    ResolveCandidate,
+    ResolveResponse,
+    ResolveStatusResponse,
+)
 
 
 class ResolveService:

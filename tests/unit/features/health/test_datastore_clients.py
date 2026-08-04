@@ -75,9 +75,8 @@ def test_postgres_health_client_propagates_connection_failure() -> None:
     with patch(
         "api.app.features.health.repository.psycopg.connect",
         side_effect=RuntimeError("database unavailable"),
-    ):
-        with pytest.raises(RuntimeError):
-            PostgresHealthClient(settings).check()
+    ), pytest.raises(RuntimeError):
+        PostgresHealthClient(settings).check()
 
 
 def test_redis_health_client_connects_with_url_and_timeouts() -> None:
@@ -128,9 +127,8 @@ def test_neo4j_health_client_closes_driver_on_failure() -> None:
     with patch(
         "api.app.features.health.repository.GraphDatabase.driver",
         return_value=driver,
-    ):
-        with pytest.raises(RuntimeError):
-            Neo4jHealthClient(settings).check()
+    ), pytest.raises(RuntimeError):
+        Neo4jHealthClient(settings).check()
 
     driver.close.assert_called_once_with()
 

@@ -148,57 +148,54 @@ def test_enqueue_retry_is_idempotent_and_payload_safe(
 def test_database_rejects_invalid_status_and_candidate_shape(
     pg_connection: Connection,
 ) -> None:
-    with pytest.raises(CheckViolation):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(
-                f"INSERT INTO {REVIEW_QUEUE_TABLE} "
-                "(review_id, source_system, source_table, source_record_id, "
-                "reason_code, status) VALUES (%s, %s, %s, %s, %s, %s)",
-                (
-                    uuid4(),
-                    TEST_SOURCE,
-                    "staging.transportstyrelsen_raw",
-                    101,
-                    "test_invalid_status",
-                    "closed",
-                ),
-            )
+    with pytest.raises(CheckViolation), pg_connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {REVIEW_QUEUE_TABLE} "
+            "(review_id, source_system, source_table, source_record_id, "
+            "reason_code, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                uuid4(),
+                TEST_SOURCE,
+                "staging.transportstyrelsen_raw",
+                101,
+                "test_invalid_status",
+                "closed",
+            ),
+        )
     pg_connection.rollback()
 
-    with pytest.raises(CheckViolation):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(
-                f"INSERT INTO {REVIEW_QUEUE_TABLE} "
-                "(review_id, source_system, source_table, source_record_id, "
-                "reason_code, candidate_matches) "
-                "VALUES (%s, %s, %s, %s, %s, %s::jsonb)",
-                (
-                    uuid4(),
-                    TEST_SOURCE,
-                    "staging.transportstyrelsen_raw",
-                    102,
-                    "test_invalid_candidate_shape",
-                    "{}",
-                ),
-            )
+    with pytest.raises(CheckViolation), pg_connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {REVIEW_QUEUE_TABLE} "
+            "(review_id, source_system, source_table, source_record_id, "
+            "reason_code, candidate_matches) "
+            "VALUES (%s, %s, %s, %s, %s, %s::jsonb)",
+            (
+                uuid4(),
+                TEST_SOURCE,
+                "staging.transportstyrelsen_raw",
+                102,
+                "test_invalid_candidate_shape",
+                "{}",
+            ),
+        )
     pg_connection.rollback()
 
-    with pytest.raises(CheckViolation):
-        with pg_connection.cursor() as cursor:
-            cursor.execute(
-                f"INSERT INTO {REVIEW_QUEUE_TABLE} "
-                "(review_id, source_system, source_table, source_record_id, "
-                "reason_code, resolution) "
-                "VALUES (%s, %s, %s, %s, %s, %s::jsonb)",
-                (
-                    uuid4(),
-                    TEST_SOURCE,
-                    "staging.transportstyrelsen_raw",
-                    103,
-                    "test_invalid_resolution_shape",
-                    "[]",
-                ),
-            )
+    with pytest.raises(CheckViolation), pg_connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {REVIEW_QUEUE_TABLE} "
+            "(review_id, source_system, source_table, source_record_id, "
+            "reason_code, resolution) "
+            "VALUES (%s, %s, %s, %s, %s, %s::jsonb)",
+            (
+                uuid4(),
+                TEST_SOURCE,
+                "staging.transportstyrelsen_raw",
+                103,
+                "test_invalid_resolution_shape",
+                "[]",
+            ),
+        )
     pg_connection.rollback()
 
 

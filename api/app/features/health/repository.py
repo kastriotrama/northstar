@@ -15,9 +15,14 @@ class PostgresHealthClient:
         self._timeout = settings.health_check_timeout_seconds
 
     def check(self) -> StoreHealth:
-        with psycopg.connect(self._database_url, connect_timeout=self._timeout) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
+        with (
+            psycopg.connect(
+                self._database_url,
+                connect_timeout=self._timeout,
+            ) as connection,
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("SELECT 1")
         return StoreHealth(name=self.name, status="ok")
 
 

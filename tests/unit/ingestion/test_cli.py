@@ -1,5 +1,6 @@
-from ingestion.cli import build_parser, main
 from pytest import CaptureFixture
+
+from ingestion.cli import build_parser, main
 
 
 def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:

@@ -1,7 +1,7 @@
 import argparse
 import logging
-from uuid import uuid4
 from collections.abc import Sequence
+from uuid import uuid4
 
 from ingestion.config import get_ingestion_settings
 from ingestion.datastores import DatastoreClients

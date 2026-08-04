@@ -27,10 +27,9 @@ class PostgresClient:
             yield connection
 
     def ping(self) -> bool:
-        with self.connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-                return cursor.fetchone() == (1,)
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            return cursor.fetchone() == (1,)
 
 
 @dataclass(frozen=True)
