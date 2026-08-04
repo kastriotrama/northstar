@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Self
 
 import pytest
 
@@ -15,7 +16,7 @@ class FakeCursor:
         self._rows = rows
         self.executed: list[tuple[str, tuple[object, ...]]] = []
 
-    def __enter__(self) -> "FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:

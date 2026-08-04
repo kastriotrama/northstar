@@ -1,7 +1,7 @@
 from ingestion.job_bookkeeping_migrations import (
     JOB_BOOKKEEPING_MIGRATION_STATEMENTS,
-    JOB_RUNS_TABLE,
     JOB_RUN_STATUSES,
+    JOB_RUNS_TABLE,
 )
 
 
