@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — SCRUM-94
+
+- Implemented the sanitized golden normalization/reconciliation corpus on `feature/SCRUM-94-golden-test-corpus`: added 200 versioned cases (160 TS normalization and 40 candidate reconciliation), complete approved output/evidence snapshots, sensitive-field and corpus-shape gates, explicit approval, aggregate per-case unified regression diffs, a CI verification step, documentation, and tests. Ruff 0.16, strict mypy, the standalone corpus verifier, and all 319 tests pass. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — SCRUM-93
 
 - Implemented the final Phase 1 confidence/routing gate on `feature/SCRUM-93-confidence-routing`: added versioned weighted composite scoring, exact resolved/provisional/review boundaries, hard-conflict/non-exact/phonetic/ambiguity overrides, complete decision traces and alternatives, immutable catalog/policy-versioned PostgreSQL persistence, source validation, database constraints, and the `migrate-confidence-routing` command. Graph documentation now consistently uses the `0.70 <= confidence < 0.90` provisional band. Ruff 0.16, strict mypy, all 313 tests, and the real migration command pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
@@ -37,8 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-07-30
 
 - Implemented SCRUM-82 on `feature/SCRUM-82-ts-normalizer`: added versioned sanitized normalization results, accepted/candidate rule separation, deterministic review routing, retry-safe batch execution, explicit-batch CLI behavior, a fixed-width pilot reader, documentation, and tests; the isolated full suite passed with 229 tests, Ruff and strict mypy passed, and a real 1,000-vehicle pilot completed with zero technical failures and a verified no-op retry. The retained pilot requires manufacturer review because the legacy source lacks `Tillverkare`; Jira, push, and PR remain unchanged pending approval.
-
-## 2026-07-29
-
-- Published SCRUM-19 as draft stacked PR #22 targeting the SCRUM-18 branch/PR #21: added contract-verified `core.ingest_job_runs` migrations, retry-safe job/batch claiming, completed-batch no-op behavior, failure retry, balanced counts, sanitized error summaries, CLI migration support, documentation, and tests; Ruff, strict mypy, all 217 tests, four focused live PostgreSQL tests, and the real migration command passed, with retargeting to `develop` required after PR #21 merges.
-- Published SCRUM-18 as draft PR #21 targeting `develop`, reran validation with 181 tests passing and 22 datastore tests skipped because PostgreSQL was unavailable, and moved SCRUM-18 plus directly completed subtasks SCRUM-60 through SCRUM-63 to In Progress with issue-specific Jira comments; manual review, CI completion, merge validation, and final Done transitions remain.

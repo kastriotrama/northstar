@@ -93,6 +93,10 @@ are owned by the versioned
 [confidence-routing contract](confidence-routing-contract.md); preliminary
 Stage 1 bands do not override that gate.
 
+Representative results across both stages are pinned by the sanitized, CI-enforced
+[golden-corpus contract](golden-corpus-contract.md). Rule changes must expose their normalized,
+routing and evidence differences before updated expectations can be approved.
+
 The dictionary boundary and accepted/proposed behavior are defined in
 [translation-dictionary-contract.md](translation-dictionary-contract.md).
 Stage 2a candidate generation is defined separately in
