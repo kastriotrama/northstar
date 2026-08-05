@@ -285,6 +285,106 @@ def test_model_variant_policy_routes_conflicting_manufacturer_aliases_to_review(
     assert "manufacturer_model_variant_conflict" in outcome.review_reasons
 
 
+def test_approved_brand_prefix_policy_uses_reviewed_manufacturer_alias() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "VOLVO 945-811 SE 2.3"},
+        manufacturer_entity_rules={
+            "policy:MFR-BRAND-PREFIX-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-BRAND-PREFIX-FALLBACK",
+                "match_type": "whole_token_prefix",
+                "review_terms": ["ADRIA", "DETHLEFFS", "DAIMLER"],
+            }
+        },
+    )
+
+    assert outcome.status == "provisional"
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.candidates["manufacturer_confirmation"] == {
+        "canonical_name": "Volvo",
+        "source_fields": ["brand"],
+    }
+    assert "MFR-BRAND-PREFIX-FALLBACK" in outcome.candidate_rule_ids
+
+
+def test_brand_prefix_policy_uses_approved_database_entity_alias() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "SAAB 9-5 VECTOR"},
+        manufacturer_entity_rules={
+            "policy:MFR-BRAND-PREFIX-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-BRAND-PREFIX-FALLBACK",
+                "match_type": "whole_token_prefix",
+            },
+            "brand:SAAB": {
+                "kind": "manufacturer_entity",
+                "entity_id": "MFE-BRAND-SAAB",
+                "source_field": "brand",
+                "source_term": "SAAB",
+                "canonical_name": "Saab",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+                "match_type": "whole_token_prefix",
+            },
+        },
+    )
+
+    assert outcome.status == "provisional"
+    assert outcome.normalized["manufacturer"] == "Saab"
+    assert "MFE-BRAND-SAAB" in outcome.candidate_rule_ids
+
+
+def test_brand_prefix_policy_keeps_compound_builder_and_marque_cases_in_review() -> None:
+    rules = {
+        "policy:MFR-BRAND-PREFIX-FALLBACK": {
+            "kind": "manufacturer_match_policy",
+            "rule_id": "MFR-BRAND-PREFIX-FALLBACK",
+            "match_type": "whole_token_prefix",
+            "review_terms": ["ADRIA", "DETHLEFFS", "DAIMLER"],
+        }
+    }
+
+    fiat = normalize_ts_record({"brand": "FIAT ADRIA A"}, manufacturer_entity_rules=rules)
+    jaguar = normalize_ts_record(
+        {"brand": "JAGUAR DAIMLER SOVEREIGN"},
+        manufacturer_entity_rules={
+            **rules,
+            "brand:JAGUAR": {
+                "kind": "manufacturer_entity",
+                "entity_id": "MFE-BRAND-JAGUAR",
+                "source_field": "brand",
+                "source_term": "JAGUAR",
+                "canonical_name": "Jaguar",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+                "match_type": "whole_token_prefix",
+            },
+        },
+    )
+
+    assert "manufacturer" not in fiat.normalized
+    assert "manufacturer_brand_compound_review" in fiat.review_reasons
+    assert "manufacturer" not in jaguar.normalized
+    assert "manufacturer_brand_compound_review" in jaguar.review_reasons
+
+
+def test_brand_prefix_policy_does_not_replace_stronger_confirmed_brand_evidence() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "VOLVO", "model": "V70"},
+        manufacturer_entity_rules={
+            "policy:MFR-BRAND-PREFIX-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-BRAND-PREFIX-FALLBACK",
+                "match_type": "whole_token_prefix",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert "MFR-BRAND-CONFIRMED" in outcome.applied_rule_ids
+    assert "manufacturer_confirmation" not in outcome.candidates
+
+
 def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}

@@ -553,11 +553,13 @@ def _manufacturer_entity_rule(
     return rules.get(f"{source_field}:{source_term}")
 
 
-def _manufacturer_fallback_policy(
-    rules: ManufacturerEntityRules,
-) -> Mapping[str, Any] | None:
+def _manufacturer_policy(rules: ManufacturerEntityRules, rule_id: str) -> Mapping[str, Any] | None:
     return next(
-        (rule for rule in rules.values() if rule.get("kind") == "manufacturer_match_policy"),
+        (
+            rule
+            for rule in rules.values()
+            if rule.get("kind") == "manufacturer_match_policy" and rule.get("rule_id") == rule_id
+        ),
         None,
     )
 
@@ -568,7 +570,7 @@ def _manufacturer_from_model_variant(
 ) -> tuple[str | None, tuple[str, ...], str | None, bool]:
     """Apply an approved whole-prefix fallback only when Brand is absent."""
 
-    policy = _manufacturer_fallback_policy(rules)
+    policy = _manufacturer_policy(rules, "MFR-MODEL-VARIANT-FALLBACK")
     if (
         policy is None
         or policy.get("match_type") != "whole_token_prefix"
@@ -593,6 +595,55 @@ def _manufacturer_from_model_variant(
         return None, (), normalized_rule_id, False
     manufacturer, source_fields = next(iter(matches.items()))
     return manufacturer, tuple(source_fields), normalized_rule_id, False
+
+
+def _manufacturer_from_brand_prefix(
+    raw: dict[str, Any],
+    rules: ManufacturerEntityRules,
+) -> tuple[str | None, tuple[str, ...], bool, bool]:
+    """Resolve a reviewed complete Brand prefix while rejecting compound marques."""
+
+    policy = _manufacturer_policy(rules, "MFR-BRAND-PREFIX-FALLBACK")
+    entity = _normalized_entity(raw.get("brand"))
+    if policy is None or policy.get("match_type") != "whole_token_prefix" or entity is None:
+        return None, (), False, False
+    review_terms = policy.get("review_terms", [])
+    if isinstance(review_terms, list):
+        padded_entity = f" {entity} "
+        if any(
+            isinstance(term, str) and f" {_normalized_entity(term) or ''} " in padded_entity
+            for term in review_terms
+        ):
+            return None, (str(policy.get("rule_id")),), True, False
+    matches: dict[str, list[str]] = {}
+    built_in = _resolve_manufacturer(entity)
+    if built_in is not None:
+        matches.setdefault(built_in, []).append(str(policy.get("rule_id")))
+    for rule in rules.values():
+        if (
+            rule.get("kind") != "manufacturer_entity"
+            or rule.get("source_field") != "brand"
+            or rule.get("match_type") != "whole_token_prefix"
+            or rule.get("entity_role") != "vehicle_manufacturer"
+        ):
+            continue
+        alias = _normalized_entity(rule.get("source_term"))
+        canonical = rule.get("canonical_name")
+        if (
+            alias is not None
+            and isinstance(canonical, str)
+            and (entity == alias or entity.startswith(f"{alias} "))
+        ):
+            rule_id = rule.get("entity_id")
+            matches.setdefault(canonical, []).append(
+                rule_id if isinstance(rule_id, str) else str(policy.get("rule_id"))
+            )
+    if len(matches) > 1:
+        return None, tuple(sorted(matches)), False, True
+    if not matches:
+        return None, (), False, False
+    manufacturer, rule_ids = next(iter(matches.items()))
+    return manufacturer, tuple(dict.fromkeys(rule_ids)), False, False
 
 
 def _apply_manufacturer_entity_rule(
@@ -761,6 +812,29 @@ def _normalize_manufacturer(
                 normalized["builder_converter_names"] = []
                 applied.extend(("MFR-BRAND-CONFIRMED", *evidence_rules))
                 return
+        brand_fallback, brand_rule_ids, compound, brand_conflict = _manufacturer_from_brand_prefix(
+            raw, entity_rules
+        )
+        if brand_conflict:
+            candidates["manufacturer"] = list(brand_rule_ids)
+            candidate_rules.append("MFR-BRAND-PREFIX-FALLBACK")
+            reasons.append("manufacturer_brand_prefix_conflict")
+            return
+        if compound:
+            candidate_rules.extend(brand_rule_ids)
+            reasons.append("manufacturer_brand_compound_review")
+            return
+        if brand_fallback is not None:
+            normalized["manufacturer"] = brand_fallback
+            normalized["manufacturer_role"] = "vehicle_manufacturer"
+            normalized["builder_converter_names"] = []
+            candidates["manufacturer_confirmation"] = {
+                "canonical_name": brand_fallback,
+                "source_fields": ["brand"],
+            }
+            candidate_rules.extend(brand_rule_ids)
+            return
+        if marketed is not None:
             candidates["manufacturer"] = marketed
             candidate_rules.append("MFR-BRAND-REVIEW")
             reasons.append("manufacturer_missing_compare_brand")

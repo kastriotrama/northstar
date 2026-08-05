@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Approved Brand-prefix manufacturer fallback
+
+- Added and directly activated DB policy `MFR-BRAND-PREFIX-FALLBACK` plus 13 reviewed passenger-car Brand aliases in immutable version `ts-review-20260805T180257125170Z`. When Tillverkare is missing, complete Brand-prefix matches now produce a provisional manufacturer; unsafe substrings and compound `ADRIA`, `DETHLEFFS`, or `DAIMLER` terms remain in review. Re-import moved 95 cars out of review: 37 resolved, 207 provisional, 6 review-required, and 0 failed. The six remaining cases are the three protected compounds, Knaus/FCA, Škoda legal entity, and PSA/Citroën. Focused tests and live PostgreSQL checks pass; Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Approved Model/Variant manufacturer fallback
 
 - Added and directly activated immutable DB policy `MFR-MODEL-VARIANT-FALLBACK` in version `ts-review-20260805T175608808573Z`. When Tillverkare and Brand are both absent, the normalizer can use a reviewed Manufacturer entity alias at the start of Model or Variant as a provisional manufacturer requiring later corroboration. Complete-token/prefix matching prevents substring guesses, populated Brand is never overridden, and conflicting Model/Variant manufacturers remain in review. Ruff, strict mypy, all 358 tests, DB verification, and a 250-passenger-car re-import pass. The current totals intentionally stayed unchanged because all 101 review cases have Brand populated; no Jira update, push, or PR was made.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-93
 
 - Implemented the final Phase 1 confidence/routing gate on `feature/SCRUM-93-confidence-routing`: added versioned weighted composite scoring, exact resolved/provisional/review boundaries, hard-conflict/non-exact/phonetic/ambiguity overrides, complete decision traces and alternatives, immutable catalog/policy-versioned PostgreSQL persistence, source validation, database constraints, and the `migrate-confidence-routing` command. Graph documentation now consistently uses the `0.70 <= confidence < 0.90` provisional band. Ruff 0.16, strict mypy, all 313 tests, and the real migration command pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-92
-
-- Implemented Stage 2b on `feature/SCRUM-92-phonetic-matching`: added versioned, deterministic phonetic recovery for allow-listed manufacturer/model text; review-only phonetic manufacturer scoping and model evidence; configurable combined scoring; exact algorithm provenance; and hard exclusions for VIN, plate, KType, engine/type codes and alphanumeric identifiers. Phonetics cannot independently create or automatically accept a match and cannot bypass hard conflicts. Ruff 0.16, strict mypy, and all 294 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.

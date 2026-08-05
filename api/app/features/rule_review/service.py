@@ -208,9 +208,13 @@ class RuleReviewService:
                 continue
             rules[f"{source_field}:{source_term}"] = {
                 "entity_id": str(entity_id),
+                "kind": "manufacturer_entity",
+                "source_field": source_field,
+                "source_term": source_term,
                 "canonical_name": override.get("canonical_name"),
                 "entity_role": override.get("entity_role"),
                 "base_behavior": override.get("base_behavior"),
+                "match_type": override.get("match_type"),
             }
         return rules
 

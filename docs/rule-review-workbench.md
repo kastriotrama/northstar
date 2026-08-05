@@ -44,12 +44,21 @@ One unambiguous match records a provisional manufacturer plus confirmation
 evidence; multiple manufacturers or unsafe substring-only matches remain in
 review. A populated Brand is never overridden by this fallback.
 
+The active `MFR-BRAND-PREFIX-FALLBACK` policy handles a missing Tillverkare
+when Brand starts with an approved Manufacturer entity alias. Matching is
+whole-token/prefix only and records a provisional manufacturer for later
+corroboration. Reviewed aliases cover observed passenger-car variants such as
+Saab, Škoda, Dacia, Jaguar, Mazda, Mitsubishi, Vauxhall, and VW. Compound
+converter or marque terms (`ADRIA`, `DETHLEFFS`, and `DAIMLER`) are explicitly
+kept in review rather than flattened into the prefix manufacturer.
+
 ## Current review backlog
 
 The workbench reports reason counts for the latest passenger-car batch. Of 250
-records, 101 require review: 75 need Brand evidence because Tillverkare is
-missing, 23 have no manufacturer value, 2 contain an unknown manufacturer, and
-1 contains an unresolved corporate group. This cohort has no bodywork/category
+records, 37 are resolved, 207 are provisional, 6 require review, and none
+failed. The remaining six are intentionally protected: Fiat/Adria,
+Fiat/Dethleffs, Jaguar/Daimler, Knaus/FCA, Škoda's legal entity, and a
+PSA/Citroën corporate-group case. This cohort has no bodywork/category
 conflicts. Reason counts can overlap in future batches and must not be assumed
 to equal the vehicle count without checking the records.
 

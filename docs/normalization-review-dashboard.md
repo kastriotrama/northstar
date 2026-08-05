@@ -44,9 +44,11 @@ Supported query parameters are `query`, `status`, `manufacturer`, `bodywork`,
 
 The development database contains a deterministic 250-passenger-car sample
 from the supplied Transportstyrelsen source. The latest batch,
-`normalization-review-passenger-250-v1`, contains 243 `M1` and 7 `M1G` records:
-36 resolved, 113 provisional, 101 requiring review, and no technical failures.
+`normalization-review-passenger-250-v1`, contains 243 `M1` and 7 `M1G` records.
+After the approved Manufacturer entity Brand-prefix re-import, 37 are resolved,
+207 are provisional, 6 require review, and none failed.
 Every staged row has TS vehicle type `PB`; trucks, buses, trailers,
 motorcycles, tractors, and other categories are excluded before normalization.
-The remaining review cases concern manufacturer evidence. This cohort has no
-bodywork/category conflicts.
+The remaining six review cases are protected corporate-group, converter, legal
+entity, or ambiguous-marque decisions. This cohort has no bodywork/category
+conflicts.
