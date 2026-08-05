@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — SCRUM-91
+
+- Implemented Stage 2a on `feature/SCRUM-91-fuzzy-matching`: added immutable manufacturer/alias candidate indexes, deterministic Damerau-Levenshtein and token scoring, year/fuel/engine context evidence, numeric model-series protection, configurable thresholds/margins, review-queue payloads, and safe exact/fuzzy/global scope gates. Fuzzy/global, conflicting, weak, and ambiguous matches cannot become automatically eligible. Ruff 0.16, strict mypy, and all 281 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — SCRUM-90
 
 - Implemented Stage 1c on `feature/SCRUM-90-unit-conversion-structured-extraction`: pipeline v3 now extracts ISO registration/production dates and explicit ranges, structured engine code/family fields, canonical kW and displacement units, and retains reviewed multi-fuel/electrification behavior. Malformed, reversed, conflicting, or out-of-bound evidence routes to review; documentation and boundary/regression coverage were added. Ruff 0.16, strict mypy, and all 266 tests pass with healthy PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
@@ -35,7 +39,3 @@ Keep the latest 10 task entries only.
 
 - Implemented SCRUM-18 on `feature/SCRUM-18-review-queue`: added a contract-verified `core.review_queue` migration, idempotent enqueueing, status worklists, controlled resolution lifecycle, raw staging references, candidate evidence, normalization routing documentation, and sanitized manufacturer/hybrid examples.
 - Validation passed with 203 tests, seven live PostgreSQL review-queue tests, Ruff, strict mypy, `git diff --check`, and the real `northstar-ingest migrate-review-queue` command; Jira comments and statuses remain unchanged.
-
-## 2026-07-19
-
-- Hardened PR #20 for `SCRUM-17`: added UUID-based retry idempotency, node-local linear correction constraints, complete schema-contract verification, corrected ledger documentation, and cross-store provenance rules in `AGENTS.md`; Ruff, mypy, 162 tests, and all 10 live PostgreSQL ledger tests passed, with 16 unrelated Neo4j tests skipped.

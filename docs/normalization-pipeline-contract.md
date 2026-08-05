@@ -94,6 +94,9 @@ thresholds.
 
 The dictionary boundary and accepted/proposed behavior are defined in
 [translation-dictionary-contract.md](translation-dictionary-contract.md).
+Stage 2a candidate generation is defined separately in
+[fuzzy-matching-contract.md](fuzzy-matching-contract.md); it consumes normalized
+evidence and never mutates this Stage 1 pipeline result.
 
 Example payload:
 
