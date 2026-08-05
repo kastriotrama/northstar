@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Brand search and manufacturer audit details
+
+- Extended the normalization review workspace so vehicle search includes the sanitized TS Brand field, rows and the selected-car inspector show Brand, and rule provenance distinguishes applied from candidate rules. Manufacturer entity selection now shows Created at and Updated at from immutable activation history; draft creation time is persisted, while built-in unversioned entries are labeled honestly. Re-imported the 250 passenger cars so Brand-prefix examples expose both `MFR-BRAND-PREFIX-FALLBACK` and their reviewed entity rule. Ruff, strict mypy, all 363 tests, live API search, PostgreSQL lifecycle checks, and browser verification of Saab Brand search/entity timestamps pass; Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Approved Brand-prefix manufacturer fallback
 
 - Added and directly activated DB policy `MFR-BRAND-PREFIX-FALLBACK` plus 13 reviewed passenger-car Brand aliases in immutable version `ts-review-20260805T180257125170Z`. When Tillverkare is missing, complete Brand-prefix matches now produce a provisional manufacturer; unsafe substrings and compound `ADRIA`, `DETHLEFFS`, or `DAIMLER` terms remain in review. Re-import moved 95 cars out of review: 37 resolved, 207 provisional, 6 review-required, and 0 failed. The six remaining cases are the three protected compounds, Knaus/FCA, Škoda legal entity, and PSA/Citroën. Focused tests and live PostgreSQL checks pass; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-94
 
 - Implemented the sanitized golden normalization/reconciliation corpus on `feature/SCRUM-94-golden-test-corpus`: added 205 versioned cases (165 TS normalization and 40 candidate reconciliation), complete approved output/evidence snapshots, sensitive-field and corpus-shape gates, explicit approval, aggregate per-case unified regression diffs, a CI verification step, documentation, and tests. Applied the latest stakeholder bodywork comments in replay-safe `ts-translation-v4`: European `estate` replaces stored `wagon`, BA remains `truck`, goods van remains `van`, passenger marketing becomes `passenger_van`, and official AF remains `multi_purpose_vehicle`; versions 2 and 3 remain replayable. Ruff 0.16, strict mypy, the standalone corpus verifier, and all 322 tests pass. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-93
-
-- Implemented the final Phase 1 confidence/routing gate on `feature/SCRUM-93-confidence-routing`: added versioned weighted composite scoring, exact resolved/provisional/review boundaries, hard-conflict/non-exact/phonetic/ambiguity overrides, complete decision traces and alternatives, immutable catalog/policy-versioned PostgreSQL persistence, source validation, database constraints, and the `migrate-confidence-routing` command. Graph documentation now consistently uses the `0.70 <= confidence < 0.90` provisional band. Ruff 0.16, strict mypy, all 313 tests, and the real migration command pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.

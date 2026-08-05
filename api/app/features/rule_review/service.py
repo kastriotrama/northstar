@@ -51,12 +51,13 @@ class RuleReviewService:
         entity_drafts = self._repository.fetch_manufacturer_entity_drafts()
         active = self._repository.fetch_active_version()
         active_overrides = active["overrides"] if active is not None else {}
+        entity_lifecycle = self._repository.fetch_manufacturer_entity_lifecycle()
         options = self._canonical_options()
         rules = [
             self._view(rule, active_overrides.get(rule.rule_id), drafts.get(rule.rule_id), options)
             for rule in self._base.rules
         ]
-        entities = self._manufacturer_entities(active_overrides, entity_drafts)
+        entities = self._manufacturer_entities(active_overrides, entity_drafts, entity_lifecycle)
         return RuleListResponse(
             base_version=self._base.version,
             active_version=str(active["version"]) if active is not None else self._base.version,
@@ -97,10 +98,11 @@ class RuleReviewService:
         active = self._repository.fetch_active_version()
         active_overrides = active["overrides"] if active is not None else {}
         drafts = self._repository.fetch_manufacturer_entity_drafts()
+        entity_lifecycle = self._repository.fetch_manufacturer_entity_lifecycle()
         entity = next(
             (
                 item
-                for item in self._manufacturer_entities(active_overrides, drafts)
+                for item in self._manufacturer_entities(active_overrides, drafts, entity_lifecycle)
                 if item.entity_id == entity_id
             ),
             None,
@@ -222,6 +224,7 @@ class RuleReviewService:
         self,
         active_overrides: dict[str, Any],
         drafts: dict[str, dict[str, Any]],
+        lifecycle: dict[str, dict[str, datetime]],
     ) -> list[ManufacturerEntityView]:
         sources: dict[str, dict[str, Any]] = {}
         for item in manufacturer_entity_catalog():
@@ -254,6 +257,7 @@ class RuleReviewService:
                 else None
             )
             draft = drafts.get(entity_id)
+            timestamps = lifecycle.get(entity_id, {})
             active_name = active.get("canonical_name") if active else base.get("canonical_name")
             active_role = (
                 active.get("entity_role") if active else base.get("entity_role", "unknown")
@@ -283,6 +287,10 @@ class RuleReviewService:
                     has_draft=draft is not None,
                     is_discovered=bool(base.get("is_discovered", False)),
                     change_note=str(draft["change_note"]) if draft else None,
+                    created_at=timestamps.get("created_at")
+                    or (draft.get("created_at") if draft else None),
+                    updated_at=timestamps.get("updated_at")
+                    or (draft.get("updated_at") if draft else None),
                 )
             )
         return sorted(

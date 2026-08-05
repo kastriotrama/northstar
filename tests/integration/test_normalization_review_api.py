@@ -39,12 +39,14 @@ class FakeReviewService:
             items=[
                 NormalizationReviewVehicle(
                     source_record_id=1,
+                    source_brand="VOLVO V60",
                     status="provisional",
                     confidence=0.8,
                     manufacturer="Volvo",
                     model_family="V60",
                     bodywork="estate",
                     energy_sources=["petrol"],
+                    candidate_rule_ids=["MFR-BRAND-PREFIX-FALLBACK"],
                 )
             ],
         )
@@ -145,6 +147,8 @@ def test_review_api_accepts_vehicle_search_and_filter_parameters(client: TestCli
     assert payload["batch_id"] == "screen-demo-250"
     assert payload["total"] == 250
     assert payload["items"][0]["model_family"] == "V60"
+    assert payload["items"][0]["source_brand"] == "VOLVO V60"
+    assert payload["items"][0]["candidate_rule_ids"] == ["MFR-BRAND-PREFIX-FALLBACK"]
 
 
 def test_review_screen_and_assets_are_served_by_application(client: TestClient) -> None:
@@ -159,6 +163,8 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="rules-view"' in screen.text
     assert 'id="rule-form"' in screen.text
     assert 'id="manufacturer-form"' in screen.text
+    assert 'id="manufacturer-created-at"' in screen.text
+    assert 'id="source-evidence"' in screen.text
     assert "Manufacturer entities" in screen.text
     assert stylesheet.status_code == 200
     assert ".workspace" in stylesheet.text

@@ -180,8 +180,16 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
                 )
             ),
             change_note TEXT NOT NULL CHECK (length(trim(change_note)) >= 5),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
+        """,
+    ),
+    (
+        "add_manufacturer_entity_draft_created_at",
+        f"""
+        ALTER TABLE {MANUFACTURER_ENTITY_DRAFTS_TABLE}
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         """,
     ),
     (

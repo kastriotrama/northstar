@@ -14,6 +14,7 @@ from ingestion.normalization_migrations import (
     NORMALIZATION_RESULTS_TABLE,
     run_normalization_migrations,
 )
+from ingestion.staging_migrations import run_staging_migrations
 
 
 @pytest.fixture
@@ -27,6 +28,7 @@ def review_connection() -> Iterator[Connection]:
         pytest.skip("PostgreSQL is unavailable; start it with docker compose up -d postgres")
         return
     run_normalization_migrations(connection)
+    run_staging_migrations(connection)
     yield connection
     connection.close()
 
@@ -41,6 +43,7 @@ def _insert_result(
     model: str,
     bodywork: str,
     fuels: list[str],
+    brand: str,
 ) -> None:
     payload = {
         "normalized": {
@@ -54,6 +57,11 @@ def _insert_result(
         "rule_matches": [{"rule_id": "BDY-110"}],
     }
     with connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO staging.transportstyrelsen_raw (id, source_batch_id, raw_record) "
+            "VALUES (%s, %s, %s)",
+            (source_record_id, batch_id, Jsonb({"brand": brand})),
+        )
         cursor.execute(
             f"""
             INSERT INTO {NORMALIZATION_RESULTS_TABLE} (
@@ -82,6 +90,7 @@ def test_repository_searches_filters_summarizes_and_builds_facets(
         model="V60",
         bodywork="estate",
         fuels=["petrol", "electricity"],
+        brand="VOLVO SOURCE BRAND",
     )
     _insert_result(
         review_connection,
@@ -92,6 +101,7 @@ def test_repository_searches_filters_summarizes_and_builds_facets(
         model="Transit",
         bodywork="van",
         fuels=["diesel"],
+        brand="FORD SOURCE BRAND",
     )
     repository = NormalizationReviewRepository(lambda: nullcontext(review_connection))
     try:
@@ -104,6 +114,13 @@ def test_repository_searches_filters_summarizes_and_builds_facets(
 
         assert filtered_total == 1
         assert rows[0]["source_record_id"] == 910001
+        assert rows[0]["source_brand"] == "VOLVO SOURCE BRAND"
+        brand_total, brand_rows = repository.fetch_page(
+            batch_id=batch_id,
+            filters=NormalizationReviewFilters(query="VOLVO SOURCE BRAND"),
+        )
+        assert brand_total == 1
+        assert brand_rows[0]["source_record_id"] == 910001
         assert summary == {
             "resolved": 0,
             "provisional": 1,
@@ -119,6 +136,10 @@ def test_repository_searches_filters_summarizes_and_builds_facets(
         with review_connection.cursor() as cursor:
             cursor.execute(
                 f"DELETE FROM {NORMALIZATION_RESULTS_TABLE} WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+            cursor.execute(
+                "DELETE FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s",
                 (batch_id,),
             )
         review_connection.commit()

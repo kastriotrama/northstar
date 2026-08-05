@@ -9,16 +9,19 @@ vehicle graph.
 
 - batch totals split into resolved, provisional, needs-review, and failed;
 - up to 300 vehicles per request (250 by default);
-- search across normalized manufacturer, model family, and engine code;
+- search across source Brand, normalized manufacturer, model family, and engine
+  code;
 - filters for status, manufacturer, bodywork, fuel, and transmission;
 - the normalized fields, confidence, review signals, decision trace, and
-  applied translation rules for the selected record;
+  applied/candidate rule provenance for the selected record;
 - combined filters, pagination, keyboard row selection, and `Cmd/Ctrl+K`
   search focus.
 
 Only the sanitized normalization result is returned by the API. Raw staging
 payloads, registration plates, VINs, and other source identifiers are not
-returned to the browser.
+returned to the browser. Brand is the only newly exposed source field because
+it is required to audit manufacturer decisions; source record ID remains the
+non-sensitive way to identify an example in the review screen.
 
 ## Run locally
 

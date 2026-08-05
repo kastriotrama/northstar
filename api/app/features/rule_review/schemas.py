@@ -55,6 +55,8 @@ class ManufacturerEntityView(BaseModel):
     has_draft: bool = False
     is_discovered: bool = False
     change_note: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class RuleListResponse(BaseModel):

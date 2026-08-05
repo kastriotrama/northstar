@@ -61,7 +61,7 @@ class RuleReviewRepository:
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 f"SELECT entity_id, source_field, source_term, canonical_name, "
-                f"entity_role, base_behavior, change_note "
+                f"entity_role, base_behavior, change_note, created_at, updated_at "
                 f"FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE} ORDER BY entity_id"
             )
             rows = cursor.fetchall()
@@ -74,9 +74,48 @@ class RuleReviewRepository:
                 "entity_role": str(row[4]),
                 "base_behavior": str(row[5]),
                 "change_note": str(row[6]),
+                "created_at": row[7],
+                "updated_at": row[8],
             }
             for row in rows
         }
+
+    def fetch_manufacturer_entity_lifecycle(self) -> dict[str, dict[str, datetime]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                WITH expanded AS (
+                    SELECT
+                        version,
+                        activated_at,
+                        item.key AS entity_id,
+                        item.value AS definition
+                    FROM {TRANSLATION_RULE_VERSIONS_TABLE}
+                    CROSS JOIN LATERAL jsonb_each(overrides) AS item
+                    WHERE item.value->>'kind' = 'manufacturer_entity'
+                ), changes AS (
+                    SELECT
+                        entity_id,
+                        activated_at,
+                        definition,
+                        lag(definition) OVER (
+                            PARTITION BY entity_id ORDER BY activated_at, version
+                        ) AS previous_definition
+                    FROM expanded
+                )
+                SELECT
+                    entity_id,
+                    min(activated_at),
+                    max(activated_at) FILTER (
+                        WHERE previous_definition IS NULL
+                           OR definition IS DISTINCT FROM previous_definition
+                    )
+                FROM changes
+                GROUP BY entity_id
+                """
+            )
+            rows = cursor.fetchall()
+        return {str(row[0]): {"created_at": row[1], "updated_at": row[2]} for row in rows}
 
     def fetch_discovered_manufacturer_entities(self) -> list[dict[str, Any]]:
         with self._connection_factory() as connection, connection.cursor() as cursor:

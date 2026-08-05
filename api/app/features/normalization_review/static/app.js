@@ -51,6 +51,21 @@ function percent(value) {
   return `${Math.round(Number(value || 0) * 100)}%`;
 }
 
+function formatDateTime(value, fallback) {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function ruleExplanation(ruleId) {
+  if (ruleId === "MFR-BRAND-PREFIX-FALLBACK") return "Brand begins with an approved Manufacturer entity alias";
+  if (ruleId === "MFR-MODEL-VARIANT-FALLBACK") return "Model or Variant begins with an approved Manufacturer entity alias";
+  if (ruleId.startsWith("MFE-")) return "Reviewed Manufacturer entity classification";
+  return "Normalization rule evidence";
+}
+
 function displayValue(value) {
   if (value === null || value === undefined || value === "") return "—";
   if (Array.isArray(value)) return value.map(humanize).join(", ");
@@ -123,7 +138,7 @@ function populateFacets(facets) {
 function renderRows(items) {
   elements.rows.innerHTML = items.map((vehicle, index) => `
     <tr data-id="${vehicle.source_record_id}" class="${vehicle.source_record_id === state.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
-      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
+      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>${vehicle.source_brand ? `Brand: ${escapeHtml(vehicle.source_brand)} · ` : ""}Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
       <td>${statusBadge(vehicle.status)}</td>
       <td>${escapeHtml(humanize(vehicle.bodywork))}</td>
       <td>${escapeHtml(displayValue(vehicle.energy_sources))}</td>
@@ -158,6 +173,13 @@ function renderInspector(vehicle) {
   document.querySelector("#inspector-confidence").textContent = percent(vehicle.confidence);
   document.querySelector("#confidence-fill").style.width = percent(vehicle.confidence);
 
+  const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
+  document.querySelector("#source-evidence").innerHTML = [
+    ["Brand", vehicle.source_brand || "Not supplied"],
+    ["Source record", vehicle.source_record_id],
+    ["Manufacturer decision", manufacturerRule ? ruleExplanation(manufacturerRule) : "No Manufacturer entity fallback used"],
+  ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+
   const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
   const entries = fieldOrder.filter((key) => vehicle.normalized[key] !== undefined).map((key) => [key, vehicle.normalized[key]]);
   document.querySelector("#normalized-fields").innerHTML = entries.length
@@ -174,9 +196,14 @@ function renderInspector(vehicle) {
     ? vehicle.decision_trace.map((entry) => `<li><span class="trace-index">•</span><div class="trace-copy"><strong>${escapeHtml(humanize(entry.field || entry.signal || "decision"))}</strong><div class="trace-values"><span title="${escapeHtml(displayValue(entry.before ?? entry.value))}">${escapeHtml(displayValue(entry.before ?? entry.value))}</span><b>→</b><span title="${escapeHtml(displayValue(entry.after ?? entry.contribution))}">${escapeHtml(displayValue(entry.after ?? entry.contribution))}</span></div></div></li>`).join("")
     : '<li><span class="trace-index">•</span><div class="trace-copy"><strong>No trace available</strong></div></li>';
 
-  const rules = [...new Set([...vehicle.applied_rule_ids, ...vehicle.rule_matches.map((match) => match.rule_id).filter(Boolean)])];
+  const appliedRules = [...new Set([...vehicle.applied_rule_ids, ...vehicle.rule_matches.map((match) => match.rule_id).filter(Boolean)])];
+  const candidateRules = [...new Set(vehicle.candidate_rule_ids || [])];
+  const rules = [
+    ...appliedRules.map((rule) => ({ rule, state: "Applied" })),
+    ...candidateRules.filter((rule) => !appliedRules.includes(rule)).map((rule) => ({ rule, state: "Candidate" })),
+  ];
   document.querySelector("#rule-list").innerHTML = rules.length
-    ? rules.map((rule) => `<span>${escapeHtml(rule)}</span>`).join("")
+    ? rules.map(({ rule, state }) => `<span class="rule-evidence ${state === "Candidate" ? "candidate" : ""}" title="${escapeHtml(ruleExplanation(rule))}"><b>${escapeHtml(state)}</b>${escapeHtml(rule)}</span>`).join("")
     : "<span>No applied rules</span>";
 }
 
@@ -406,6 +433,8 @@ function renderManufacturerEditor(entity) {
   document.querySelector("#manufacturer-source-term").textContent = `${entity.source_field} = ${entity.source_term}`;
   document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "No unresolved occurrences";
   document.querySelector("#manufacturer-base-values").textContent = entity.base_manufacturers.join(", ") || "None supplied";
+  document.querySelector("#manufacturer-created-at").textContent = formatDateTime(entity.created_at, "Built-in catalog / not versioned");
+  document.querySelector("#manufacturer-updated-at").textContent = formatDateTime(entity.updated_at, "No database update recorded");
   document.querySelector("#manufacturer-canonical").value = entity.effective_canonical_name ?? "";
   document.querySelector("#manufacturer-role").value = entity.effective_entity_role;
   document.querySelector("#manufacturer-behavior").value = entity.effective_base_behavior;

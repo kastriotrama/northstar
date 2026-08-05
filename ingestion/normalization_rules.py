@@ -643,7 +643,8 @@ def _manufacturer_from_brand_prefix(
     if not matches:
         return None, (), False, False
     manufacturer, rule_ids = next(iter(matches.items()))
-    return manufacturer, tuple(dict.fromkeys(rule_ids)), False, False
+    policy_rule_id = str(policy.get("rule_id"))
+    return manufacturer, tuple(dict.fromkeys((policy_rule_id, *rule_ids))), False, False
 
 
 def _apply_manufacturer_entity_rule(

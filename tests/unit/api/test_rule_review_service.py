@@ -13,6 +13,7 @@ class FakeRuleRepository:
     def __init__(self) -> None:
         self.drafts: dict[str, dict[str, Any]] = {}
         self.entity_drafts: dict[str, dict[str, Any]] = {}
+        self.entity_lifecycle: dict[str, dict[str, datetime]] = {}
         self.active: dict[str, Any] | None = None
         self.activation: dict[str, Any] | None = None
 
@@ -27,6 +28,9 @@ class FakeRuleRepository:
 
     def fetch_manufacturer_entity_drafts(self) -> dict[str, dict[str, Any]]:
         return self.entity_drafts
+
+    def fetch_manufacturer_entity_lifecycle(self) -> dict[str, dict[str, datetime]]:
+        return self.entity_lifecycle
 
     def fetch_discovered_manufacturer_entities(self) -> list[dict[str, Any]]:
         return [
@@ -143,6 +147,24 @@ def test_discovered_brand_entity_can_be_classified_as_a_reviewed_draft() -> None
     assert reviewed.effective_entity_role == "vehicle_manufacturer"
     assert reviewed.has_draft is True
     assert repository.entity_drafts[entity.entity_id]["source_term"] == "AUDI A4 2 0TS QUATTRO"
+
+
+def test_manufacturer_entity_view_exposes_database_lifecycle_timestamps() -> None:
+    subject, repository, _ = service()
+    entity_id = subject.list_rules().manufacturer_entities[0].entity_id
+    created_at = datetime(2026, 8, 5, 10, 0, tzinfo=UTC)
+    updated_at = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
+    repository.entity_lifecycle[entity_id] = {
+        "created_at": created_at,
+        "updated_at": updated_at,
+    }
+
+    entity = next(
+        item for item in subject.list_rules().manufacturer_entities if item.entity_id == entity_id
+    )
+
+    assert entity.created_at == created_at
+    assert entity.updated_at == updated_at
 
 
 def test_activation_inherits_prior_overrides_and_adds_current_drafts() -> None:

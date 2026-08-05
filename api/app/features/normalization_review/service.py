@@ -64,6 +64,7 @@ class NormalizationReviewService:
         production_year = normalized.get("production_year") or normalized.get("model_year")
         return NormalizationReviewVehicle(
             source_record_id=int(row["source_record_id"]),
+            source_brand=row.get("source_brand"),
             status=row["status"],
             confidence=float(row["confidence"]),
             manufacturer=normalized.get("manufacturer") or candidates.get("manufacturer"),
@@ -77,6 +78,7 @@ class NormalizationReviewService:
             production_year=int(production_year) if isinstance(production_year, int) else None,
             review_reasons=list(row["review_reasons"]),
             applied_rule_ids=list(row["applied_rule_ids"]),
+            candidate_rule_ids=list(payload.get("candidate_rule_ids") or []),
             normalized=normalized,
             candidates=candidates,
             decision_trace=list(payload.get("decision_trace") or []),

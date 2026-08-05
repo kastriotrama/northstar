@@ -47,7 +47,12 @@ class NormalizationReviewRepository:
                     confidence,
                     normalized_payload,
                     applied_rule_ids,
-                    review_reasons
+                    review_reasons,
+                    (
+                        SELECT raw.raw_record->>'brand'
+                        FROM staging.transportstyrelsen_raw AS raw
+                        WHERE raw.id = source_record_id
+                    ) AS source_brand
                 FROM {NORMALIZATION_RESULTS_TABLE}
                 WHERE source_batch_id = %s
                 ORDER BY source_record_id, updated_at DESC, id DESC
@@ -65,7 +70,7 @@ class NormalizationReviewRepository:
                 cte
                 + sql.SQL(
                     "SELECT source_record_id, status, confidence, normalized_payload, "
-                    "applied_rule_ids, review_reasons FROM latest WHERE "
+                    "applied_rule_ids, review_reasons, source_brand FROM latest WHERE "
                 )
                 + where_clause
                 + sql.SQL(" ORDER BY source_record_id LIMIT %s OFFSET %s"),
@@ -80,6 +85,7 @@ class NormalizationReviewRepository:
                 "normalized_payload": dict(row[3]),
                 "applied_rule_ids": list(row[4]),
                 "review_reasons": list(row[5]),
+                "source_brand": str(row[6]) if row[6] is not None else None,
             }
             for row in rows
         ]
@@ -177,7 +183,8 @@ class NormalizationReviewRepository:
                         {payload} #>> '{{normalized,engine_code}}',
                         {payload} #>> '{{normalized,bodywork_form}}',
                         {payload} #>> '{{normalized,transmission_type}}',
-                        {payload} #> '{{normalized,energy_sources}}'
+                        {payload} #> '{{normalized,energy_sources}}',
+                        source_brand
                     ) ILIKE %s
                     """
                 )

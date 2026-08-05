@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=3" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=4" />
   </head>
   <body>
     <div class="app-shell">
@@ -48,7 +48,7 @@
             <label class="search-field">
               <span class="sr-only">Search vehicles</span>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg>
-              <input id="search" type="search" placeholder="Search manufacturer, model, engine…" autocomplete="off" />
+              <input id="search" type="search" placeholder="Search Brand, manufacturer, model, engine…" autocomplete="off" />
               <kbd>⌘ K</kbd>
             </label>
             <button id="reset-filters" class="text-button" type="button">Reset filters</button>
@@ -116,6 +116,11 @@
             </div>
 
             <section class="inspector-section">
+              <h2>Source evidence</h2>
+              <dl id="source-evidence" class="field-list"></dl>
+            </section>
+
+            <section class="inspector-section">
               <h2>Normalized vehicle</h2>
               <dl id="normalized-fields" class="field-list"></dl>
             </section>
@@ -131,7 +136,7 @@
             </section>
 
             <section class="inspector-section">
-              <h2>Applied rules</h2>
+              <h2>Rule provenance</h2>
               <div id="rule-list" class="rule-list"></div>
             </section>
           </div>
@@ -219,7 +224,7 @@
               <header class="editor-head"><div><span class="eyebrow" id="manufacturer-source-field">Tillverkare entity</span><h2 id="manufacturer-entity-term">Entity</h2></div><span id="manufacturer-state" class="draft-marker">Active</span></header>
               <section class="editor-section readonly-evidence">
                 <h3>Immutable source evidence</h3>
-                <dl><div><dt>Canonical source key</dt><dd id="manufacturer-source-term">—</dd></div><div><dt>Occurrences</dt><dd id="manufacturer-occurrences">—</dd></div><div><dt>Base manufacturers</dt><dd id="manufacturer-base-values">—</dd></div></dl>
+                <dl><div><dt>Canonical source key</dt><dd id="manufacturer-source-term">—</dd></div><div><dt>Occurrences</dt><dd id="manufacturer-occurrences">—</dd></div><div><dt>Base manufacturers</dt><dd id="manufacturer-base-values">—</dd></div><div><dt>Created at</dt><dd id="manufacturer-created-at">—</dd></div><div><dt>Updated at</dt><dd id="manufacturer-updated-at">—</dd></div></dl>
               </section>
               <section class="editor-section editor-fields">
                 <h3>Reviewed classification</h3>
@@ -235,6 +240,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=3" defer></script>
+    <script src="/normalization-review/assets/app.js?v=4" defer></script>
   </body>
 </html>

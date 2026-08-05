@@ -33,6 +33,12 @@ reviewer can classify each exact entity as:
 - corporate group: require marketed-brand evidence;
 - unknown: keep the record in review.
 
+Selecting a Manufacturer entity shows its database lifecycle. `Created at` is
+the first immutable rule version containing that entity; `Updated at` is the
+latest version where its definition changed. Built-in catalog entries that
+have never been persisted are labeled as unversioned rather than receiving an
+invented timestamp.
+
 Source field and canonicalized source key remain immutable. Newly discovered
 Brand values are not accepted automatically; a reviewer must classify the exact canonical key and
 activate it before re-import.

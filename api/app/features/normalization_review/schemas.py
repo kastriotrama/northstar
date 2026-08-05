@@ -34,6 +34,7 @@ class NormalizationReviewFacets(BaseModel):
 
 class NormalizationReviewVehicle(BaseModel):
     source_record_id: int
+    source_brand: str | None = None
     status: NormalizationStatus
     confidence: float = Field(ge=0.0, le=1.0)
     manufacturer: str | None = None
@@ -45,6 +46,7 @@ class NormalizationReviewVehicle(BaseModel):
     production_year: int | None = None
     review_reasons: list[str] = Field(default_factory=list)
     applied_rule_ids: list[str] = Field(default_factory=list)
+    candidate_rule_ids: list[str] = Field(default_factory=list)
     normalized: dict[str, Any] = Field(default_factory=dict)
     candidates: dict[str, Any] = Field(default_factory=dict)
     decision_trace: list[dict[str, Any]] = Field(default_factory=list)
