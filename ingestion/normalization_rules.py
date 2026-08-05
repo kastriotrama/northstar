@@ -235,6 +235,116 @@ _CONVERTER_ALIASES: dict[str, tuple[str, str]] = {
     "KABE AB": ("KABE", "MFR-107"),
 }
 
+# Exact legacy Brand values reviewed from the 250-record Transportstyrelsen
+# sample. These records have no Tillverkare, and Brand combines make/model text.
+# Exact canonical keys prevent a short manufacturer prefix from matching an
+# unrelated company or vehicle.
+_REVIEWED_LEGACY_BRAND_ENTITIES: dict[str, str] = {
+    "AKTIV STABIL 1000 15": "Aktiv Stabil",
+    "ALFA ROMEO 940": "Alfa Romeo",
+    "ALFA ROMEO GIULIETTA SPR": "Alfa Romeo",
+    "ÅTM 10014": "ÅTM",
+    "ÅTM 7512": "ÅTM",
+    "BELARUS 820": "Belarus",
+    "BM VOLVO 861 DR": "Volvo BM",
+    "BOJ SLÄP": "BOJ",
+    "BOLINDER MUNKTELL VOLVO": "Volvo BM",
+    "BRENDERUP": "Brenderup",
+    "BRÖDERNA FRANSSON 850": "Bröderna Fransson",
+    "BRP": "BRP",
+    "BUYANG FA D300": "Buyang",
+    "CABBY NOVA 472 CT SLÄP": "Cabby",
+    "CASE 1490 4 WD": "Case",
+    "CHEVROLET IMPALA": "Chevrolet",
+    "CHEVROLET KL1T": "Chevrolet",
+    "CHEVROLET VAN": "Chevrolet",
+    "CI SMÅLANDIA 450": "CI Smålandia",
+    "CLUB CAR DS": "Club Car",
+    "CO SLÄPET 2000 BTR": "CO-Släpet",
+    "CO SLÄPET 750 JUBI": "CO-Släpet",
+    "DUCATI SUPERSPORT 900": "Ducati",
+    "FOBO 10016": "FOBO",
+    "FORDSON DEXTA": "Fordson",
+    "FORDSON MAJOR": "Fordson",
+    "GISEBO G 25 16 1": "Gisebo",
+    "GISEBO G 25 18 2": "Gisebo",
+    "GOES": "Goes",
+    "GOES CF500A": "Goes",
+    "HARLEY DAVIDSON": "Harley-Davidson",
+    "HARLEY DAVIDSON FXE 1200": "Harley-Davidson",
+    "HOLDER P70C 460": "Holder",
+    "HUSQVARNA MOD KAF 256A": "Husqvarna",
+    "HYDRO MEKANO": "Hydro Mekano",
+    "IGASS 750": "IGASS",
+    "INDIAN": "Indian",
+    "INTERNATIONAL 584": "International",
+    "J DEERE 2250 4WD MC1": "John Deere",
+    "KAWASAKI ZR 550B": "Kawasaki",
+    "KAWASAKI ZX900 C": "Kawasaki",
+    "KYLINGEKÄRRAN 1500 HT 18": "Kylingekärran",
+    "LAND ROVER 109S W PETROL": "Land Rover",
+    "LINCOLN CONTINENTAL": "Lincoln",
+    "LÖÖVESLÄPET LS 1300": "Löövesläpet",
+    "LÖÖVESLÄPET LS 1300 CAR": "Löövesläpet",
+    "MARKLUNDS BIL SMIDE MB": "Marklunds Bil & Smide",
+    "MASSEY FERGUSON 135": "Massey Ferguson",
+    "MASSEY FERGUSON 135 S": "Massey Ferguson",
+    "MAZDA 626 KOMBI 2 0D GLX": "Mazda",
+    "NEPTUN": "Neptun",
+    "NUFFIELD 4 DM": "Nuffield",
+    "OLDSMOBILE DYNAMIC88 4DR": "Oldsmobile",
+    "OLDSMOBILE SUPER 88": "Oldsmobile",
+    "PLYMOUTH SPECIAL DE LUXE": "Plymouth",
+    "POLARIS XP 850 E": "Polaris",
+    "POLARVAGNEN POLAR 425": "Polar",
+    "POLARVAGNEN POLAR P520": "Polar",
+    "REKOTRAILER": "Reko Trailer",
+    "SAAB 9 3 S 5D 2 0I": "Saab",
+    "SAAB 900 2 0I DX55J": "Saab",
+    "SAAB 900 I8 AB25J": "Saab",
+    "SAAB 9000 CSE 2 3 TURBO": "Saab",
+    "SAAB 96 V4 LHD": "Saab",
+    "SAAB 99 2 0 CM 2": "Saab",
+    "SAAB SPORT": "Saab",
+    "SAAB V 4": "Saab",
+    "SCABIA 50 S": "Scania",
+    "SCANIAVABIS B 5658": "Scania-Vabis",
+    "SC SÄVSJÖ 5 6 SC SR": "SC-Sävsjö",
+    "SKODA FELICIA": "Škoda",
+    "SM SLÄPET 2565": "SM-Släpet",
+    "SOLARIS URBINO 12LE CNG": "Solaris",
+    "SOLIFER ARTIC 450": "Solifer",
+    "STEYR": "Steyr",
+    "STUDEBAKER PRESIDENT": "Studebaker",
+    "SUZUKI WVCG": "Suzuki",
+    "TEMARED": "Temared",
+    "THULE 0600UVSL": "Thule",
+    "THULE B01": "Thule",
+    "THULE F1425650U": "Thule",
+    "TIAB 7910": "TIAB",
+    "TIKI": "Tiki Treiler",
+    "TIKI B131": "Tiki Treiler",
+    "TIKI TREILER B 350P": "Tiki Treiler",
+    "TIKI TREILER BT 700": "Tiki Treiler",
+    "TIKI TREILER C121": "Tiki Treiler",
+    "TIKI TREILER C163": "Tiki Treiler",
+    "TK TRAILER ES": "TK Trailer",
+    "TRAILERGRUPPEN L 1001": "Trailergruppen",
+    "TRANSPORTMEKANO": "Transportmekano",
+    "TRI STAR TSF SD CHASSI": "Tri-Star",
+    "TRIUMPH TIGER 900": "Triumph",
+    "VALERYD FAVÖR 1300": "Valeryd",
+    "VALTRA": "Valtra",
+    "VESPA SUPER": "Vespa",
+    "VOLKSW 1500LIM113 AVK": "Volkswagen",
+    "VW CADDY SKÅP": "Volkswagen",
+    "VW CARAVELLE": "Volkswagen",
+    "VW PASSAT VAR TDI": "Volkswagen",
+    "WILK S4 500": "Wilk",
+    "WILK S4 560": "Wilk",
+    "YAMAHA YZF1000R 4VD": "Yamaha",
+}
+
 _CORPORATE_GROUP_MARKERS = ("STELLANTIS", "PSA", "FCA")
 
 _MODEL_MANUFACTURERS: dict[str, str] = {
@@ -419,7 +529,17 @@ def manufacturer_entity_catalog() -> tuple[Mapping[str, str | None], ...]:
         }
         for marker in _CORPORATE_GROUP_MARKERS
     )
-    return manufacturers + converters + corporate_groups
+    legacy_brand_entities = tuple(
+        {
+            "source_field": "brand",
+            "source_term": source_term,
+            "canonical_name": canonical,
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+        }
+        for source_term, canonical in sorted(_REVIEWED_LEGACY_BRAND_ENTITIES.items())
+    )
+    return manufacturers + converters + corporate_groups + legacy_brand_entities
 
 
 def _manufacturer_entity_rule(
@@ -576,6 +696,16 @@ def _normalize_manufacturer(
             _apply_manufacturer_entity_rule(
                 reviewed_brand, raw, normalized, candidates, applied, reasons
             )
+            return
+        brand_key = _normalized_entity(raw.get("brand"))
+        reviewed_legacy_brand = (
+            _REVIEWED_LEGACY_BRAND_ENTITIES.get(brand_key) if brand_key is not None else None
+        )
+        if reviewed_legacy_brand is not None:
+            normalized["manufacturer"] = reviewed_legacy_brand
+            normalized["manufacturer_role"] = "vehicle_manufacturer"
+            normalized["builder_converter_names"] = []
+            applied.append("MFR-BRAND-LEGACY-EXACT")
             return
         if marketed is not None:
             if evidence_conflict:

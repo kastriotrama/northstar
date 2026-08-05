@@ -38,12 +38,15 @@ activate it before re-import.
 
 ## Current review backlog
 
-The workbench reports reason counts for the latest batch. The current 162
-review-required vehicles contain overlapping signals: 106 have no usable
-Tillverkare, 55 have Brand without enough corroborating evidence, and 85 have a
-bodywork/category conflict. Resolve exact manufacturer entities first, then
-validate bodywork codes by vehicle category. Because signals overlap, these
-counts must not be added together.
+The workbench reports reason counts for the latest batch. The initial 162
+review-required vehicles contained 106 exact legacy Brand values with no usable
+Tillverkare, 55 other Brand values without enough corroborating evidence, and
+85 bodywork/category conflicts. The reviewed legacy Brand catalog now maps all
+106 to a canonical manufacturer. Re-import reduced review-required vehicles to
+127 and eliminated `manufacturer_missing`; 71 of the corrected vehicles remain
+in review only because they also have a bodywork/category conflict. Next, review
+the remaining 55 evidence-gated Brand values and validate bodywork by category.
+Because signals overlap, reason counts must not be added together.
 
 ## Safety boundaries
 

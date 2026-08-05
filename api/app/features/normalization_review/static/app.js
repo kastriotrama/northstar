@@ -309,6 +309,9 @@ function renderTranslationRules() {
   const areas = [...new Set(page.rules.map((rule) => rule.area))].sort();
   populateSelect(elements.ruleArea, areas, "All areas");
   const rules = filteredRules();
+  if (!rules.some((rule) => rule.rule_id === ruleState.selectedId)) {
+    ruleState.selectedId = rules[0]?.rule_id ?? null;
+  }
   document.querySelector("#rule-column-name").textContent = "Rule";
   document.querySelector("#rule-column-decision").textContent = "Decision";
   document.querySelector("#rule-result-count").textContent = `${rules.length.toLocaleString()} translation rule${rules.length === 1 ? "" : "s"}`;
@@ -331,6 +334,9 @@ function renderTranslationRules() {
 
 function renderManufacturerEntities() {
   const entities = filteredRules();
+  if (!entities.some((entity) => entity.entity_id === ruleState.selectedId)) {
+    ruleState.selectedId = entities[0]?.entity_id ?? null;
+  }
   document.querySelector("#rule-column-name").textContent = "Entity";
   document.querySelector("#rule-column-decision").textContent = "Role";
   document.querySelector("#rule-result-count").textContent = `${entities.length.toLocaleString()} manufacturer entit${entities.length === 1 ? "y" : "ies"}`;
@@ -398,7 +404,7 @@ function renderManufacturerEditor(entity) {
   marker.textContent = entity.has_draft ? "Draft change" : entity.is_discovered && entity.effective_entity_role === "unknown" ? "Needs classification" : "Active";
   marker.classList.toggle("changed", entity.has_draft || entity.effective_entity_role === "unknown");
   document.querySelector("#manufacturer-source-term").textContent = `${entity.source_field} = ${entity.source_term}`;
-  document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "Not in current batch";
+  document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "No unresolved occurrences";
   document.querySelector("#manufacturer-base-values").textContent = entity.base_manufacturers.join(", ") || "None supplied";
   document.querySelector("#manufacturer-canonical").value = entity.effective_canonical_name ?? "";
   document.querySelector("#manufacturer-role").value = entity.effective_entity_role;

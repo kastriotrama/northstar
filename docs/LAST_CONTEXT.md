@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Legacy Brand manufacturer resolution
+
+- Added 103 exact canonical legacy Brand rules covering all 106 records that had no Tillverkare, spanning passenger vehicles, motorcycles, tractors, trailers, buses, and historical brands. Exact keys avoid unsafe substring matches and are visible as active manufacturer entities. Re-import mapped all 106 to a manufacturer, eliminated `manufacturer_missing` (106 → 0), moved 35 vehicles out of review, and reduced review-required from 162 to 127 with no failures; 71 corrected vehicles remain review-required only for overlapping bodywork/category conflicts. Ruff, strict mypy, all 353 tests, PostgreSQL evidence queries, and browser verification pass. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Manufacturer entities and review backlog
 
 - Extended the Rules workspace with 239 reviewed/discovered Tillverkare entities from the latest batch. Reviewers can draft vehicle-manufacturer, bodybuilder/converter, corporate-group, or unknown classifications; converter rules use Tillverkare grundfordonet and retain the converter; Brand-only entities remain review-only until explicitly approved. Activated entity rules join the same immutable cumulative version and safe re-import flow. Added live review-reason guidance for the overlapping 162 cases: 106 missing Tillverkare, 55 Brand evidence gaps, and 85 category/bodywork conflicts. Ruff, strict mypy, JavaScript syntax, all 352 tests, live PostgreSQL reads, and browser draft/discard validation pass with zero drafts left behind; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-90
 
 - Implemented Stage 1c on `feature/SCRUM-90-unit-conversion-structured-extraction`: pipeline v3 now extracts ISO registration/production dates and explicit ranges, structured engine code/family fields, canonical kW and displacement units, and retains reviewed multi-fuel/electrification behavior. Malformed, reversed, conflicting, or out-of-bound evidence routes to review; documentation and boundary/regression coverage were added. Ruff 0.16, strict mypy, and all 266 tests pass with healthy PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-89
-
-- Published green stacked draft PRs #24/SCRUM-88 and #25/SCRUM-89. SCRUM-89 adds the `ts-translation-v2` dictionary boundary with reviewed transmission, fuel, electrification, and bodywork rules; accepted/proposed separation; exact-version loading; manufacturer/category scopes; conflict routing; persisted rule matches; stakeholder comment changes; documentation; and contract tests. Ruff 0.16, strict mypy, 216 local tests, datastore-backed CI, and image smoke tests pass. Jira remains unchanged.

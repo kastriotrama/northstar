@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from ingestion.normalization_rules import normalize_ts_record
+from ingestion.normalization_rules import manufacturer_entity_catalog, normalize_ts_record
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
     TranslationRuleSet,
@@ -148,6 +148,19 @@ def test_reviewed_exact_brand_entity_resolves_missing_tillverkare() -> None:
     assert outcome.normalized["manufacturer_role"] == "vehicle_manufacturer"
     assert "MFE-AUDI-A4" in outcome.applied_rule_ids
     assert "manufacturer_missing" not in outcome.review_reasons
+
+
+def test_all_reviewed_legacy_brand_entities_resolve_without_tillverkare() -> None:
+    legacy_entities = [
+        item for item in manufacturer_entity_catalog() if item["source_field"] == "brand"
+    ]
+
+    assert len(legacy_entities) == 103
+    for entity in legacy_entities:
+        outcome = normalize_ts_record({"brand": entity["source_term"]})
+        assert outcome.normalized["manufacturer"] == entity["canonical_name"]
+        assert outcome.normalized["manufacturer_role"] == "vehicle_manufacturer"
+        assert "manufacturer_missing" not in outcome.review_reasons
 
 
 def test_reviewed_converter_entity_uses_base_manufacturer_and_retains_builder() -> None:
