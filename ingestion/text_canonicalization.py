@@ -16,6 +16,7 @@ _NAME_FIELDS = frozenset(
         "base_manufacturer",
         "brand",
         "engine_family_name",
+        "ktype_manufacturer",
         "model",
         "type",
         "variant",

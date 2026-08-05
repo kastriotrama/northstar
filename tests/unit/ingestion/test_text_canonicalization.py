@@ -13,7 +13,8 @@ from ingestion.text_canonicalization import (
     ("field_name", "source", "expected"),
     [
         ("model", "  Ｖ６０\u00a0 Recharge  ", "V60 Recharge"),
-        ("manufacturer", "A\u030Ahlén\u2019s", "Åhlén's"),
+        ("manufacturer", "A\u030ahlén\u2019s", "Åhlén's"),
+        ("ktype_manufacturer", "  Mercedes\u2011Benz ", "Mercedes-Benz"),
         ("brand", "Mercedes\u2011Benz", "Mercedes-Benz"),
         ("body_code", " ac ", "AC"),
         ("eu_category", " m1\t", "M1"),

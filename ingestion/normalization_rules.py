@@ -33,7 +33,7 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-PIPELINE_VERSION = "normalization-pipeline-v3"
+PIPELINE_VERSION = "normalization-pipeline-v4"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -194,6 +194,28 @@ _MANUFACTURER_ALIASES: dict[str, str] = {
     "MAXUS": "Maxus",
     "PORSCHE": "Porsche",
     "PORSCHE AG": "Porsche",
+    "DR ING H C F PORSCHE AG": "Porsche",
+    "KIA": "Kia",
+    "KIA MOTORS": "Kia",
+    "KIAMOTORSCORPORATION": "Kia",
+    "KIACORPORATION": "Kia",
+    "HYUNDAI": "Hyundai",
+    "HYUNDAI MOTOR COMPANY": "Hyundai",
+    "HYUNDAI MOTOR MANUFACTURING CZECH": "Hyundai",
+    "SUBARU": "Subaru",
+    "SUBARU CORPORATION": "Subaru",
+    "TESLA": "Tesla",
+    "TESLA INC": "Tesla",
+    "SEAT": "SEAT",
+    "SEAT S A": "SEAT",
+    "MINI": "MINI",
+    "JEEP": "Jeep",
+    "DAIMLER AG": "Mercedes-Benz",
+    "BAYERISCHE MOTOREN WERKE AG": "BMW",
+    "BRENDERUP AB": "Brenderup",
+    "SORELPOL SP Z O O": "Sorelpol",
+    "TEMARED SP Z O O": "Temared",
+    "VARIANT A S": "Variant",
 }
 
 _CONVERTER_ALIASES: dict[str, tuple[str, str]] = {
@@ -208,9 +230,67 @@ _CONVERTER_ALIASES: dict[str, tuple[str, str]] = {
     "LUNO CAMP": ("Luno Camp", "MFR-106"),
     "LUANO CAMP": ("Luno Camp", "MFR-106"),
     "BUS PRESTIGE": ("Bus-Prestige", "MFR-106"),
+    "KABE AB": ("KABE", "MFR-107"),
 }
 
 _CORPORATE_GROUP_MARKERS = ("STELLANTIS", "PSA", "FCA")
+
+_MODEL_MANUFACTURERS: dict[str, str] = {
+    "NIRO": "Kia",
+    "COOPER": "MINI",
+    "COMPASS": "Jeep",
+    "2008": "Peugeot",
+    "C4 X": "Citroën",
+    "PASSAT": "Volkswagen",
+    "PASSAT CC": "Volkswagen",
+    "GOLF": "Volkswagen",
+    "TIGUAN": "Volkswagen",
+    "POLO": "Volkswagen",
+    "UP": "Volkswagen",
+    "TRANSPORTER": "Volkswagen",
+    "V60": "Volvo",
+    "V70": "Volvo",
+    "XC60": "Volvo",
+    "XC70": "Volvo",
+    "FOCUS": "Ford",
+    "KUGA": "Ford",
+    "TRANSIT CUSTOM": "Ford",
+    "B MAX": "Ford",
+    "CIVIC TOURER": "Honda",
+    "CR V": "Honda",
+    "PULSAR": "Nissan",
+    "KING CAB": "Nissan",
+    "CAPTUR": "Renault",
+    "KANGOO": "Renault",
+    "AURIS": "Toyota",
+    "YARIS": "Toyota",
+    "DUCATO": "Fiat",
+}
+
+_VIN_WMI_MANUFACTURERS: dict[str, str] = {
+    "KNA": "Kia",
+    "KND": "Kia",
+    "KNE": "Kia",
+    "U5Y": "Kia",
+    "WMW": "MINI",
+    "WMX": "MINI",
+    "YV1": "Volvo",
+    "YV4": "Volvo",
+    "WBA": "BMW",
+    "WBS": "BMW",
+    "WDB": "Mercedes-Benz",
+    "WDC": "Mercedes-Benz",
+    "WAU": "Audi",
+    "WVW": "Volkswagen",
+    "WVG": "Volkswagen",
+    "WF0": "Ford",
+}
+
+_MARKETED_PARENT_CHILDREN: dict[str, frozenset[str]] = {
+    "BMW": frozenset({"MINI"}),
+    "PSA": frozenset({"Citroën", "Peugeot", "Opel"}),
+    "FCA": frozenset({"Fiat", "Jeep"}),
+}
 
 _NON_WORD = re.compile(r"[^A-Z0-9ÅÄÖÉÜ]+")
 
@@ -300,6 +380,77 @@ def _resolve_manufacturer(value: object) -> str | None:
     return None
 
 
+def _resolve_converter(value: object) -> tuple[str, str] | None:
+    entity = _normalized_entity(value)
+    if entity is None:
+        return None
+    direct = _CONVERTER_ALIASES.get(entity)
+    if direct is not None:
+        return direct
+    for alias, converter in _CONVERTER_ALIASES.items():
+        if entity.startswith(f"{alias} "):
+            return converter
+    return None
+
+
+def _resolve_model_manufacturer(value: object) -> str | None:
+    model = _normalized_entity(value)
+    if model is None:
+        return None
+    direct = _MODEL_MANUFACTURERS.get(model)
+    if direct is not None:
+        return direct
+    for model_name, manufacturer in _MODEL_MANUFACTURERS.items():
+        if model.startswith(f"{model_name} ") or model.endswith(f" {model_name}"):
+            return manufacturer
+    return None
+
+
+def _resolve_vin_manufacturer(value: object) -> str | None:
+    vin = normalize_text(value)
+    if vin is None or len(vin) < 3:
+        return None
+    return _VIN_WMI_MANUFACTURERS.get(vin[:3].upper())
+
+
+def _marketed_manufacturer_evidence(
+    raw: dict[str, Any],
+) -> tuple[str | None, tuple[str, ...], bool]:
+    brand = _resolve_manufacturer(raw.get("brand"))
+    if brand is None:
+        return None, (), False
+    corroborators = (
+        ("MFR-BRAND-MODEL", _resolve_model_manufacturer(raw.get("model"))),
+        ("MFR-BRAND-VIN-WMI", _resolve_vin_manufacturer(raw.get("vin"))),
+        ("MFR-BRAND-KTYPE", _resolve_manufacturer(raw.get("ktype_manufacturer"))),
+    )
+    present = tuple((rule_id, value) for rule_id, value in corroborators if value is not None)
+    if any(value != brand for _, value in present):
+        return brand, tuple(rule_id for rule_id, _ in present), True
+    if not present:
+        return brand, (), False
+    return brand, tuple(rule_id for rule_id, _ in present), False
+
+
+def _parent_key(entity: str, manufacturer: str | None) -> str | None:
+    if manufacturer == "BMW":
+        return "BMW"
+    if "PSA" in entity:
+        return "PSA"
+    if "FCA" in entity:
+        return "FCA"
+    return None
+
+
+def _resolve_base_manufacturer(value: object) -> str | None:
+    entity = _normalized_entity(value)
+    if entity is None:
+        return None
+    if entity.startswith("FCA ITALY"):
+        return "Fiat"
+    return _resolve_manufacturer(value)
+
+
 def _normalize_manufacturer(
     raw: dict[str, Any],
     normalized: dict[str, Any],
@@ -309,21 +460,29 @@ def _normalize_manufacturer(
     reasons: list[str],
 ) -> None:
     entity = _normalized_entity(raw.get("manufacturer"))
-    base = _resolve_manufacturer(raw.get("base_manufacturer"))
+    base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
+    marketed, evidence_rules, evidence_conflict = _marketed_manufacturer_evidence(raw)
     if entity is None:
-        brand = _resolve_manufacturer(raw.get("brand"))
-        if brand is not None:
-            candidates["manufacturer"] = brand
+        if marketed is not None:
+            if evidence_conflict:
+                candidates["manufacturer"] = marketed
+                candidate_rules.extend(evidence_rules)
+                reasons.append("manufacturer_evidence_conflict")
+                return
+            if evidence_rules:
+                normalized["manufacturer"] = marketed
+                normalized["manufacturer_role"] = "vehicle_manufacturer"
+                normalized["builder_converter_names"] = []
+                applied.extend(("MFR-BRAND-CONFIRMED", *evidence_rules))
+                return
+            candidates["manufacturer"] = marketed
             candidate_rules.append("MFR-BRAND-REVIEW")
             reasons.append("manufacturer_missing_compare_brand")
             return
         reasons.append("manufacturer_missing")
         return
-    if any(marker in entity for marker in _CORPORATE_GROUP_MARKERS):
-        reasons.append("manufacturer_corporate_group_unresolved")
-        return
 
-    converter = _CONVERTER_ALIASES.get(entity)
+    converter = _resolve_converter(raw.get("manufacturer"))
     if converter is not None:
         converter_name, rule_id = converter
         if base is None:
@@ -336,6 +495,26 @@ def _normalize_manufacturer(
         return
 
     manufacturer = _resolve_manufacturer(raw.get("manufacturer"))
+    parent = _parent_key(entity, manufacturer)
+    if marketed is not None and evidence_conflict:
+        candidates["manufacturer"] = marketed
+        candidate_rules.extend(evidence_rules)
+        reasons.append("manufacturer_evidence_conflict")
+        return
+    if (
+        marketed is not None
+        and evidence_rules
+        and parent is not None
+        and marketed in _MARKETED_PARENT_CHILDREN[parent]
+    ):
+        normalized["manufacturer"] = marketed
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        applied.extend(("MFR-PARENT-MARKETED", *evidence_rules))
+        return
+    if any(marker in entity for marker in _CORPORATE_GROUP_MARKERS):
+        reasons.append("manufacturer_corporate_group_unresolved")
+        return
     if manufacturer is None:
         reasons.append("manufacturer_unknown")
         return
@@ -837,11 +1016,14 @@ def _normalize_fuel(context: NormalizationContext) -> None:
         if rule.rule_id == "ELEC-001":
             evidence_valid = electricity and not combustion
         elif rule.rule_id in {"ELEC-002", "ELEC-003"}:
-            evidence_valid = electricity and combustion
+            evidence_valid = combustion
         if not evidence_valid:
             context.candidate_rule_ids.append(rule.rule_id)
             context.review_reasons.append("electrification_fuel_evidence_conflict")
         else:
+            if rule.rule_id in {"ELEC-002", "ELEC-003"} and not electricity:
+                carriers.append("electricity")
+                normalized["energy_sources"] = carriers
             normalized[rule.canonical_field] = rule.canonical_value
             context.applied_rule_ids.append(rule.rule_id)
             _record_dictionary_match(

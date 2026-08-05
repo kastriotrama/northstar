@@ -166,7 +166,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -391,7 +391,7 @@
           "production_year": 2023,
           "registration_date": "2024-01-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -719,7 +719,7 @@
           "power_kw": 81,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -919,7 +919,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1132,7 +1132,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1311,7 +1311,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -1487,7 +1487,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -1601,7 +1601,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -1789,7 +1789,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -2014,7 +2014,7 @@
           "production_year": 2023,
           "registration_date": "2024-02-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -2342,7 +2342,7 @@
           "power_kw": 82,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -2542,7 +2542,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -2755,7 +2755,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -2934,7 +2934,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -3110,7 +3110,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -3224,7 +3224,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -3412,7 +3412,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3637,7 +3637,7 @@
           "production_year": 2023,
           "registration_date": "2024-03-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -3965,7 +3965,7 @@
           "power_kw": 83,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -4165,7 +4165,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -4378,7 +4378,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -4557,7 +4557,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -4733,7 +4733,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -4847,7 +4847,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -5035,7 +5035,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5260,7 +5260,7 @@
           "production_year": 2023,
           "registration_date": "2024-04-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -5588,7 +5588,7 @@
           "power_kw": 84,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -5788,7 +5788,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -6001,7 +6001,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -6180,7 +6180,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -6356,7 +6356,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -6470,7 +6470,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -6658,7 +6658,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -6883,7 +6883,7 @@
           "production_year": 2023,
           "registration_date": "2024-05-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -7211,7 +7211,7 @@
           "power_kw": 85,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -7411,7 +7411,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7624,7 +7624,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7803,7 +7803,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -7979,7 +7979,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -8093,7 +8093,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -8281,7 +8281,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -8506,7 +8506,7 @@
           "production_year": 2023,
           "registration_date": "2024-06-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -8834,7 +8834,7 @@
           "power_kw": 86,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -9034,7 +9034,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9247,7 +9247,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9426,7 +9426,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -9602,7 +9602,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -9716,7 +9716,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -9904,7 +9904,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -10129,7 +10129,7 @@
           "production_year": 2023,
           "registration_date": "2024-07-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10457,7 +10457,7 @@
           "power_kw": 87,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10657,7 +10657,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -10870,7 +10870,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11049,7 +11049,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -11225,7 +11225,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -11339,7 +11339,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -11527,7 +11527,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11752,7 +11752,7 @@
           "production_year": 2023,
           "registration_date": "2024-08-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12080,7 +12080,7 @@
           "power_kw": 88,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12280,7 +12280,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -12493,7 +12493,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -12672,7 +12672,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12848,7 +12848,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -12962,7 +12962,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -13150,7 +13150,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13375,7 +13375,7 @@
           "production_year": 2023,
           "registration_date": "2024-09-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -13703,7 +13703,7 @@
           "power_kw": 89,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -13903,7 +13903,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -14116,7 +14116,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -14295,7 +14295,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -14471,7 +14471,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -14585,7 +14585,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -14773,7 +14773,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -14998,7 +14998,7 @@
           "production_year": 2023,
           "registration_date": "2024-10-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -15326,7 +15326,7 @@
           "power_kw": 90,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -15526,7 +15526,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15739,7 +15739,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15918,7 +15918,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16094,7 +16094,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -16208,7 +16208,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -16396,7 +16396,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -16621,7 +16621,7 @@
           "production_year": 2023,
           "registration_date": "2024-11-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16949,7 +16949,7 @@
           "power_kw": 91,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -17149,7 +17149,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17362,7 +17362,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17541,7 +17541,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -17717,7 +17717,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -17831,7 +17831,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -17991,7 +17991,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -18190,7 +18190,7 @@
           "production_year": 2023,
           "registration_date": "2024-12-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -18492,7 +18492,7 @@
           "power_kw": 92,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -18666,7 +18666,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -18853,7 +18853,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -19005,7 +19005,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -19154,7 +19154,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown",
           "build_date_malformed",
@@ -19269,7 +19269,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -19457,7 +19457,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19682,7 +19682,7 @@
           "production_year": 2023,
           "registration_date": "2024-01-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20010,7 +20010,7 @@
           "power_kw": 93,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20210,7 +20210,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -20423,7 +20423,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -20602,7 +20602,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20778,7 +20778,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -20892,7 +20892,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -21080,7 +21080,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21305,7 +21305,7 @@
           "production_year": 2023,
           "registration_date": "2024-02-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -21633,7 +21633,7 @@
           "power_kw": 94,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -21833,7 +21833,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -22046,7 +22046,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -22225,7 +22225,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -22401,7 +22401,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -22515,7 +22515,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22703,7 +22703,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -22928,7 +22928,7 @@
           "production_year": 2023,
           "registration_date": "2024-03-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -23256,7 +23256,7 @@
           "power_kw": 95,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -23456,7 +23456,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -23669,7 +23669,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -23848,7 +23848,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24024,7 +24024,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -24138,7 +24138,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -24326,7 +24326,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -24551,7 +24551,7 @@
           "production_year": 2023,
           "registration_date": "2024-04-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24879,7 +24879,7 @@
           "power_kw": 96,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -25079,7 +25079,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25292,7 +25292,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25471,7 +25471,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -25647,7 +25647,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -25761,7 +25761,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -25949,7 +25949,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26174,7 +26174,7 @@
           "production_year": 2023,
           "registration_date": "2024-05-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26502,7 +26502,7 @@
           "power_kw": 97,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26702,7 +26702,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26915,7 +26915,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27094,7 +27094,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -27270,7 +27270,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -27384,7 +27384,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -27572,7 +27572,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27797,7 +27797,7 @@
           "production_year": 2023,
           "registration_date": "2024-06-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28125,7 +28125,7 @@
           "power_kw": 98,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28325,7 +28325,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28538,7 +28538,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28717,7 +28717,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28893,7 +28893,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -29007,7 +29007,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -29195,7 +29195,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -29420,7 +29420,7 @@
           "production_year": 2023,
           "registration_date": "2024-07-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -29748,7 +29748,7 @@
           "power_kw": 99,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -29948,7 +29948,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30161,7 +30161,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30340,7 +30340,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -30516,7 +30516,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -30630,7 +30630,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -30818,7 +30818,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31043,7 +31043,7 @@
           "production_year": 2023,
           "registration_date": "2024-08-15"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -31371,7 +31371,7 @@
           "power_kw": 100,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -31571,7 +31571,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31784,7 +31784,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31963,7 +31963,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -32139,7 +32139,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -32253,7 +32253,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -32391,7 +32391,7 @@
             "SE"
           ]
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32537,7 +32537,7 @@
             "SE"
           ]
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32698,7 +32698,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32859,7 +32859,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -33041,7 +33041,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v3",
+        "pipeline_version": "normalization-pipeline-v4",
         "review_reasons": [],
         "rule_matches": [
           {

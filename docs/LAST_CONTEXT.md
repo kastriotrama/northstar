@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Manufacturer and hybrid evidence resolution
+
+- Added `normalization-pipeline-v4` manufacturer evidence gates: Brand requires an agreeing allow-listed model, VIN WMI, or TecDoc KType manufacturer; conflicts and unknown populated `Tillverkare` remain review-only. Added reviewed legal-entity aliases, evidence-gated MINI/PSA/FCA marketed-brand handling, and KABE base-manufacturer retention. Explicit ELHYBRID/LADDHYBRID now preserves petrol/diesel and adds electricity after evaluating all three TS fuel fields. Reprocessing the same 250 records moved 67 from review to provisional and 7 to resolved (236 → 162 review-required), eliminated all ten fuel conflicts, and produced no failures or regressions. Ruff, strict mypy, the 205-case golden corpus, and all 341 tests pass; Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Normalization review dashboard
 
 - Built a read-only operations dashboard and filtered API for the latest normalization batch, with 250 real Transportstyrelsen samples, status totals, manufacturer/model/engine search, status/manufacturer/bodywork/fuel/transmission filters, pagination, and a sanitized evidence inspector showing normalized fields, confidence, review reasons, decision trace, and rule IDs. The current sample has 14 provisional and 236 review-required records with zero technical failures. Service, API, repository, privacy, JavaScript syntax, and browser interaction checks pass; Ruff, strict mypy, and all 328 tests pass. Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05
 
 - Published SCRUM-87 as draft PR #23 targeting `develop`; fixed four CI-only Ruff 0.16 findings while preserving sanitized job-boundary error handling, then verified the pipeline contract with Ruff 0.16, strict mypy, 193 local tests, image smoke tests, and the full datastore-backed GitHub Actions job. Jira was not changed; the PR is ready for manual review.
-
-## 2026-08-04
-
-- Fixed all Ruff 0.16 findings, pinned the CI lint version, and merged green PRs #21/SCRUM-18 and #22/SCRUM-19 into develop. Created `feature/SCRUM-87-pipeline-framework-record-contract` in an isolated worktree, reconciled the completed SCRUM-82 normalizer, and added an ordered transformer pipeline plus redaction-safe field-level decision traces, version-safe persistence, contract validation, documentation, and tests; Ruff and strict mypy pass, with 193 tests passing and 43 datastore tests skipped because Docker is stopped.

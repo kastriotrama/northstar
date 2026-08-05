@@ -43,8 +43,10 @@ Supported query parameters are `query`, `status`, `manufacturer`, `bodywork`,
 ## Current local review sample
 
 The development database contains 250 deterministic samples from the supplied
-Transportstyrelsen source in batch `normalization-review-250-v4`. The current
-result is 14 provisional and 236 review-required records, with no technical
-failures. Those review-required records are useful evidence: they expose the
-manufacturer and other source ambiguities that the next rule and matching work
-must resolve rather than silently accepting weak data.
+Transportstyrelsen source. The latest batch, `normalization-review-250-v5`, was
+reprocessed with `normalization-pipeline-v4`: 7 records resolved, 81 are
+provisional, 162 require review, and none failed technically. Compared with the
+previous rules, 74 records left review without making any previously
+provisional record worse. The remaining review records expose missing
+manufacturer evidence and unresolved vehicle-category bodywork codes rather
+than silently accepting weak data.

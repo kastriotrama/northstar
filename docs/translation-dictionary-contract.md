@@ -51,10 +51,21 @@ is routed to review. Unknown codes do not fall through to a marketing guess.
 Motorhome marketing text still requires SA, legacy 08, or equivalent supporting
 evidence before it can become accepted.
 
-Fuel carriers, fuel combination, and electrification are separate fields. A
-hybrid or plug-in-hybrid configuration requires electricity plus a combustion
-carrier. Battery-electric requires electricity without a combustion carrier.
-Conflicting configurations route to review.
+Fuel carriers, fuel combination, and electrification are separate fields. All
+three TS fuel fields are retained. An explicit `ELHYBRID` or `LADDHYBRID`
+configuration plus a petrol/diesel carrier establishes the electric carrier
+even when TS leaves its secondary fuel slots empty; the underlying combustion
+fuel is preserved. Battery-electric still requires electricity without a
+combustion carrier. Missing combustion evidence or conflicting configurations
+route to review.
+
+Brand does not replace a missing or unknown `Tillverkare` by itself. When
+`Tillverkare` is absent, Brand may become the accepted manufacturer only when
+an allow-listed model family, VIN WMI, or linked TecDoc KType manufacturer
+independently agrees. Disagreement is a hard review reason. An unknown populated
+`Tillverkare` remains review-only because it may be an unclassified bodybuilder.
+Recognized converters use the resolved base manufacturer and are retained in
+`builder_converter_names`.
 
 ## Audit record
 

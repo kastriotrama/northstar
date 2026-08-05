@@ -14,12 +14,13 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
             "gearbox": "Z",
         }
     )
+
     assert outcome.status == "provisional"
     assert outcome.normalized["manufacturer"] == "Volvo"
     assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
-    assert outcome.pipeline_version == "normalization-pipeline-v3"
+    assert outcome.pipeline_version == "normalization-pipeline-v4"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -49,11 +50,108 @@ def test_converter_uses_recognized_base_manufacturer_and_is_retained() -> None:
     assert outcome.normalized["builder_converter_names"] == ["Brabus"]
 
 
+def test_kabe_converter_uses_fiat_base_and_retains_builder() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "KABE AB BOX 14 561 06 TENHULT",
+            "base_manufacturer": "FCA ITALY S.P.A. C. SO G. AGNELLI 200",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Fiat"
+    assert outcome.normalized["manufacturer_role"] == "bodybuilder_converter"
+    assert outcome.normalized["builder_converter_names"] == ["KABE"]
+
+
+def test_kia_legal_entity_is_a_recognized_manufacturer() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "KIAMOTORSCORPORATION",
+            "brand": "KIA",
+            "model": "NIRO",
+            "vin": "KNA00000000000000",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Kia"
+    assert "manufacturer_unknown" not in outcome.review_reasons
+
+
+def test_mini_requires_agreeing_parent_brand_model_and_vin_evidence() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "BAYERISCHE MOTOREN WERKE AG, DE-80788 MÜNCHEN",
+            "brand": "MINI",
+            "model": "COOPER",
+            "vin": "WMW00000000000000",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "MINI"
+    assert {"MFR-PARENT-MARKETED", "MFR-BRAND-MODEL", "MFR-BRAND-VIN-WMI"} <= set(
+        outcome.applied_rule_ids
+    )
+
+
+def test_multibrand_groups_require_marketed_brand_evidence() -> None:
+    peugeot = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "PEUGEOT", "model": "2008"}
+    )
+    jeep = normalize_ts_record(
+        {"manufacturer": "FCA ITALY S.P.A.", "brand": "JEEP", "model": "COMPASS"}
+    )
+    unresolved = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "PEUGEOT", "model": "UNKNOWN"}
+    )
+
+    assert peugeot.normalized["manufacturer"] == "Peugeot"
+    assert jeep.normalized["manufacturer"] == "Jeep"
+    assert "manufacturer" not in unresolved.normalized
+    assert "manufacturer_corporate_group_unresolved" in unresolved.review_reasons
+
+
+def test_missing_manufacturer_accepts_brand_only_with_corroborating_model() -> None:
+    outcome = normalize_ts_record({"brand": "Volvo", "model": "V70"})
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert "manufacturer_missing_compare_brand" not in outcome.review_reasons
+
+
+def test_missing_manufacturer_accepts_brand_with_matching_ktype() -> None:
+    outcome = normalize_ts_record({"brand": "Volvo", "ktype_manufacturer": "Volvo"})
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert "MFR-BRAND-KTYPE" in outcome.applied_rule_ids
+
+
+def test_conflicting_ktype_prevents_brand_model_confirmation() -> None:
+    outcome = normalize_ts_record({"brand": "Volvo", "model": "V70", "ktype_manufacturer": "BMW"})
+
+    assert outcome.status == "review_required"
+    assert "manufacturer" not in outcome.normalized
+    assert outcome.candidates["manufacturer"] == "Volvo"
+    assert "manufacturer_evidence_conflict" in outcome.review_reasons
+
+
 def test_unknown_manufacturer_never_falls_back_to_populated_base() -> None:
     outcome = normalize_ts_record(
         {"manufacturer": "Unknown Coach Company", "base_manufacturer": "Volvo"}
     )
     assert outcome.status == "review_required"
+    assert "manufacturer" not in outcome.normalized
+    assert "manufacturer_unknown" in outcome.review_reasons
+
+
+def test_unknown_manufacturer_is_not_replaced_by_agreeing_brand_and_model() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Unknown Coach Company",
+            "brand": "Volvo",
+            "model": "V70",
+            "base_manufacturer": "BMW",
+        }
+    )
+
     assert "manufacturer" not in outcome.normalized
     assert "manufacturer_unknown" in outcome.review_reasons
 
@@ -86,6 +184,30 @@ def test_reviewed_fuel_is_accepted_while_drive_remains_a_candidate() -> None:
     assert outcome.candidates["drive_type"] == "awd"
     assert "drive_type" not in outcome.normalized
     assert {match.rule_id for match in outcome.rule_matches} >= {"FUEL-001", "FUEL-003"}
+
+
+def test_explicit_hybrid_marker_adds_electricity_to_petrol_carrier() -> None:
+    outcome = normalize_ts_record(
+        {"manufacturer": "Audi", "fuel1": "01", "fuel2": "0", "fuel3": "0", "ev_config": "ELHYBRID"}
+    )
+
+    assert outcome.normalized["energy_sources"] == ["petrol", "electricity"]
+    assert outcome.normalized["electrification_type"] == "hybrid"
+    assert "electrification_fuel_evidence_conflict" not in outcome.review_reasons
+
+
+def test_explicit_hybrid_marker_preserves_underlying_diesel() -> None:
+    outcome = normalize_ts_record({"manufacturer": "Audi", "fuel1": "02", "ev_config": "ELHYBRID"})
+
+    assert outcome.normalized["energy_sources"] == ["diesel", "electricity"]
+    assert outcome.normalized["electrification_type"] == "hybrid"
+
+
+def test_hybrid_without_combustion_carrier_still_routes_to_review() -> None:
+    outcome = normalize_ts_record({"manufacturer": "Audi", "fuel1": "03", "ev_config": "ELHYBRID"})
+
+    assert "electrification_type" not in outcome.normalized
+    assert "electrification_fuel_evidence_conflict" in outcome.review_reasons
 
 
 def test_malformed_source_values_route_to_review() -> None:
@@ -250,3 +372,18 @@ def test_hybrid_and_dual_fuel_keep_each_underlying_fuel() -> None:
     assert plug_in_hybrid.normalized["electrification_type"] == "plug_in_hybrid"
     assert bi_fuel.normalized["energy_sources"] == ["petrol", "cng"]
     assert bi_fuel.normalized["fuel_combination"] == "bi_fuel"
+
+
+def test_all_three_ts_fuel_fields_are_retained() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Volvo",
+            "fuel1": "01",
+            "fuel2": "09",
+            "fuel3": "03",
+            "fuel_combo": "T",
+        }
+    )
+
+    assert outcome.normalized["energy_sources"] == ["petrol", "cng", "electricity"]
+    assert outcome.normalized["fuel_combination"] == "tri_fuel"
