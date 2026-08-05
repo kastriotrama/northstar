@@ -26,8 +26,11 @@ reuses deterministic normalization and review IDs.
   logs, or pilot reports.
 - Accepted manufacturer, bodywork, transmission, and production-date decisions
   may populate normalized fields.
-- Proposed fuel, electrification, drive, model-family, and brand-based matches
-  remain candidates.
+- Stakeholder-approved fuel and electrification rules from `ts-translation-v2`
+  populate normalized fields only when their structured evidence is complete.
+- Drive, model-family, and brand-based matches remain candidates.
+- Proposed, unknown, or conflicting translation evidence routes to review and
+  cannot silently enter accepted output.
 - Unknown manufacturers never fall back to
   `Tillverkare grundfordonet` merely because it is populated.
 - Recognized converters use a recognized base manufacturer while retaining the

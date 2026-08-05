@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 TraceTarget = Literal["canonical", "normalized", "candidate", "review"]
+RuleDecision = Literal["accepted", "proposed"]
 SENSITIVE_OUTPUT_FIELDS = frozenset(
     {
         "plate",
@@ -56,6 +57,44 @@ class DecisionTraceEntry:
         }
 
 
+@dataclass(frozen=True)
+class RuleMatch:
+    """One dictionary match retained for audit and replay."""
+
+    rule_set_version: str
+    rule_id: str
+    decision: RuleDecision
+    source_field: str
+    source_term: str
+    target_field: str
+    canonical_value: Any
+
+    def __post_init__(self) -> None:
+        required = {
+            "rule_set_version": self.rule_set_version,
+            "rule_id": self.rule_id,
+            "source_field": self.source_field,
+            "source_term": self.source_term,
+            "target_field": self.target_field,
+        }
+        for label, value in required.items():
+            if not value.strip():
+                raise ValueError(f"{label} must not be empty")
+        if self.source_field.casefold() in SENSITIVE_OUTPUT_FIELDS:
+            raise ValueError(f"sensitive field {self.source_field!r} cannot enter rule matches")
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "rule_set_version": self.rule_set_version,
+            "rule_id": self.rule_id,
+            "decision": self.decision,
+            "source_field": self.source_field,
+            "source_term": self.source_term,
+            "target_field": self.target_field,
+            "canonical_value": self.canonical_value,
+        }
+
+
 @dataclass
 class NormalizationContext:
     """Mutable in-memory state shared by an ordered transformer sequence."""
@@ -68,6 +107,7 @@ class NormalizationContext:
     candidate_rule_ids: list[str] = field(default_factory=list)
     review_reasons: list[str] = field(default_factory=list)
     decision_trace: list[DecisionTraceEntry] = field(default_factory=list)
+    rule_matches: list[RuleMatch] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.canonical_record = deepcopy(self.raw_record)
@@ -93,6 +133,29 @@ class NormalizationContext:
                 before=before,
                 after=after,
                 confidence_effect=confidence_effect,
+            )
+        )
+
+    def record_rule_match(
+        self,
+        *,
+        rule_set_version: str,
+        rule_id: str,
+        decision: RuleDecision,
+        source_field: str,
+        source_term: str,
+        target_field: str,
+        canonical_value: Any,
+    ) -> None:
+        self.rule_matches.append(
+            RuleMatch(
+                rule_set_version=rule_set_version,
+                rule_id=rule_id,
+                decision=decision,
+                source_field=source_field,
+                source_term=source_term,
+                target_field=target_field,
+                canonical_value=canonical_value,
             )
         )
 
@@ -127,9 +190,7 @@ class NormalizationPipeline:
         if any(not transformer_id.strip() for transformer_id in ids):
             raise ValueError("transformer IDs must not be empty")
         self.version = version
-        self.transformers = tuple(
-            sorted(transformers, key=lambda transformer: transformer.order)
-        )
+        self.transformers = tuple(sorted(transformers, key=lambda transformer: transformer.order))
 
     def run(self, raw_record: dict[str, Any]) -> NormalizationContext:
         raw_snapshot = deepcopy(raw_record)

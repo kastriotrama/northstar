@@ -49,6 +49,8 @@ NormalizationOutcome contains:
 - current confidence;
 - pipeline version;
 - an ordered decision trace.
+- dictionary match records containing the exact rule version, source term,
+  canonical value, and rule ID.
 
 Raw Transportstyrelsen rows remain unchanged in staging. The output never copies
 plate or VIN values. Only the fact that those alias types exist may be retained.
@@ -74,6 +76,9 @@ Confidence effects explain whether evidence is supporting, neutral, or
 conflicting. The existing v1 resolved/provisional/review confidence bands remain
 authoritative until SCRUM-93 implements composite scoring and final routing
 thresholds.
+
+The dictionary boundary and accepted/proposed behavior are defined in
+[translation-dictionary-contract.md](translation-dictionary-contract.md).
 
 Example payload:
 

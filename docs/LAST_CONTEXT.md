@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — SCRUM-89
+
+- Implemented the `ts-translation-v2` dictionary boundary on `feature/SCRUM-89-versioned-translation-dictionaries`: consolidated reviewed transmission, fuel, electrification, and bodywork rules; separated accepted/proposed decisions; added exact-version loading, manufacturer/category scopes, structured-evidence conflict routing, persisted rule matches, stakeholder comment changes, documentation, and contract tests. Ruff 0.16 and strict mypy pass; 216 tests pass and 43 datastore tests skip because Docker is stopped. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — SCRUM-88
 
 - Implemented Stage 1a text canonicalization on `feature/SCRUM-88-text-canonicalization`: added an immutable raw/isolated working-record boundary, NFKC and whitespace normalization, field-aware code casing, safe typographic punctuation mapping, v2 pipeline integration, documentation, and Swedish/identifier regression tests; 208 tests pass, 43 datastore tests skip because Docker is stopped, and Ruff 0.16 plus strict mypy pass. Jira, push, and PR remain unchanged.
@@ -31,7 +35,3 @@ Keep the latest 10 task entries only.
 ## 2026-07-19
 
 - Hardened PR #20 for `SCRUM-17`: added UUID-based retry idempotency, node-local linear correction constraints, complete schema-contract verification, corrected ledger documentation, and cross-store provenance rules in `AGENTS.md`; Ruff, mypy, 162 tests, and all 10 live PostgreSQL ledger tests passed, with 16 unrelated Neo4j tests skipped.
-
-## 2026-07-17
-
-- Hardened PR #19 for `SCRUM-16`: COPY loads now validate source/written/landed counts before commit and roll back mismatches, while staging migrations verify exact columns, defaults, nullability, and primary keys; compile, Ruff, mypy, 135 runnable tests, and five live PostgreSQL tests passed, with 16 unrelated Neo4j tests skipped locally.

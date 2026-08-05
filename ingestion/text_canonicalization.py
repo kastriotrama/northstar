@@ -10,7 +10,9 @@ from ingestion.normalization_pipeline import NormalizationContext, Transformer
 
 TEXT_CANONICALIZATION_VERSION = "text-canonicalization-v1"
 
-_NAME_FIELDS = frozenset({"manufacturer", "base_manufacturer", "brand", "model"})
+_NAME_FIELDS = frozenset(
+    {"manufacturer", "base_manufacturer", "brand", "model", "type", "variant", "version"}
+)
 _CODE_FIELDS = frozenset(
     {
         "body_code",

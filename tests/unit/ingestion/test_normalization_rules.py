@@ -24,8 +24,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
         range(1, len(outcome.decision_trace) + 1)
     )
     traced_fields = {
-        (entry.transformer_id, entry.field, entry.rule_ids)
-        for entry in outcome.decision_trace
+        (entry.transformer_id, entry.field, entry.rule_ids) for entry in outcome.decision_trace
     }
     assert ("ts.manufacturer", "manufacturer", ("MFR-102",)) in traced_fields
     assert ("ts.bodywork", "bodywork_form", ("BDY-110",)) in traced_fields
@@ -33,8 +32,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     manufacturer_trace = next(
         entry
         for entry in outcome.decision_trace
-        if entry.transformer_id == "ts.manufacturer"
-        and entry.field == "manufacturer"
+        if entry.transformer_id == "ts.manufacturer" and entry.field == "manufacturer"
     )
     assert manufacturer_trace.before == "Volvo Car Corporation"
     assert manufacturer_trace.after == "Volvo"
@@ -73,23 +71,21 @@ def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}
     )
-    goods = normalize_ts_record(
-        {"manufacturer": "Volvo", "eu_category": "N1", "body_code": "AC"}
-    )
+    goods = normalize_ts_record({"manufacturer": "Volvo", "eu_category": "N1", "body_code": "AC"})
     assert passenger.normalized["bodywork_form"] == "wagon"
     assert goods.status == "review_required"
     assert "bodywork_form" not in goods.normalized
 
 
-def test_proposed_fuel_and_drive_values_remain_candidates() -> None:
+def test_reviewed_fuel_is_accepted_while_drive_remains_a_candidate() -> None:
     outcome = normalize_ts_record(
         {"manufacturer": "BMW", "fuel1": "01", "fuel2": "03", "is_4wd": "1"}
     )
     assert outcome.status == "provisional"
-    assert outcome.candidates["energy_sources"] == ["petrol", "electricity"]
+    assert outcome.normalized["energy_sources"] == ["petrol", "electricity"]
     assert outcome.candidates["drive_type"] == "awd"
-    assert "energy_sources" not in outcome.normalized
     assert "drive_type" not in outcome.normalized
+    assert {match.rule_id for match in outcome.rule_matches} >= {"FUEL-001", "FUEL-003"}
 
 
 def test_malformed_source_values_route_to_review() -> None:

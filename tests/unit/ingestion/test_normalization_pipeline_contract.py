@@ -5,6 +5,7 @@ import pytest
 from ingestion.normalization_pipeline import (
     NormalizationContext,
     NormalizationPipeline,
+    RuleMatch,
 )
 
 
@@ -102,4 +103,17 @@ def test_trace_contract_rejects_sensitive_output_fields() -> None:
             before=None,
             after="SENSITIVE",
             confidence_effect=0.0,
+        )
+
+
+def test_rule_match_contract_rejects_sensitive_source_fields() -> None:
+    with pytest.raises(ValueError, match="sensitive field"):
+        RuleMatch(
+            rule_set_version="rules-v1",
+            rule_id="UNSAFE",
+            decision="accepted",
+            source_field="vin",
+            source_term="SENSITIVE",
+            target_field="manufacturer",
+            canonical_value="Unsafe",
         )
