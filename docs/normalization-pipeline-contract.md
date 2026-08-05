@@ -18,16 +18,24 @@ or any transformer that mutates the copied raw evidence. A transformer must not
 read environment variables, perform database writes, or hide review decisions.
 Database orchestration remains in normalization_service.py.
 
-The initial TS sequence is:
+The TS sequence from pipeline version 2 is:
 
-1. initialize safe source metadata;
-2. classify manufacturer;
-3. create a model-family candidate;
-4. extract production year;
-5. translate transmission;
-6. translate category-scoped Bodywork;
-7. create drive candidates;
-8. create fuel and electrification candidates.
+1. canonicalize allow-listed text on an isolated working copy;
+2. initialize safe source metadata;
+3. classify manufacturer;
+4. create a model-family candidate;
+5. extract production year;
+6. translate transmission;
+7. translate category-scoped Bodywork;
+8. create drive candidates;
+9. create fuel and electrification candidates.
+
+Text canonicalization applies Unicode NFKC and whitespace cleanup. Registry
+code fields are uppercased, while human names retain their source casing.
+Typographic dashes and quotation marks are converted to their ASCII equivalents
+only for name fields; punctuation is never removed. Plate, VIN, and unknown
+fields are excluded. All later transformers read the working copy, while the
+original staging evidence remains unchanged.
 
 ## Normalized record contract
 
@@ -51,7 +59,7 @@ Every changed output field records:
 
 - sequence number;
 - transformer ID;
-- target: normalized value, candidate, or review;
+- target: canonical working value, normalized value, candidate, or review;
 - field name;
 - rule IDs;
 - previous/source and new sanitized value;

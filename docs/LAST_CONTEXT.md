@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — SCRUM-88
+
+- Implemented Stage 1a text canonicalization on `feature/SCRUM-88-text-canonicalization`: added an immutable raw/isolated working-record boundary, NFKC and whitespace normalization, field-aware code casing, safe typographic punctuation mapping, v2 pipeline integration, documentation, and Swedish/identifier regression tests; 208 tests pass, 43 datastore tests skip because Docker is stopped, and Ruff 0.16 plus strict mypy pass. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05
 
 - Published SCRUM-87 as draft PR #23 targeting `develop`; fixed four CI-only Ruff 0.16 findings while preserving sanitized job-boundary error handling, then verified the pipeline contract with Ruff 0.16, strict mypy, 193 local tests, image smoke tests, and the full datastore-backed GitHub Actions job. Jira was not changed; the PR is ready for manual review.
@@ -31,12 +35,3 @@ Keep the latest 10 task entries only.
 ## 2026-07-17
 
 - Hardened PR #19 for `SCRUM-16`: COPY loads now validate source/written/landed counts before commit and roll back mismatches, while staging migrations verify exact columns, defaults, nullability, and primary keys; compile, Ruff, mypy, 135 runnable tests, and five live PostgreSQL tests passed, with 16 unrelated Neo4j tests skipped locally.
-
-## 2026-07-16
-
-- Hardened PR #18 for `SCRUM-15`: replaced delimiter-concatenated Alias identity with the shared versioned compact-JSON encoder, added collision/Unicode/input tests, verified duplicate IDs across all eight Neo4j labels, and made live migration checks compare labels, ordered properties, and schema types while excluding unrelated Neo4j built-in indexes; local compile, Ruff, mypy, and 107 runnable tests passed, with live Neo4j validation delegated to CI because Docker is stopped.
-
-## 2026-07-15
-
-- Implemented the `SCRUM-14` prefixed-ULID contract and dependency-free `northstar.node_ids` mint/parse/validate utility with all eight prefixes, injected time/entropy, package/CI/Docker inclusion, and 41 focused ID tests; full validation passed with 80 tests and six Neo4j skips, while Docker image validation remains pending because the daemon was stopped.
-- Started `SCRUM-14` documentation work on `feature/SCRUM-14-opaque-id-generation`; added a stakeholder identity decision guide and agent rules covering plate-to-k-type reuse, lookup-before-mint, useful feedback boundaries, and future merge scope; documentation checks, Ruff, mypy, and 39 runnable tests passed.

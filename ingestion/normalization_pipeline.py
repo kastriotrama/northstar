@@ -7,7 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-TraceTarget = Literal["normalized", "candidate", "review"]
+TraceTarget = Literal["canonical", "normalized", "candidate", "review"]
 SENSITIVE_OUTPUT_FIELDS = frozenset(
     {
         "plate",
@@ -61,12 +61,16 @@ class NormalizationContext:
     """Mutable in-memory state shared by an ordered transformer sequence."""
 
     raw_record: dict[str, Any]
+    canonical_record: dict[str, Any] = field(init=False)
     normalized: dict[str, Any] = field(default_factory=dict)
     candidates: dict[str, Any] = field(default_factory=dict)
     applied_rule_ids: list[str] = field(default_factory=list)
     candidate_rule_ids: list[str] = field(default_factory=list)
     review_reasons: list[str] = field(default_factory=list)
     decision_trace: list[DecisionTraceEntry] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.canonical_record = deepcopy(self.raw_record)
 
     def record_change(
         self,

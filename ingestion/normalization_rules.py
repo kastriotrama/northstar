@@ -21,10 +21,11 @@ from ingestion.normalization_pipeline import (
     NormalizationPipeline,
     Transformer,
 )
+from ingestion.text_canonicalization import TextCanonicalizationTransformer
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = "ts-translation-v1"
-PIPELINE_VERSION = "normalization-pipeline-v1"
+PIPELINE_VERSION = "normalization-pipeline-v2"
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
 
@@ -78,9 +79,9 @@ class _RuleTransformer(Transformer):
 
     def _source_evidence(self, context: NormalizationContext) -> Any:
         evidence = {
-            field_name: context.raw_record[field_name]
+            field_name: context.canonical_record[field_name]
             for field_name in self.source_fields
-            if context.raw_record.get(field_name) not in (None, "")
+            if context.canonical_record.get(field_name) not in (None, "")
         }
         if len(evidence) == 1:
             return next(iter(evidence.values()))
@@ -646,12 +647,14 @@ def _alias_types_present(raw: dict[str, Any]) -> list[str]:
 
 def _initialize_context(context: NormalizationContext) -> None:
     context.normalized["market"] = ["SE"]
-    context.normalized["alias_types_present"] = _alias_types_present(context.raw_record)
+    context.normalized["alias_types_present"] = _alias_types_present(
+        context.canonical_record
+    )
 
 
 def _apply_manufacturer(context: NormalizationContext) -> None:
     _normalize_manufacturer(
-        context.raw_record,
+        context.canonical_record,
         context.normalized,
         context.candidates,
         context.applied_rule_ids,
@@ -662,7 +665,7 @@ def _apply_manufacturer(context: NormalizationContext) -> None:
 
 def _apply_model_family(context: NormalizationContext) -> None:
     _normalize_model_family(
-        context.raw_record,
+        context.canonical_record,
         context.normalized,
         context.candidates,
     )
@@ -670,7 +673,7 @@ def _apply_model_family(context: NormalizationContext) -> None:
 
 def _apply_production_year(context: NormalizationContext) -> None:
     _normalize_production_year(
-        context.raw_record,
+        context.canonical_record,
         context.normalized,
         context.review_reasons,
     )
@@ -678,7 +681,7 @@ def _apply_production_year(context: NormalizationContext) -> None:
 
 def _apply_transmission(context: NormalizationContext) -> None:
     _normalize_transmission(
-        context.raw_record,
+        context.canonical_record,
         context.normalized,
         context.applied_rule_ids,
         context.review_reasons,
@@ -687,7 +690,7 @@ def _apply_transmission(context: NormalizationContext) -> None:
 
 def _apply_bodywork(context: NormalizationContext) -> None:
     _normalize_bodywork(
-        context.raw_record,
+        context.canonical_record,
         context.normalized,
         context.applied_rule_ids,
         context.review_reasons,
@@ -696,7 +699,7 @@ def _apply_bodywork(context: NormalizationContext) -> None:
 
 def _apply_drive(context: NormalizationContext) -> None:
     _normalize_drive(
-        context.raw_record,
+        context.canonical_record,
         context.candidates,
         context.candidate_rule_ids,
         context.review_reasons,
@@ -705,7 +708,7 @@ def _apply_drive(context: NormalizationContext) -> None:
 
 def _apply_fuel(context: NormalizationContext) -> None:
     _normalize_fuel(
-        context.raw_record,
+        context.canonical_record,
         context.candidates,
         context.candidate_rule_ids,
         context.review_reasons,
@@ -715,6 +718,7 @@ def _apply_fuel(context: NormalizationContext) -> None:
 DEFAULT_PIPELINE = NormalizationPipeline(
     version=PIPELINE_VERSION,
     transformers=(
+        TextCanonicalizationTransformer(),
         _RuleTransformer(
             transformer_id="ts.initialize",
             order=10,

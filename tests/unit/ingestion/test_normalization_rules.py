@@ -19,7 +19,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["bodywork_form"] == "wagon"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
-    assert outcome.pipeline_version == "normalization-pipeline-v1"
+    assert outcome.pipeline_version == "normalization-pipeline-v2"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -110,3 +110,28 @@ def test_non_object_raw_record_fails_without_raising() -> None:
     assert outcome.review_reasons == ("raw_record_not_object",)
     assert outcome.decision_trace[0].transformer_id == "ts.input-contract"
     assert outcome.decision_trace[0].confidence_effect == -1.0
+
+
+def test_text_canonicalization_runs_before_translation_rules() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "  Volvo\u00a0Car   Corporation  ",
+            "model": " Ｖ６０\u2003Recharge ",
+            "eu_category": "m1",
+            "body_code": "ac",
+            "gearbox": "z",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.normalized["bodywork_form"] == "wagon"
+    assert outcome.normalized["transmission_type"] == "automatic"
+    assert outcome.candidates["model_family"] == "V60 Recharge"
+    assert any(
+        entry.transformer_id == "ts.text-canonicalization"
+        and entry.target == "canonical"
+        and entry.field == "model"
+        and entry.before == " Ｖ６０\u2003Recharge "
+        and entry.after == "V60 Recharge"
+        for entry in outcome.decision_trace
+    )
