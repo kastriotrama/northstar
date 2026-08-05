@@ -234,7 +234,9 @@ class NormalizeTransportstyrelsenJob:
                 run_job_bookkeeping_migrations(connection)
                 run_normalization_migrations(connection)
                 summary = normalize_batch(connection, batch_id=batch_id)
-        except Exception as error:
+        # This is the outer job boundary: every unexpected provider failure is
+        # converted into a sanitized exit code instead of leaking details.
+        except Exception as error:  # noqa: BLE001
             logger.error(
                 "Normalization job stopped safely",
                 extra={

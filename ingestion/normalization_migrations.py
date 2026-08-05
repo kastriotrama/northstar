@@ -42,9 +42,11 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ),
     (
         "add_normalization_pipeline_version",
-        f"ALTER TABLE {NORMALIZATION_RESULTS_TABLE} "
-        "ADD COLUMN IF NOT EXISTS pipeline_version TEXT NOT NULL "
-        "DEFAULT 'normalization-pipeline-v0'",
+        f"""
+        ALTER TABLE {NORMALIZATION_RESULTS_TABLE}
+        ADD COLUMN IF NOT EXISTS pipeline_version TEXT NOT NULL
+        DEFAULT 'normalization-pipeline-v0'
+        """,
     ),
     (
         "drop_legacy_normalization_source_version_constraint",
@@ -118,13 +120,11 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ),
     (
         "create_normalization_results_batch_status_index",
-        f"CREATE INDEX IF NOT EXISTS normalization_results_batch_status_idx "
-        f"ON {NORMALIZATION_RESULTS_TABLE} (source_batch_id, status)",
+        f"CREATE INDEX IF NOT EXISTS normalization_results_batch_status_idx ON {NORMALIZATION_RESULTS_TABLE} (source_batch_id, status)",
     ),
     (
         "create_normalization_results_source_index",
-        f"CREATE INDEX IF NOT EXISTS normalization_results_source_idx "
-        f"ON {NORMALIZATION_RESULTS_TABLE} (source_table, source_record_id)",
+        f"CREATE INDEX IF NOT EXISTS normalization_results_source_idx ON {NORMALIZATION_RESULTS_TABLE} (source_table, source_record_id)",
     ),
 )
 
