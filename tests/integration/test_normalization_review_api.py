@@ -11,6 +11,8 @@ from api.app.features.normalization_review.schemas import (
 from api.app.features.rule_review.router import get_rule_review_service
 from api.app.features.rule_review.schemas import (
     BatchSummaryView,
+    ManufacturerEntityDraftRequest,
+    ManufacturerEntityView,
     ReprocessResponse,
     RuleActivationResponse,
     RuleDraftRequest,
@@ -72,12 +74,38 @@ class FakeRuleReviewService:
                     has_draft=False,
                 )
             ],
+            manufacturer_entities=[
+                ManufacturerEntityView(
+                    entity_id="MFE-AUDI",
+                    source_field="brand",
+                    source_term="AUDI A4 2 0TS QUATTRO",
+                    effective_canonical_name=None,
+                    active_entity_role="unknown",
+                    effective_entity_role="unknown",
+                    active_base_behavior="require_evidence_review",
+                    effective_base_behavior="require_evidence_review",
+                    occurrences=1,
+                    is_discovered=True,
+                )
+            ],
+            review_reason_summary={"manufacturer_missing": 106},
         )
 
     def save_draft(self, rule_id: str, request: RuleDraftRequest) -> RuleListResponse:
         result = self.list_rules()
         result.rules[0].has_draft = True
         result.rules[0].effective_canonical_value = request.canonical_value
+        result.draft_count = 1
+        return result
+
+    def save_manufacturer_entity_draft(
+        self, entity_id: str, request: ManufacturerEntityDraftRequest
+    ) -> RuleListResponse:
+        result = self.list_rules()
+        result.manufacturer_entities[0].has_draft = True
+        result.manufacturer_entities[0].effective_canonical_name = request.canonical_name
+        result.manufacturer_entities[0].effective_entity_role = request.entity_role
+        result.manufacturer_entities[0].effective_base_behavior = request.base_behavior
         result.draft_count = 1
         return result
 
@@ -130,6 +158,8 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="decision-trace"' in screen.text
     assert 'id="rules-view"' in screen.text
     assert 'id="rule-form"' in screen.text
+    assert 'id="manufacturer-form"' in screen.text
+    assert "Manufacturer entities" in screen.text
     assert stylesheet.status_code == 200
     assert ".workspace" in stylesheet.text
     assert javascript.status_code == 200
@@ -151,6 +181,15 @@ def test_rule_review_api_supports_drafts_activation_and_safe_reprocess(
                 "change_note": "Stakeholder correction",
             },
         )
+        entity_draft = client.put(
+            "/v1/normalization-review/rules/entities/MFE-AUDI/draft",
+            json={
+                "canonical_name": "Audi",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+                "change_note": "Reviewed exact Brand entity",
+            },
+        )
         activated = client.post(
             "/v1/normalization-review/rules/activate",
             json={"note": "Reviewed and approved"},
@@ -165,6 +204,7 @@ def test_rule_review_api_supports_drafts_activation_and_safe_reprocess(
     assert rules.status_code == 200
     assert rules.json()["rules"][0]["rule_id"] == "BDY-110"
     assert draft.json()["draft_count"] == 1
+    assert entity_draft.json()["manufacturer_entities"][0]["effective_canonical_name"] == "Audi"
     assert activated.json()["version"] == "ts-review-new"
     assert reprocessed.json()["before"]["review_required"] == 7
     assert reprocessed.json()["after"]["review_required"] == 3
@@ -176,4 +216,5 @@ def test_review_api_is_documented_but_screen_is_not(client: TestClient) -> None:
     assert "/v1/normalization-review/vehicles" in paths
     assert "/v1/normalization-review/rules" in paths
     assert "/v1/normalization-review/rules/reprocess" in paths
+    assert "/v1/normalization-review/rules/entities/{entity_id}/draft" in paths
     assert "/normalization-review" not in paths

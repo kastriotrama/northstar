@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from calendar import monthrange
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -38,6 +38,7 @@ PIPELINE_VERSION = "normalization-pipeline-v4"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
+ManufacturerEntityRules = Mapping[str, Mapping[str, str | None]]
 
 
 @dataclass(frozen=True)
@@ -307,6 +308,7 @@ def normalize_ts_record(
     raw_record: object,
     *,
     rule_set: TranslationRuleSet = RULE_SET,
+    manufacturer_entity_rules: ManufacturerEntityRules | None = None,
 ) -> NormalizationOutcome:
     """Normalize one TS raw record without copying sensitive identifiers."""
 
@@ -334,7 +336,13 @@ def normalize_ts_record(
             rule_matches=(),
         )
 
-    context = DEFAULT_PIPELINE.run(raw_record, runtime={"translation_rule_set": rule_set})
+    context = DEFAULT_PIPELINE.run(
+        raw_record,
+        runtime={
+            "translation_rule_set": rule_set,
+            "manufacturer_entity_rules": dict(manufacturer_entity_rules or {}),
+        },
+    )
     normalized = context.normalized
     candidates = context.candidates
     applied = context.applied_rule_ids
@@ -370,6 +378,100 @@ def _normalized_entity(value: object) -> str | None:
     if text is None:
         return None
     return _NON_WORD.sub(" ", text.upper()).strip()
+
+
+def normalize_manufacturer_entity(value: object) -> str | None:
+    """Return the exact canonical key used by reviewed manufacturer entities."""
+
+    return _normalized_entity(value)
+
+
+def manufacturer_entity_catalog() -> tuple[Mapping[str, str | None], ...]:
+    """Return the reviewed Tillverkare classifications used by the normalizer."""
+
+    manufacturers = tuple(
+        {
+            "source_field": "manufacturer",
+            "source_term": alias,
+            "canonical_name": canonical,
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+        }
+        for alias, canonical in sorted(_MANUFACTURER_ALIASES.items())
+    )
+    converters = tuple(
+        {
+            "source_field": "manufacturer",
+            "source_term": alias,
+            "canonical_name": converter[0],
+            "entity_role": "bodybuilder_converter",
+            "base_behavior": "use_base_manufacturer",
+        }
+        for alias, converter in sorted(_CONVERTER_ALIASES.items())
+    )
+    corporate_groups = tuple(
+        {
+            "source_field": "manufacturer",
+            "source_term": marker,
+            "canonical_name": marker,
+            "entity_role": "corporate_group",
+            "base_behavior": "require_evidence_review",
+        }
+        for marker in _CORPORATE_GROUP_MARKERS
+    )
+    return manufacturers + converters + corporate_groups
+
+
+def _manufacturer_entity_rule(
+    raw: dict[str, Any],
+    source_field: str,
+    rules: ManufacturerEntityRules,
+) -> Mapping[str, str | None] | None:
+    source_term = _normalized_entity(raw.get(source_field))
+    if source_term is None:
+        return None
+    return rules.get(f"{source_field}:{source_term}")
+
+
+def _apply_manufacturer_entity_rule(
+    rule: Mapping[str, str | None],
+    raw: dict[str, Any],
+    normalized: dict[str, Any],
+    candidates: dict[str, Any],
+    applied: list[str],
+    reasons: list[str],
+) -> bool:
+    role = rule.get("entity_role")
+    behavior = rule.get("base_behavior")
+    canonical_name = rule.get("canonical_name")
+    entity_id = rule.get("entity_id") or "MFR-ENTITY-REVIEWED"
+    if behavior == "require_evidence_review" or role in {"corporate_group", "unknown"}:
+        if canonical_name:
+            candidates["manufacturer"] = canonical_name
+        reasons.append(
+            "manufacturer_corporate_group_unresolved"
+            if role == "corporate_group"
+            else "manufacturer_entity_requires_review"
+        )
+        return True
+    if role == "bodybuilder_converter" or behavior == "use_base_manufacturer":
+        base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
+        if base is None:
+            reasons.append("converter_base_manufacturer_unresolved")
+            return True
+        normalized["manufacturer"] = base
+        normalized["manufacturer_role"] = "bodybuilder_converter"
+        normalized["builder_converter_names"] = [canonical_name] if canonical_name else []
+        applied.append(entity_id)
+        return True
+    if role == "vehicle_manufacturer" and canonical_name:
+        normalized["manufacturer"] = canonical_name
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        applied.append(entity_id)
+        return True
+    reasons.append("manufacturer_entity_configuration_invalid")
+    return True
 
 
 def _resolve_manufacturer(value: object) -> str | None:
@@ -463,11 +565,18 @@ def _normalize_manufacturer(
     applied: list[str],
     candidate_rules: list[str],
     reasons: list[str],
+    entity_rules: ManufacturerEntityRules,
 ) -> None:
     entity = _normalized_entity(raw.get("manufacturer"))
     base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
     marketed, evidence_rules, evidence_conflict = _marketed_manufacturer_evidence(raw)
     if entity is None:
+        reviewed_brand = _manufacturer_entity_rule(raw, "brand", entity_rules)
+        if reviewed_brand is not None:
+            _apply_manufacturer_entity_rule(
+                reviewed_brand, raw, normalized, candidates, applied, reasons
+            )
+            return
         if marketed is not None:
             if evidence_conflict:
                 candidates["manufacturer"] = marketed
@@ -485,6 +594,13 @@ def _normalize_manufacturer(
             reasons.append("manufacturer_missing_compare_brand")
             return
         reasons.append("manufacturer_missing")
+        return
+
+    reviewed_entity = _manufacturer_entity_rule(raw, "manufacturer", entity_rules)
+    if reviewed_entity is not None:
+        _apply_manufacturer_entity_rule(
+            reviewed_entity, raw, normalized, candidates, applied, reasons
+        )
         return
 
     converter = _resolve_converter(raw.get("manufacturer"))
@@ -1086,6 +1202,9 @@ def _initialize_context(context: NormalizationContext) -> None:
 
 
 def _apply_manufacturer(context: NormalizationContext) -> None:
+    entity_rules = context.runtime.get("manufacturer_entity_rules", {})
+    if not isinstance(entity_rules, dict):
+        raise TypeError("manufacturer_entity_rules runtime value is invalid")
     _normalize_manufacturer(
         context.canonical_record,
         context.normalized,
@@ -1093,6 +1212,7 @@ def _apply_manufacturer(context: NormalizationContext) -> None:
         context.applied_rule_ids,
         context.candidate_rule_ids,
         context.review_reasons,
+        entity_rules,
     )
 
 

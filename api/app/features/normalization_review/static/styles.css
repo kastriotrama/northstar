@@ -142,6 +142,15 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .secondary-button { color: var(--teal); background: #fff; }
 .primary-button:disabled, .secondary-button:disabled { border-color: #bdc8c4; color: #889592; background: #edf1ef; cursor: default; }
 
+.review-guidance { min-height: 82px; display: grid; grid-template-columns: minmax(220px, .8fr) minmax(460px, 1.5fr) minmax(280px, 1fr); align-items: center; gap: 28px; padding: 13px 28px; border-bottom: 1px solid #e4d7bf; background: #fffaf1; }
+.review-guidance > div { display: grid; gap: 4px; }
+.review-guidance > div strong { font-family: Georgia, serif; font-size: 16px; font-weight: 400; }
+.review-guidance dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; }
+.review-guidance dl div { padding-left: 18px; border-left: 1px solid #e7d8bd; }
+.review-guidance dt { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.review-guidance dd { margin: 4px 0 0; color: #77521a; font-size: 17px; font-weight: 700; }
+.review-guidance p { margin: 0; color: #6f624e; font-size: 10px; line-height: 1.5; }
+
 .comparison { min-height: 76px; display: grid; grid-template-columns: minmax(250px, 1fr) minmax(500px, 2fr); align-items: center; gap: 30px; padding: 14px 28px; border-bottom: 1px solid #bdd9d2; background: #edf7f4; animation: row-in 240ms ease-out; }
 .comparison > div { display: grid; gap: 4px; }
 .comparison > div strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -153,9 +162,12 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .comparison dd b { color: var(--teal); font-weight: 400; }
 .comparison dd strong { font-size: 17px; }
 
-.rules-workspace { height: calc(100svh - 210px); min-height: 530px; display: grid; grid-template-columns: minmax(700px, 1fr) minmax(360px, 430px); overflow: hidden; }
-.comparison:not([hidden]) + .rules-workspace { height: calc(100svh - 286px); }
+.rules-workspace { height: calc(100svh - 292px); min-height: 360px; display: grid; grid-template-columns: minmax(700px, 1fr) minmax(360px, 430px); overflow: hidden; }
+.comparison:not([hidden]) + .rules-workspace { height: calc(100svh - 368px); }
 .rule-results { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--line); }
+.rule-kind-tabs { height: 45px; display: flex; align-items: end; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--line); background: #fff; }
+.rule-kind { align-self: stretch; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; font-size: 11px; font-weight: 700; }
+.rule-kind.active { border-bottom-color: var(--teal); color: var(--ink); }
 .rule-results .toolbar { padding-bottom: 14px; }
 .compact-filter { flex: 0 0 150px; }
 .compact-filter select { width: 100%; height: 42px; margin-top: 4px; padding: 0 28px 0 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 11px; }
@@ -229,6 +241,9 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
   .rule-hero { display: block; padding: 20px 17px; }
   .rule-hero p { margin-bottom: 17px; }
   .rule-actions { max-width: 520px; }
+  .review-guidance { grid-template-columns: 1fr; gap: 10px; padding: 14px 17px; }
+  .review-guidance dl { grid-template-columns: repeat(3, 1fr); }
+  .review-guidance p { display: none; }
   .rules-workspace, .comparison:not([hidden]) + .rules-workspace { height: auto; min-height: calc(100svh - 255px); display: block; }
   .rule-results { min-height: 690px; border-right: 0; }
   .rule-results .toolbar { flex-wrap: wrap; }

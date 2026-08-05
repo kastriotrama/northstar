@@ -157,6 +157,12 @@
           </div>
         </section>
 
+        <section class="review-guidance" aria-label="Current review backlog">
+          <div><span class="eyebrow">Current review backlog</span><strong><span id="review-backlog-total">—</span> vehicles need evidence</strong></div>
+          <dl><div><dt>Missing Tillverkare</dt><dd id="reason-manufacturer-missing">—</dd></div><div><dt>Brand needs evidence</dt><dd id="reason-brand-evidence">—</dd></div><div><dt>Bodywork/category conflict</dt><dd id="reason-bodywork-category">—</dd></div></dl>
+          <p>Classify exact manufacturer entities first, then validate category-specific bodywork. Brand-only values remain reviewable until explicitly approved.</p>
+        </section>
+
         <section id="comparison" class="comparison" hidden aria-live="polite">
           <div><span class="eyebrow">Re-import complete</span><strong id="comparison-batch">New batch</strong></div>
           <dl>
@@ -168,19 +174,23 @@
 
         <main class="rules-workspace">
           <section class="rule-results">
+            <nav class="rule-kind-tabs" aria-label="Rule type">
+              <button class="rule-kind active" type="button" data-rule-kind="translation">Translation rules</button>
+              <button class="rule-kind" type="button" data-rule-kind="manufacturer">Manufacturer entities</button>
+            </nav>
             <div class="toolbar">
               <label class="search-field">
                 <span class="sr-only">Search translation rules</span>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg>
                 <input id="rule-search" type="search" placeholder="Search rule, source term, or value…" autocomplete="off" />
               </label>
-              <label class="compact-filter"><span>Area</span><select id="rule-area"><option value="">All areas</option></select></label>
+              <label id="rule-area-filter" class="compact-filter"><span>Area</span><select id="rule-area"><option value="">All areas</option></select></label>
               <label class="compact-filter"><span>State</span><select id="rule-state"><option value="">All rules</option><option value="draft">Draft changes</option><option value="accepted">Accepted</option><option value="proposed">Proposed</option></select></label>
             </div>
             <div class="result-meta"><span id="rule-result-count">Loading rules…</span><span>Source matching stays read-only; reviewed outputs can be corrected</span></div>
             <div class="table-wrap">
               <table class="rules-table">
-                <thead><tr><th>Rule</th><th>Source term</th><th>Canonical value</th><th>Decision</th><th>State</th></tr></thead>
+                <thead><tr><th id="rule-column-name">Rule</th><th>Source term</th><th>Canonical value</th><th id="rule-column-decision">Decision</th><th>State</th></tr></thead>
                 <tbody id="rule-rows"></tbody>
               </table>
               <div id="rules-empty" class="empty-state" hidden><strong>No rules match this view</strong><p>Try another search or filter.</p></div>
@@ -204,6 +214,21 @@
                 <label><span>Change note</span><textarea id="editor-note" minlength="5" maxlength="500" required placeholder="Explain why this correction is needed"></textarea></label>
               </section>
               <footer class="editor-actions"><button class="primary-button" type="submit">Save draft</button><button id="discard-draft" class="text-button" type="button">Discard draft</button></footer>
+            </form>
+            <form id="manufacturer-form" hidden>
+              <header class="editor-head"><div><span class="eyebrow" id="manufacturer-source-field">Tillverkare entity</span><h2 id="manufacturer-entity-term">Entity</h2></div><span id="manufacturer-state" class="draft-marker">Active</span></header>
+              <section class="editor-section readonly-evidence">
+                <h3>Immutable source evidence</h3>
+                <dl><div><dt>Canonical source key</dt><dd id="manufacturer-source-term">—</dd></div><div><dt>Occurrences</dt><dd id="manufacturer-occurrences">—</dd></div><div><dt>Base manufacturers</dt><dd id="manufacturer-base-values">—</dd></div></dl>
+              </section>
+              <section class="editor-section editor-fields">
+                <h3>Reviewed classification</h3>
+                <label><span>Canonical company name</span><input id="manufacturer-canonical" type="text" maxlength="120" placeholder="For example Audi or KABE" /></label>
+                <label><span>Entity role</span><select id="manufacturer-role"><option value="vehicle_manufacturer">Vehicle manufacturer</option><option value="bodybuilder_converter">Bodybuilder / converter</option><option value="corporate_group">Corporate group</option><option value="unknown">Unknown / require review</option></select></label>
+                <label><span>Manufacturer behavior</span><select id="manufacturer-behavior" disabled><option value="use_entity">Use this entity as manufacturer</option><option value="use_base_manufacturer">Use Tillverkare grundfordonet; retain converter</option><option value="require_evidence_review">Require Brand, model, VIN, or KType evidence</option></select></label>
+                <label><span>Change note</span><textarea id="manufacturer-note" minlength="5" maxlength="500" required placeholder="Explain the evidence for this classification"></textarea></label>
+              </section>
+              <footer class="editor-actions"><button class="primary-button" type="submit">Save entity draft</button><button id="discard-manufacturer-draft" class="text-button" type="button">Discard draft</button></footer>
             </form>
           </aside>
         </main>

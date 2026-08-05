@@ -4,6 +4,7 @@ from api.app.features.normalization_review.repository import ConnectionFactory
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.normalization_migrations import run_normalization_migrations
 from ingestion.normalization_repository import NormalizationSummary, summarize_batch
+from ingestion.normalization_rules import ManufacturerEntityRules
 from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import run_review_queue_migrations
 from ingestion.staging_migrations import run_staging_migrations
@@ -20,6 +21,7 @@ class RuleReprocessingAdapter:
         source_batch_id: str,
         new_batch_id: str,
         rule_set: TranslationRuleSet,
+        manufacturer_entity_rules: ManufacturerEntityRules,
     ) -> tuple[NormalizationSummary, NormalizationSummary]:
         with self._connection_factory() as connection:
             run_staging_migrations(connection)
@@ -53,5 +55,10 @@ class RuleReprocessingAdapter:
                     (new_batch_id, source_batch_id),
                 )
             connection.commit()
-            after = normalize_batch(connection, batch_id=new_batch_id, rule_set=rule_set)
+            after = normalize_batch(
+                connection,
+                batch_id=new_batch_id,
+                rule_set=rule_set,
+                manufacturer_entity_rules=manufacturer_entity_rules,
+            )
         return before, after

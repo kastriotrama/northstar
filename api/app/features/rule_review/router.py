@@ -9,6 +9,7 @@ from api.app.core.settings import Settings, get_settings
 from api.app.features.rule_review.repository import RuleReviewRepository
 from api.app.features.rule_review.reprocessing import RuleReprocessingAdapter
 from api.app.features.rule_review.schemas import (
+    ManufacturerEntityDraftRequest,
     ReprocessRequest,
     ReprocessResponse,
     RuleActivationRequest,
@@ -68,6 +69,37 @@ def discard_rule_draft(
         raise HTTPException(status_code=404, detail=str(error)) from error
     except psycopg.Error as error:
         raise HTTPException(status_code=503, detail="Rule draft could not be discarded.") from error
+
+
+@router.put("/entities/{entity_id}/draft", response_model=RuleListResponse)
+def save_manufacturer_entity_draft(
+    entity_id: str,
+    request: ManufacturerEntityDraftRequest,
+    service: Annotated[RuleReviewService, Depends(get_rule_review_service)],
+) -> RuleListResponse:
+    try:
+        return service.save_manufacturer_entity_draft(entity_id, request)
+    except RuleReviewError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=503, detail="Manufacturer entity draft could not be saved."
+        ) from error
+
+
+@router.delete("/entities/{entity_id}/draft", response_model=RuleListResponse)
+def discard_manufacturer_entity_draft(
+    entity_id: str,
+    service: Annotated[RuleReviewService, Depends(get_rule_review_service)],
+) -> RuleListResponse:
+    try:
+        return service.discard_manufacturer_entity_draft(entity_id)
+    except RuleReviewError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=503, detail="Manufacturer entity draft could not be discarded."
+        ) from error
 
 
 @router.post("/activate", response_model=RuleActivationResponse)

@@ -7,6 +7,8 @@ from psycopg.types.json import Jsonb
 
 from api.app.features.normalization_review.repository import ConnectionFactory
 from ingestion.normalization_migrations import (
+    MANUFACTURER_ENTITY_DRAFTS_TABLE,
+    NORMALIZATION_RESULTS_TABLE,
     TRANSLATION_RULE_DRAFTS_TABLE,
     TRANSLATION_RULE_VERSIONS_TABLE,
     run_normalization_migrations,
@@ -55,6 +57,112 @@ class RuleReviewRepository:
             "activated_at": row[3],
         }
 
+    def fetch_manufacturer_entity_drafts(self) -> dict[str, dict[str, Any]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT entity_id, source_field, source_term, canonical_name, "
+                f"entity_role, base_behavior, change_note "
+                f"FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE} ORDER BY entity_id"
+            )
+            rows = cursor.fetchall()
+        return {
+            str(row[0]): {
+                "kind": "manufacturer_entity",
+                "source_field": str(row[1]),
+                "source_term": str(row[2]),
+                "canonical_name": row[3],
+                "entity_role": str(row[4]),
+                "base_behavior": str(row[5]),
+                "change_note": str(row[6]),
+            }
+            for row in rows
+        }
+
+    def fetch_discovered_manufacturer_entities(self) -> list[dict[str, Any]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                WITH latest_batch AS (
+                    SELECT source_batch_id
+                    FROM {NORMALIZATION_RESULTS_TABLE}
+                    GROUP BY source_batch_id
+                    ORDER BY max(created_at) DESC, source_batch_id DESC
+                    LIMIT 1
+                ), latest AS (
+                    SELECT DISTINCT ON (result.source_record_id)
+                        result.source_record_id,
+                        result.review_reasons
+                    FROM {NORMALIZATION_RESULTS_TABLE} AS result
+                    JOIN latest_batch USING (source_batch_id)
+                    ORDER BY result.source_record_id, result.updated_at DESC, result.id DESC
+                ), candidates AS (
+                    SELECT
+                        CASE
+                            WHEN raw.raw_record->>'manufacturer' IS NOT NULL
+                                THEN 'manufacturer'
+                            ELSE 'brand'
+                        END AS source_field,
+                        coalesce(
+                            raw.raw_record->>'manufacturer',
+                            raw.raw_record->>'brand'
+                        ) AS source_term,
+                        raw.raw_record->>'base_manufacturer' AS base_manufacturer
+                    FROM latest
+                    JOIN staging.transportstyrelsen_raw AS raw
+                        ON raw.id = latest.source_record_id
+                    WHERE latest.review_reasons && ARRAY[
+                        'manufacturer_unknown',
+                        'manufacturer_missing',
+                        'manufacturer_missing_compare_brand',
+                        'manufacturer_corporate_group_unresolved',
+                        'converter_base_manufacturer_unresolved'
+                    ]::TEXT[]
+                )
+                SELECT source_field, source_term, count(*),
+                    array_remove(array_agg(DISTINCT base_manufacturer), NULL)
+                FROM candidates
+                WHERE nullif(trim(source_term), '') IS NOT NULL
+                GROUP BY source_field, source_term
+                ORDER BY count(*) DESC, source_term
+                """
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "source_field": str(row[0]),
+                "source_term": str(row[1]),
+                "occurrences": int(row[2]),
+                "base_manufacturers": [str(value) for value in row[3]],
+            }
+            for row in rows
+        ]
+
+    def fetch_review_reason_summary(self) -> dict[str, int]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                WITH latest_batch AS (
+                    SELECT source_batch_id
+                    FROM {NORMALIZATION_RESULTS_TABLE}
+                    GROUP BY source_batch_id
+                    ORDER BY max(created_at) DESC, source_batch_id DESC
+                    LIMIT 1
+                ), latest AS (
+                    SELECT DISTINCT ON (result.source_record_id)
+                        result.source_record_id, result.status, result.review_reasons
+                    FROM {NORMALIZATION_RESULTS_TABLE} AS result
+                    JOIN latest_batch USING (source_batch_id)
+                    ORDER BY result.source_record_id, result.updated_at DESC, result.id DESC
+                )
+                SELECT reason, count(*)
+                FROM latest CROSS JOIN LATERAL unnest(review_reasons) AS reason
+                WHERE status = 'review_required'
+                GROUP BY reason
+                """
+            )
+            rows = cursor.fetchall()
+        return {str(row[0]): int(row[1]) for row in rows}
+
     def save_draft(
         self,
         *,
@@ -91,6 +199,53 @@ class RuleReviewRepository:
             connection.commit()
         return deleted
 
+    def save_manufacturer_entity_draft(
+        self,
+        *,
+        entity_id: str,
+        source_field: str,
+        source_term: str,
+        canonical_name: str | None,
+        entity_role: str,
+        base_behavior: str,
+        change_note: str,
+    ) -> None:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                INSERT INTO {MANUFACTURER_ENTITY_DRAFTS_TABLE} (
+                    entity_id, source_field, source_term, canonical_name,
+                    entity_role, base_behavior, change_note
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (entity_id) DO UPDATE SET
+                    canonical_name = EXCLUDED.canonical_name,
+                    entity_role = EXCLUDED.entity_role,
+                    base_behavior = EXCLUDED.base_behavior,
+                    change_note = EXCLUDED.change_note,
+                    updated_at = now()
+                """,
+                (
+                    entity_id,
+                    source_field,
+                    source_term,
+                    canonical_name,
+                    entity_role,
+                    base_behavior,
+                    change_note.strip(),
+                ),
+            )
+            connection.commit()
+
+    def delete_manufacturer_entity_draft(self, entity_id: str) -> bool:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE} WHERE entity_id = %s",
+                (entity_id,),
+            )
+            deleted = cursor.rowcount > 0
+            connection.commit()
+        return deleted
+
     def activate_drafts(
         self,
         *,
@@ -101,12 +256,19 @@ class RuleReviewRepository:
     ) -> tuple[int, datetime]:
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(f"LOCK TABLE {TRANSLATION_RULE_DRAFTS_TABLE} IN EXCLUSIVE MODE")
+            cursor.execute(f"LOCK TABLE {MANUFACTURER_ENTITY_DRAFTS_TABLE} IN EXCLUSIVE MODE")
             cursor.execute(
                 f"SELECT rule_id, canonical_value, decision, display_value, change_note "
                 f"FROM {TRANSLATION_RULE_DRAFTS_TABLE} ORDER BY rule_id"
             )
             rows = cursor.fetchall()
-            if not rows:
+            cursor.execute(
+                f"SELECT entity_id, source_field, source_term, canonical_name, entity_role, "
+                f"base_behavior, change_note FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE} "
+                "ORDER BY entity_id"
+            )
+            entity_rows = cursor.fetchall()
+            if not rows and not entity_rows:
                 raise ValueError("no_rule_drafts_to_activate")
             draft_overrides = {
                 str(row[0]): {
@@ -118,6 +280,20 @@ class RuleReviewRepository:
                 for row in rows
             }
             overrides = {**inherited_overrides, **draft_overrides}
+            overrides.update(
+                {
+                    str(row[0]): {
+                        "kind": "manufacturer_entity",
+                        "source_field": str(row[1]),
+                        "source_term": str(row[2]),
+                        "canonical_name": row[3],
+                        "entity_role": str(row[4]),
+                        "base_behavior": str(row[5]),
+                        "change_note": str(row[6]),
+                    }
+                    for row in entity_rows
+                }
+            )
             cursor.execute(
                 f"INSERT INTO {TRANSLATION_RULE_VERSIONS_TABLE} "
                 "(version, base_rule_version, overrides, activation_note) "
@@ -129,5 +305,6 @@ class RuleReviewRepository:
                 raise RuntimeError("rule_activation_did_not_return_timestamp")
             activated_at = activation_row[0]
             cursor.execute(f"DELETE FROM {TRANSLATION_RULE_DRAFTS_TABLE}")
+            cursor.execute(f"DELETE FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE}")
             connection.commit()
-        return len(rows), activated_at
+        return len(rows) + len(entity_rows), activated_at

@@ -20,6 +20,7 @@ from ingestion.normalization_rules import (
     PIPELINE_VERSION,
     RULE_SET,
     RULE_VERSION,
+    ManufacturerEntityRules,
     normalize_ts_record,
 )
 from ingestion.review_queue import CandidateMatch, enqueue_review_item
@@ -34,6 +35,7 @@ def normalize_batch(
     batch_id: str,
     page_size: int = 500,
     rule_set: TranslationRuleSet | None = None,
+    manufacturer_entity_rules: ManufacturerEntityRules | None = None,
 ) -> NormalizationSummary:
     """Normalize one complete staging batch and persist safe decisions."""
 
@@ -64,6 +66,7 @@ def normalize_batch(
                 outcome = normalize_ts_record(
                     record.raw_record,
                     rule_set=rule_set or RULE_SET,
+                    manufacturer_entity_rules=manufacturer_entity_rules,
                 )
                 store_normalization_result(
                     connection,

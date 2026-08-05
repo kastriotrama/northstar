@@ -7,6 +7,7 @@ from psycopg import Connection
 NORMALIZATION_RESULTS_TABLE = "core.normalization_results"
 TRANSLATION_RULE_DRAFTS_TABLE = "core.translation_rule_drafts"
 TRANSLATION_RULE_VERSIONS_TABLE = "core.translation_rule_versions"
+MANUFACTURER_ENTITY_DRAFTS_TABLE = "core.manufacturer_entity_drafts"
 
 NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -150,6 +151,36 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
             overrides JSONB NOT NULL CHECK (jsonb_typeof(overrides) = 'object'),
             activation_note TEXT NOT NULL CHECK (length(trim(activation_note)) >= 5),
             activated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+    ),
+    (
+        "create_manufacturer_entity_drafts_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MANUFACTURER_ENTITY_DRAFTS_TABLE} (
+            entity_id TEXT PRIMARY KEY,
+            source_field TEXT NOT NULL CHECK (
+                source_field IN ('manufacturer', 'brand', 'base_manufacturer')
+            ),
+            source_term TEXT NOT NULL,
+            canonical_name TEXT,
+            entity_role TEXT NOT NULL CHECK (
+                entity_role IN (
+                    'vehicle_manufacturer',
+                    'bodybuilder_converter',
+                    'corporate_group',
+                    'unknown'
+                )
+            ),
+            base_behavior TEXT NOT NULL CHECK (
+                base_behavior IN (
+                    'use_entity',
+                    'use_base_manufacturer',
+                    'require_evidence_review'
+                )
+            ),
+            change_note TEXT NOT NULL CHECK (length(trim(change_note)) >= 5),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """,
     ),

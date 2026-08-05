@@ -31,12 +31,40 @@ class RuleView(BaseModel):
     change_note: str | None = None
 
 
+class ManufacturerEntityDraftRequest(BaseModel):
+    canonical_name: str | None = Field(default=None, max_length=120)
+    entity_role: Literal[
+        "vehicle_manufacturer", "bodybuilder_converter", "corporate_group", "unknown"
+    ]
+    base_behavior: Literal["use_entity", "use_base_manufacturer", "require_evidence_review"]
+    change_note: str = Field(min_length=5, max_length=500)
+
+
+class ManufacturerEntityView(BaseModel):
+    entity_id: str
+    source_field: str
+    source_term: str
+    active_canonical_name: str | None = None
+    effective_canonical_name: str | None = None
+    active_entity_role: str
+    effective_entity_role: str
+    active_base_behavior: str
+    effective_base_behavior: str
+    occurrences: int = 0
+    base_manufacturers: list[str] = Field(default_factory=list)
+    has_draft: bool = False
+    is_discovered: bool = False
+    change_note: str | None = None
+
+
 class RuleListResponse(BaseModel):
     base_version: str
     active_version: str
     active_at: datetime | None = None
     draft_count: int
     rules: list[RuleView]
+    manufacturer_entities: list[ManufacturerEntityView] = Field(default_factory=list)
+    review_reason_summary: dict[str, int] = Field(default_factory=dict)
 
 
 class RuleActivationRequest(BaseModel):

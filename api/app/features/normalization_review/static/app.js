@@ -1,6 +1,6 @@
 const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
-const ruleState = { page: null, selectedId: null, loading: false };
+const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -246,9 +246,7 @@ async function loadRules() {
   document.querySelector("#rule-result-count").textContent = "Loading rules…";
   try {
     ruleState.page = await apiRequest("/v1/normalization-review/rules");
-    if (!ruleState.page.rules.some((rule) => rule.rule_id === ruleState.selectedId)) {
-      ruleState.selectedId = ruleState.page.rules[0]?.rule_id ?? null;
-    }
+    ensureRuleSelection();
     renderRules();
   } catch (error) {
     showToast(`Could not load rules. ${error.message}`);
@@ -257,11 +255,31 @@ async function loadRules() {
   }
 }
 
+function currentRuleItems() {
+  if (!ruleState.page) return [];
+  return ruleState.kind === "manufacturer" ? ruleState.page.manufacturer_entities : ruleState.page.rules;
+}
+
+function ensureRuleSelection() {
+  const items = currentRuleItems();
+  const idField = ruleState.kind === "manufacturer" ? "entity_id" : "rule_id";
+  if (!items.some((item) => item[idField] === ruleState.selectedId)) {
+    ruleState.selectedId = items[0]?.[idField] ?? null;
+  }
+}
+
 function filteredRules() {
   if (!ruleState.page) return [];
   const query = elements.ruleSearch.value.trim().toLowerCase();
   const area = elements.ruleArea.value;
   const status = elements.ruleStateFilter.value;
+  if (ruleState.kind === "manufacturer") {
+    return ruleState.page.manufacturer_entities.filter((entity) => {
+      const searchable = [entity.entity_id, entity.source_field, entity.source_term, entity.effective_canonical_name, entity.effective_entity_role].join(" ").toLowerCase();
+      const statusMatches = !status || (status === "draft" ? entity.has_draft : status === entity.effective_entity_role);
+      return (!query || searchable.includes(query)) && statusMatches;
+    });
+  }
   return ruleState.page.rules.filter((rule) => {
     const searchable = [rule.rule_id, rule.area, rule.canonical_field, rule.effective_canonical_value, ...rule.source_terms].join(" ").toLowerCase();
     const statusMatches = !status || (status === "draft" ? rule.has_draft : rule.effective_decision === status);
@@ -273,13 +291,28 @@ function renderRules() {
   const page = ruleState.page;
   document.querySelector("#active-rule-version").textContent = page.active_version;
   document.querySelector("#rule-draft-count").textContent = page.draft_count.toLocaleString();
+  const reasons = page.review_reason_summary || {};
+  document.querySelector("#review-backlog-total").textContent = state.page?.summary.review_required ?? "—";
+  document.querySelector("#reason-manufacturer-missing").textContent = reasons.manufacturer_missing || 0;
+  document.querySelector("#reason-brand-evidence").textContent = reasons.manufacturer_missing_compare_brand || 0;
+  document.querySelector("#reason-bodywork-category").textContent = reasons.bodywork_code_unresolved_for_category || 0;
+  document.querySelector("#activate-rules").disabled = page.draft_count === 0;
+  document.querySelector("#reprocess-batch").disabled = page.draft_count > 0 || !state.page?.batch_id;
+  document.querySelectorAll(".rule-kind").forEach((button) => button.classList.toggle("active", button.dataset.ruleKind === ruleState.kind));
+  document.querySelector("#rule-area-filter").hidden = ruleState.kind === "manufacturer";
+  if (ruleState.kind === "manufacturer") renderManufacturerEntities();
+  else renderTranslationRules();
+}
+
+function renderTranslationRules() {
+  const page = ruleState.page;
   const areas = [...new Set(page.rules.map((rule) => rule.area))].sort();
   populateSelect(elements.ruleArea, areas, "All areas");
   const rules = filteredRules();
+  document.querySelector("#rule-column-name").textContent = "Rule";
+  document.querySelector("#rule-column-decision").textContent = "Decision";
   document.querySelector("#rule-result-count").textContent = `${rules.length.toLocaleString()} translation rule${rules.length === 1 ? "" : "s"}`;
   document.querySelector("#rules-empty").hidden = rules.length > 0;
-  document.querySelector("#activate-rules").disabled = page.draft_count === 0;
-  document.querySelector("#reprocess-batch").disabled = page.draft_count > 0 || !state.page?.batch_id;
   elements.ruleRows.innerHTML = rules.map((rule, index) => `
     <tr data-rule-id="${escapeHtml(rule.rule_id)}" class="${rule.rule_id === ruleState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
       <td><div class="rule-title"><strong>${escapeHtml(rule.rule_id)}</strong><span>${escapeHtml(humanize(rule.area))}</span></div></td>
@@ -296,16 +329,44 @@ function renderRules() {
   renderRuleEditor(page.rules.find((rule) => rule.rule_id === ruleState.selectedId));
 }
 
+function renderManufacturerEntities() {
+  const entities = filteredRules();
+  document.querySelector("#rule-column-name").textContent = "Entity";
+  document.querySelector("#rule-column-decision").textContent = "Role";
+  document.querySelector("#rule-result-count").textContent = `${entities.length.toLocaleString()} manufacturer entit${entities.length === 1 ? "y" : "ies"}`;
+  document.querySelector("#rules-empty").hidden = entities.length > 0;
+  elements.ruleRows.innerHTML = entities.map((entity, index) => `
+    <tr data-rule-id="${escapeHtml(entity.entity_id)}" class="${entity.entity_id === ruleState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
+      <td><div class="rule-title"><strong>${escapeHtml(entity.source_term)}</strong><span>${escapeHtml(humanize(entity.source_field))}${entity.occurrences ? ` · ${entity.occurrences} current` : ""}</span></div></td>
+      <td class="term-list">${escapeHtml(entity.source_field)}</td>
+      <td>${escapeHtml(entity.effective_canonical_name || "—")}</td>
+      <td><span class="decision-label ${entity.effective_entity_role === "unknown" ? "decision-proposed" : "decision-accepted"}">${escapeHtml(humanize(entity.effective_entity_role))}</span></td>
+      <td><span class="draft-marker ${entity.has_draft ? "changed" : ""}">${entity.has_draft ? "Draft" : entity.is_discovered && entity.effective_entity_role === "unknown" ? "Review" : "Active"}</span></td>
+    </tr>`).join("");
+  elements.ruleRows.querySelectorAll("tr").forEach((row) => {
+    const select = () => selectRule(row.dataset.ruleId);
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  renderManufacturerEditor(ruleState.page.manufacturer_entities.find((entity) => entity.entity_id === ruleState.selectedId));
+}
+
 function selectRule(ruleId) {
   ruleState.selectedId = ruleId;
+  elements.ruleEditor.scrollTop = 0;
   elements.ruleRows.querySelectorAll("tr").forEach((row) => row.classList.toggle("selected", row.dataset.ruleId === ruleId));
-  renderRuleEditor(ruleState.page.rules.find((rule) => rule.rule_id === ruleId));
+  if (ruleState.kind === "manufacturer") {
+    renderManufacturerEditor(ruleState.page.manufacturer_entities.find((entity) => entity.entity_id === ruleId));
+  } else {
+    renderRuleEditor(ruleState.page.rules.find((rule) => rule.rule_id === ruleId));
+  }
   if (window.innerWidth <= 820) elements.ruleEditor.classList.add("open");
 }
 
 function renderRuleEditor(rule) {
   document.querySelector("#rule-editor-empty").hidden = Boolean(rule);
   document.querySelector("#rule-form").hidden = !rule;
+  document.querySelector("#manufacturer-form").hidden = true;
   if (!rule) return;
   document.querySelector("#editor-area").textContent = humanize(rule.area);
   document.querySelector("#editor-rule-id").textContent = rule.rule_id;
@@ -324,6 +385,26 @@ function renderRuleEditor(rule) {
   document.querySelector("#editor-display").value = rule.effective_display_value ?? "";
   document.querySelector("#editor-note").value = rule.change_note ?? "";
   document.querySelector("#discard-draft").hidden = !rule.has_draft;
+}
+
+function renderManufacturerEditor(entity) {
+  document.querySelector("#rule-editor-empty").hidden = Boolean(entity);
+  document.querySelector("#manufacturer-form").hidden = !entity;
+  document.querySelector("#rule-form").hidden = true;
+  if (!entity) return;
+  document.querySelector("#manufacturer-source-field").textContent = humanize(entity.source_field);
+  document.querySelector("#manufacturer-entity-term").textContent = entity.source_term;
+  const marker = document.querySelector("#manufacturer-state");
+  marker.textContent = entity.has_draft ? "Draft change" : entity.is_discovered && entity.effective_entity_role === "unknown" ? "Needs classification" : "Active";
+  marker.classList.toggle("changed", entity.has_draft || entity.effective_entity_role === "unknown");
+  document.querySelector("#manufacturer-source-term").textContent = `${entity.source_field} = ${entity.source_term}`;
+  document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "Not in current batch";
+  document.querySelector("#manufacturer-base-values").textContent = entity.base_manufacturers.join(", ") || "None supplied";
+  document.querySelector("#manufacturer-canonical").value = entity.effective_canonical_name ?? "";
+  document.querySelector("#manufacturer-role").value = entity.effective_entity_role;
+  document.querySelector("#manufacturer-behavior").value = entity.effective_base_behavior;
+  document.querySelector("#manufacturer-note").value = entity.change_note ?? "";
+  document.querySelector("#discard-manufacturer-draft").hidden = !entity.has_draft;
 }
 
 async function saveRuleDraft(event) {
@@ -349,6 +430,57 @@ async function discardRuleDraft() {
     renderRules();
     showToast("Draft discarded; the active rule is unchanged.");
   } catch (error) { showToast(`Draft was not discarded. ${error.message}`); }
+}
+
+function switchRuleKind(kind) {
+  ruleState.kind = kind;
+  ruleState.selectedId = null;
+  elements.ruleSearch.value = "";
+  elements.ruleStateFilter.replaceChildren(
+    new Option("All rules", ""),
+    new Option("Draft changes", "draft"),
+    ...(kind === "manufacturer"
+      ? [new Option("Vehicle manufacturers", "vehicle_manufacturer"), new Option("Bodybuilders / converters", "bodybuilder_converter"), new Option("Corporate groups", "corporate_group"), new Option("Needs classification", "unknown")]
+      : [new Option("Accepted", "accepted"), new Option("Proposed", "proposed")])
+  );
+  elements.ruleSearch.placeholder = kind === "manufacturer" ? "Search company, source value, or role…" : "Search rule, source term, or value…";
+  ensureRuleSelection();
+  renderRules();
+}
+
+function syncManufacturerBehavior() {
+  const role = document.querySelector("#manufacturer-role").value;
+  document.querySelector("#manufacturer-behavior").value = {
+    vehicle_manufacturer: "use_entity",
+    bodybuilder_converter: "use_base_manufacturer",
+    corporate_group: "require_evidence_review",
+    unknown: "require_evidence_review",
+  }[role];
+}
+
+async function saveManufacturerEntityDraft(event) {
+  event.preventDefault();
+  if (!ruleState.selectedId) return;
+  const payload = {
+    canonical_name: document.querySelector("#manufacturer-canonical").value.trim() || null,
+    entity_role: document.querySelector("#manufacturer-role").value,
+    base_behavior: document.querySelector("#manufacturer-behavior").value,
+    change_note: document.querySelector("#manufacturer-note").value.trim(),
+  };
+  try {
+    ruleState.page = await apiRequest(`/v1/normalization-review/rules/entities/${encodeURIComponent(ruleState.selectedId)}/draft`, { method: "PUT", body: JSON.stringify(payload) });
+    renderRules();
+    showToast("Manufacturer classification saved as a draft.");
+  } catch (error) { showToast(`Entity draft was not saved. ${error.message}`); }
+}
+
+async function discardManufacturerEntityDraft() {
+  if (!ruleState.selectedId) return;
+  try {
+    ruleState.page = await apiRequest(`/v1/normalization-review/rules/entities/${encodeURIComponent(ruleState.selectedId)}/draft`, { method: "DELETE" });
+    renderRules();
+    showToast("Manufacturer entity draft discarded.");
+  } catch (error) { showToast(`Entity draft was not discarded. ${error.message}`); }
 }
 
 async function activateRules() {
@@ -386,9 +518,13 @@ async function reprocessBatch() {
 }
 
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelectorAll(".rule-kind").forEach((tab) => tab.addEventListener("click", () => switchRuleKind(tab.dataset.ruleKind)));
 [elements.ruleSearch, elements.ruleArea, elements.ruleStateFilter].forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => { if (ruleState.page) renderRules(); }));
 document.querySelector("#rule-form").addEventListener("submit", saveRuleDraft);
+document.querySelector("#manufacturer-form").addEventListener("submit", saveManufacturerEntityDraft);
 document.querySelector("#discard-draft").addEventListener("click", discardRuleDraft);
+document.querySelector("#discard-manufacturer-draft").addEventListener("click", discardManufacturerEntityDraft);
+document.querySelector("#manufacturer-role").addEventListener("change", syncManufacturerBehavior);
 document.querySelector("#activate-rules").addEventListener("click", activateRules);
 document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
 

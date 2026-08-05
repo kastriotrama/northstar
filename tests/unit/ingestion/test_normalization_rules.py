@@ -131,6 +131,43 @@ def test_missing_manufacturer_accepts_brand_with_matching_ktype() -> None:
     assert "MFR-BRAND-KTYPE" in outcome.applied_rule_ids
 
 
+def test_reviewed_exact_brand_entity_resolves_missing_tillverkare() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "AUDI A4 2.0TS QUATTRO"},
+        manufacturer_entity_rules={
+            "brand:AUDI A4 2 0TS QUATTRO": {
+                "entity_id": "MFE-AUDI-A4",
+                "canonical_name": "Audi",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "Audi"
+    assert outcome.normalized["manufacturer_role"] == "vehicle_manufacturer"
+    assert "MFE-AUDI-A4" in outcome.applied_rule_ids
+    assert "manufacturer_missing" not in outcome.review_reasons
+
+
+def test_reviewed_converter_entity_uses_base_manufacturer_and_retains_builder() -> None:
+    outcome = normalize_ts_record(
+        {"manufacturer": "CUSTOM CAMPER AB", "base_manufacturer": "FIAT AUTO SPA"},
+        manufacturer_entity_rules={
+            "manufacturer:CUSTOM CAMPER AB": {
+                "entity_id": "MFE-CUSTOM-CAMPER",
+                "canonical_name": "Custom Camper",
+                "entity_role": "bodybuilder_converter",
+                "base_behavior": "use_base_manufacturer",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "Fiat"
+    assert outcome.normalized["builder_converter_names"] == ["Custom Camper"]
+    assert outcome.normalized["manufacturer_role"] == "bodybuilder_converter"
+
+
 def test_conflicting_ktype_prevents_brand_model_confirmation() -> None:
     outcome = normalize_ts_record({"brand": "Volvo", "model": "V70", "ktype_manufacturer": "BMW"})
 

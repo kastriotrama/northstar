@@ -34,4 +34,6 @@ def test_migrations_store_drafts_and_protect_activated_rule_versions() -> None:
     assert "change_note TEXT NOT NULL" in statements["create_translation_rule_drafts_table"]
     assert "translation_rule_versions" in statements["create_translation_rule_versions_table"]
     assert "overrides JSONB NOT NULL" in statements["create_translation_rule_versions_table"]
+    assert "manufacturer_entity_drafts" in statements["create_manufacturer_entity_drafts_table"]
+    assert "bodybuilder_converter" in statements["create_manufacturer_entity_drafts_table"]
     assert "BEFORE UPDATE OR DELETE" in statements["protect_translation_rule_versions"]
