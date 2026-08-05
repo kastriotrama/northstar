@@ -28,6 +28,7 @@ from ingestion.text_canonicalization import TextCanonicalizationTransformer
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
     TranslationRule,
+    TranslationRuleSet,
     load_translation_rule_set,
 )
 
@@ -302,7 +303,11 @@ def normalize_text(value: object) -> str | None:
     return normalized or None
 
 
-def normalize_ts_record(raw_record: object) -> NormalizationOutcome:
+def normalize_ts_record(
+    raw_record: object,
+    *,
+    rule_set: TranslationRuleSet = RULE_SET,
+) -> NormalizationOutcome:
     """Normalize one TS raw record without copying sensitive identifiers."""
 
     if not isinstance(raw_record, dict):
@@ -329,7 +334,7 @@ def normalize_ts_record(raw_record: object) -> NormalizationOutcome:
             rule_matches=(),
         )
 
-    context = DEFAULT_PIPELINE.run(raw_record)
+    context = DEFAULT_PIPELINE.run(raw_record, runtime={"translation_rule_set": rule_set})
     normalized = context.normalized
     candidates = context.candidates
     applied = context.applied_rule_ids
@@ -627,7 +632,7 @@ def _record_dictionary_match(
     source_term: str,
 ) -> None:
     context.record_rule_match(
-        rule_set_version=RULE_VERSION,
+        rule_set_version=_rule_set(context).version,
         rule_id=rule.rule_id,
         decision=rule.decision,
         source_field=source_field,
@@ -637,14 +642,22 @@ def _record_dictionary_match(
     )
 
 
+def _rule_set(context: NormalizationContext) -> TranslationRuleSet:
+    value = context.runtime.get("translation_rule_set", RULE_SET)
+    if not isinstance(value, TranslationRuleSet):
+        raise TypeError("translation_rule_set runtime value is invalid")
+    return value
+
+
 def _marketing_match(
-    raw: dict[str, Any],
+    context: NormalizationContext,
     area: Literal["transmission_marketing", "bodywork_marketing", "electrification_marketing"],
     *,
     vehicle_scope: str | None = None,
 ) -> tuple[TranslationRule, str, str] | None:
     matches: list[tuple[int, TranslationRule, str, str]] = []
-    for rule in RULE_SET.rules:
+    raw = context.canonical_record
+    for rule in _rule_set(context).rules:
         if rule.area != area or (rule.vehicle_scopes and vehicle_scope not in rule.vehicle_scopes):
             continue
         for field_name in rule.source_fields:
@@ -669,13 +682,14 @@ def _manufacturer_is_in_scope(rule: TranslationRule, manufacturer: object) -> bo
     return "*" in rule.manufacturers or manufacturer in rule.manufacturers
 
 
-def _raw_fuel_carriers(raw: dict[str, Any]) -> set[str]:
+def _raw_fuel_carriers(context: NormalizationContext) -> set[str]:
+    raw = context.canonical_record
     carriers: set[str] = set()
     for field_name in ("fuel1", "fuel2", "fuel3"):
         code = normalize_text(raw.get(field_name))
         if code is None or code == "0":
             continue
-        matches = RULE_SET.match("fuel_carrier", code.upper().lstrip("0") or "0")
+        matches = _rule_set(context).match("fuel_carrier", code.upper().lstrip("0") or "0")
         if matches and matches[0].canonical_value is not None:
             carriers.add(matches[0].canonical_value)
     return carriers
@@ -830,7 +844,7 @@ def _normalize_transmission(context: NormalizationContext) -> None:
     code = normalize_text(raw.get("gearbox"))
     code_rule: TranslationRule | None = None
     if code is not None:
-        matches = RULE_SET.match("transmission_code", code.upper())
+        matches = _rule_set(context).match("transmission_code", code.upper())
         if not matches:
             context.review_reasons.append("transmission_code_unknown")
             return
@@ -841,7 +855,7 @@ def _normalize_transmission(context: NormalizationContext) -> None:
             normalized["transmission_display"] = code_rule.display_value
         context.applied_rule_ids.append(code_rule.rule_id)
 
-    marketing = _marketing_match(raw, "transmission_marketing")
+    marketing = _marketing_match(context, "transmission_marketing")
     if marketing is None:
         return
     rule, source_field, source_term = marketing
@@ -855,7 +869,7 @@ def _normalize_transmission(context: NormalizationContext) -> None:
     if not _manufacturer_is_in_scope(rule, manufacturer):
         context.review_reasons.append("transmission_marketing_scope_unresolved")
         return
-    if rule.requires_electrification and "electricity" not in _raw_fuel_carriers(raw):
+    if rule.requires_electrification and "electricity" not in _raw_fuel_carriers(context):
         context.candidate_rule_ids.append(rule.rule_id)
         context.review_reasons.append("transmission_electrification_evidence_missing")
         return
@@ -890,7 +904,7 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     scope = _vehicle_scope(raw)
     code_rule: TranslationRule | None = None
     if code is not None:
-        matches = RULE_SET.match("bodywork_code", code.upper(), vehicle_scope=scope)
+        matches = _rule_set(context).match("bodywork_code", code.upper(), vehicle_scope=scope)
         if not matches:
             context.review_reasons.append("bodywork_code_unresolved_for_category")
             return
@@ -903,7 +917,7 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
             context.review_reasons.append("bodywork_requires_review")
         context.applied_rule_ids.append(code_rule.rule_id)
 
-    marketing = _marketing_match(raw, "bodywork_marketing", vehicle_scope=scope)
+    marketing = _marketing_match(context, "bodywork_marketing", vehicle_scope=scope)
     if marketing is None:
         return
     rule, source_field, source_term = marketing
@@ -961,7 +975,7 @@ def _normalize_fuel(context: NormalizationContext) -> None:
         if code is None or code == "0":
             continue
         canonical_code = code.upper().lstrip("0") or "0"
-        matches = RULE_SET.match("fuel_carrier", canonical_code)
+        matches = _rule_set(context).match("fuel_carrier", canonical_code)
         if not matches:
             context.review_reasons.append(f"{field_name}_code_unknown")
             continue
@@ -984,7 +998,7 @@ def _normalize_fuel(context: NormalizationContext) -> None:
 
     combination = normalize_text(raw.get("fuel_combo"))
     if combination is not None:
-        matches = RULE_SET.match("fuel_combination", combination.upper())
+        matches = _rule_set(context).match("fuel_combination", combination.upper())
         if not matches:
             context.review_reasons.append("fuel_combination_code_unknown")
         else:
@@ -1005,7 +1019,7 @@ def _normalize_fuel(context: NormalizationContext) -> None:
 
     ev_config = normalize_text(raw.get("ev_config"))
     if ev_config:
-        matches = RULE_SET.match("electrification", ev_config.upper())
+        matches = _rule_set(context).match("electrification", ev_config.upper())
         if not matches:
             context.review_reasons.append("electrification_configuration_unknown")
             return
@@ -1033,7 +1047,7 @@ def _normalize_fuel(context: NormalizationContext) -> None:
                 source_term=ev_config,
             )
 
-    marketing = _marketing_match(raw, "electrification_marketing")
+    marketing = _marketing_match(context, "electrification_marketing")
     if marketing is None:
         return
     rule, source_field, source_term = marketing

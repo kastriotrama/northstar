@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Translation rule review workbench
+
+- Added a Rules tab to the normalization review screen with dictionary search/filtering, immutable source-match evidence, vocabulary-constrained output editing, draft notes, version activation, and safe re-import of the selected 1–1,000-record batch into a new staging/result batch. Activated rule versions are immutable and cumulative, drafts never affect normalization, re-import is blocked until drafts are approved or discarded, and the UI shows before/after routing totals. Added API/service/repository/reprocessing boundaries, migrations, documentation, and regression coverage. Ruff, strict mypy, JavaScript syntax, all 349 tests, and the real browser workflow against PostgreSQL pass; a no-op BDY-110 verification re-import preserved 7 resolved, 81 provisional, 162 review-required, and 0 failed. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Manufacturer and hybrid evidence resolution
 
 - Added `normalization-pipeline-v4` manufacturer evidence gates: Brand requires an agreeing allow-listed model, VIN WMI, or TecDoc KType manufacturer; conflicts and unknown populated `Tillverkare` remain review-only. Added reviewed legal-entity aliases, evidence-gated MINI/PSA/FCA marketed-brand handling, and KABE base-manufacturer retention. Explicit ELHYBRID/LADDHYBRID now preserves petrol/diesel and adds electricity after evaluating all three TS fuel fields. Reprocessing the same 250 records moved 67 from review to provisional and 7 to resolved (236 → 162 review-required), eliminated all ten fuel conflicts, and produced no failures or regressions. Ruff, strict mypy, the 205-case golden corpus, and all 341 tests pass; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-88
 
 - Implemented Stage 1a text canonicalization on `feature/SCRUM-88-text-canonicalization`: added an immutable raw/isolated working-record boundary, NFKC and whitespace normalization, field-aware code casing, safe typographic punctuation mapping, v2 pipeline integration, documentation, and Swedish/identifier regression tests; 208 tests pass, 43 datastore tests skip because Docker is stopped, and Ruff 0.16 plus strict mypy pass. Jira, push, and PR remain unchanged.
-
-## 2026-08-05
-
-- Published SCRUM-87 as draft PR #23 targeting `develop`; fixed four CI-only Ruff 0.16 findings while preserving sanitized job-boundary error handling, then verified the pipeline contract with Ruff 0.16, strict mypy, 193 local tests, image smoke tests, and the full datastore-backed GitHub Actions job. Jira was not changed; the PR is ready for manual review.

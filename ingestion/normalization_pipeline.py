@@ -108,6 +108,7 @@ class NormalizationContext:
     review_reasons: list[str] = field(default_factory=list)
     decision_trace: list[DecisionTraceEntry] = field(default_factory=list)
     rule_matches: list[RuleMatch] = field(default_factory=list)
+    runtime: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.canonical_record = deepcopy(self.raw_record)
@@ -192,9 +193,17 @@ class NormalizationPipeline:
         self.version = version
         self.transformers = tuple(sorted(transformers, key=lambda transformer: transformer.order))
 
-    def run(self, raw_record: dict[str, Any]) -> NormalizationContext:
+    def run(
+        self,
+        raw_record: dict[str, Any],
+        *,
+        runtime: dict[str, Any] | None = None,
+    ) -> NormalizationContext:
         raw_snapshot = deepcopy(raw_record)
-        context = NormalizationContext(raw_record=deepcopy(raw_record))
+        context = NormalizationContext(
+            raw_record=deepcopy(raw_record),
+            runtime=dict(runtime or {}),
+        )
         for transformer in self.transformers:
             transformer.apply(context)
             if context.raw_record != raw_snapshot:

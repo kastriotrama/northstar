@@ -5,6 +5,8 @@ from __future__ import annotations
 from psycopg import Connection
 
 NORMALIZATION_RESULTS_TABLE = "core.normalization_results"
+TRANSLATION_RULE_DRAFTS_TABLE = "core.translation_rule_drafts"
+TRANSLATION_RULE_VERSIONS_TABLE = "core.translation_rule_versions"
 
 NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -125,6 +127,47 @@ NORMALIZATION_MIGRATIONS: tuple[tuple[str, str], ...] = (
     (
         "create_normalization_results_source_index",
         f"CREATE INDEX IF NOT EXISTS normalization_results_source_idx ON {NORMALIZATION_RESULTS_TABLE} (source_table, source_record_id)",
+    ),
+    (
+        "create_translation_rule_drafts_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {TRANSLATION_RULE_DRAFTS_TABLE} (
+            rule_id TEXT PRIMARY KEY,
+            canonical_value TEXT,
+            decision TEXT NOT NULL CHECK (decision IN ('accepted', 'proposed')),
+            display_value TEXT,
+            change_note TEXT NOT NULL CHECK (length(trim(change_note)) >= 5),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+    ),
+    (
+        "create_translation_rule_versions_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {TRANSLATION_RULE_VERSIONS_TABLE} (
+            version TEXT PRIMARY KEY,
+            base_rule_version TEXT NOT NULL,
+            overrides JSONB NOT NULL CHECK (jsonb_typeof(overrides) = 'object'),
+            activation_note TEXT NOT NULL CHECK (length(trim(activation_note)) >= 5),
+            activated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+    ),
+    (
+        "protect_translation_rule_versions",
+        f"""
+        CREATE OR REPLACE FUNCTION core.reject_translation_rule_version_mutation()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RAISE EXCEPTION 'translation rule versions are immutable';
+        END
+        $$;
+        DROP TRIGGER IF EXISTS translation_rule_versions_immutable
+            ON {TRANSLATION_RULE_VERSIONS_TABLE};
+        CREATE TRIGGER translation_rule_versions_immutable
+        BEFORE UPDATE OR DELETE ON {TRANSLATION_RULE_VERSIONS_TABLE}
+        FOR EACH ROW EXECUTE FUNCTION core.reject_translation_rule_version_mutation()
+        """,
     ),
 )
 

@@ -14,16 +14,17 @@
           <span class="brand-mark" aria-hidden="true">N</span>
           <span>NorthStar</span>
         </a>
-        <div class="page-title">
-          <span>Data operations</span>
-          <strong>Normalization review</strong>
-        </div>
+        <nav class="view-tabs" aria-label="Normalization workspace">
+          <button class="view-tab active" type="button" data-view="vehicles">Vehicles</button>
+          <button class="view-tab" type="button" data-view="rules">Rules</button>
+        </nav>
         <div class="batch-state">
           <span class="live-dot" aria-hidden="true"></span>
           <span id="batch-label">Loading latest batch…</span>
         </div>
       </header>
 
+      <div id="vehicles-view">
       <section class="summary-strip" aria-label="Normalization summary">
         <div class="summary-lead">
           <span class="eyebrow">Imported vehicles</span>
@@ -136,6 +137,77 @@
           </div>
         </aside>
       </main>
+      </div>
+
+      <div id="rules-view" hidden>
+        <section class="rule-hero">
+          <div>
+            <span class="eyebrow">Translation governance</span>
+            <h1>Review rules before they change data</h1>
+            <p>Save corrections as drafts, activate one traceable version, then re-import the current batch to compare the result.</p>
+          </div>
+          <dl class="rule-version-meta">
+            <div><dt>Active version</dt><dd id="active-rule-version">—</dd></div>
+            <div><dt>Draft changes</dt><dd id="rule-draft-count">—</dd></div>
+          </dl>
+          <div class="rule-actions">
+            <label><span>Activation note</span><input id="activation-note" type="text" maxlength="500" placeholder="Why this version is approved" /></label>
+            <button id="activate-rules" class="primary-button" type="button">Activate drafts</button>
+            <button id="reprocess-batch" class="secondary-button" type="button">Re-import current batch</button>
+          </div>
+        </section>
+
+        <section id="comparison" class="comparison" hidden aria-live="polite">
+          <div><span class="eyebrow">Re-import complete</span><strong id="comparison-batch">New batch</strong></div>
+          <dl>
+            <div><dt>Resolved</dt><dd><span id="before-resolved">—</span><b>→</b><strong id="after-resolved">—</strong></dd></div>
+            <div><dt>Provisional</dt><dd><span id="before-provisional">—</span><b>→</b><strong id="after-provisional">—</strong></dd></div>
+            <div><dt>Needs review</dt><dd><span id="before-review">—</span><b>→</b><strong id="after-review">—</strong></dd></div>
+          </dl>
+        </section>
+
+        <main class="rules-workspace">
+          <section class="rule-results">
+            <div class="toolbar">
+              <label class="search-field">
+                <span class="sr-only">Search translation rules</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg>
+                <input id="rule-search" type="search" placeholder="Search rule, source term, or value…" autocomplete="off" />
+              </label>
+              <label class="compact-filter"><span>Area</span><select id="rule-area"><option value="">All areas</option></select></label>
+              <label class="compact-filter"><span>State</span><select id="rule-state"><option value="">All rules</option><option value="draft">Draft changes</option><option value="accepted">Accepted</option><option value="proposed">Proposed</option></select></label>
+            </div>
+            <div class="result-meta"><span id="rule-result-count">Loading rules…</span><span>Source matching stays read-only; reviewed outputs can be corrected</span></div>
+            <div class="table-wrap">
+              <table class="rules-table">
+                <thead><tr><th>Rule</th><th>Source term</th><th>Canonical value</th><th>Decision</th><th>State</th></tr></thead>
+                <tbody id="rule-rows"></tbody>
+              </table>
+              <div id="rules-empty" class="empty-state" hidden><strong>No rules match this view</strong><p>Try another search or filter.</p></div>
+            </div>
+          </section>
+
+          <aside class="rule-editor" aria-label="Selected translation rule editor">
+            <div id="rule-editor-empty" class="inspector-empty"><span class="inspector-glyph" aria-hidden="true">↗</span><strong>Select a rule</strong><p>Inspect its source scope and prepare a reviewed correction.</p></div>
+            <form id="rule-form" hidden>
+              <header class="editor-head"><div><span class="eyebrow" id="editor-area">Rule area</span><h2 id="editor-rule-id">Rule</h2></div><span id="editor-state" class="draft-marker">Active</span></header>
+              <section class="editor-section readonly-evidence">
+                <h3>Immutable source match</h3>
+                <dl><div><dt>Fields</dt><dd id="editor-source-fields">—</dd></div><div><dt>Terms</dt><dd id="editor-source-terms">—</dd></div><div><dt>Vehicle scope</dt><dd id="editor-scopes">—</dd></div><div><dt>Manufacturers</dt><dd id="editor-manufacturers">—</dd></div></dl>
+              </section>
+              <section class="editor-section editor-fields">
+                <h3>Reviewed output</h3>
+                <label><span>Canonical field</span><input id="editor-canonical-field" type="text" readonly /></label>
+                <label><span>Canonical value</span><select id="editor-canonical-value"></select></label>
+                <label><span>Decision</span><select id="editor-decision"><option value="accepted">Accepted</option><option value="proposed">Proposed</option></select></label>
+                <label><span>Display value</span><input id="editor-display" type="text" maxlength="160" placeholder="Optional stakeholder-facing label" /></label>
+                <label><span>Change note</span><textarea id="editor-note" minlength="5" maxlength="500" required placeholder="Explain why this correction is needed"></textarea></label>
+              </section>
+              <footer class="editor-actions"><button class="primary-button" type="submit">Save draft</button><button id="discard-draft" class="text-button" type="button">Discard draft</button></footer>
+            </form>
+          </aside>
+        </main>
+      </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="/normalization-review/assets/app.js" defer></script>

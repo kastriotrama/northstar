@@ -1,5 +1,6 @@
 const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
+const ruleState = { page: null, selectedId: null, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -13,6 +14,13 @@ const elements = {
   bodywork: document.querySelector("#filter-bodywork"),
   fuel: document.querySelector("#filter-fuel"),
   transmission: document.querySelector("#filter-transmission"),
+  rulesView: document.querySelector("#rules-view"),
+  vehiclesView: document.querySelector("#vehicles-view"),
+  ruleRows: document.querySelector("#rule-rows"),
+  ruleSearch: document.querySelector("#rule-search"),
+  ruleArea: document.querySelector("#rule-area"),
+  ruleStateFilter: document.querySelector("#rule-state"),
+  ruleEditor: document.querySelector(".rule-editor"),
 };
 
 const labels = {
@@ -200,7 +208,7 @@ document.querySelector("#previous-page").addEventListener("click", () => { state
 document.querySelector("#next-page").addEventListener("click", () => { state.offset += PAGE_SIZE; loadVehicles(); });
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); elements.search.focus(); }
-  if (event.key === "Escape") elements.inspector.classList.remove("open");
+  if (event.key === "Escape") { elements.inspector.classList.remove("open"); elements.ruleEditor.classList.remove("open"); }
 });
 elements.inspector.addEventListener("click", (event) => { if (window.innerWidth <= 820 && event.target === elements.inspector) elements.inspector.classList.remove("open"); });
 document.querySelector("#close-inspector").addEventListener("click", () => elements.inspector.classList.remove("open"));
@@ -211,5 +219,177 @@ function showToast(message) {
   toast.classList.add("visible");
   setTimeout(() => toast.classList.remove("visible"), 4000);
 }
+
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+function switchView(view) {
+  const showRules = view === "rules";
+  elements.vehiclesView.hidden = showRules;
+  elements.rulesView.hidden = !showRules;
+  document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
+  if (showRules && !ruleState.page) loadRules();
+}
+
+async function loadRules() {
+  if (ruleState.loading) return;
+  ruleState.loading = true;
+  document.querySelector("#rule-result-count").textContent = "Loading rules…";
+  try {
+    ruleState.page = await apiRequest("/v1/normalization-review/rules");
+    if (!ruleState.page.rules.some((rule) => rule.rule_id === ruleState.selectedId)) {
+      ruleState.selectedId = ruleState.page.rules[0]?.rule_id ?? null;
+    }
+    renderRules();
+  } catch (error) {
+    showToast(`Could not load rules. ${error.message}`);
+  } finally {
+    ruleState.loading = false;
+  }
+}
+
+function filteredRules() {
+  if (!ruleState.page) return [];
+  const query = elements.ruleSearch.value.trim().toLowerCase();
+  const area = elements.ruleArea.value;
+  const status = elements.ruleStateFilter.value;
+  return ruleState.page.rules.filter((rule) => {
+    const searchable = [rule.rule_id, rule.area, rule.canonical_field, rule.effective_canonical_value, ...rule.source_terms].join(" ").toLowerCase();
+    const statusMatches = !status || (status === "draft" ? rule.has_draft : rule.effective_decision === status);
+    return (!query || searchable.includes(query)) && (!area || rule.area === area) && statusMatches;
+  });
+}
+
+function renderRules() {
+  const page = ruleState.page;
+  document.querySelector("#active-rule-version").textContent = page.active_version;
+  document.querySelector("#rule-draft-count").textContent = page.draft_count.toLocaleString();
+  const areas = [...new Set(page.rules.map((rule) => rule.area))].sort();
+  populateSelect(elements.ruleArea, areas, "All areas");
+  const rules = filteredRules();
+  document.querySelector("#rule-result-count").textContent = `${rules.length.toLocaleString()} translation rule${rules.length === 1 ? "" : "s"}`;
+  document.querySelector("#rules-empty").hidden = rules.length > 0;
+  document.querySelector("#activate-rules").disabled = page.draft_count === 0;
+  document.querySelector("#reprocess-batch").disabled = page.draft_count > 0 || !state.page?.batch_id;
+  elements.ruleRows.innerHTML = rules.map((rule, index) => `
+    <tr data-rule-id="${escapeHtml(rule.rule_id)}" class="${rule.rule_id === ruleState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
+      <td><div class="rule-title"><strong>${escapeHtml(rule.rule_id)}</strong><span>${escapeHtml(humanize(rule.area))}</span></div></td>
+      <td class="term-list" title="${escapeHtml(rule.source_terms.join(", "))}">${escapeHtml(rule.source_terms.join(", ") || "—")}</td>
+      <td>${escapeHtml(humanize(rule.effective_canonical_value))}</td>
+      <td><span class="decision-label decision-${escapeHtml(rule.effective_decision)}">${escapeHtml(rule.effective_decision)}</span></td>
+      <td><span class="draft-marker ${rule.has_draft ? "changed" : ""}">${rule.has_draft ? "Draft" : "Active"}</span></td>
+    </tr>`).join("");
+  elements.ruleRows.querySelectorAll("tr").forEach((row) => {
+    const select = () => selectRule(row.dataset.ruleId);
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  renderRuleEditor(page.rules.find((rule) => rule.rule_id === ruleState.selectedId));
+}
+
+function selectRule(ruleId) {
+  ruleState.selectedId = ruleId;
+  elements.ruleRows.querySelectorAll("tr").forEach((row) => row.classList.toggle("selected", row.dataset.ruleId === ruleId));
+  renderRuleEditor(ruleState.page.rules.find((rule) => rule.rule_id === ruleId));
+  if (window.innerWidth <= 820) elements.ruleEditor.classList.add("open");
+}
+
+function renderRuleEditor(rule) {
+  document.querySelector("#rule-editor-empty").hidden = Boolean(rule);
+  document.querySelector("#rule-form").hidden = !rule;
+  if (!rule) return;
+  document.querySelector("#editor-area").textContent = humanize(rule.area);
+  document.querySelector("#editor-rule-id").textContent = rule.rule_id;
+  const marker = document.querySelector("#editor-state");
+  marker.textContent = rule.has_draft ? "Draft change" : "Active";
+  marker.classList.toggle("changed", rule.has_draft);
+  document.querySelector("#editor-source-fields").textContent = rule.source_fields.join(", ") || "—";
+  document.querySelector("#editor-source-terms").textContent = rule.source_terms.join(", ") || "—";
+  document.querySelector("#editor-scopes").textContent = rule.vehicle_scopes.join(", ") || "All vehicles";
+  document.querySelector("#editor-manufacturers").textContent = rule.manufacturers.join(", ") || "Any manufacturer";
+  document.querySelector("#editor-canonical-field").value = rule.canonical_field;
+  const canonical = document.querySelector("#editor-canonical-value");
+  canonical.replaceChildren(new Option("Unresolved / no value", ""), ...rule.canonical_options.map((value) => new Option(humanize(value), value)));
+  canonical.value = rule.effective_canonical_value ?? "";
+  document.querySelector("#editor-decision").value = rule.effective_decision;
+  document.querySelector("#editor-display").value = rule.effective_display_value ?? "";
+  document.querySelector("#editor-note").value = rule.change_note ?? "";
+  document.querySelector("#discard-draft").hidden = !rule.has_draft;
+}
+
+async function saveRuleDraft(event) {
+  event.preventDefault();
+  if (!ruleState.selectedId) return;
+  const payload = {
+    canonical_value: document.querySelector("#editor-canonical-value").value || null,
+    decision: document.querySelector("#editor-decision").value,
+    display_value: document.querySelector("#editor-display").value.trim() || null,
+    change_note: document.querySelector("#editor-note").value.trim(),
+  };
+  try {
+    ruleState.page = await apiRequest(`/v1/normalization-review/rules/${encodeURIComponent(ruleState.selectedId)}/draft`, { method: "PUT", body: JSON.stringify(payload) });
+    renderRules();
+    showToast("Draft saved. Activate it before re-importing data.");
+  } catch (error) { showToast(`Draft was not saved. ${error.message}`); }
+}
+
+async function discardRuleDraft() {
+  if (!ruleState.selectedId) return;
+  try {
+    ruleState.page = await apiRequest(`/v1/normalization-review/rules/${encodeURIComponent(ruleState.selectedId)}/draft`, { method: "DELETE" });
+    renderRules();
+    showToast("Draft discarded; the active rule is unchanged.");
+  } catch (error) { showToast(`Draft was not discarded. ${error.message}`); }
+}
+
+async function activateRules() {
+  const note = document.querySelector("#activation-note").value.trim();
+  if (note.length < 5) { showToast("Add an activation note of at least 5 characters."); return; }
+  const button = document.querySelector("#activate-rules");
+  button.disabled = true;
+  try {
+    const result = await apiRequest("/v1/normalization-review/rules/activate", { method: "POST", body: JSON.stringify({ note }) });
+    document.querySelector("#activation-note").value = "";
+    await loadRules();
+    showToast(`${result.activated_rules} draft rule${result.activated_rules === 1 ? "" : "s"} activated as ${result.version}.`);
+  } catch (error) { showToast(`Rules were not activated. ${error.message}`); button.disabled = false; }
+}
+
+async function reprocessBatch() {
+  if (!state.page?.batch_id) { showToast("Load a normalized batch before re-importing."); return; }
+  const button = document.querySelector("#reprocess-batch");
+  button.disabled = true;
+  button.textContent = "Re-importing…";
+  try {
+    const result = await apiRequest("/v1/normalization-review/rules/reprocess", { method: "POST", body: JSON.stringify({ source_batch_id: state.page.batch_id }) });
+    document.querySelector("#comparison").hidden = false;
+    document.querySelector("#comparison-batch").textContent = result.new_batch_id;
+    document.querySelector("#before-resolved").textContent = result.before.resolved;
+    document.querySelector("#after-resolved").textContent = result.after.resolved;
+    document.querySelector("#before-provisional").textContent = result.before.provisional;
+    document.querySelector("#after-provisional").textContent = result.after.provisional;
+    document.querySelector("#before-review").textContent = result.before.review_required;
+    document.querySelector("#after-review").textContent = result.after.review_required;
+    await loadVehicles();
+    showToast("Re-import finished. The original batch remains unchanged.");
+  } catch (error) { showToast(`Re-import failed safely. ${error.message}`); }
+  finally { button.textContent = "Re-import current batch"; renderRules(); }
+}
+
+document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+[elements.ruleSearch, elements.ruleArea, elements.ruleStateFilter].forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => { if (ruleState.page) renderRules(); }));
+document.querySelector("#rule-form").addEventListener("submit", saveRuleDraft);
+document.querySelector("#discard-draft").addEventListener("click", discardRuleDraft);
+document.querySelector("#activate-rules").addEventListener("click", activateRules);
+document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
 
 loadVehicles();

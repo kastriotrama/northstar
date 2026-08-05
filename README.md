@@ -63,3 +63,7 @@ After normalizing a Transportstyrelsen batch, open
 `http://localhost:8000/normalization-review` to search, filter, and inspect up
 to 300 sanitized normalization results. See
 [`docs/normalization-review-dashboard.md`](docs/normalization-review-dashboard.md).
+
+The **Rules** tab supports reviewed draft corrections, immutable activation,
+and safe re-import with a before/after comparison. See
+[`docs/rule-review-workbench.md`](docs/rule-review-workbench.md).

@@ -18,10 +18,12 @@ from ingestion.normalization_repository import (
 from ingestion.normalization_rules import (
     MAPPING_VERSION,
     PIPELINE_VERSION,
+    RULE_SET,
     RULE_VERSION,
     normalize_ts_record,
 )
 from ingestion.review_queue import CandidateMatch, enqueue_review_item
+from ingestion.translation_dictionaries import TranslationRuleSet
 
 JOB_NAME = "normalize"
 
@@ -31,6 +33,7 @@ def normalize_batch(
     *,
     batch_id: str,
     page_size: int = 500,
+    rule_set: TranslationRuleSet | None = None,
 ) -> NormalizationSummary:
     """Normalize one complete staging batch and persist safe decisions."""
 
@@ -58,12 +61,15 @@ def normalize_batch(
             if not records:
                 break
             for record in records:
-                outcome = normalize_ts_record(record.raw_record)
+                outcome = normalize_ts_record(
+                    record.raw_record,
+                    rule_set=rule_set or RULE_SET,
+                )
                 store_normalization_result(
                     connection,
                     record=record,
                     mapping_version=MAPPING_VERSION,
-                    rule_version=RULE_VERSION,
+                    rule_version=(rule_set.version if rule_set is not None else RULE_VERSION),
                     outcome=outcome,
                 )
                 if outcome.status in {"review_required", "failed"}:
@@ -84,7 +90,7 @@ def normalize_batch(
                         review_id=review_uuid(
                             record.id,
                             MAPPING_VERSION,
-                            RULE_VERSION,
+                            rule_set.version if rule_set is not None else RULE_VERSION,
                             PIPELINE_VERSION,
                         ),
                         source_system="Transportstyrelsen",

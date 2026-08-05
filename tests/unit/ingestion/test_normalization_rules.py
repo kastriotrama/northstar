@@ -1,4 +1,11 @@
+from dataclasses import replace
+
 from ingestion.normalization_rules import normalize_ts_record
+from ingestion.translation_dictionaries import (
+    REVIEWED_RULE_SET_VERSION,
+    TranslationRuleSet,
+    load_translation_rule_set,
+)
 
 
 def test_accepted_values_are_normalized_without_identifiers() -> None:
@@ -173,6 +180,22 @@ def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     assert passenger.normalized["bodywork_form"] == "estate"
     assert goods.status == "review_required"
     assert "bodywork_form" not in goods.normalized
+
+
+def test_runtime_rule_set_applies_an_activated_override() -> None:
+    base = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
+    rules = tuple(
+        replace(rule, canonical_value="sedan") if rule.rule_id == "BDY-110" else rule
+        for rule in base.rules
+    )
+    override = TranslationRuleSet(version="ts-review-test", rules=rules)
+
+    outcome = normalize_ts_record(
+        {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"},
+        rule_set=override,
+    )
+
+    assert outcome.normalized["bodywork_form"] == "sedan"
 
 
 def test_reviewed_fuel_is_accepted_while_drive_remains_a_candidate() -> None:

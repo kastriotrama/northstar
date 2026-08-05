@@ -14,6 +14,7 @@ from api.app.features.normalization_review.router import (
     screen_router as normalization_review_screen_router,
 )
 from api.app.features.resolve.router import router as resolve_router
+from api.app.features.rule_review.router import router as rule_review_router
 
 
 def create_app() -> FastAPI:
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(resolve_router)
     app.include_router(normalization_review_api_router)
     app.include_router(normalization_review_screen_router)
+    app.include_router(rule_review_router)
     app.mount(
         "/normalization-review/assets",
         StaticFiles(directory=NORMALIZATION_REVIEW_STATIC_DIRECTORY),

@@ -15,15 +15,23 @@ def test_normalization_identity_changes_with_pipeline_version() -> None:
 def test_migrations_upgrade_legacy_identity_to_include_pipeline_version() -> None:
     statements = dict(NORMALIZATION_MIGRATIONS)
 
-    assert "pipeline_version TEXT NOT NULL" in statements[
-        "create_normalization_results_table"
-    ]
-    assert "ADD COLUMN IF NOT EXISTS pipeline_version" in statements[
-        "add_normalization_pipeline_version"
-    ]
-    assert "DROP CONSTRAINT" in statements[
-        "drop_legacy_normalization_source_version_constraint"
-    ]
-    assert "normalization_results_source_version_key" in statements[
-        "create_normalization_source_version_constraint"
-    ]
+    assert "pipeline_version TEXT NOT NULL" in statements["create_normalization_results_table"]
+    assert (
+        "ADD COLUMN IF NOT EXISTS pipeline_version"
+        in statements["add_normalization_pipeline_version"]
+    )
+    assert "DROP CONSTRAINT" in statements["drop_legacy_normalization_source_version_constraint"]
+    assert (
+        "normalization_results_source_version_key"
+        in statements["create_normalization_source_version_constraint"]
+    )
+
+
+def test_migrations_store_drafts_and_protect_activated_rule_versions() -> None:
+    statements = dict(NORMALIZATION_MIGRATIONS)
+
+    assert "translation_rule_drafts" in statements["create_translation_rule_drafts_table"]
+    assert "change_note TEXT NOT NULL" in statements["create_translation_rule_drafts_table"]
+    assert "translation_rule_versions" in statements["create_translation_rule_versions_table"]
+    assert "overrides JSONB NOT NULL" in statements["create_translation_rule_versions_table"]
+    assert "BEFORE UPDATE OR DELETE" in statements["protect_translation_rule_versions"]
