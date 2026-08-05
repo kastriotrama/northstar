@@ -8,7 +8,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-MatchScope = Literal["exact_manufacturer", "fuzzy_manufacturer", "global"]
+from ingestion.phonetic_matching import PHONETIC_VERSION, has_phonetic_overlap
+
+MatchScope = Literal[
+    "exact_manufacturer",
+    "fuzzy_manufacturer",
+    "phonetic_manufacturer",
+    "global",
+]
 
 _NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9ÅÄÖÉÜ]+")
 _WHITESPACE = re.compile(r"\s+")
@@ -87,6 +94,8 @@ class FuzzyMatchConfig:
     edit_weight: float = 0.65
     token_weight: float = 0.35
     model_series_conflict_penalty: float = 0.35
+    phonetic_match_bonus: float = 0.08
+    phonetic_min_text_score: float = 0.35
     year_match_bonus: float = 0.05
     year_conflict_penalty: float = 0.20
     fuel_match_bonus: float = 0.05
@@ -101,6 +110,7 @@ class FuzzyMatchConfig:
             self.automatic_threshold,
             self.automatic_margin,
             self.manufacturer_scope_threshold,
+            self.phonetic_min_text_score,
         )
         if any(not 0.0 <= value <= 1.0 for value in threshold_fields):
             raise ValueError("matching thresholds and margin must be between 0.0 and 1.0")
@@ -114,6 +124,7 @@ class FuzzyMatchConfig:
             raise ValueError("max_candidates must be positive")
         effects = (
             self.model_series_conflict_penalty,
+            self.phonetic_match_bonus,
             self.year_match_bonus,
             self.year_conflict_penalty,
             self.fuel_match_bonus,
@@ -121,8 +132,8 @@ class FuzzyMatchConfig:
             self.engine_match_bonus,
             self.engine_conflict_penalty,
         )
-        if any(value < 0.0 for value in effects):
-            raise ValueError("context bonuses and penalties must not be negative")
+        if any(not 0.0 <= value <= 1.0 for value in effects):
+            raise ValueError("context bonuses and penalties must be between 0.0 and 1.0")
 
 
 @dataclass(frozen=True)
@@ -191,6 +202,7 @@ class FuzzyCandidateMatch:
     matched_fields: tuple[str, ...]
     missing_fields: tuple[str, ...]
     conflicting_fields: tuple[str, ...]
+    phonetic_match: bool
 
     def to_review_payload(self) -> dict[str, Any]:
         return {
@@ -206,6 +218,8 @@ class FuzzyCandidateMatch:
                 "matched_fields": list(self.matched_fields),
                 "missing_fields": list(self.missing_fields),
                 "conflicting_fields": list(self.conflicting_fields),
+                "phonetic_match": self.phonetic_match,
+                "phonetic_version": PHONETIC_VERSION if self.phonetic_match else None,
             },
         }
 
@@ -217,8 +231,25 @@ class FuzzyMatchResult:
     eligible_for_auto_resolution: bool
     reason: str
 
+    @property
+    def phonetic_version(self) -> str | None:
+        if self.scope == "phonetic_manufacturer" or any(
+            candidate.phonetic_match for candidate in self.candidates
+        ):
+            return PHONETIC_VERSION
+        return None
+
     def review_candidates(self) -> tuple[dict[str, Any], ...]:
-        return tuple(candidate.to_review_payload() for candidate in self.candidates)
+        payloads: list[dict[str, Any]] = []
+        for candidate in self.candidates:
+            payload = candidate.to_review_payload()
+            evidence = payload["evidence"]
+            if not isinstance(evidence, dict):
+                raise TypeError("candidate evidence must be an object")
+            evidence["match_scope"] = self.scope
+            evidence["phonetic_version"] = self.phonetic_version
+            payloads.append(payload)
+        return tuple(payloads)
 
 
 class ManufacturerCandidateIndex:
@@ -271,6 +302,25 @@ class ManufacturerCandidateIndex:
                 sorted(fuzzy_references.values(), key=lambda item: item.candidate_reference)
             )
             return fuzzy, "fuzzy_manufacturer"
+
+        phonetic_references: dict[str, VehicleCandidate] = {}
+        for key, candidates in self._by_manufacturer_key.items():
+            if _edit_similarity(
+                manufacturer_key, key
+            ) >= similarity_threshold / 2 and has_phonetic_overlap(
+                manufacturer_key,
+                key,
+                left_field="manufacturer",
+                right_field="manufacturer_alias",
+            ):
+                phonetic_references.update(
+                    (candidate.candidate_reference, candidate) for candidate in candidates
+                )
+        if phonetic_references:
+            phonetic = tuple(
+                sorted(phonetic_references.values(), key=lambda item: item.candidate_reference)
+            )
+            return phonetic, "phonetic_manufacturer"
         return self._all, "global"
 
 
@@ -305,10 +355,12 @@ class FuzzyVehicleMatcher:
         if not ranked:
             return FuzzyMatchResult(scope, (), False, "no_candidate_above_threshold")
         top = ranked[0]
-        if scope != "exact_manufacturer":
-            return FuzzyMatchResult(scope, ranked, False, "manufacturer_scope_requires_review")
         if top.conflicting_fields:
             return FuzzyMatchResult(scope, ranked, False, "context_conflict_requires_review")
+        if scope != "exact_manufacturer":
+            return FuzzyMatchResult(scope, ranked, False, "manufacturer_scope_requires_review")
+        if top.phonetic_match:
+            return FuzzyMatchResult(scope, ranked, False, "phonetic_candidate_requires_review")
         if top.confidence < self._config.automatic_threshold:
             return FuzzyMatchResult(scope, ranked, False, "automatic_threshold_not_met")
         if (
@@ -350,6 +402,21 @@ class FuzzyVehicleMatcher:
         matched_fields: list[str] = ["model"]
         missing_fields: list[str] = []
         conflicting_fields: list[str] = []
+        phonetic_match = False
+
+        if (
+            text_score < 1.0
+            and text_score >= self._config.phonetic_min_text_score
+            and has_phonetic_overlap(
+                query_model,
+                matched_label,
+                left_field="model",
+                right_field="model_alias",
+            )
+        ):
+            phonetic_match = True
+            matched_fields.append("model_phonetic")
+            context_effect += self._config.phonetic_match_bonus
 
         query_series = tuple(_DIGIT_GROUP.findall(query_model))
         candidate_series = tuple(_DIGIT_GROUP.findall(matched_label))
@@ -407,4 +474,5 @@ class FuzzyVehicleMatcher:
             matched_fields=tuple(matched_fields),
             missing_fields=tuple(missing_fields),
             conflicting_fields=tuple(conflicting_fields),
+            phonetic_match=phonetic_match,
         )

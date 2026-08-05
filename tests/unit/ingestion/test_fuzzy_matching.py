@@ -205,6 +205,68 @@ def test_review_payload_matches_review_queue_candidate_contract() -> None:
     assert payload["candidate_type"] == "TecDocKType"
     assert 0.0 <= payload["confidence"] <= 1.0
     assert payload["evidence"]["matched_fields"] == ["model"]
+    assert payload["evidence"]["phonetic_match"] is False
+
+
+def test_phonetic_manufacturer_scope_recovers_candidate_for_review_only() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-400",
+        "Mercedes-Benz",
+        "C-Class",
+        manufacturer_aliases=("Mercedes",),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    result = matcher.match(VehicleMatchQuery(manufacturer="Mersedez", model="C-Class"))
+
+    assert result.scope == "phonetic_manufacturer"
+    assert result.candidates[0].candidate_reference == "KTYPE-400"
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "manufacturer_scope_requires_review"
+    assert result.phonetic_version == "northstar-phonetic-v1"
+    evidence = result.review_candidates()[0]["evidence"]
+    assert evidence["match_scope"] == "phonetic_manufacturer"
+    assert evidence["phonetic_version"] == "northstar-phonetic-v1"
+
+
+def test_phonetic_model_signal_makes_misspelling_reviewable_but_not_automatic() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-500",
+        "Toyota",
+        "Camry",
+        year_from=2018,
+        year_to=2025,
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    result = matcher.match(VehicleMatchQuery(manufacturer="Toyota", model="Kamri", year=2022))
+
+    match = result.candidates[0]
+    assert match.phonetic_match is True
+    assert "model_phonetic" in match.matched_fields
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "phonetic_candidate_requires_review"
+    assert result.phonetic_version == "northstar-phonetic-v1"
+    assert result.review_candidates()[0]["evidence"]["phonetic_version"] == (
+        "northstar-phonetic-v1"
+    )
+
+
+def test_phonetic_signal_cannot_bypass_hard_year_conflict() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-500",
+        "Toyota",
+        "Camry",
+        year_from=2018,
+        year_to=2025,
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    result = matcher.match(VehicleMatchQuery(manufacturer="Toyota", model="Camri", year=2010))
+
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "context_conflict_requires_review"
+    assert "year" in result.candidates[0].conflicting_fields
 
 
 def test_duplicate_references_and_invalid_config_are_rejected() -> None:
@@ -213,5 +275,5 @@ def test_duplicate_references_and_invalid_config_are_rejected() -> None:
         ManufacturerCandidateIndex((duplicate, duplicate))
     with pytest.raises(ValueError, match="sum to 1.0"):
         FuzzyMatchConfig(edit_weight=0.8, token_weight=0.3)
-    with pytest.raises(ValueError, match="must not be negative"):
+    with pytest.raises(ValueError, match="between 0.0 and 1.0"):
         FuzzyMatchConfig(engine_conflict_penalty=-0.1)

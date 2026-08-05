@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — SCRUM-92
+
+- Implemented Stage 2b on `feature/SCRUM-92-phonetic-matching`: added versioned, deterministic phonetic recovery for allow-listed manufacturer/model text; review-only phonetic manufacturer scoping and model evidence; configurable combined scoring; exact algorithm provenance; and hard exclusions for VIN, plate, KType, engine/type codes and alphanumeric identifiers. Phonetics cannot independently create or automatically accept a match and cannot bypass hard conflicts. Ruff 0.16, strict mypy, and all 294 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — SCRUM-91
 
 - Implemented Stage 2a on `feature/SCRUM-91-fuzzy-matching`: added immutable manufacturer/alias candidate indexes, deterministic Damerau-Levenshtein and token scoring, year/fuel/engine context evidence, numeric model-series protection, configurable thresholds/margins, review-queue payloads, and safe exact/fuzzy/global scope gates. Fuzzy/global, conflicting, weak, and ambiguous matches cannot become automatically eligible. Ruff 0.16, strict mypy, and all 281 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
