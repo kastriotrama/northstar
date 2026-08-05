@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-05 — SCRUM-89
 
-- Implemented the `ts-translation-v2` dictionary boundary on `feature/SCRUM-89-versioned-translation-dictionaries`: consolidated reviewed transmission, fuel, electrification, and bodywork rules; separated accepted/proposed decisions; added exact-version loading, manufacturer/category scopes, structured-evidence conflict routing, persisted rule matches, stakeholder comment changes, documentation, and contract tests. Ruff 0.16 and strict mypy pass; 216 tests pass and 43 datastore tests skip because Docker is stopped. Jira, push, and PR remain unchanged.
+- Published green stacked draft PRs #24/SCRUM-88 and #25/SCRUM-89. SCRUM-89 adds the `ts-translation-v2` dictionary boundary with reviewed transmission, fuel, electrification, and bodywork rules; accepted/proposed separation; exact-version loading; manufacturer/category scopes; conflict routing; persisted rule matches; stakeholder comment changes; documentation; and contract tests. Ruff 0.16, strict mypy, 216 local tests, datastore-backed CI, and image smoke tests pass. Jira remains unchanged.
 
 ## 2026-08-05 — SCRUM-88
 
