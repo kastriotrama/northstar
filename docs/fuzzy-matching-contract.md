@@ -59,5 +59,9 @@ context conflicts, low automatic scores and narrow margins remain review-only.
 Candidate payloads follow the existing review-queue shape and contain only
 non-sensitive matching evidence.
 
+Final composite confidence, hard overrides and resolved/provisional/review
+routing are defined in
+[confidence-routing-contract.md](confidence-routing-contract.md).
+
 The optional Stage 2b phonetic recovery signal and its identifier exclusions are
 defined in [phonetic-matching-contract.md](phonetic-matching-contract.md).

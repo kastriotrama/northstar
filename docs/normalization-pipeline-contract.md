@@ -61,7 +61,7 @@ NormalizationOutcome contains:
 - proposed candidates that still require later acceptance rules;
 - accepted and candidate rule IDs;
 - review reasons;
-- current confidence;
+- preliminary Stage 1 confidence;
 - pipeline version;
 - an ordered decision trace.
 - dictionary match records containing the exact rule version, source term,
@@ -87,10 +87,11 @@ contract. Transformer source evidence is explicitly allow-listed and excludes
 plate and VIN. Rule IDs are deduplicated without changing their first-seen
 order.
 
-Confidence effects explain whether evidence is supporting, neutral, or
-conflicting. The existing v1 resolved/provisional/review confidence bands remain
-authoritative until SCRUM-93 implements composite scoring and final routing
-thresholds.
+Confidence effects explain whether Stage 1 evidence is supporting, neutral, or
+conflicting. Final identity confidence and resolved/provisional/review routing
+are owned by the versioned
+[confidence-routing contract](confidence-routing-contract.md); preliminary
+Stage 1 bands do not override that gate.
 
 The dictionary boundary and accepted/proposed behavior are defined in
 [translation-dictionary-contract.md](translation-dictionary-contract.md).

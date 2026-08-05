@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ingestion.config import IngestionSettings
+from ingestion.confidence_routing_migrations import run_confidence_routing_migrations
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
@@ -186,6 +187,36 @@ class MigrateJobBookkeepingJob:
 
 
 @dataclass(frozen=True)
+class MigrateConfidenceRoutingJob:
+    """Apply the durable Stage 2 confidence-routing schema."""
+
+    name: str = "migrate-confidence-routing"
+    description: str = "Apply confidence-routing decision migrations (idempotent)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_confidence_routing_migrations(connection)
+        logger.info(
+            "Confidence-routing migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -275,6 +306,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     MigrateLedgerJob(),
     MigrateReviewQueueJob(),
     MigrateJobBookkeepingJob(),
+    MigrateConfidenceRoutingJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",

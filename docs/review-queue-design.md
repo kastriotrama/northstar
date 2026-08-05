@@ -138,7 +138,11 @@ always route to review regardless of score:
 - a required source value is malformed;
 - sources disagree about a singular canonical relationship;
 - the selected mapping would create or merge a canonical identity without
-  sufficient evidence.
+sufficient evidence.
+
+The executable composite calculation, exact boundary behavior and immutable
+decision persistence are defined in
+[confidence-routing-contract.md](confidence-routing-contract.md).
 
 Missing optional component information is omitted. It does not create an
 `Unknown` Engine, Transmission, Bodywork, or Platform.
