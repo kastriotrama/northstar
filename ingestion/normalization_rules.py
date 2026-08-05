@@ -546,11 +546,35 @@ def _manufacturer_entity_rule(
     raw: dict[str, Any],
     source_field: str,
     rules: ManufacturerEntityRules,
-) -> Mapping[str, str | None] | None:
+) -> Mapping[str, Any] | None:
     source_term = _normalized_entity(raw.get(source_field))
     if source_term is None:
         return None
     return rules.get(f"{source_field}:{source_term}")
+
+
+def _reviewed_brand_example_rule(
+    raw: dict[str, Any], rules: ManufacturerEntityRules
+) -> Mapping[str, Any] | None:
+    brand = _normalized_entity(raw.get("brand"))
+    if brand is None:
+        return None
+    for rule in rules.values():
+        examples = rule.get("reviewed_examples")
+        if (
+            rule.get("kind") != "manufacturer_entity"
+            or rule.get("source_field") != "brand"
+            or rule.get("entity_role") != "vehicle_manufacturer"
+            or not isinstance(examples, list)
+        ):
+            continue
+        if brand in {
+            normalized
+            for example in examples
+            if (normalized := _normalized_entity(example)) is not None
+        }:
+            return rule
+    return None
 
 
 def _manufacturer_policy(rules: ManufacturerEntityRules, rule_id: str) -> Mapping[str, Any] | None:
@@ -790,6 +814,13 @@ def _normalize_manufacturer(
             _apply_manufacturer_entity_rule(
                 reviewed_brand, raw, normalized, candidates, applied, reasons
             )
+            return
+        reviewed_example = _reviewed_brand_example_rule(raw, entity_rules)
+        if reviewed_example is not None:
+            _apply_manufacturer_entity_rule(
+                reviewed_example, raw, normalized, candidates, applied, reasons
+            )
+            applied.append("MFR-BRAND-REVIEWED-EXAMPLE")
             return
         brand_key = _normalized_entity(raw.get("brand"))
         reviewed_legacy_brand = (

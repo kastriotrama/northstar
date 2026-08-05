@@ -385,6 +385,39 @@ def test_brand_prefix_policy_does_not_replace_stronger_confirmed_brand_evidence(
     assert "manufacturer_confirmation" not in outcome.candidates
 
 
+def test_reviewed_brand_example_resolves_through_parent_entity_hierarchy() -> None:
+    rules = {
+        "policy:MFR-BRAND-PREFIX-FALLBACK": {
+            "kind": "manufacturer_match_policy",
+            "rule_id": "MFR-BRAND-PREFIX-FALLBACK",
+            "match_type": "whole_token_prefix",
+        },
+        "brand:SAAB": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-BRAND-SAAB",
+            "source_field": "brand",
+            "source_term": "SAAB",
+            "canonical_name": "Saab",
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "match_type": "whole_token_prefix",
+            "reviewed_examples": ["SAAB SPORT", "SAAB V 4"],
+        },
+    }
+
+    reviewed = normalize_ts_record({"brand": "SAAB SPORT"}, manufacturer_entity_rules=rules)
+    unseen = normalize_ts_record({"brand": "SAAB NEW MODEL"}, manufacturer_entity_rules=rules)
+
+    assert reviewed.status == "resolved"
+    assert reviewed.normalized["manufacturer"] == "Saab"
+    assert "MFE-BRAND-SAAB" in reviewed.applied_rule_ids
+    assert "MFR-BRAND-REVIEWED-EXAMPLE" in reviewed.applied_rule_ids
+    assert "MFR-BRAND-LEGACY-EXACT" not in reviewed.applied_rule_ids
+    assert unseen.status == "provisional"
+    assert unseen.normalized["manufacturer"] == "Saab"
+    assert "MFR-BRAND-PREFIX-FALLBACK" in unseen.candidate_rule_ids
+
+
 def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}

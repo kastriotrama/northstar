@@ -217,6 +217,7 @@ class RuleReviewService:
                 "entity_role": override.get("entity_role"),
                 "base_behavior": override.get("base_behavior"),
                 "match_type": override.get("match_type"),
+                "reviewed_examples": list(override.get("reviewed_examples") or []),
             }
         return rules
 
@@ -227,7 +228,19 @@ class RuleReviewService:
         lifecycle: dict[str, dict[str, datetime]],
     ) -> list[ManufacturerEntityView]:
         sources: dict[str, dict[str, Any]] = {}
+        reviewed_children = {
+            normalized
+            for override in active_overrides.values()
+            if override.get("kind") == "manufacturer_entity"
+            for example in override.get("reviewed_examples", [])
+            if (normalized := normalize_manufacturer_entity(example)) is not None
+        }
         for item in manufacturer_entity_catalog():
+            if (
+                item["source_field"] == "brand"
+                and normalize_manufacturer_entity(item["source_term"]) in reviewed_children
+            ):
+                continue
             entity_id = self._entity_id(str(item["source_field"]), str(item["source_term"]))
             sources[entity_id] = {**item, "occurrences": 0, "base_manufacturers": []}
         for item in self._repository.fetch_discovered_manufacturer_entities():
@@ -267,6 +280,9 @@ class RuleReviewService:
                 if active
                 else base.get("base_behavior", "require_evidence_review")
             )
+            reviewed_examples = list(
+                active.get("reviewed_examples", []) if active else base.get("reviewed_examples", [])
+            )
             views.append(
                 ManufacturerEntityView(
                     entity_id=entity_id,
@@ -291,6 +307,12 @@ class RuleReviewService:
                     or (draft.get("created_at") if draft else None),
                     updated_at=timestamps.get("updated_at")
                     or (draft.get("updated_at") if draft else None),
+                    match_type=str(
+                        active.get("match_type", "exact")
+                        if active
+                        else base.get("match_type", "exact")
+                    ),
+                    reviewed_examples=[str(value) for value in reviewed_examples],
                 )
             )
         return sorted(

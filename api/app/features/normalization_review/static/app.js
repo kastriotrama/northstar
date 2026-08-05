@@ -61,6 +61,7 @@ function formatDateTime(value, fallback) {
 
 function ruleExplanation(ruleId) {
   if (ruleId === "MFR-BRAND-PREFIX-FALLBACK") return "Brand begins with an approved Manufacturer entity alias";
+  if (ruleId === "MFR-BRAND-REVIEWED-EXAMPLE") return "Brand is an exact reviewed example beneath its Manufacturer entity";
   if (ruleId === "MFR-MODEL-VARIANT-FALLBACK") return "Model or Variant begins with an approved Manufacturer entity alias";
   if (ruleId.startsWith("MFE-")) return "Reviewed Manufacturer entity classification";
   return "Normalization rule evidence";
@@ -173,7 +174,9 @@ function renderInspector(vehicle) {
   document.querySelector("#inspector-confidence").textContent = percent(vehicle.confidence);
   document.querySelector("#confidence-fill").style.width = percent(vehicle.confidence);
 
-  const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
+  const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"))
+    || vehicle.applied_rule_ids.find((rule) => rule === "MFR-BRAND-REVIEWED-EXAMPLE")
+    || vehicle.applied_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
   document.querySelector("#source-evidence").innerHTML = [
     ["Brand", vehicle.source_brand || "Not supplied"],
     ["Source record", vehicle.source_record_id],
@@ -302,7 +305,7 @@ function filteredRules() {
   const status = elements.ruleStateFilter.value;
   if (ruleState.kind === "manufacturer") {
     return ruleState.page.manufacturer_entities.filter((entity) => {
-      const searchable = [entity.entity_id, entity.source_field, entity.source_term, entity.effective_canonical_name, entity.effective_entity_role].join(" ").toLowerCase();
+      const searchable = [entity.entity_id, entity.source_field, entity.source_term, entity.effective_canonical_name, entity.effective_entity_role, ...(entity.reviewed_examples || [])].join(" ").toLowerCase();
       const statusMatches = !status || (status === "draft" ? entity.has_draft : status === entity.effective_entity_role);
       return (!query || searchable.includes(query)) && statusMatches;
     });
@@ -370,7 +373,7 @@ function renderManufacturerEntities() {
   document.querySelector("#rules-empty").hidden = entities.length > 0;
   elements.ruleRows.innerHTML = entities.map((entity, index) => `
     <tr data-rule-id="${escapeHtml(entity.entity_id)}" class="${entity.entity_id === ruleState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
-      <td><div class="rule-title"><strong>${escapeHtml(entity.source_term)}</strong><span>${escapeHtml(humanize(entity.source_field))}${entity.occurrences ? ` · ${entity.occurrences} current` : ""}</span></div></td>
+      <td><div class="rule-title"><strong>${escapeHtml(entity.source_term)}</strong><span>${escapeHtml(humanize(entity.source_field))}${entity.reviewed_examples?.length ? ` · ${entity.reviewed_examples.length} reviewed` : entity.occurrences ? ` · ${entity.occurrences} current` : ""}</span></div></td>
       <td class="term-list">${escapeHtml(entity.source_field)}</td>
       <td>${escapeHtml(entity.effective_canonical_name || "—")}</td>
       <td><span class="decision-label ${entity.effective_entity_role === "unknown" ? "decision-proposed" : "decision-accepted"}">${escapeHtml(humanize(entity.effective_entity_role))}</span></td>
@@ -431,10 +434,17 @@ function renderManufacturerEditor(entity) {
   marker.textContent = entity.has_draft ? "Draft change" : entity.is_discovered && entity.effective_entity_role === "unknown" ? "Needs classification" : "Active";
   marker.classList.toggle("changed", entity.has_draft || entity.effective_entity_role === "unknown");
   document.querySelector("#manufacturer-source-term").textContent = `${entity.source_field} = ${entity.source_term}`;
+  document.querySelector("#manufacturer-match-type").textContent = entity.match_type === "whole_token_prefix" ? "Complete prefix + reviewed exact examples" : humanize(entity.match_type);
   document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "No unresolved occurrences";
   document.querySelector("#manufacturer-base-values").textContent = entity.base_manufacturers.join(", ") || "None supplied";
   document.querySelector("#manufacturer-created-at").textContent = formatDateTime(entity.created_at, "Built-in catalog / not versioned");
   document.querySelector("#manufacturer-updated-at").textContent = formatDateTime(entity.updated_at, "No database update recorded");
+  const reviewedExamples = entity.reviewed_examples || [];
+  const examplesSection = document.querySelector("#manufacturer-examples-section");
+  examplesSection.hidden = reviewedExamples.length === 0;
+  examplesSection.open = false;
+  document.querySelector("#manufacturer-example-count").textContent = reviewedExamples.length;
+  document.querySelector("#manufacturer-examples").innerHTML = reviewedExamples.map((example) => `<li>${escapeHtml(example)}</li>`).join("");
   document.querySelector("#manufacturer-canonical").value = entity.effective_canonical_name ?? "";
   document.querySelector("#manufacturer-role").value = entity.effective_entity_role;
   document.querySelector("#manufacturer-behavior").value = entity.effective_base_behavior;

@@ -39,9 +39,19 @@ latest version where its definition changed. Built-in catalog entries that
 have never been persisted are labeled as unversioned rather than receiving an
 invented timestamp.
 
+Approved Brand-prefix entities can also own reviewed exact examples. The
+parent keeps the reusable manufacturer decision while its expandable example
+list preserves the exact source evidence that was reviewed. For example,
+`SAAB` owns reviewed examples such as `SAAB SPORT` and `SAAB V 4`; those exact
+values resolve through the parent rule and no longer appear as redundant
+standalone Manufacturer entities. An unseen value such as `SAAB 9-5 VECTOR`
+still receives only a provisional prefix candidate until it is corroborated or
+added to the parent's reviewed examples.
+
 Source field and canonicalized source key remain immutable. Newly discovered
-Brand values are not accepted automatically; a reviewer must classify the exact canonical key and
-activate it before re-import.
+Brand values are not accepted automatically; a reviewer must classify the
+exact canonical key, or deliberately add it beneath an existing prefix parent,
+and activate it before re-import.
 
 The active `MFR-MODEL-VARIANT-FALLBACK` policy handles the narrower case where
 Tillverkare and Brand are both absent. It checks Model and Variant only against

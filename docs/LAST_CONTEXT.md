@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Manufacturer entity hierarchy
+
+- Grouped 13 redundant exact Brand entities beneath the approved SAAB, VW, Mazda, and Škoda prefix parents while preserving each exact value as reviewed source evidence. Exact reviewed examples now resolve through the parent rule; unseen prefix matches remain provisional. Activated immutable version `ts-review-20260805T183018213844Z` and re-imported 250 passenger cars: 37 resolved, 207 provisional, 6 review-required, and 0 failed. Focused tests, lint, type checks, live API checks, and PostgreSQL provenance checks pass; Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Brand search and manufacturer audit details
 
 - Extended the normalization review workspace so vehicle search includes the sanitized TS Brand field, rows and the selected-car inspector show Brand, and rule provenance distinguishes applied from candidate rules. Manufacturer entity selection now shows Created at and Updated at from immutable activation history; draft creation time is persisted, while built-in unversioned entries are labeled honestly. Re-imported the 250 passenger cars so Brand-prefix examples expose both `MFR-BRAND-PREFIX-FALLBACK` and their reviewed entity rule. Ruff, strict mypy, all 363 tests, live API search, PostgreSQL lifecycle checks, and browser verification of Saab Brand search/entity timestamps pass; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — Normalization review dashboard
 
 - Built a read-only operations dashboard and filtered API for the latest normalization batch, with 250 real Transportstyrelsen samples, status totals, manufacturer/model/engine search, status/manufacturer/bodywork/fuel/transmission filters, pagination, and a sanitized evidence inspector showing normalized fields, confidence, review reasons, decision trace, and rule IDs. The current sample has 14 provisional and 236 review-required records with zero technical failures. Service, API, repository, privacy, JavaScript syntax, and browser interaction checks pass; Ruff, strict mypy, and all 328 tests pass. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-94
-
-- Implemented the sanitized golden normalization/reconciliation corpus on `feature/SCRUM-94-golden-test-corpus`: added 205 versioned cases (165 TS normalization and 40 candidate reconciliation), complete approved output/evidence snapshots, sensitive-field and corpus-shape gates, explicit approval, aggregate per-case unified regression diffs, a CI verification step, documentation, and tests. Applied the latest stakeholder bodywork comments in replay-safe `ts-translation-v4`: European `estate` replaces stored `wagon`, BA remains `truck`, goods van remains `van`, passenger marketing becomes `passenger_van`, and official AF remains `multi_purpose_vehicle`; versions 2 and 3 remain replayable. Ruff 0.16, strict mypy, the standalone corpus verifier, and all 322 tests pass. Jira, push, and PR remain unchanged.

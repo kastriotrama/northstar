@@ -200,6 +200,11 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .readonly-evidence dl div { display: grid; grid-template-columns: 105px 1fr; gap: 10px; }
 .readonly-evidence dt { color: var(--muted); font-size: 9px; text-transform: uppercase; }
 .readonly-evidence dd { margin: 0; overflow-wrap: anywhere; color: #334542; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; line-height: 1.45; }
+.reviewed-examples { margin-top: 17px; border-top: 1px solid var(--line); }
+.reviewed-examples summary { display: flex; align-items: center; justify-content: space-between; padding: 13px 0 2px; color: var(--teal); cursor: pointer; font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.reviewed-examples summary strong { display: grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; background: #e7f4f0; font-size: 9px; }
+.reviewed-examples ul { display: grid; gap: 0; margin: 10px 0 0; padding: 0; list-style: none; }
+.reviewed-examples li { padding: 8px 0; border-top: 1px solid #e0e7e4; color: #40514e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
 .editor-fields { display: grid; gap: 12px; }
 .editor-fields label { display: grid; gap: 5px; }
 .editor-fields label span { color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }

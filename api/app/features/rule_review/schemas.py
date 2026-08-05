@@ -57,6 +57,8 @@ class ManufacturerEntityView(BaseModel):
     change_note: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    match_type: str = "exact"
+    reviewed_examples: list[str] = Field(default_factory=list)
 
 
 class RuleListResponse(BaseModel):

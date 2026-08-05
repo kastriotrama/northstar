@@ -167,6 +167,35 @@ def test_manufacturer_entity_view_exposes_database_lifecycle_timestamps() -> Non
     assert entity.updated_at == updated_at
 
 
+def test_parent_manufacturer_entity_hides_reviewed_exact_children() -> None:
+    subject, repository, _ = service()
+    repository.active = {
+        "version": "ts-review-hierarchy",
+        "base_rule_version": "ts-translation-v4",
+        "overrides": {
+            "MFE-BRAND-SAAB": {
+                "kind": "manufacturer_entity",
+                "entity_id": "MFE-BRAND-SAAB",
+                "source_field": "brand",
+                "source_term": "SAAB",
+                "canonical_name": "Saab",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+                "match_type": "whole_token_prefix",
+                "reviewed_examples": ["SAAB SPORT", "SAAB V 4"],
+            }
+        },
+        "activated_at": datetime(2026, 8, 5, tzinfo=UTC),
+    }
+
+    entities = subject.list_rules().manufacturer_entities
+    parent = next(entity for entity in entities if entity.entity_id == "MFE-BRAND-SAAB")
+
+    assert parent.match_type == "whole_token_prefix"
+    assert parent.reviewed_examples == ["SAAB SPORT", "SAAB V 4"]
+    assert not any(entity.source_term in {"SAAB SPORT", "SAAB V 4"} for entity in entities)
+
+
 def test_activation_inherits_prior_overrides_and_adds_current_drafts() -> None:
     subject, repository, _ = service()
     repository.active = {

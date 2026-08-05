@@ -88,6 +88,8 @@ class FakeRuleReviewService:
                     effective_base_behavior="require_evidence_review",
                     occurrences=1,
                     is_discovered=True,
+                    match_type="whole_token_prefix",
+                    reviewed_examples=["AUDI A4 2 0TS QUATTRO"],
                 )
             ],
             review_reason_summary={"manufacturer_missing": 106},
@@ -164,7 +166,9 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="rule-form"' in screen.text
     assert 'id="manufacturer-form"' in screen.text
     assert 'id="manufacturer-created-at"' in screen.text
+    assert 'id="manufacturer-examples-section"' in screen.text
     assert 'id="source-evidence"' in screen.text
+    assert "Brand is an exact reviewed example beneath its Manufacturer entity" in javascript.text
     assert "Manufacturer entities" in screen.text
     assert stylesheet.status_code == 200
     assert ".workspace" in stylesheet.text
