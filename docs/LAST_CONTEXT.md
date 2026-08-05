@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Passenger-car-only review cohort
+
+- Restricted deterministic TS pilot selection and rule-workbench re-imports to passenger cars: explicit EU category must be `M1`/`M1G`, with `PB` fallback only when category is absent. Rebuilt `normalization-review-passenger-250-v1` from the full source with 243 M1 and 7 M1G records, all vehicle type PB: 36 resolved, 113 provisional, 101 review-required, and 0 failed. No trucks, buses, trailers, motorcycles, tractors, other categories, or bodywork/category conflicts remain in this cohort. Focused tests and live PostgreSQL evidence checks pass; Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Legacy Brand manufacturer resolution
 
 - Added 103 exact canonical legacy Brand rules covering all 106 records that had no Tillverkare, spanning passenger vehicles, motorcycles, tractors, trailers, buses, and historical brands. Exact keys avoid unsafe substring matches and are visible as active manufacturer entities. Re-import mapped all 106 to a manufacturer, eliminated `manufacturer_missing` (106 → 0), moved 35 vehicles out of review, and reduced review-required from 162 to 127 with no failures; 71 corrected vehicles remain review-required only for overlapping bodywork/category conflicts. Ruff, strict mypy, all 353 tests, PostgreSQL evidence queries, and browser verification pass. Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-91
 
 - Implemented Stage 2a on `feature/SCRUM-91-fuzzy-matching`: added immutable manufacturer/alias candidate indexes, deterministic Damerau-Levenshtein and token scoring, year/fuel/engine context evidence, numeric model-series protection, configurable thresholds/margins, review-queue payloads, and safe exact/fuzzy/global scope gates. Fuzzy/global, conflicting, weak, and ambiguous matches cannot become automatically eligible. Ruff 0.16, strict mypy, and all 281 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-90
-
-- Implemented Stage 1c on `feature/SCRUM-90-unit-conversion-structured-extraction`: pipeline v3 now extracts ISO registration/production dates and explicit ranges, structured engine code/family fields, canonical kW and displacement units, and retains reviewed multi-fuel/electrification behavior. Malformed, reversed, conflicting, or out-of-bound evidence routes to review; documentation and boundary/regression coverage were added. Ruff 0.16, strict mypy, and all 266 tests pass with healthy PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.

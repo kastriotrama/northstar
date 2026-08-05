@@ -45,7 +45,11 @@ reuses deterministic normalization and review IDs.
 `ingestion.transportstyrelsen_pilot` can select a deterministic cohort from a
 true Transportstyrelsen fixed-width vehicle export and load only approved
 vehicle fields. Records shorter than the required vehicle layout are rejected.
-Owner fields are not parsed.
+Owner fields are not parsed. The first review cohort is intentionally limited
+to passenger cars: records with an explicit EU category must be `M1`/`M1G`;
+when that category is absent, the TS vehicle type must be `PB` (`personbil`).
+Trucks, buses, trailers, motorcycles, tractors, and other categories are
+excluded before staging and normalization.
 
 The SCRUM-82 pilot workbook is redacted and intended for rule review. Its
 coverage numbers describe outputs or candidates, not automatically approved

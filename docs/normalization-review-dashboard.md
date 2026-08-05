@@ -42,11 +42,11 @@ Supported query parameters are `query`, `status`, `manufacturer`, `bodywork`,
 
 ## Current local review sample
 
-The development database contains 250 deterministic samples from the supplied
-Transportstyrelsen source. The latest batch, `normalization-review-250-v5`, was
-reprocessed with `normalization-pipeline-v4`: 7 records resolved, 81 are
-provisional, 162 require review, and none failed technically. Compared with the
-previous rules, 74 records left review without making any previously
-provisional record worse. The remaining review records expose missing
-manufacturer evidence and unresolved vehicle-category bodywork codes rather
-than silently accepting weak data.
+The development database contains a deterministic 250-passenger-car sample
+from the supplied Transportstyrelsen source. The latest batch,
+`normalization-review-passenger-250-v1`, contains 243 `M1` and 7 `M1G` records:
+36 resolved, 113 provisional, 101 requiring review, and no technical failures.
+Every staged row has TS vehicle type `PB`; trucks, buses, trailers,
+motorcycles, tractors, and other categories are excluded before normalization.
+The remaining review cases concern manufacturer evidence. This cohort has no
+bodywork/category conflicts.

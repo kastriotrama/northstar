@@ -68,6 +68,16 @@ def parse_vehicle_line(line: str) -> dict[str, Any]:
     return record
 
 
+def is_passenger_car(record: dict[str, Any]) -> bool:
+    """Accept M1/personbil records and reject every other vehicle category."""
+
+    eu_category = str(record.get("eu_category", "")).strip().upper().replace(" ", "")
+    vehicle_type = str(record.get("vehicle_type", "")).strip().upper().replace(" ", "")
+    if eu_category:
+        return eu_category.startswith("M1")
+    return vehicle_type in {"PB", "PERSONBIL"}
+
+
 def select_deterministic_sample(path: Path, *, limit: int = 1000) -> list[dict[str, Any]]:
     """Return the same hash-ranked cohort for the same source file."""
 
@@ -77,7 +87,7 @@ def select_deterministic_sample(path: Path, *, limit: int = 1000) -> list[dict[s
     with path.open("r", encoding="iso-8859-1", errors="replace") as source:
         for line_number, line in enumerate(source, start=1):
             record = parse_vehicle_line(line)
-            if not record:
+            if not record or not is_passenger_car(record):
                 continue
             identity = f"{record.get('plate', '')}|{record.get('vin', '')}|{line_number}"
             rank = int.from_bytes(hashlib.sha256(identity.encode()).digest()[:8], "big")

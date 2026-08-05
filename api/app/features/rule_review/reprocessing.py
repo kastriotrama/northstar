@@ -34,7 +34,11 @@ class RuleReprocessingAdapter:
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT count(*) FROM staging.transportstyrelsen_raw "
-                    "WHERE source_batch_id = %s",
+                    "WHERE source_batch_id = %s AND ("
+                    "upper(trim(coalesce(raw_record->>'eu_category', ''))) LIKE 'M1%%' "
+                    "OR (nullif(trim(raw_record->>'eu_category'), '') IS NULL AND "
+                    "upper(trim(coalesce(raw_record->>'vehicle_type', ''))) "
+                    "IN ('PB', 'PERSONBIL')))",
                     (source_batch_id,),
                 )
                 count_row = cursor.fetchone()
@@ -51,7 +55,11 @@ class RuleReprocessingAdapter:
                 cursor.execute(
                     "INSERT INTO staging.transportstyrelsen_raw (source_batch_id, raw_record) "
                     "SELECT %s, raw_record FROM staging.transportstyrelsen_raw "
-                    "WHERE source_batch_id = %s ORDER BY id",
+                    "WHERE source_batch_id = %s AND ("
+                    "upper(trim(coalesce(raw_record->>'eu_category', ''))) LIKE 'M1%%' "
+                    "OR (nullif(trim(raw_record->>'eu_category'), '') IS NULL AND "
+                    "upper(trim(coalesce(raw_record->>'vehicle_type', ''))) "
+                    "IN ('PB', 'PERSONBIL'))) ORDER BY id",
                     (new_batch_id, source_batch_id),
                 )
             connection.commit()
