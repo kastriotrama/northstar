@@ -13,8 +13,10 @@ def test_parser_selects_vehicle_fields_and_not_owner_data() -> None:
         (175, 235): "VOLVO CAR CORPORATION",
         (235, 295): "VOLVO",
         (504, 506): "AC",
+        (544, 549): "01969",
         (549, 550): "Z",
         (572, 574): "01",
+        (578, 582): "0145",
         (681, 682): "1",
     }
     for (start, end), value in values.items():
@@ -27,6 +29,8 @@ def test_parser_selects_vehicle_fields_and_not_owner_data() -> None:
     assert record["base_manufacturer"] == "VOLVO"
     assert record["body_code"] == "AC"
     assert record["model_year"] == 2024
+    assert record["ccm"] == 1969
+    assert record["kw"] == 145
     assert all("owner" not in field for field in record)
 
 

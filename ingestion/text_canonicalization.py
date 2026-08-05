@@ -11,7 +11,16 @@ from ingestion.normalization_pipeline import NormalizationContext, Transformer
 TEXT_CANONICALIZATION_VERSION = "text-canonicalization-v1"
 
 _NAME_FIELDS = frozenset(
-    {"manufacturer", "base_manufacturer", "brand", "model", "type", "variant", "version"}
+    {
+        "manufacturer",
+        "base_manufacturer",
+        "brand",
+        "engine_family_name",
+        "model",
+        "type",
+        "variant",
+        "version",
+    }
 )
 _CODE_FIELDS = frozenset(
     {
@@ -20,6 +29,8 @@ _CODE_FIELDS = frozenset(
         "body_code_extra",
         "eu_category",
         "ev_config",
+        "engine_code",
+        "engine_family_code",
         "fuel1",
         "fuel2",
         "fuel3",
@@ -29,7 +40,19 @@ _CODE_FIELDS = frozenset(
         "vehicle_type",
     }
 )
-_TEXT_FIELDS = _NAME_FIELDS | _CODE_FIELDS | frozenset({"build_date", "build_month"})
+_TEXT_FIELDS = (
+    _NAME_FIELDS
+    | _CODE_FIELDS
+    | frozenset(
+        {
+            "build_date",
+            "build_month",
+            "production_from",
+            "production_to",
+            "registration_date",
+        }
+    )
+)
 _WHITESPACE = re.compile(r"\s+")
 _SAFE_PUNCTUATION_TRANSLATION = str.maketrans(
     {

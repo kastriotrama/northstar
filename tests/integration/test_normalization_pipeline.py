@@ -53,6 +53,11 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
                     "eu_category": "M1",
                     "body_code": "AC",
                     "gearbox": "Z",
+                    "registration_date": "20240131",
+                    "build_date": "20231215",
+                    "engine_code": "B4204T",
+                    "kw": 145,
+                    "ccm": 1969,
                 },
                 {
                     "manufacturer": "Unknown Builder",
@@ -72,6 +77,13 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
         assert retry.already_completed is True
         assert len(results) == 2
         assert "plate" not in str(results)
+        normalized_payloads = [result["normalized_payload"]["normalized"] for result in results]
+        structured = next(payload for payload in normalized_payloads if "engine_code" in payload)
+        assert structured["registration_date"] == "2024-01-31"
+        assert structured["production_date"] == "2023-12-15"
+        assert structured["engine_code"] == "B4204T"
+        assert structured["power_kw"] == 145
+        assert structured["displacement_cc"] == 1969
         with pg_connection.cursor() as cursor:
             cursor.execute(
                 f"SELECT count(*) FROM {REVIEW_QUEUE_TABLE} WHERE source_batch_id = %s",
@@ -79,8 +91,7 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
             )
             assert cursor.fetchone() == (1,)
             cursor.execute(
-                "SELECT count(*) FROM staging.transportstyrelsen_raw "
-                "WHERE source_batch_id = %s",
+                "SELECT count(*) FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s",
                 (batch_id,),
             )
             assert cursor.fetchone() == (2,)
@@ -89,7 +100,7 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
                 "WHERE source_batch_id = %s",
                 (batch_id,),
             )
-            assert cursor.fetchall() == [("normalization-pipeline-v2",)]
+            assert cursor.fetchall() == [("normalization-pipeline-v3",)]
     finally:
         pg_connection.rollback()
         with pg_connection.cursor() as cursor:

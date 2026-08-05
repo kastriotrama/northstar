@@ -19,7 +19,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["bodywork_form"] == "wagon"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
-    assert outcome.pipeline_version == "normalization-pipeline-v2"
+    assert outcome.pipeline_version == "normalization-pipeline-v3"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -131,3 +131,122 @@ def test_text_canonicalization_runs_before_translation_rules() -> None:
         and entry.after == "V60 Recharge"
         for entry in outcome.decision_trace
     )
+
+
+def test_dates_are_extracted_with_explicit_precision_and_original_evidence() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Volvo",
+            "registration_date": "20240131",
+            "build_month": "202312",
+        }
+    )
+
+    assert outcome.normalized["registration_date"] == "2024-01-31"
+    assert outcome.normalized["production_date"] == "2023-12"
+    assert outcome.normalized["production_year"] == 2023
+    assert outcome.normalized["production_date_precision"] == "month"
+    assert {"DATE-REGISTRATION-V1", "DATE-PRODUCTION-MONTH-V1"} <= set(outcome.applied_rule_ids)
+    registration_trace = next(
+        entry
+        for entry in outcome.decision_trace
+        if entry.transformer_id == "ts.dates" and entry.field == "registration_date"
+    )
+    assert registration_trace.before == {
+        "registration_date": "20240131",
+        "build_month": "202312",
+    }
+    assert registration_trace.after == "2024-01-31"
+
+
+def test_explicit_open_and_closed_production_ranges_are_supported() -> None:
+    closed = normalize_ts_record(
+        {"manufacturer": "Volvo", "production_from": "2019-05", "production_to": "2024"}
+    )
+    open_ended = normalize_ts_record({"manufacturer": "Volvo", "production_from": "20230101"})
+    mixed_precision = normalize_ts_record(
+        {"manufacturer": "Volvo", "production_from": "2024-06", "production_to": "2024"}
+    )
+
+    assert closed.normalized["production_from"] == "2019-05"
+    assert closed.normalized["production_year_from"] == 2019
+    assert closed.normalized["production_to"] == "2024"
+    assert closed.normalized["production_year_to"] == 2024
+    assert open_ended.normalized["production_from"] == "2023-01-01"
+    assert "production_to" not in open_ended.normalized
+    assert mixed_precision.normalized["production_from"] == "2024-06"
+    assert mixed_precision.normalized["production_to"] == "2024"
+
+
+def test_malformed_or_reversed_date_ranges_are_not_partially_normalized() -> None:
+    malformed = normalize_ts_record(
+        {"manufacturer": "Volvo", "production_from": "2020", "production_to": "202413"}
+    )
+    reversed_range = normalize_ts_record(
+        {"manufacturer": "Volvo", "production_from": "2024", "production_to": "2020"}
+    )
+
+    assert "production_from" not in malformed.normalized
+    assert "production_to_malformed" in malformed.review_reasons
+    assert "production_from" not in reversed_range.normalized
+    assert "production_to" not in reversed_range.normalized
+    assert "production_range_reversed" in reversed_range.review_reasons
+
+
+def test_engine_power_and_displacement_are_structured_without_marketing_inference() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Volvo",
+            "engine_code": " b4204t ",
+            "engine_family_code": " vea ",
+            "engine_family_name": " Volvo Engine Architecture ",
+            "kw": 145,
+            "ccm": 1969,
+        }
+    )
+
+    assert outcome.normalized["engine_code"] == "B4204T"
+    assert outcome.normalized["engine_family_code"] == "VEA"
+    assert outcome.normalized["engine_family_name"] == "Volvo Engine Architecture"
+    assert outcome.normalized["power_kw"] == 145
+    assert outcome.normalized["power_source_unit"] == "kw"
+    assert outcome.normalized["displacement_cc"] == 1969
+    assert outcome.normalized["displacement_source_unit"] == "ccm"
+
+
+def test_metric_power_and_litre_displacement_convert_using_documented_units() -> None:
+    outcome = normalize_ts_record(
+        {"manufacturer": "BMW", "power_ps": "200", "displacement_l": "1,998"}
+    )
+
+    assert outcome.normalized["power_kw"] == 147
+    assert outcome.normalized["power_source_unit"] == "metric_hp"
+    assert outcome.normalized["displacement_cc"] == 1998
+    assert outcome.normalized["displacement_source_unit"] == "litre"
+
+
+def test_measurement_boundaries_and_ambiguous_sources_route_to_review() -> None:
+    malformed = normalize_ts_record({"manufacturer": "Volvo", "kw": 0, "ccm": "not-a-number"})
+    ambiguous = normalize_ts_record(
+        {"manufacturer": "Volvo", "kw": 100, "power_ps": 136, "ccm": 1969}
+    )
+
+    assert "power_kw" not in malformed.normalized
+    assert "displacement_cc" not in malformed.normalized
+    assert {"kw_malformed", "ccm_malformed"} <= set(malformed.review_reasons)
+    assert "power_kw" not in ambiguous.normalized
+    assert "power_source_ambiguous" in ambiguous.review_reasons
+
+
+def test_hybrid_and_dual_fuel_keep_each_underlying_fuel() -> None:
+    plug_in_hybrid = normalize_ts_record(
+        {"manufacturer": "Volvo", "fuel1": "01", "fuel2": "03", "ev_config": "Laddhybrid"}
+    )
+    bi_fuel = normalize_ts_record(
+        {"manufacturer": "Volvo", "fuel1": "01", "fuel2": "09", "fuel_combo": "B"}
+    )
+
+    assert plug_in_hybrid.normalized["energy_sources"] == ["petrol", "electricity"]
+    assert plug_in_hybrid.normalized["electrification_type"] == "plug_in_hybrid"
+    assert bi_fuel.normalized["energy_sources"] == ["petrol", "cng"]
+    assert bi_fuel.normalized["fuel_combination"] == "bi_fuel"

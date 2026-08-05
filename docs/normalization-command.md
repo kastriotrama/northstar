@@ -24,7 +24,8 @@ reuses deterministic normalization and review IDs.
   [the normalization pipeline contract](normalization-pipeline-contract.md).
 - Plate and VIN values are never copied into normalized results, review items,
   logs, or pilot reports.
-- Accepted manufacturer, bodywork, transmission, and production-date decisions
+- Accepted manufacturer, bodywork, transmission, date, engine, power, and
+  displacement decisions
   may populate normalized fields.
 - Stakeholder-approved fuel and electrification rules from `ts-translation-v2`
   populate normalized fields only when their structured evidence is complete.

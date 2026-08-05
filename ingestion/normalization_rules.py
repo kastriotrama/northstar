@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Literal
 
 from ingestion.normalization_pipeline import (
@@ -31,7 +33,7 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-PIPELINE_VERSION = "normalization-pipeline-v2"
+PIPELINE_VERSION = "normalization-pipeline-v3"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -361,12 +363,81 @@ def _parse_date(value: object, format_name: str) -> date | None:
         return None
     try:
         if format_name == "day" and len(text) == 8:
-            return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+            parsed = date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+            return parsed if 1886 <= parsed.year <= 2200 else None
         if format_name == "month" and len(text) == 6:
-            return date(int(text[:4]), int(text[4:6]), 1)
+            parsed = date(int(text[:4]), int(text[4:6]), 1)
+            return parsed if 1886 <= parsed.year <= 2200 else None
     except ValueError:
         return None
     return None
+
+
+def _parse_year(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    text = str(value).strip() if isinstance(value, (int, str)) else ""
+    if not (len(text) == 4 and text.isdigit()):
+        return None
+    year = int(text)
+    return year if 1886 <= year <= 2200 else None
+
+
+def _parse_flexible_date(value: object) -> tuple[date, Literal["day", "month", "year"]] | None:
+    text = normalize_text(value)
+    if text is None and isinstance(value, int):
+        text = str(value)
+    if text is None:
+        return None
+    compact = text.replace("-", "")
+    if len(compact) == 8:
+        parsed = _parse_date(compact, "day")
+        return (parsed, "day") if parsed is not None else None
+    if len(compact) == 6:
+        parsed = _parse_date(compact, "month")
+        return (parsed, "month") if parsed is not None else None
+    year = _parse_year(compact)
+    return (date(year, 1, 1), "year") if year is not None else None
+
+
+def _date_text(parsed: date, precision: str) -> str:
+    if precision == "day":
+        return parsed.isoformat()
+    if precision == "month":
+        return parsed.strftime("%Y-%m")
+    return str(parsed.year)
+
+
+def _date_upper_bound(parsed: date, precision: str) -> date:
+    if precision == "year":
+        return date(parsed.year, 12, 31)
+    if precision == "month":
+        return date(parsed.year, parsed.month, monthrange(parsed.year, parsed.month)[1])
+    return parsed
+
+
+def _parse_decimal(value: object) -> Decimal | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        text = str(value)
+    elif isinstance(value, str):
+        text = value.strip().replace(",", ".")
+    else:
+        return None
+    try:
+        parsed = Decimal(text)
+    except InvalidOperation:
+        return None
+    return parsed if parsed.is_finite() else None
+
+
+def _positive_rounded_int(value: object, *, multiplier: Decimal, maximum: int) -> int | None:
+    parsed = _parse_decimal(value)
+    if parsed is None or parsed <= 0:
+        return None
+    converted = int((parsed * multiplier).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return converted if 0 < converted <= maximum else None
 
 
 def _record_dictionary_match(
@@ -431,19 +502,65 @@ def _raw_fuel_carriers(raw: dict[str, Any]) -> set[str]:
     return carriers
 
 
-def _normalize_production_year(
-    raw: dict[str, Any],
-    normalized: dict[str, Any],
-    reasons: list[str],
-) -> None:
+def _normalize_dates(context: NormalizationContext) -> None:
+    raw = context.canonical_record
+    normalized = context.normalized
+    reasons = context.review_reasons
+
+    registration_value = raw.get("registration_date")
+    if registration_value not in (None, ""):
+        registration = _parse_flexible_date(registration_value)
+        if registration is None or registration[1] != "day":
+            reasons.append("registration_date_malformed")
+        else:
+            normalized["registration_date"] = registration[0].isoformat()
+            context.applied_rule_ids.append("DATE-REGISTRATION-V1")
+
+    range_values = (raw.get("production_from"), raw.get("production_to"))
+    if any(value not in (None, "") for value in range_values):
+        parsed_range = tuple(
+            _parse_flexible_date(value) if value not in (None, "") else None
+            for value in range_values
+        )
+        if parsed_range[0] is None:
+            reasons.append("production_from_malformed")
+        if range_values[1] not in (None, "") and parsed_range[1] is None:
+            reasons.append("production_to_malformed")
+        if parsed_range[0] is None or (
+            range_values[1] not in (None, "") and parsed_range[1] is None
+        ):
+            return
+        start, start_precision = parsed_range[0]
+        normalized["production_year_from"] = start.year
+        normalized["production_from"] = _date_text(start, start_precision)
+        normalized["production_from_precision"] = start_precision
+        if parsed_range[1] is not None:
+            end, end_precision = parsed_range[1]
+            if _date_upper_bound(end, end_precision) < start:
+                reasons.append("production_range_reversed")
+                for field_name in (
+                    "production_year_from",
+                    "production_from",
+                    "production_from_precision",
+                ):
+                    normalized.pop(field_name, None)
+                return
+            normalized["production_year_to"] = end.year
+            normalized["production_to"] = _date_text(end, end_precision)
+            normalized["production_to_precision"] = end_precision
+        context.applied_rule_ids.append("DATE-PRODUCTION-RANGE-V1")
+        return
+
     build_date = normalize_text(raw.get("build_date"))
     if build_date is not None:
         parsed = _parse_date(build_date, "day")
         if parsed is None:
             reasons.append("build_date_malformed")
             return
+        normalized["production_date"] = parsed.isoformat()
         normalized["production_year"] = parsed.year
         normalized["production_date_precision"] = "day"
+        context.applied_rule_ids.append("DATE-PRODUCTION-DAY-V1")
         return
     build_month = normalize_text(raw.get("build_month"))
     if build_month is not None:
@@ -451,18 +568,81 @@ def _normalize_production_year(
         if parsed is None:
             reasons.append("build_month_malformed")
             return
+        normalized["production_date"] = parsed.strftime("%Y-%m")
         normalized["production_year"] = parsed.year
         normalized["production_date_precision"] = "month"
+        context.applied_rule_ids.append("DATE-PRODUCTION-MONTH-V1")
         return
     for field_name in ("model_year", "vehicle_year"):
         value = raw.get(field_name)
-        if isinstance(value, int) and 1886 <= value <= 2200:
-            normalized["production_year"] = value
+        year = _parse_year(value)
+        if year is not None:
+            normalized["production_year"] = year
             normalized["production_date_precision"] = field_name
+            context.applied_rule_ids.append("DATE-PRODUCTION-YEAR-V1")
             return
         if value not in (None, ""):
             reasons.append(f"{field_name}_malformed")
             return
+
+
+def _normalize_engine_measurements(context: NormalizationContext) -> None:
+    raw = context.canonical_record
+    normalized = context.normalized
+    reasons = context.review_reasons
+
+    engine_code = normalize_text(raw.get("engine_code"))
+    if engine_code is not None:
+        normalized["engine_code"] = engine_code.upper()
+        context.applied_rule_ids.append("ENGINE-CODE-V1")
+
+    family_code = normalize_text(raw.get("engine_family_code"))
+    if family_code is not None:
+        normalized["engine_family_code"] = family_code.upper()
+        context.applied_rule_ids.append("ENGINE-FAMILY-CODE-V1")
+
+    family_name = normalize_text(raw.get("engine_family_name"))
+    if family_name is not None:
+        normalized["engine_family_name"] = family_name
+        context.applied_rule_ids.append("ENGINE-FAMILY-NAME-V1")
+
+    power_fields = (
+        ("kw", Decimal("1"), "UNIT-POWER-KW-V1"),
+        ("power_ps", Decimal("0.73549875"), "UNIT-POWER-PS-V1"),
+    )
+    populated_power = [item for item in power_fields if raw.get(item[0]) not in (None, "")]
+    if len(populated_power) > 1:
+        reasons.append("power_source_ambiguous")
+    elif populated_power:
+        field_name, multiplier, rule_id = populated_power[0]
+        power_kw = _positive_rounded_int(raw[field_name], multiplier=multiplier, maximum=2000)
+        if power_kw is None:
+            reasons.append(f"{field_name}_malformed")
+        else:
+            normalized["power_kw"] = power_kw
+            normalized["power_source_unit"] = "kw" if field_name == "kw" else "metric_hp"
+            context.applied_rule_ids.append(rule_id)
+
+    displacement_fields = (
+        ("ccm", Decimal("1"), "UNIT-DISPLACEMENT-CCM-V1"),
+        ("displacement_l", Decimal("1000"), "UNIT-DISPLACEMENT-LITRE-V1"),
+    )
+    populated_displacement = [
+        item for item in displacement_fields if raw.get(item[0]) not in (None, "")
+    ]
+    if len(populated_displacement) > 1:
+        reasons.append("displacement_source_ambiguous")
+    elif populated_displacement:
+        field_name, multiplier, rule_id = populated_displacement[0]
+        displacement_cc = _positive_rounded_int(
+            raw[field_name], multiplier=multiplier, maximum=50_000
+        )
+        if displacement_cc is None:
+            reasons.append(f"{field_name}_malformed")
+        else:
+            normalized["displacement_cc"] = displacement_cc
+            normalized["displacement_source_unit"] = "ccm" if field_name == "ccm" else "litre"
+            context.applied_rule_ids.append(rule_id)
 
 
 def _normalize_transmission(context: NormalizationContext) -> None:
@@ -724,12 +904,12 @@ def _apply_model_family(context: NormalizationContext) -> None:
     )
 
 
-def _apply_production_year(context: NormalizationContext) -> None:
-    _normalize_production_year(
-        context.canonical_record,
-        context.normalized,
-        context.review_reasons,
-    )
+def _apply_dates(context: NormalizationContext) -> None:
+    _normalize_dates(context)
+
+
+def _apply_engine_measurements(context: NormalizationContext) -> None:
+    _normalize_engine_measurements(context)
 
 
 def _apply_transmission(context: NormalizationContext) -> None:
@@ -781,11 +961,35 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             candidate_confidence_effect=0.05,
         ),
         _RuleTransformer(
-            transformer_id="ts.production-year",
+            transformer_id="ts.dates",
             order=40,
             default_rule_id="DATE-EXTRACT-V1",
-            handler=_apply_production_year,
-            source_fields=("build_date", "build_month", "model_year", "vehicle_year"),
+            handler=_apply_dates,
+            source_fields=(
+                "registration_date",
+                "production_from",
+                "production_to",
+                "build_date",
+                "build_month",
+                "model_year",
+                "vehicle_year",
+            ),
+            normalized_confidence_effect=0.1,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.engine-measurements",
+            order=45,
+            default_rule_id="ENGINE-MEASUREMENT-EXTRACT-V1",
+            handler=_apply_engine_measurements,
+            source_fields=(
+                "engine_code",
+                "engine_family_code",
+                "engine_family_name",
+                "kw",
+                "power_ps",
+                "ccm",
+                "displacement_l",
+            ),
             normalized_confidence_effect=0.1,
         ),
         _RuleTransformer(

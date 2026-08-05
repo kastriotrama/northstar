@@ -18,17 +18,32 @@ or any transformer that mutates the copied raw evidence. A transformer must not
 read environment variables, perform database writes, or hide review decisions.
 Database orchestration remains in normalization_service.py.
 
-The TS sequence from pipeline version 2 is:
+The TS sequence from pipeline version 3 is:
 
 1. canonicalize allow-listed text on an isolated working copy;
 2. initialize safe source metadata;
 3. classify manufacturer;
 4. create a model-family candidate;
-5. extract production year;
-6. translate transmission;
-7. translate category-scoped Bodywork;
-8. create drive candidates;
-9. create fuel and electrification candidates.
+5. extract registration, production date, and explicit production ranges;
+6. extract structured engine fields and normalize power/displacement units;
+7. translate transmission;
+8. translate category-scoped Bodywork;
+9. create drive candidates;
+10. normalize fuel carriers, fuel combinations, and electrification.
+
+Dates are persisted in ISO form together with their source precision. Explicit
+production ranges may be open-ended, but reversed or malformed ranges are not
+partially accepted. Current TS `kw` values map to integer `power_kw`; current TS
+`ccm` values map to integer `displacement_cc`. Inputs explicitly labelled as
+metric horsepower (`power_ps`) use `1 PS = 0.73549875 kW`, and inputs explicitly
+labelled in litres (`displacement_l`) use `1 litre = 1000 cc`. Half values round
+up. Conflicting source units, non-positive numbers, unsupported dates, and
+out-of-bound values route to review instead of being guessed.
+
+Structured `engine_code`, `engine_family_code`, and `engine_family_name` values
+are retained when the source provides them explicitly. Marketing model text is
+never used to manufacture an engine identity. The decision trace preserves the
+non-sensitive source value and the rule used for every accepted conversion.
 
 Text canonicalization applies Unicode NFKC and whitespace cleanup. Registry
 code fields are uppercased, while human names retain their source casing.
