@@ -188,6 +188,13 @@ def test_reprocess_uses_active_version_and_returns_before_after_comparison() -> 
                 "base_behavior": "use_entity",
                 "change_note": "Reviewed exact Brand entity",
             },
+            "MFR-MODEL-VARIANT-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-MODEL-VARIANT-FALLBACK",
+                "allowed_fields": ["model", "variant"],
+                "match_type": "whole_token_prefix",
+                "change_note": "Approved missing Brand fallback",
+            },
         },
         "activated_at": datetime(2026, 8, 5, tzinfo=UTC),
     }
@@ -203,6 +210,9 @@ def test_reprocess_uses_active_version_and_returns_before_after_comparison() -> 
     assert (
         adapter.manufacturer_entity_rules["brand:AUDI A4 2 0TS QUATTRO"]["canonical_name"] == "Audi"
     )
+    assert adapter.manufacturer_entity_rules["policy:MFR-MODEL-VARIANT-FALLBACK"][
+        "allowed_fields"
+    ] == ["model", "variant"]
 
 
 def test_reprocess_is_blocked_while_unapproved_drafts_exist() -> None:

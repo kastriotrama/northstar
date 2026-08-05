@@ -222,6 +222,69 @@ def test_recognized_brand_is_only_a_candidate_when_manufacturer_is_missing() -> 
     assert "manufacturer_missing_compare_brand" in outcome.review_reasons
 
 
+def test_approved_policy_uses_manufacturer_entity_alias_from_model_when_brand_missing() -> None:
+    outcome = normalize_ts_record(
+        {"model": "VOLVO V70"},
+        manufacturer_entity_rules={
+            "policy:MFR-MODEL-VARIANT-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-MODEL-VARIANT-FALLBACK",
+                "allowed_fields": ["model", "variant"],
+                "match_type": "whole_token_prefix",
+            }
+        },
+    )
+
+    assert outcome.status == "provisional"
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.candidates["manufacturer_confirmation"] == {
+        "canonical_name": "Volvo",
+        "source_fields": ["model"],
+    }
+    assert "MFR-MODEL-VARIANT-FALLBACK" in outcome.candidate_rule_ids
+    assert "manufacturer_missing" not in outcome.review_reasons
+
+
+def test_model_variant_policy_does_not_use_substrings_or_override_populated_brand() -> None:
+    rules = {
+        "policy:MFR-MODEL-VARIANT-FALLBACK": {
+            "kind": "manufacturer_match_policy",
+            "rule_id": "MFR-MODEL-VARIANT-FALLBACK",
+            "allowed_fields": ["model", "variant"],
+            "match_type": "whole_token_prefix",
+        }
+    }
+
+    substring = normalize_ts_record({"model": "OXFORD SPECIAL"}, manufacturer_entity_rules=rules)
+    populated_brand = normalize_ts_record(
+        {"brand": "UNREVIEWED", "model": "VOLVO V70"},
+        manufacturer_entity_rules=rules,
+    )
+
+    assert "manufacturer" not in substring.normalized
+    assert "manufacturer_missing" in substring.review_reasons
+    assert "manufacturer" not in populated_brand.normalized
+    assert "manufacturer_missing" in populated_brand.review_reasons
+
+
+def test_model_variant_policy_routes_conflicting_manufacturer_aliases_to_review() -> None:
+    outcome = normalize_ts_record(
+        {"model": "VOLVO V70", "variant": "BMW 320D"},
+        manufacturer_entity_rules={
+            "policy:MFR-MODEL-VARIANT-FALLBACK": {
+                "kind": "manufacturer_match_policy",
+                "rule_id": "MFR-MODEL-VARIANT-FALLBACK",
+                "allowed_fields": ["model", "variant"],
+                "match_type": "whole_token_prefix",
+            }
+        },
+    )
+
+    assert outcome.status == "review_required"
+    assert outcome.candidates["manufacturer"] == ["BMW", "Volvo"]
+    assert "manufacturer_model_variant_conflict" in outcome.review_reasons
+
+
 def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}

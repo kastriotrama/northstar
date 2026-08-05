@@ -38,7 +38,7 @@ PIPELINE_VERSION = "normalization-pipeline-v4"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
-ManufacturerEntityRules = Mapping[str, Mapping[str, str | None]]
+ManufacturerEntityRules = Mapping[str, Mapping[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -553,6 +553,48 @@ def _manufacturer_entity_rule(
     return rules.get(f"{source_field}:{source_term}")
 
 
+def _manufacturer_fallback_policy(
+    rules: ManufacturerEntityRules,
+) -> Mapping[str, Any] | None:
+    return next(
+        (rule for rule in rules.values() if rule.get("kind") == "manufacturer_match_policy"),
+        None,
+    )
+
+
+def _manufacturer_from_model_variant(
+    raw: dict[str, Any],
+    rules: ManufacturerEntityRules,
+) -> tuple[str | None, tuple[str, ...], str | None, bool]:
+    """Apply an approved whole-prefix fallback only when Brand is absent."""
+
+    policy = _manufacturer_fallback_policy(rules)
+    if (
+        policy is None
+        or policy.get("match_type") != "whole_token_prefix"
+        or normalize_text(raw.get("brand")) is not None
+    ):
+        return None, (), None, False
+    allowed_fields = policy.get("allowed_fields")
+    if not isinstance(allowed_fields, list):
+        return None, (), None, False
+    matches: dict[str, list[str]] = {}
+    for field_name in allowed_fields:
+        if field_name not in {"model", "variant"}:
+            continue
+        manufacturer = _resolve_manufacturer(raw.get(field_name))
+        if manufacturer is not None:
+            matches.setdefault(manufacturer, []).append(field_name)
+    rule_id = policy.get("rule_id")
+    normalized_rule_id = rule_id if isinstance(rule_id, str) else "MFR-MODEL-VARIANT-FALLBACK"
+    if len(matches) > 1:
+        return None, tuple(sorted(matches)), normalized_rule_id, True
+    if not matches:
+        return None, (), normalized_rule_id, False
+    manufacturer, source_fields = next(iter(matches.items()))
+    return manufacturer, tuple(source_fields), normalized_rule_id, False
+
+
 def _apply_manufacturer_entity_rule(
     rule: Mapping[str, str | None],
     raw: dict[str, Any],
@@ -722,6 +764,24 @@ def _normalize_manufacturer(
             candidates["manufacturer"] = marketed
             candidate_rules.append("MFR-BRAND-REVIEW")
             reasons.append("manufacturer_missing_compare_brand")
+            return
+        fallback, source_fields, fallback_rule_id, conflict = _manufacturer_from_model_variant(
+            raw, entity_rules
+        )
+        if conflict:
+            candidates["manufacturer"] = list(source_fields)
+            candidate_rules.append(fallback_rule_id or "MFR-MODEL-VARIANT-FALLBACK")
+            reasons.append("manufacturer_model_variant_conflict")
+            return
+        if fallback is not None:
+            normalized["manufacturer"] = fallback
+            normalized["manufacturer_role"] = "vehicle_manufacturer"
+            normalized["builder_converter_names"] = []
+            candidates["manufacturer_confirmation"] = {
+                "canonical_name": fallback,
+                "source_fields": list(source_fields),
+            }
+            candidate_rules.append(fallback_rule_id or "MFR-MODEL-VARIANT-FALLBACK")
             return
         reasons.append("manufacturer_missing")
         return

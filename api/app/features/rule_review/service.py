@@ -195,8 +195,11 @@ class RuleReviewService:
     ) -> ManufacturerEntityRules:
         if active is None:
             return {}
-        rules: dict[str, dict[str, str | None]] = {}
+        rules: dict[str, dict[str, Any]] = {}
         for entity_id, override in active["overrides"].items():
+            if override.get("kind") == "manufacturer_match_policy":
+                rules[f"policy:{entity_id}"] = dict(override)
+                continue
             if override.get("kind") != "manufacturer_entity":
                 continue
             source_term = normalize_manufacturer_entity(override.get("source_term"))

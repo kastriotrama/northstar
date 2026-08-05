@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Approved Model/Variant manufacturer fallback
+
+- Added and directly activated immutable DB policy `MFR-MODEL-VARIANT-FALLBACK` in version `ts-review-20260805T175608808573Z`. When Tillverkare and Brand are both absent, the normalizer can use a reviewed Manufacturer entity alias at the start of Model or Variant as a provisional manufacturer requiring later corroboration. Complete-token/prefix matching prevents substring guesses, populated Brand is never overridden, and conflicting Model/Variant manufacturers remain in review. Ruff, strict mypy, all 358 tests, DB verification, and a 250-passenger-car re-import pass. The current totals intentionally stayed unchanged because all 101 review cases have Brand populated; no Jira update, push, or PR was made.
+
 ## 2026-08-05 — Passenger-car-only review cohort
 
 - Restricted deterministic TS pilot selection and rule-workbench re-imports to passenger cars: explicit EU category must be `M1`/`M1G`, with `PB` fallback only when category is absent. Rebuilt `normalization-review-passenger-250-v1` from the full source with 243 M1 and 7 M1G records, all vehicle type PB: 36 resolved, 113 provisional, 101 review-required, and 0 failed. No trucks, buses, trailers, motorcycles, tractors, other categories, or bodywork/category conflicts remain in this cohort. Focused tests and live PostgreSQL evidence checks pass; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — SCRUM-92
 
 - Implemented Stage 2b on `feature/SCRUM-92-phonetic-matching`: added versioned, deterministic phonetic recovery for allow-listed manufacturer/model text; review-only phonetic manufacturer scoping and model evidence; configurable combined scoring; exact algorithm provenance; and hard exclusions for VIN, plate, KType, engine/type codes and alphanumeric identifiers. Phonetics cannot independently create or automatically accept a match and cannot bypass hard conflicts. Ruff 0.16, strict mypy, and all 294 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — SCRUM-91
-
-- Implemented Stage 2a on `feature/SCRUM-91-fuzzy-matching`: added immutable manufacturer/alias candidate indexes, deterministic Damerau-Levenshtein and token scoring, year/fuel/engine context evidence, numeric model-series protection, configurable thresholds/margins, review-queue payloads, and safe exact/fuzzy/global scope gates. Fuzzy/global, conflicting, weak, and ambiguous matches cannot become automatically eligible. Ruff 0.16, strict mypy, and all 281 tests pass with PostgreSQL and Neo4j. Jira, push, and PR remain unchanged.

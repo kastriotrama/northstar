@@ -37,6 +37,13 @@ Source field and canonicalized source key remain immutable. Newly discovered
 Brand values are not accepted automatically; a reviewer must classify the exact canonical key and
 activate it before re-import.
 
+The active `MFR-MODEL-VARIANT-FALLBACK` policy handles the narrower case where
+Tillverkare and Brand are both absent. It checks Model and Variant only against
+reviewed manufacturer aliases, using a complete exact or prefix token match.
+One unambiguous match records a provisional manufacturer plus confirmation
+evidence; multiple manufacturers or unsafe substring-only matches remain in
+review. A populated Brand is never overridden by this fallback.
+
 ## Current review backlog
 
 The workbench reports reason counts for the latest passenger-car batch. Of 250
