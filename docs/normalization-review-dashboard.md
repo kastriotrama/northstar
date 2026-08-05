@@ -48,14 +48,13 @@ Supported query parameters are `query`, `status`, `manufacturer`, `bodywork`,
 The development database contains a deterministic 250-passenger-car sample
 from the supplied Transportstyrelsen source. The latest batch,
 `normalization-review-passenger-250-v1`, contains 243 `M1` and 7 `M1G` records.
-After activating the Manufacturer entity hierarchy in
-`ts-review-20260805T183018213844Z` and re-importing, 37 are resolved, 207 are
-provisional, 6 require review, and none failed. Thirteen redundant exact Brand
-rows are now retained as reviewed examples beneath the SAAB, VW, Mazda, and
-Škoda parents. Reviewed examples resolve exactly; unseen prefix matches remain
-provisional.
+After activating the general manufacturer rules in
+`ts-review-20260805T184254528647Z` and re-importing, 37 are resolved, 212 are
+provisional, 1 requires review, and none failed. Thirteen redundant exact Brand
+rows remain reviewed examples beneath the SAAB, VW, Mazda, and Škoda parents.
+General punctuation/accent-tolerant parents now also handle Škoda legal names,
+PSA/Citroën, and the reviewed Knaus, Adria, and Dethleffs converter cases.
 Every staged row has TS vehicle type `PB`; trucks, buses, trailers,
 motorcycles, tractors, and other categories are excluded before normalization.
-The remaining six review cases are protected corporate-group, converter, legal
-entity, or ambiguous-marque decisions. This cohort has no bodywork/category
-conflicts.
+The remaining review case is the ambiguous Jaguar/Daimler compound Brand. This
+cohort has no bodywork/category conflicts.

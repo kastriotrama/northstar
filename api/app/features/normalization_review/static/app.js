@@ -43,6 +43,15 @@ function humanize(value) {
   return String(value ?? "—").replaceAll("_", " ");
 }
 
+function searchKey(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function statusBadge(status) {
   return `<span class="status-badge status-${escapeHtml(status)}">${escapeHtml(labels[status] ?? humanize(status))}</span>`;
 }
@@ -300,18 +309,18 @@ function ensureRuleSelection() {
 
 function filteredRules() {
   if (!ruleState.page) return [];
-  const query = elements.ruleSearch.value.trim().toLowerCase();
+  const query = searchKey(elements.ruleSearch.value);
   const area = elements.ruleArea.value;
   const status = elements.ruleStateFilter.value;
   if (ruleState.kind === "manufacturer") {
     return ruleState.page.manufacturer_entities.filter((entity) => {
-      const searchable = [entity.entity_id, entity.source_field, entity.source_term, entity.effective_canonical_name, entity.effective_entity_role, ...(entity.reviewed_examples || [])].join(" ").toLowerCase();
+      const searchable = searchKey([entity.entity_id, entity.source_field, entity.source_term, entity.effective_canonical_name, entity.effective_entity_role, ...(entity.reviewed_examples || [])].join(" "));
       const statusMatches = !status || (status === "draft" ? entity.has_draft : status === entity.effective_entity_role);
       return (!query || searchable.includes(query)) && statusMatches;
     });
   }
   return ruleState.page.rules.filter((rule) => {
-    const searchable = [rule.rule_id, rule.area, rule.canonical_field, rule.effective_canonical_value, ...rule.source_terms].join(" ").toLowerCase();
+    const searchable = searchKey([rule.rule_id, rule.area, rule.canonical_field, rule.effective_canonical_value, ...rule.source_terms].join(" "));
     const statusMatches = !status || (status === "draft" ? rule.has_draft : rule.effective_decision === status);
     return (!query || searchable.includes(query)) && (!area || rule.area === area) && statusMatches;
   });
@@ -322,7 +331,9 @@ function renderRules() {
   document.querySelector("#active-rule-version").textContent = page.active_version;
   document.querySelector("#rule-draft-count").textContent = page.draft_count.toLocaleString();
   const reasons = page.review_reason_summary || {};
-  document.querySelector("#review-backlog-total").textContent = state.page?.summary.review_required ?? "—";
+  const reviewTotal = state.page?.summary.review_required;
+  document.querySelector("#review-backlog-total").textContent = reviewTotal ?? "—";
+  document.querySelector("#review-backlog-label").textContent = reviewTotal === 1 ? "vehicle needs evidence" : "vehicles need evidence";
   document.querySelector("#reason-manufacturer-missing").textContent = reasons.manufacturer_missing || 0;
   document.querySelector("#reason-brand-evidence").textContent = reasons.manufacturer_missing_compare_brand || 0;
   document.querySelector("#reason-bodywork-category").textContent = reasons.bodywork_code_unresolved_for_category || 0;
@@ -434,7 +445,11 @@ function renderManufacturerEditor(entity) {
   marker.textContent = entity.has_draft ? "Draft change" : entity.is_discovered && entity.effective_entity_role === "unknown" ? "Needs classification" : "Active";
   marker.classList.toggle("changed", entity.has_draft || entity.effective_entity_role === "unknown");
   document.querySelector("#manufacturer-source-term").textContent = `${entity.source_field} = ${entity.source_term}`;
-  document.querySelector("#manufacturer-match-type").textContent = entity.match_type === "whole_token_prefix" ? "Complete prefix + reviewed exact examples" : humanize(entity.match_type);
+  const matchScope = {
+    whole_token_prefix: "Complete prefix + reviewed exact examples",
+    diacritic_insensitive_prefix: "Complete prefix · punctuation and accent tolerant",
+  };
+  document.querySelector("#manufacturer-match-type").textContent = matchScope[entity.match_type] || humanize(entity.match_type);
   document.querySelector("#manufacturer-occurrences").textContent = entity.occurrences || "No unresolved occurrences";
   document.querySelector("#manufacturer-base-values").textContent = entity.base_manufacturers.join(", ") || "None supplied";
   document.querySelector("#manufacturer-created-at").textContent = formatDateTime(entity.created_at, "Built-in catalog / not versioned");

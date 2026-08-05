@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — General manufacturer and converter rules
+
+- Activated immutable version `ts-review-20260805T184254528647Z` with complete-prefix rules that tolerate punctuation and accents for Škoda legal entities and PSA/Citroën, while retaining token boundaries and PSA child allow-listing. Added Knaus/FCA, Fiat/Adria, and Fiat/Dethleffs converter handling that keeps Fiat as manufacturer and preserves the converter. Re-imported 250 passenger cars: 37 resolved, 212 provisional, 1 review-required, and 0 failed; only Jaguar/Daimler remains protected. Peugeot/PSA model-evidence behavior is regression-tested and unchanged. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — Manufacturer entity hierarchy
 
 - Grouped 13 redundant exact Brand entities beneath the approved SAAB, VW, Mazda, and Škoda prefix parents while preserving each exact value as reviewed source evidence. Exact reviewed examples now resolve through the parent rule; unseen prefix matches remain provisional. Activated immutable version `ts-review-20260805T183018213844Z` and re-imported 250 passenger cars: 37 resolved, 207 provisional, 6 review-required, and 0 failed. Focused tests, lint, type checks, live API checks, and PostgreSQL provenance checks pass; Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — Manufacturer and hybrid evidence resolution
 
 - Added `normalization-pipeline-v4` manufacturer evidence gates: Brand requires an agreeing allow-listed model, VIN WMI, or TecDoc KType manufacturer; conflicts and unknown populated `Tillverkare` remain review-only. Added reviewed legal-entity aliases, evidence-gated MINI/PSA/FCA marketed-brand handling, and KABE base-manufacturer retention. Explicit ELHYBRID/LADDHYBRID now preserves petrol/diesel and adds electricity after evaluating all three TS fuel fields. Reprocessing the same 250 records moved 67 from review to provisional and 7 to resolved (236 → 162 review-required), eliminated all ten fuel conflicts, and produced no failures or regressions. Ruff, strict mypy, the 205-case golden corpus, and all 341 tests pass; Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — Normalization review dashboard
-
-- Built a read-only operations dashboard and filtered API for the latest normalization batch, with 250 real Transportstyrelsen samples, status totals, manufacturer/model/engine search, status/manufacturer/bodywork/fuel/transmission filters, pagination, and a sanitized evidence inspector showing normalized fields, confidence, review reasons, decision trace, and rule IDs. The current sample has 14 provisional and 236 review-required records with zero technical failures. Service, API, repository, privacy, JavaScript syntax, and browser interaction checks pass; Ruff, strict mypy, and all 328 tests pass. Jira, push, and PR remain unchanged.

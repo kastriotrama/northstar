@@ -418,6 +418,137 @@ def test_reviewed_brand_example_resolves_through_parent_entity_hierarchy() -> No
     assert "MFR-BRAND-PREFIX-FALLBACK" in unseen.candidate_rule_ids
 
 
+def test_general_manufacturer_rules_tolerate_diacritics_and_retain_converters() -> None:
+    rules = {
+        "manufacturer:SKODA AUTO": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-SKODA-AUTO",
+            "source_field": "manufacturer",
+            "source_term": "SKODA AUTO",
+            "canonical_name": "Škoda",
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "match_type": "diacritic_insensitive_prefix",
+        },
+        "manufacturer:PSA AUTOMOBILES": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-PSA-AUTOMOBILES",
+            "source_field": "manufacturer",
+            "source_term": "PSA AUTOMOBILES",
+            "aliases": ["P.S.A. AUTOMOBILES"],
+            "canonical_name": "PSA Automobiles",
+            "entity_role": "corporate_group",
+            "base_behavior": "require_evidence_review",
+            "match_type": "diacritic_insensitive_prefix",
+            "marketed_brand_overrides": {"CITROËN": "Citroën"},
+        },
+        "manufacturer:KNAUS TABBERT": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-KNAUS-TABBERT",
+            "source_field": "manufacturer",
+            "source_term": "KNAUS TABBERT",
+            "canonical_name": "Knaus",
+            "entity_role": "bodybuilder_converter",
+            "base_behavior": "use_base_manufacturer",
+            "match_type": "diacritic_insensitive_prefix",
+        },
+        "brand:FIAT ADRIA": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-FIAT-ADRIA",
+            "source_field": "brand",
+            "source_term": "FIAT ADRIA",
+            "canonical_name": "Adria",
+            "entity_role": "bodybuilder_converter",
+            "base_behavior": "use_base_manufacturer",
+            "fallback_manufacturer": "Fiat",
+            "match_type": "diacritic_insensitive_prefix",
+        },
+        "brand:FIAT DETHLEFFS": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-FIAT-DETHLEFFS",
+            "source_field": "brand",
+            "source_term": "FIAT DETHLEFFS",
+            "canonical_name": "Dethleffs",
+            "entity_role": "bodybuilder_converter",
+            "base_behavior": "use_base_manufacturer",
+            "fallback_manufacturer": "Fiat",
+            "match_type": "diacritic_insensitive_prefix",
+        },
+    }
+
+    skoda = normalize_ts_record(
+        {"manufacturer": "ŠKODA AUTO, a.s., Mladá Boleslav"},
+        manufacturer_entity_rules=rules,
+    )
+    citroen = normalize_ts_record(
+        {"manufacturer": "P.S.A. AUTOMOBILES S.A.", "brand": "CITROËN"},
+        manufacturer_entity_rules=rules,
+    )
+    knaus = normalize_ts_record(
+        {"manufacturer": "KNAUS-TABBERT GmbH", "base_manufacturer": "FCA ITALY S.P.A."},
+        manufacturer_entity_rules=rules,
+    )
+    adria = normalize_ts_record({"brand": "FIAT-ADRIA A"}, manufacturer_entity_rules=rules)
+    dethleffs = normalize_ts_record(
+        {"brand": "FIAT DETHLEFFS T 6701"}, manufacturer_entity_rules=rules
+    )
+
+    assert skoda.normalized["manufacturer"] == "Škoda"
+    assert citroen.normalized["manufacturer"] == "Citroën"
+    assert "MFR-CORPORATE-BRAND-OVERRIDE" in citroen.applied_rule_ids
+    assert knaus.normalized["manufacturer"] == "Fiat"
+    assert knaus.normalized["builder_converter_names"] == ["Knaus"]
+    assert adria.normalized["manufacturer"] == "Fiat"
+    assert adria.normalized["builder_converter_names"] == ["Adria"]
+    assert dethleffs.normalized["manufacturer"] == "Fiat"
+    assert dethleffs.normalized["builder_converter_names"] == ["Dethleffs"]
+
+
+def test_general_manufacturer_rules_keep_token_boundaries_and_child_allow_lists() -> None:
+    rules = {
+        "manufacturer:SKODA AUTO": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-SKODA-AUTO",
+            "source_field": "manufacturer",
+            "source_term": "SKODA AUTO",
+            "canonical_name": "Škoda",
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "match_type": "diacritic_insensitive_prefix",
+        },
+        "manufacturer:PSA AUTOMOBILES": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-PSA-AUTOMOBILES",
+            "source_field": "manufacturer",
+            "source_term": "PSA AUTOMOBILES",
+            "canonical_name": "PSA Automobiles",
+            "entity_role": "corporate_group",
+            "base_behavior": "require_evidence_review",
+            "match_type": "diacritic_insensitive_prefix",
+            "marketed_brand_overrides": {"CITROËN": "Citroën"},
+        },
+    }
+
+    lookalike = normalize_ts_record(
+        {"manufacturer": "SKODAX AUTO"}, manufacturer_entity_rules=rules
+    )
+    unapproved_child = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "UNKNOWN"},
+        manufacturer_entity_rules=rules,
+    )
+    corroborated_existing_child = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "PEUGEOT", "model": "2008"},
+        manufacturer_entity_rules=rules,
+    )
+
+    assert "manufacturer" not in lookalike.normalized
+    assert "manufacturer_unknown" in lookalike.review_reasons
+    assert "manufacturer" not in unapproved_child.normalized
+    assert "manufacturer_corporate_group_unresolved" in unapproved_child.review_reasons
+    assert corroborated_existing_child.normalized["manufacturer"] == "Peugeot"
+    assert "MFR-PARENT-MARKETED" in corroborated_existing_child.applied_rule_ids
+
+
 def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}

@@ -169,6 +169,7 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="manufacturer-examples-section"' in screen.text
     assert 'id="source-evidence"' in screen.text
     assert "Brand is an exact reviewed example beneath its Manufacturer entity" in javascript.text
+    assert '.normalize("NFD")' in javascript.text
     assert "Manufacturer entities" in screen.text
     assert stylesheet.status_code == 200
     assert ".workspace" in stylesheet.text

@@ -218,6 +218,9 @@ class RuleReviewService:
                 "base_behavior": override.get("base_behavior"),
                 "match_type": override.get("match_type"),
                 "reviewed_examples": list(override.get("reviewed_examples") or []),
+                "aliases": list(override.get("aliases") or []),
+                "marketed_brand_overrides": dict(override.get("marketed_brand_overrides") or {}),
+                "fallback_manufacturer": override.get("fallback_manufacturer"),
             }
         return rules
 
@@ -229,7 +232,7 @@ class RuleReviewService:
     ) -> list[ManufacturerEntityView]:
         sources: dict[str, dict[str, Any]] = {}
         reviewed_children = {
-            normalized
+            (str(override.get("source_field")), normalized)
             for override in active_overrides.values()
             if override.get("kind") == "manufacturer_entity"
             for example in override.get("reviewed_examples", [])
@@ -237,15 +240,17 @@ class RuleReviewService:
         }
         for item in manufacturer_entity_catalog():
             if (
-                item["source_field"] == "brand"
-                and normalize_manufacturer_entity(item["source_term"]) in reviewed_children
-            ):
+                str(item["source_field"]),
+                normalize_manufacturer_entity(item["source_term"]),
+            ) in reviewed_children:
                 continue
             entity_id = self._entity_id(str(item["source_field"]), str(item["source_term"]))
             sources[entity_id] = {**item, "occurrences": 0, "base_manufacturers": []}
         for item in self._repository.fetch_discovered_manufacturer_entities():
             normalized = normalize_manufacturer_entity(item["source_term"])
             if normalized is None:
+                continue
+            if (str(item["source_field"]), normalized) in reviewed_children:
                 continue
             entity_id = self._entity_id(str(item["source_field"]), normalized)
             existing = sources.get(entity_id, {})

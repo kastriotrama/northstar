@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=6" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=8" />
   </head>
   <body>
     <div class="app-shell">
@@ -163,7 +163,7 @@
         </section>
 
         <section class="review-guidance" aria-label="Current review backlog">
-          <div><span class="eyebrow">Current review backlog</span><strong><span id="review-backlog-total">—</span> vehicles need evidence</strong></div>
+          <div><span class="eyebrow">Current review backlog</span><strong><span id="review-backlog-total">—</span> <span id="review-backlog-label">vehicles need evidence</span></strong></div>
           <dl><div><dt>Missing Tillverkare</dt><dd id="reason-manufacturer-missing">—</dd></div><div><dt>Brand needs evidence</dt><dd id="reason-brand-evidence">—</dd></div><div><dt>Bodywork/category conflict</dt><dd id="reason-bodywork-category">—</dd></div></dl>
           <p>Classify exact manufacturer entities first, then validate category-specific bodywork. Brand-only values remain reviewable until explicitly approved.</p>
         </section>
@@ -244,6 +244,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=6" defer></script>
+    <script src="/normalization-review/assets/app.js?v=8" defer></script>
   </body>
 </html>

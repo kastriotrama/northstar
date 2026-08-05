@@ -496,6 +496,17 @@ def normalize_manufacturer_entity(value: object) -> str | None:
     return _normalized_entity(value)
 
 
+def _manufacturer_match_key(value: object) -> str | None:
+    """Return an accent- and punctuation-tolerant key for reviewed alias matching."""
+
+    text = normalize_text(value)
+    if text is None:
+        return None
+    decomposed = unicodedata.normalize("NFKD", text.upper())
+    folded = "".join(character for character in decomposed if not unicodedata.combining(character))
+    return re.sub(r"[^A-Z0-9]+", " ", folded).strip()
+
+
 def manufacturer_entity_catalog() -> tuple[Mapping[str, str | None], ...]:
     """Return the reviewed Tillverkare classifications used by the normalizer."""
 
@@ -550,7 +561,38 @@ def _manufacturer_entity_rule(
     source_term = _normalized_entity(raw.get(source_field))
     if source_term is None:
         return None
-    return rules.get(f"{source_field}:{source_term}")
+    exact = rules.get(f"{source_field}:{source_term}")
+    if exact is not None:
+        return exact
+    match_key = _manufacturer_match_key(raw.get(source_field))
+    if match_key is None:
+        return None
+    matches: list[tuple[int, Mapping[str, Any]]] = []
+    for rule in rules.values():
+        if (
+            rule.get("kind") != "manufacturer_entity"
+            or rule.get("source_field") != source_field
+            or rule.get("match_type") != "diacritic_insensitive_prefix"
+        ):
+            continue
+        configured_aliases = rule.get("aliases")
+        aliases = [
+            rule.get("source_term"),
+            *(configured_aliases if isinstance(configured_aliases, list) else []),
+        ]
+        for alias in aliases:
+            alias_key = _manufacturer_match_key(alias)
+            if alias_key is not None and (
+                match_key == alias_key or match_key.startswith(f"{alias_key} ")
+            ):
+                matches.append((len(alias_key), rule))
+                break
+    if not matches:
+        return None
+    longest = max(length for length, _ in matches)
+    best = [rule for length, rule in matches if length == longest]
+    canonical_names = {rule.get("canonical_name") for rule in best}
+    return best[0] if len(canonical_names) == 1 else None
 
 
 def _reviewed_brand_example_rule(
@@ -672,7 +714,7 @@ def _manufacturer_from_brand_prefix(
 
 
 def _apply_manufacturer_entity_rule(
-    rule: Mapping[str, str | None],
+    rule: Mapping[str, Any],
     raw: dict[str, Any],
     normalized: dict[str, Any],
     candidates: dict[str, Any],
@@ -683,6 +725,22 @@ def _apply_manufacturer_entity_rule(
     behavior = rule.get("base_behavior")
     canonical_name = rule.get("canonical_name")
     entity_id = rule.get("entity_id") or "MFR-ENTITY-REVIEWED"
+    marketed_brand_overrides = rule.get("marketed_brand_overrides")
+    if role == "corporate_group" and isinstance(marketed_brand_overrides, Mapping):
+        brand_key = _manufacturer_match_key(raw.get("brand"))
+        child_matches = {
+            _manufacturer_match_key(source): target
+            for source, target in marketed_brand_overrides.items()
+            if _manufacturer_match_key(source) is not None and isinstance(target, str)
+        }
+        marketed_manufacturer = child_matches.get(brand_key)
+        if marketed_manufacturer is not None:
+            normalized["manufacturer"] = marketed_manufacturer
+            normalized["manufacturer_role"] = "vehicle_manufacturer"
+            normalized["builder_converter_names"] = []
+            applied.extend((entity_id, "MFR-CORPORATE-BRAND-OVERRIDE"))
+            return True
+        return False
     if behavior == "require_evidence_review" or role in {"corporate_group", "unknown"}:
         if canonical_name:
             candidates["manufacturer"] = canonical_name
@@ -694,6 +752,8 @@ def _apply_manufacturer_entity_rule(
         return True
     if role == "bodybuilder_converter" or behavior == "use_base_manufacturer":
         base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
+        if base is None:
+            base = _resolve_manufacturer(rule.get("fallback_manufacturer"))
         if base is None:
             reasons.append("converter_base_manufacturer_unresolved")
             return True
@@ -894,10 +954,11 @@ def _normalize_manufacturer(
 
     reviewed_entity = _manufacturer_entity_rule(raw, "manufacturer", entity_rules)
     if reviewed_entity is not None:
-        _apply_manufacturer_entity_rule(
+        handled = _apply_manufacturer_entity_rule(
             reviewed_entity, raw, normalized, candidates, applied, reasons
         )
-        return
+        if handled:
+            return
 
     converter = _resolve_converter(raw.get("manufacturer"))
     if converter is not None:

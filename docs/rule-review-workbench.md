@@ -68,15 +68,26 @@ Saab, Škoda, Dacia, Jaguar, Mazda, Mitsubishi, Vauxhall, and VW. Compound
 converter or marque terms (`ADRIA`, `DETHLEFFS`, and `DAIMLER`) are explicitly
 kept in review rather than flattened into the prefix manufacturer.
 
+Reviewed legal-entity parents can use a complete-prefix match that tolerates
+punctuation and accents. This lets one boundary-safe rule cover variants such
+as `SKODA`/`ŠKODA`, `CITROEN`/`CITROËN`, and `PSA`/`P.S.A.` without accepting
+lookalikes such as `SKODAX`. PSA remains a corporate group: only explicitly
+allow-listed child Brands resolve directly, while other children continue
+through the existing model, VIN, or KType evidence path.
+
+Converter parents preserve both sides of the decision. Knaus Tabbert uses the
+reviewed base manufacturer and retains Knaus as builder/converter. The reviewed
+compound Brand prefixes `FIAT ADRIA` and `FIAT DETHLEFFS` use Fiat as the main
+manufacturer and retain Adria or Dethleffs separately.
+
 ## Current review backlog
 
 The workbench reports reason counts for the latest passenger-car batch. Of 250
-records, 37 are resolved, 207 are provisional, 6 require review, and none
-failed. The remaining six are intentionally protected: Fiat/Adria,
-Fiat/Dethleffs, Jaguar/Daimler, Knaus/FCA, Škoda's legal entity, and a
-PSA/Citroën corporate-group case. This cohort has no bodywork/category
-conflicts. Reason counts can overlap in future batches and must not be assumed
-to equal the vehicle count without checking the records.
+records, 37 are resolved, 212 are provisional, 1 requires review, and none
+failed. The remaining Jaguar/Daimler compound Brand is intentionally protected
+until stronger marque/model evidence is available. This cohort has no
+bodywork/category conflicts. Reason counts can overlap in future batches and
+must not be assumed to equal the vehicle count without checking the records.
 
 ## Safety boundaries
 
