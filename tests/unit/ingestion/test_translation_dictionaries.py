@@ -4,6 +4,7 @@ import pytest
 
 from ingestion.normalization_rules import normalize_ts_record
 from ingestion.translation_dictionaries import (
+    PREVIOUS_RULE_SET_VERSION,
     REVIEWED_RULE_SET_VERSION,
     RuleSetNotFoundError,
     load_translation_rule_set,
@@ -37,7 +38,17 @@ def test_stakeholder_changes_are_captured_without_concept_conflation() -> None:
     assert rules.get("FUEL-013").canonical_value == "renewable_cng"
     assert rules.get("FUEL-019").canonical_value == "diesel"
     assert rules.get("BDY-115").canonical_value == "truck"
-    assert rules.get("BDY-010").canonical_value == "multi_purpose_vehicle"
+    assert rules.get("BDY-010").canonical_value == "passenger_van"
+
+
+def test_previous_rule_set_remains_available_for_exact_replay() -> None:
+    previous = load_translation_rule_set(PREVIOUS_RULE_SET_VERSION)
+    current = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
+
+    assert previous.version == "ts-translation-v2"
+    assert previous.get("BDY-010").canonical_value == "multi_purpose_vehicle"
+    assert current.version == "ts-translation-v3"
+    assert current.get("BDY-010").canonical_value == "passenger_van"
 
 
 def test_undecided_rule_is_proposed_and_cannot_create_output() -> None:
@@ -100,3 +111,32 @@ def test_reviewed_bodywork_change_stores_ba_as_truck() -> None:
     assert outcome.normalized["bodywork_form"] == "truck"
     assert outcome.normalized["bodywork_registry_label_sv"] == "Lastbil"
     assert "BDY-115" in outcome.applied_rule_ids
+
+
+def test_reviewed_van_terms_keep_distinct_internal_forms() -> None:
+    goods_van = normalize_ts_record(
+        {"manufacturer": "Ford", "eu_category": "N1", "model": "Transit Cargo Van"}
+    )
+    passenger_van = normalize_ts_record(
+        {"manufacturer": "Volkswagen", "eu_category": "M1", "model": "Multivan"}
+    )
+
+    assert goods_van.normalized["bodywork_form"] == "van"
+    assert "BDY-009" in goods_van.applied_rule_ids
+    assert passenger_van.normalized["bodywork_form"] == "passenger_van"
+    assert "BDY-010" in passenger_van.applied_rule_ids
+
+
+def test_official_af_keeps_multi_purpose_vehicle_over_compatible_marketing_term() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Volkswagen",
+            "eu_category": "M1",
+            "body_code": "AF",
+            "model": "Multivan",
+        }
+    )
+
+    assert outcome.normalized["bodywork_form"] == "multi_purpose_vehicle"
+    assert {"BDY-010", "BDY-113"} <= set(outcome.applied_rule_ids)
+    assert "bodywork_structured_marketing_conflict" not in outcome.review_reasons

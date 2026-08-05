@@ -1,7 +1,8 @@
 # Translation dictionary contract
 
-SCRUM-89 moves the reviewed Transportstyrelsen mappings into the immutable
-`ts-translation-v2` rule set. The source review is the stakeholder workbook
+SCRUM-89 moves the reviewed Transportstyrelsen mappings into immutable,
+exactly addressable rule sets. The current `ts-translation-v3` rules incorporate
+the latest bodywork comments from the stakeholder workbook
 `translation-rules-review-transmission-fuel-bodywork with comment.xlsx`.
 
 ## Loading and decisions
@@ -28,8 +29,14 @@ never creates `unknown`, `zero`, or another fuel value.
 - Biodiesel is stored as `diesel`.
 - Bodywork BA is stored as `truck`.
 - Bodywork BB and reviewed van marketing remain `van` internally.
-- Passenger-van terms retain the approved internal value
-  `multi_purpose_vehicle`, with Passenger van as display language.
+- Passenger-van marketing terms use `passenger_van`.
+- Official passenger code AF remains `multi_purpose_vehicle`; when AF and a
+  compatible Passenger Van marketing term occur together, the official AF value
+  wins without creating a false conflict.
+
+Version 2 remains loadable for deterministic replay. It retains the earlier
+`BDY-010` value `multi_purpose_vehicle`; callers must request version 3 to use
+the reviewed `passenger_van` distinction.
 
 ## Matching safety
 

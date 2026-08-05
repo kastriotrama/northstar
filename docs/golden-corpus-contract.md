@@ -7,11 +7,12 @@ other unnecessary personal data.
 
 ## Coverage
 
-`tests/golden/normalization-reconciliation-v1.json` contains exactly 200 reviewed examples:
+`tests/golden/normalization-reconciliation-v1.json` contains 205 reviewed examples:
 
-- 160 Transportstyrelsen normalization cases covering common mappings, dates, engine fields,
+- 165 Transportstyrelsen normalization cases covering common mappings, dates, engine fields,
   measurements, transmission, bodywork, drive candidates, hybrid/dual-fuel evidence, malformed
-  source values and unknown-manufacturer review routing.
+  source values, unknown-manufacturer review routing, and the reviewed truck/van/passenger-van
+  distinctions.
 - 40 reconciliation cases covering exact matches, supported inexact matches, hard fuel
   conflicts and equal-score ambiguity with retained candidate alternatives.
 

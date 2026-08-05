@@ -30,8 +30,8 @@ def test_committed_corpus_has_required_size_coverage_and_approved_outputs() -> N
     tags = {tag for case in document["cases"] for tag in case["tags"]}
 
     assert report.corpus_version == GOLDEN_CORPUS_VERSION
-    assert report.case_count == 200
-    assert report.normalization_count == 160
+    assert report.case_count == 205
+    assert report.normalization_count == 165
     assert report.reconciliation_count == 40
     assert {"common", "rare", "ambiguous", "review", "resolved", "provisional"} <= tags
 
@@ -66,7 +66,7 @@ def test_explicit_approval_replaces_expected_results_and_reverifies(tmp_path: Pa
 
     report = approve_corpus(corpus_path)
 
-    assert report.case_count == 200
+    assert report.case_count == 205
     assert verify_corpus(corpus_path) == report
 
 
@@ -94,6 +94,6 @@ def test_cli_prints_case_summary(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(("verify", str(DEFAULT_CORPUS_PATH))) == 0
     output = capsys.readouterr().out
 
-    assert "200 cases passed" in output
-    assert "160 normalization" in output
+    assert "205 cases passed" in output
+    assert "165 normalization" in output
     assert "40 reconciliation" in output

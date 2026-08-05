@@ -213,10 +213,60 @@ def _reconciliation_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def _reviewed_bodywork_cases() -> list[dict[str, Any]]:
+    examples = (
+        (
+            "bodywork-official-af",
+            "Official AF remains the broader multi-purpose vehicle form",
+            {"manufacturer": "Volkswagen", "eu_category": "M1", "body_code": "AF"},
+            ["bodywork", "official", "multi-purpose"],
+        ),
+        (
+            "bodywork-official-ba",
+            "Official goods category BA uses the reviewed truck form",
+            {"manufacturer": "Volvo", "eu_category": "N1", "body_code": "BA"},
+            ["bodywork", "official", "truck"],
+        ),
+        (
+            "bodywork-goods-van",
+            "Goods-category panel and cargo marketing terms remain van",
+            {"manufacturer": "Ford", "eu_category": "N1", "model": "Transit Cargo Van"},
+            ["bodywork", "marketing", "van"],
+        ),
+        (
+            "bodywork-passenger-van",
+            "Passenger-category marketing term uses passenger_van",
+            {"manufacturer": "Volkswagen", "eu_category": "M1", "model": "Multivan"},
+            ["bodywork", "marketing", "passenger-van"],
+        ),
+        (
+            "bodywork-af-passenger-compatible",
+            "Official AF wins without conflict when passenger-van marketing evidence agrees",
+            {
+                "manufacturer": "Volkswagen",
+                "eu_category": "M1",
+                "body_code": "AF",
+                "model": "Multivan",
+            },
+            ["bodywork", "official", "marketing", "compatibility"],
+        ),
+    )
+    return [
+        {
+            "id": case_id,
+            "description": description,
+            "tags": tags,
+            "input": {"kind": "normalization", "raw_record": raw_record},
+            "expected": {},
+        }
+        for case_id, description, raw_record, tags in examples
+    ]
+
+
 def main() -> None:
-    cases = [*_normalization_cases(), *_reconciliation_cases()]
-    if len(cases) != 200:
-        raise RuntimeError(f"expected exactly 200 curated cases, got {len(cases)}")
+    cases = [*_normalization_cases(), *_reviewed_bodywork_cases(), *_reconciliation_cases()]
+    if len(cases) != 205:
+        raise RuntimeError(f"expected exactly 205 curated cases, got {len(cases)}")
     CORPUS_PATH.parent.mkdir(parents=True, exist_ok=True)
     CORPUS_PATH.write_text(
         json.dumps(

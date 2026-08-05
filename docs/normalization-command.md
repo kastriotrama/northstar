@@ -27,7 +27,8 @@ reuses deterministic normalization and review IDs.
 - Accepted manufacturer, bodywork, transmission, date, engine, power, and
   displacement decisions
   may populate normalized fields.
-- Stakeholder-approved fuel and electrification rules from `ts-translation-v2`
+- Stakeholder-approved transmission, fuel, electrification, and bodywork rules
+  from `ts-translation-v3`
   populate normalized fields only when their structured evidence is complete.
 - Drive, model-family, and brand-based matches remain candidates.
 - Proposed, unknown, or conflicting translation evidence routes to review and

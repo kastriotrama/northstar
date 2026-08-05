@@ -746,6 +746,10 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
         context.review_reasons.append("motorhome_supporting_evidence_missing")
         return
     if code_rule is not None and code_rule.canonical_value != rule.canonical_value:
+        compatible_forms = frozenset({code_rule.canonical_value, rule.canonical_value})
+        if compatible_forms == frozenset({"multi_purpose_vehicle", "passenger_van"}):
+            context.applied_rule_ids.append(rule.rule_id)
+            return
         context.candidate_rule_ids.append(rule.rule_id)
         context.review_reasons.append("bodywork_structured_marketing_conflict")
         return

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Literal
 
@@ -18,7 +18,8 @@ RuleArea = Literal[
 ]
 RuleDecision = Literal["accepted", "proposed"]
 
-REVIEWED_RULE_SET_VERSION = "ts-translation-v2"
+PREVIOUS_RULE_SET_VERSION = "ts-translation-v2"
+REVIEWED_RULE_SET_VERSION = "ts-translation-v3"
 
 
 class RuleSetNotFoundError(LookupError):
@@ -836,15 +837,33 @@ _RULES = (
     _rule("TRN-008", "transmission_code", "gearbox", "Z", "transmission_type", "automatic"),
 )
 
+_PREVIOUS_RULE_SET = TranslationRuleSet(
+    version=PREVIOUS_RULE_SET_VERSION,
+    rules=tuple(sorted(_RULES, key=lambda rule: rule.rule_id)),
+)
+
+_LATEST_RULES = tuple(
+    replace(rule, canonical_value="passenger_van", display_value="Passenger van")
+    if rule.rule_id == "BDY-010"
+    else rule
+    for rule in _RULES
+)
 _REVIEWED_RULE_SET = TranslationRuleSet(
     version=REVIEWED_RULE_SET_VERSION,
-    rules=tuple(sorted(_RULES, key=lambda rule: rule.rule_id)),
+    rules=tuple(sorted(_LATEST_RULES, key=lambda rule: rule.rule_id)),
+)
+_RULE_SETS = MappingProxyType(
+    {
+        PREVIOUS_RULE_SET_VERSION: _PREVIOUS_RULE_SET,
+        REVIEWED_RULE_SET_VERSION: _REVIEWED_RULE_SET,
+    }
 )
 
 
 def load_translation_rule_set(version: str) -> TranslationRuleSet:
     """Load one exact immutable rule-set version; never fall back silently."""
 
-    if version != REVIEWED_RULE_SET_VERSION:
-        raise RuleSetNotFoundError(f"translation rule set {version!r} is unavailable")
-    return _REVIEWED_RULE_SET
+    try:
+        return _RULE_SETS[version]
+    except KeyError as error:
+        raise RuleSetNotFoundError(f"translation rule set {version!r} is unavailable") from error
