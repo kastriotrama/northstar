@@ -118,7 +118,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -155,7 +155,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Volvo",
@@ -173,16 +173,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -926,7 +926,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -935,7 +935,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -944,7 +944,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -1139,7 +1139,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -1148,7 +1148,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -1157,7 +1157,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -1741,7 +1741,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -1778,7 +1778,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Mercedes-Benz",
@@ -1796,16 +1796,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -2549,7 +2549,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -2558,7 +2558,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -2567,7 +2567,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -2762,7 +2762,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -2771,7 +2771,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -2780,7 +2780,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -3364,7 +3364,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -3401,7 +3401,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "BMW",
@@ -3419,16 +3419,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -4172,7 +4172,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -4181,7 +4181,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -4190,7 +4190,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -4385,7 +4385,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -4394,7 +4394,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -4403,7 +4403,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -4987,7 +4987,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -5024,7 +5024,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Audi",
@@ -5042,16 +5042,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -5795,7 +5795,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -5804,7 +5804,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -5813,7 +5813,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -6008,7 +6008,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -6017,7 +6017,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -6026,7 +6026,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -6610,7 +6610,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -6647,7 +6647,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Volkswagen",
@@ -6665,16 +6665,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -7418,7 +7418,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -7427,7 +7427,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -7436,7 +7436,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -7631,7 +7631,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -7640,7 +7640,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -7649,7 +7649,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -8233,7 +8233,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -8270,7 +8270,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Iveco",
@@ -8288,16 +8288,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -9041,7 +9041,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -9050,7 +9050,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -9059,7 +9059,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -9254,7 +9254,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -9263,7 +9263,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -9272,7 +9272,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -9856,7 +9856,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -9893,7 +9893,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Scania",
@@ -9911,16 +9911,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -10664,7 +10664,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -10673,7 +10673,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -10682,7 +10682,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -10877,7 +10877,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -10886,7 +10886,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -10895,7 +10895,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -11479,7 +11479,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -11516,7 +11516,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Ford",
@@ -11534,16 +11534,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -12287,7 +12287,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -12296,7 +12296,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -12305,7 +12305,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -12500,7 +12500,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -12509,7 +12509,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -12518,7 +12518,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -13102,7 +13102,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -13139,7 +13139,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Toyota",
@@ -13157,16 +13157,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -13910,7 +13910,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -13919,7 +13919,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -13928,7 +13928,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -14123,7 +14123,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -14132,7 +14132,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -14141,7 +14141,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -14725,7 +14725,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -14762,7 +14762,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Renault",
@@ -14780,16 +14780,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -15533,7 +15533,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -15542,7 +15542,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -15551,7 +15551,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -15746,7 +15746,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -15755,7 +15755,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -15764,7 +15764,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -16348,7 +16348,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -16385,7 +16385,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Peugeot",
@@ -16403,16 +16403,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -17156,7 +17156,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -17165,7 +17165,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -17174,7 +17174,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -17369,7 +17369,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -17378,7 +17378,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -17387,7 +17387,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -17946,7 +17946,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -17983,7 +17983,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "market": [
             "SE"
@@ -18000,16 +18000,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -18675,7 +18675,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -18684,7 +18684,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -18693,7 +18693,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -18862,7 +18862,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -18871,7 +18871,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -18880,7 +18880,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -19409,7 +19409,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -19446,7 +19446,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Fiat",
@@ -19464,16 +19464,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -20217,7 +20217,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -20226,7 +20226,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -20235,7 +20235,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -20430,7 +20430,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -20439,7 +20439,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -20448,7 +20448,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -21032,7 +21032,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -21069,7 +21069,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Opel",
@@ -21087,16 +21087,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -21840,7 +21840,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -21849,7 +21849,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -21858,7 +21858,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -22053,7 +22053,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -22062,7 +22062,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -22071,7 +22071,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -22655,7 +22655,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -22692,7 +22692,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Nissan",
@@ -22710,16 +22710,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -23463,7 +23463,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -23472,7 +23472,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -23481,7 +23481,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -23676,7 +23676,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -23685,7 +23685,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -23694,7 +23694,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -24278,7 +24278,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -24315,7 +24315,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Honda",
@@ -24333,16 +24333,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -25086,7 +25086,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -25095,7 +25095,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -25104,7 +25104,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -25299,7 +25299,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -25308,7 +25308,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -25317,7 +25317,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -25901,7 +25901,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -25938,7 +25938,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "MAN",
@@ -25956,16 +25956,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -26709,7 +26709,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -26718,7 +26718,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -26727,7 +26727,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -26922,7 +26922,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -26931,7 +26931,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -26940,7 +26940,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -27524,7 +27524,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -27561,7 +27561,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "DAF",
@@ -27579,16 +27579,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -28332,7 +28332,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -28341,7 +28341,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -28350,7 +28350,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -28545,7 +28545,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -28554,7 +28554,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -28563,7 +28563,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -29147,7 +29147,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -29184,7 +29184,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Lexus",
@@ -29202,16 +29202,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -29955,7 +29955,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -29964,7 +29964,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -29973,7 +29973,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -30168,7 +30168,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -30177,7 +30177,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -30186,7 +30186,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -30770,7 +30770,7 @@
             "transformer_id": "ts.transmission"
           },
           {
-            "after": "wagon",
+            "after": "estate",
             "before": {
               "body_code": "AC",
               "eu_category": "M1",
@@ -30807,7 +30807,7 @@
           "alias_types_present": [
             "model_name"
           ],
-          "bodywork_form": "wagon",
+          "bodywork_form": "estate",
           "bodywork_registry_label_sv": "Stationsvagn (kombivagn)",
           "builder_converter_names": [],
           "manufacturer": "Porsche",
@@ -30825,16 +30825,16 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
           },
           {
-            "canonical_value": "wagon",
+            "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -31578,7 +31578,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -31587,7 +31587,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -31596,7 +31596,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -31791,7 +31791,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -31800,7 +31800,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -31809,7 +31809,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -32398,7 +32398,7 @@
             "canonical_value": "multi_purpose_vehicle",
             "decision": "accepted",
             "rule_id": "BDY-113",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AF",
             "target_field": "bodywork_form"
@@ -32544,7 +32544,7 @@
             "canonical_value": "truck",
             "decision": "accepted",
             "rule_id": "BDY-115",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "BA",
             "target_field": "bodywork_form"
@@ -32705,7 +32705,7 @@
             "canonical_value": "van",
             "decision": "accepted",
             "rule_id": "BDY-009",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "model",
             "source_term": "Cargo Van",
             "target_field": "bodywork_form"
@@ -32866,7 +32866,7 @@
             "canonical_value": "passenger_van",
             "decision": "accepted",
             "rule_id": "BDY-010",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "model",
             "source_term": "Multivan",
             "target_field": "bodywork_form"
@@ -33048,7 +33048,7 @@
             "canonical_value": "multi_purpose_vehicle",
             "decision": "accepted",
             "rule_id": "BDY-113",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "body_code",
             "source_term": "AF",
             "target_field": "bodywork_form"
@@ -33057,7 +33057,7 @@
             "canonical_value": "passenger_van",
             "decision": "accepted",
             "rule_id": "BDY-010",
-            "rule_set_version": "ts-translation-v3",
+            "rule_set_version": "ts-translation-v4",
             "source_field": "model",
             "source_term": "Multivan",
             "target_field": "bodywork_form"

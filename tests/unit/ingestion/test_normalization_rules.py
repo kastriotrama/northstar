@@ -16,7 +16,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     )
     assert outcome.status == "provisional"
     assert outcome.normalized["manufacturer"] == "Volvo"
-    assert outcome.normalized["bodywork_form"] == "wagon"
+    assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
     assert outcome.pipeline_version == "normalization-pipeline-v3"
@@ -72,7 +72,7 @@ def test_bodywork_codes_are_vehicle_category_scoped() -> None:
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}
     )
     goods = normalize_ts_record({"manufacturer": "Volvo", "eu_category": "N1", "body_code": "AC"})
-    assert passenger.normalized["bodywork_form"] == "wagon"
+    assert passenger.normalized["bodywork_form"] == "estate"
     assert goods.status == "review_required"
     assert "bodywork_form" not in goods.normalized
 
@@ -120,7 +120,7 @@ def test_text_canonicalization_runs_before_translation_rules() -> None:
     )
 
     assert outcome.normalized["manufacturer"] == "Volvo"
-    assert outcome.normalized["bodywork_form"] == "wagon"
+    assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60 Recharge"
     assert any(

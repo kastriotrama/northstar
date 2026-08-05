@@ -4,8 +4,9 @@ import pytest
 
 from ingestion.normalization_rules import normalize_ts_record
 from ingestion.translation_dictionaries import (
-    PREVIOUS_RULE_SET_VERSION,
     REVIEWED_RULE_SET_VERSION,
+    RULE_SET_VERSION_V2,
+    RULE_SET_VERSION_V3,
     RuleSetNotFoundError,
     load_translation_rule_set,
 )
@@ -39,16 +40,22 @@ def test_stakeholder_changes_are_captured_without_concept_conflation() -> None:
     assert rules.get("FUEL-019").canonical_value == "diesel"
     assert rules.get("BDY-115").canonical_value == "truck"
     assert rules.get("BDY-010").canonical_value == "passenger_van"
+    assert rules.get("BDY-110").canonical_value == "estate"
+    assert rules.get("BDY-117").canonical_value == "cargo_estate"
 
 
 def test_previous_rule_set_remains_available_for_exact_replay() -> None:
-    previous = load_translation_rule_set(PREVIOUS_RULE_SET_VERSION)
+    version_2 = load_translation_rule_set(RULE_SET_VERSION_V2)
+    version_3 = load_translation_rule_set(RULE_SET_VERSION_V3)
     current = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
 
-    assert previous.version == "ts-translation-v2"
-    assert previous.get("BDY-010").canonical_value == "multi_purpose_vehicle"
-    assert current.version == "ts-translation-v3"
+    assert version_2.get("BDY-010").canonical_value == "multi_purpose_vehicle"
+    assert version_2.get("BDY-110").canonical_value == "wagon"
+    assert version_3.get("BDY-010").canonical_value == "passenger_van"
+    assert version_3.get("BDY-110").canonical_value == "wagon"
+    assert current.version == "ts-translation-v4"
     assert current.get("BDY-010").canonical_value == "passenger_van"
+    assert current.get("BDY-110").canonical_value == "estate"
 
 
 def test_undecided_rule_is_proposed_and_cannot_create_output() -> None:

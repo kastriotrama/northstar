@@ -146,7 +146,7 @@ Body style vocabulary node. Small, closed-ish set shared by all variants.
 
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
-| `canonical_name` | string | required | `"sedan"` | From the body-type synonym dictionary (Epic 4): sedan, wagon, coupe, convertible, hatchback, suv, van, pickup, chassis_cab |
+| `canonical_name` | string | required | `"sedan"` | From the bodywork synonym dictionary (Epic 4): sedan, estate, coupe, convertible, hatchback, suv, van, passenger_van, pickup, chassis_cab |
 | `door_count` | int | nullable | `4` | Distinguishes 3- vs 5-door hatchback |
 
 ### 3.7 VehicleVariant (`VEH-`)

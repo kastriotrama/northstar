@@ -28,7 +28,7 @@ reuses deterministic normalization and review IDs.
   displacement decisions
   may populate normalized fields.
 - Stakeholder-approved transmission, fuel, electrification, and bodywork rules
-  from `ts-translation-v3`
+  from `ts-translation-v4`
   populate normalized fields only when their structured evidence is complete.
 - Drive, model-family, and brand-based matches remain candidates.
 - Proposed, unknown, or conflicting translation evidence routes to review and

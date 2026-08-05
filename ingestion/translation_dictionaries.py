@@ -18,8 +18,9 @@ RuleArea = Literal[
 ]
 RuleDecision = Literal["accepted", "proposed"]
 
-PREVIOUS_RULE_SET_VERSION = "ts-translation-v2"
-REVIEWED_RULE_SET_VERSION = "ts-translation-v3"
+RULE_SET_VERSION_V2 = "ts-translation-v2"
+RULE_SET_VERSION_V3 = "ts-translation-v3"
+REVIEWED_RULE_SET_VERSION = "ts-translation-v4"
 
 
 class RuleSetNotFoundError(LookupError):
@@ -837,16 +838,27 @@ _RULES = (
     _rule("TRN-008", "transmission_code", "gearbox", "Z", "transmission_type", "automatic"),
 )
 
-_PREVIOUS_RULE_SET = TranslationRuleSet(
-    version=PREVIOUS_RULE_SET_VERSION,
+_V2_RULE_SET = TranslationRuleSet(
+    version=RULE_SET_VERSION_V2,
     rules=tuple(sorted(_RULES, key=lambda rule: rule.rule_id)),
 )
 
-_LATEST_RULES = tuple(
+_V3_RULES = tuple(
     replace(rule, canonical_value="passenger_van", display_value="Passenger van")
     if rule.rule_id == "BDY-010"
     else rule
     for rule in _RULES
+)
+_V3_RULE_SET = TranslationRuleSet(
+    version=RULE_SET_VERSION_V3,
+    rules=tuple(sorted(_V3_RULES, key=lambda rule: rule.rule_id)),
+)
+_BODYWORK_FORM_V4 = {"wagon": "estate", "cargo_wagon": "cargo_estate"}
+_LATEST_RULES = tuple(
+    replace(rule, canonical_value=_BODYWORK_FORM_V4[rule.canonical_value])
+    if rule.canonical_value in _BODYWORK_FORM_V4
+    else rule
+    for rule in _V3_RULES
 )
 _REVIEWED_RULE_SET = TranslationRuleSet(
     version=REVIEWED_RULE_SET_VERSION,
@@ -854,7 +866,8 @@ _REVIEWED_RULE_SET = TranslationRuleSet(
 )
 _RULE_SETS = MappingProxyType(
     {
-        PREVIOUS_RULE_SET_VERSION: _PREVIOUS_RULE_SET,
+        RULE_SET_VERSION_V2: _V2_RULE_SET,
+        RULE_SET_VERSION_V3: _V3_RULE_SET,
         REVIEWED_RULE_SET_VERSION: _REVIEWED_RULE_SET,
     }
 )

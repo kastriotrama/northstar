@@ -1,7 +1,7 @@
 # Translation dictionary contract
 
 SCRUM-89 moves the reviewed Transportstyrelsen mappings into immutable,
-exactly addressable rule sets. The current `ts-translation-v3` rules incorporate
+exactly addressable rule sets. The current `ts-translation-v4` rules incorporate
 the latest bodywork comments from the stakeholder workbook
 `translation-rules-review-transmission-fuel-bodywork with comment.xlsx`.
 
@@ -29,14 +29,18 @@ never creates `unknown`, `zero`, or another fuel value.
 - Biodiesel is stored as `diesel`.
 - Bodywork BA is stored as `truck`.
 - Bodywork BB and reviewed van marketing remain `van` internally.
+- European/British `estate` is the canonical form; `wagon` remains an input and
+  search synonym rather than a stored value. Legacy Lastkombi uses
+  `cargo_estate`.
 - Passenger-van marketing terms use `passenger_van`.
 - Official passenger code AF remains `multi_purpose_vehicle`; when AF and a
   compatible Passenger Van marketing term occur together, the official AF value
   wins without creating a false conflict.
 
-Version 2 remains loadable for deterministic replay. It retains the earlier
-`BDY-010` value `multi_purpose_vehicle`; callers must request version 3 to use
-the reviewed `passenger_van` distinction.
+Versions 2 and 3 remain loadable for deterministic replay. Version 2 retains
+the earlier `BDY-010` value `multi_purpose_vehicle`; version 3 introduces
+`passenger_van` while retaining `wagon`; version 4 uses the reviewed European
+`estate` terminology.
 
 ## Matching safety
 
