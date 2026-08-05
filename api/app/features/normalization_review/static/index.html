@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#102b2a" />
+    <title>NorthStar · Normalization review</title>
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/normalization-review" aria-label="NorthStar normalization review">
+          <span class="brand-mark" aria-hidden="true">N</span>
+          <span>NorthStar</span>
+        </a>
+        <div class="page-title">
+          <span>Data operations</span>
+          <strong>Normalization review</strong>
+        </div>
+        <div class="batch-state">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="batch-label">Loading latest batch…</span>
+        </div>
+      </header>
+
+      <section class="summary-strip" aria-label="Normalization summary">
+        <div class="summary-lead">
+          <span class="eyebrow">Imported vehicles</span>
+          <strong id="summary-total">—</strong>
+        </div>
+        <dl class="summary-metrics">
+          <div><dt>Resolved</dt><dd id="summary-resolved">—</dd></div>
+          <div><dt>Provisional</dt><dd id="summary-provisional">—</dd></div>
+          <div><dt>Needs review</dt><dd id="summary-review">—</dd></div>
+          <div><dt>Failed</dt><dd id="summary-failed">—</dd></div>
+        </dl>
+        <div class="coverage">
+          <span>Visible sample</span>
+          <strong id="visible-count">0 / 250</strong>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="results-pane" aria-label="Normalized vehicles">
+          <div class="toolbar">
+            <label class="search-field">
+              <span class="sr-only">Search vehicles</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg>
+              <input id="search" type="search" placeholder="Search manufacturer, model, engine…" autocomplete="off" />
+              <kbd>⌘ K</kbd>
+            </label>
+            <button id="reset-filters" class="text-button" type="button">Reset filters</button>
+          </div>
+
+          <div class="filter-row" aria-label="Vehicle filters">
+            <label><span>Status</span><select id="filter-status"><option value="">All statuses</option><option value="resolved">Resolved</option><option value="provisional">Provisional</option><option value="review_required">Needs review</option><option value="failed">Failed</option></select></label>
+            <label><span>Manufacturer</span><select id="filter-manufacturer"><option value="">All manufacturers</option></select></label>
+            <label><span>Bodywork</span><select id="filter-bodywork"><option value="">All bodywork</option></select></label>
+            <label><span>Fuel</span><select id="filter-fuel"><option value="">All fuels</option></select></label>
+            <label><span>Transmission</span><select id="filter-transmission"><option value="">All transmissions</option></select></label>
+          </div>
+
+          <div class="result-meta">
+            <span id="result-count">Loading vehicles…</span>
+            <span>Click a row to inspect its normalization evidence</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Status</th>
+                  <th>Bodywork</th>
+                  <th>Fuel</th>
+                  <th>Transmission</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="vehicle-rows"></tbody>
+            </table>
+            <div id="empty-state" class="empty-state" hidden>
+              <strong>No vehicles match this view</strong>
+              <p>Change the filters, or import and normalize a Transportstyrelsen batch.</p>
+            </div>
+          </div>
+
+          <footer class="pagination">
+            <button id="previous-page" type="button">Previous</button>
+            <span id="page-label">Page 1</span>
+            <button id="next-page" type="button">Next</button>
+          </footer>
+        </section>
+
+        <aside class="inspector" aria-label="Selected vehicle normalization details">
+          <button id="close-inspector" class="close-inspector" type="button" aria-label="Close vehicle details">Close</button>
+          <div id="inspector-empty" class="inspector-empty">
+            <span class="inspector-glyph" aria-hidden="true">↗</span>
+            <strong>Select a vehicle</strong>
+            <p>Review normalized fields, candidates, rules, and source evidence.</p>
+          </div>
+          <div id="inspector-content" hidden>
+            <div class="inspector-head">
+              <div>
+                <span class="eyebrow" id="inspector-record">Source record</span>
+                <h1 id="inspector-name">Vehicle</h1>
+              </div>
+              <span id="inspector-status" class="status-badge"></span>
+            </div>
+
+            <div class="confidence-line">
+              <div><span>Normalization confidence</span><strong id="inspector-confidence">0%</strong></div>
+              <div class="confidence-track"><span id="confidence-fill"></span></div>
+            </div>
+
+            <section class="inspector-section">
+              <h2>Normalized vehicle</h2>
+              <dl id="normalized-fields" class="field-list"></dl>
+            </section>
+
+            <section class="inspector-section" id="review-section">
+              <h2>Review signals</h2>
+              <div id="review-reasons" class="reason-list"></div>
+            </section>
+
+            <section class="inspector-section">
+              <h2>Raw → normalized evidence</h2>
+              <ol id="decision-trace" class="trace-list"></ol>
+            </section>
+
+            <section class="inspector-section">
+              <h2>Applied rules</h2>
+              <div id="rule-list" class="rule-list"></div>
+            </section>
+          </div>
+        </aside>
+      </main>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/normalization-review/assets/app.js" defer></script>
+  </body>
+</html>

@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-05 — Normalization review dashboard
+
+- Built a read-only operations dashboard and filtered API for the latest normalization batch, with 250 real Transportstyrelsen samples, status totals, manufacturer/model/engine search, status/manufacturer/bodywork/fuel/transmission filters, pagination, and a sanitized evidence inspector showing normalized fields, confidence, review reasons, decision trace, and rule IDs. The current sample has 14 provisional and 236 review-required records with zero technical failures. Service, API, repository, privacy, JavaScript syntax, and browser interaction checks pass; Ruff, strict mypy, and all 328 tests pass. Jira, push, and PR remain unchanged.
+
 ## 2026-08-05 — SCRUM-94
 
 - Implemented the sanitized golden normalization/reconciliation corpus on `feature/SCRUM-94-golden-test-corpus`: added 205 versioned cases (165 TS normalization and 40 candidate reconciliation), complete approved output/evidence snapshots, sensitive-field and corpus-shape gates, explicit approval, aggregate per-case unified regression diffs, a CI verification step, documentation, and tests. Applied the latest stakeholder bodywork comments in replay-safe `ts-translation-v4`: European `estate` replaces stored `wagon`, BA remains `truck`, goods van remains `van`, passenger marketing becomes `passenger_van`, and official AF remains `multi_purpose_vehicle`; versions 2 and 3 remain replayable. Ruff 0.16, strict mypy, the standalone corpus verifier, and all 322 tests pass. Jira, push, and PR remain unchanged.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-04
 
 - Fixed all Ruff 0.16 findings, pinned the CI lint version, and merged green PRs #21/SCRUM-18 and #22/SCRUM-19 into develop. Created `feature/SCRUM-87-pipeline-framework-record-contract` in an isolated worktree, reconciled the completed SCRUM-82 normalizer, and added an ordered transformer pipeline plus redaction-safe field-level decision traces, version-safe persistence, contract validation, documentation, and tests; Ruff and strict mypy pass, with 193 tests passing and 43 datastore tests skipped because Docker is stopped.
-
-## 2026-07-30
-
-- Implemented SCRUM-82 on `feature/SCRUM-82-ts-normalizer`: added versioned sanitized normalization results, accepted/candidate rule separation, deterministic review routing, retry-safe batch execution, explicit-batch CLI behavior, a fixed-width pilot reader, documentation, and tests; the isolated full suite passed with 229 tests, Ruff and strict mypy passed, and a real 1,000-vehicle pilot completed with zero technical failures and a verified no-op retry. The retained pilot requires manufacturer review because the legacy source lacks `Tillverkare`; Jira, push, and PR remain unchanged pending approval.

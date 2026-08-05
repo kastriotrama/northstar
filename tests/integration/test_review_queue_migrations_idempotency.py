@@ -89,7 +89,7 @@ def test_queue_round_trip_status_worklist_and_resolution(
     )
     pg_connection.commit()
 
-    pending = fetch_review_items_by_status(pg_connection, "pending")
+    pending = fetch_review_items_by_status(pg_connection, "pending", limit=1000)
     item = next(row for row in pending if row.id == item_id)
     assert item.review_id == review_id
     assert item.source_system == TEST_SOURCE

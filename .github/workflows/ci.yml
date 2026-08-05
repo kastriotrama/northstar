@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate normalization review JavaScript
+        run: node --check api/app/features/normalization_review/static/app.js
+
       - name: Build API image
         run: docker build --target api -t northstar-api:ci .
 

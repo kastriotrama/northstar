@@ -56,3 +56,10 @@ northstar-ingest normalize --batch-id <source-batch-id>
 The normalization command is retry-safe, requires an explicit staging batch,
 and routes uncertain records to the durable review queue. See
 [`docs/normalization-command.md`](docs/normalization-command.md).
+
+## Normalization Review
+
+After normalizing a Transportstyrelsen batch, open
+`http://localhost:8000/normalization-review` to search, filter, and inspect up
+to 300 sanitized normalization results. See
+[`docs/normalization-review-dashboard.md`](docs/normalization-review-dashboard.md).
