@@ -99,3 +99,7 @@ The operation is idempotent: retrying an already verified bundle succeeds
 without duplicating records. It rejects a conflicting batch, rule version,
 application catalog, mapping version, pipeline version, or result payload.
 Run it only in a disposable local or CI test database, never production.
+
+For the reusable reviewed-rule SQL lifecycle, including deterministic export
+from the latest immutable database version and guarded installation in another
+environment, see [Reviewed rule SQL workflow](reviewed-rule-delta-workflow.md).

@@ -89,7 +89,12 @@ def test_queue_round_trip_status_worklist_and_resolution(
     )
     pg_connection.commit()
 
-    pending = fetch_review_items_by_status(pg_connection, "pending", limit=1000)
+    pending = fetch_review_items_by_status(
+        pg_connection,
+        "pending",
+        limit=1000,
+        source_system=TEST_SOURCE,
+    )
     item = next(row for row in pending if row.id == item_id)
     assert item.review_id == review_id
     assert item.source_system == TEST_SOURCE
@@ -114,7 +119,12 @@ def test_queue_round_trip_status_worklist_and_resolution(
     assert resolved.resolved_at is not None
     assert resolved.resolved_by == "stakeholder-review"
     assert any(
-        row.id == item_id for row in fetch_review_items_by_status(pg_connection, "resolved")
+        row.id == item_id
+        for row in fetch_review_items_by_status(
+            pg_connection,
+            "resolved",
+            source_system=TEST_SOURCE,
+        )
     )
 
 

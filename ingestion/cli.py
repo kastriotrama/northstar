@@ -11,6 +11,7 @@ from ingestion.datastores import DatastoreClients
 from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
 from ingestion.normalization_bundle import import_normalization_bundle
+from ingestion.rule_delta import export_rule_delta
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,27 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         required=True,
         help="Path to the portable normalization .xlsx bundle.",
+    )
+
+    delta_parser = subparsers.add_parser(
+        "export-rule-delta",
+        help="Export immutable reviewed-rule versions as guarded SQL.",
+    )
+    delta_parser.add_argument(
+        "--baseline-version",
+        required=True,
+        help="Immutable rule version that the target environment must already contain.",
+    )
+    delta_parser.add_argument(
+        "--target-version",
+        default=None,
+        help="Immutable target version; defaults to the latest active database version.",
+    )
+    delta_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Destination .sql path.",
     )
 
     for job in list_jobs():
@@ -63,6 +85,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "import-normalization-bundle\tportable_normalization_bundle\t"
             "Populate PostgreSQL from a validated normalization Excel bundle."
         )
+        print(
+            "export-rule-delta\ttranslation_rule_versions\t"
+            "Export a deterministic guarded SQL rule delta."
+        )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
         return 0
@@ -71,7 +97,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         datastores = DatastoreClients.from_settings(settings)
         try:
             with datastores.postgres.connect() as connection:
-                summary = import_normalization_bundle(connection, args.file)
+                bundle_summary = import_normalization_bundle(connection, args.file)
         except Exception as error:  # noqa: BLE001
             logger.error(
                 "Normalization bundle import stopped safely",
@@ -82,7 +108,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             return 1
-        print(json.dumps(asdict(summary), sort_keys=True))
+        print(json.dumps(asdict(bundle_summary), sort_keys=True))
+        return 0
+
+    if args.command == "export-rule-delta":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                delta_summary = export_rule_delta(
+                    connection,
+                    baseline_version=args.baseline_version,
+                    target_version=args.target_version,
+                    output_path=args.output,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Rule-delta export stopped safely",
+                extra={
+                    "job_name": args.command,
+                    "source": "translation_rule_versions",
+                    "error_code": type(error).__name__,
+                },
+            )
+            return 1
+        print(json.dumps(asdict(delta_summary), sort_keys=True))
         return 0
 
     datastores = DatastoreClients.from_settings(settings)

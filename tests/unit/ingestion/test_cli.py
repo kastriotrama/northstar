@@ -23,6 +23,7 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "migrate-job-bookkeeping" in output
     assert "migrate-confidence-routing" in output
     assert "import-normalization-bundle" in output
+    assert "export-rule-delta" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
@@ -68,3 +69,22 @@ def test_bundle_import_requires_an_explicit_excel_file() -> None:
     )
     assert args.command == "import-normalization-bundle"
     assert str(args.file) == "snapshot.xlsx"
+
+
+def test_rule_delta_export_defaults_to_latest_target() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export-rule-delta",
+            "--baseline-version",
+            "rules-v1",
+            "--output",
+            "latest-rules.sql",
+        ]
+    )
+
+    assert args.command == "export-rule-delta"
+    assert args.baseline_version == "rules-v1"
+    assert args.target_version is None
+    assert str(args.output) == "latest-rules.sql"

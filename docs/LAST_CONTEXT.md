@@ -2,6 +2,14 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-06 — Reproducible reviewed-rule SQL pattern
+
+- Added `northstar-ingest export-rule-delta` so immutable PostgreSQL rule versions—not hand-edited SQL—generate deterministic baseline-to-latest deployment artifacts. The generator emits canonical JSON, SHA-256, exact version/note/timestamp, catalog and removal guards, locking, idempotent conflict checks, and verification output. Generated `northstar_latest_reviewed_rule_delta.sql` for 33 definitions/53 total overrides; fresh-database install, idempotent retry, and Bravo reprocessing reproduce 62 resolved, 912 provisional, 26 review-required, and 0 failed. All 376 tests, Ruff, strict mypy, compilation, and 205 golden cases pass.
+
+## 2026-08-06 — Alpha rule delta applied to Bravo
+
+- Fast-forwarded PR #27 to collaborator commit `4ddc06b`, reviewed its 33-definition idempotent SQL delta, and validated it against Bravo in a disposable database before installing immutable version `ts-review-20260806T133621914615Z` locally. Reprocessing Bravo improved 59/855/86/0 to 62 resolved, 912 provisional, 26 review-required, and 0 failed; 60 review cases cleared with zero status regressions outside the review queue. The live dashboard is running on port 8765 with the new batch; 15 missing, 10 unknown, and 1 FCA Italy corporate-group case remain.
+
 ## 2026-08-06 — Renault/Adria decision activated
 
 - Activated isolated immutable version `ts-review-20260806T133621914615Z` for exact compound Brand `RENAULT ADRIA MOBIL`: Renault is the normalized manufacturer and Adria is retained as converter. Reprocessing changed only that record, made it resolved, and moved alpha totals to 70 resolved, 926 provisional, 4 review-required, and 0 failed. Updated the portable SQL delta to 33 definitions/53 total overrides and verified its idempotent target content; remaining stakeholder decisions are Great Wall/ORA, Rapido, Volkswagen California, and Volkswagen Multivan.
@@ -33,11 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-06 — Alpha 1,000-car isolated import
 
 - Inspected `northstar_ts_normalization_alpha_1000_2026-08-06.xlsx`, confirmed its portable public-safe bundle contract, and imported it into the disposable `northstar_bundle_test` PostgreSQL database. Exact verification reproduced all 1,000 results: 43 resolved, 890 provisional, 67 review-required, and 0 failed. The running review dashboard and batch-filtered API return HTTP 200 with matching totals; the existing `app` database was not changed.
-
-## 2026-08-06 — Three portable 1,000-car cohorts
-
-- Added three mutually exclusive 1,000-passenger-car Excel bundles (`alpha`, `bravo`, and `charlie`) from distinct database batches. Every workbook contains sanitized TS source rows, its exact 1,000 normalized results, the active `ts-review-20260805T184254528647Z` rule version, all translation/manufacturer catalogs, and active overrides. All three imported together into a clean PostgreSQL database and reproduced 3,000/3,000 results with `verified=true`; ZIP integrity, synthetic plate/VIN checks, source/workbook non-overlap checks, and visual review pass.
-
-## 2026-08-06 — Portable normalization test bundle
-
-- Exported and visually verified `outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx`: 250 sanitized TS staging records with deterministic synthetic plate/VIN values, 250 expected normalized results, 99 effective translation rules, the complete 184-row built-in manufacturer catalog, the 189-row effective runtime manufacturer view, 18 active database overrides, exact immutable rule-version metadata, and explicit Adria/Dethleffs exclusions. Added `import-normalization-bundle` to validate the workbook, populate an isolated PostgreSQL database, normalize, and compare every generated result; clean-database import and retry both reproduced 37 resolved, 212 provisional, 1 review-required, and 0 failed with `verified=true`. Validation: 371 tests, Ruff, strict mypy, compilation, XLSX archive checks, 205 golden cases, and a 500-identifier leak scan all pass.

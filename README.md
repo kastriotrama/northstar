@@ -22,6 +22,10 @@ the public repository; see `docs/normalization-command.md` for the full import
 contract, the three additional non-overlapping 1,000-car bundles, and safety
 boundaries.
 
+Reviewed rules can be exported reproducibly from immutable database versions
+with `northstar-ingest export-rule-delta`; see
+`docs/reviewed-rule-delta-workflow.md` for the update and deployment pattern.
+
 For a fresh Python environment:
 
 ```sh
