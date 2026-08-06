@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-06 — Three 5,000-car passenger batches loaded
 
-- Loaded and normalized three disjoint passenger-only cohorts with latest immutable rules `ts-review-20260806T170328350936Z`: Atlas produced 345 resolved, 4,600 provisional, 55 review-required; Borealis 331/4,560/109; Charlie-plus 351/4,539/110; every batch has 5,000 completed records and 0 failed. Charlie-plus contains all 1,000 original Charlie workbook vehicles plus 4,000 fresh vehicles; exact plate/VIN membership and zero cross-batch overlap were verified.
+- Loaded and normalized three disjoint passenger-only cohorts with latest immutable rules `ts-review-20260806T170328350936Z`: Atlas produced 345 resolved, 4,600 provisional, 55 review-required; Borealis 331/4,560/109; Charlie-plus 351/4,539/110; every batch has 5,000 completed records and 0 failed. Charlie-plus contains all 1,000 original Charlie workbook vehicles plus 4,000 fresh vehicles; exact plate/VIN membership and zero cross-batch overlap were verified. Exported all three as public-safe portable Excel bundles containing sanitized TS evidence, exact normalized results, 99 translation rules, 184 base manufacturer entities, 302 effective entities, and 67 active overrides; each workbook passed a clean-database import with exact 5,000-result verification.
 
 ## 2026-08-06 — Bravo manufacturer review reduced to four
 
