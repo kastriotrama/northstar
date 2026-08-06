@@ -1,4 +1,6 @@
 .env
+.env.production
+infra/production/htpasswd
 .env.*
 !.env.example
 
