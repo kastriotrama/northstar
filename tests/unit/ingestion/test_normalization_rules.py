@@ -549,6 +549,46 @@ def test_general_manufacturer_rules_keep_token_boundaries_and_child_allow_lists(
     assert "MFR-PARENT-MARKETED" in corroborated_existing_child.applied_rule_ids
 
 
+def test_approved_compact_brand_prefix_handles_joined_and_spaced_names_only_when_enabled() -> None:
+    rules = {
+        "brand:CHEVROLET": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-CHEVROLET-COMPACT",
+            "source_field": "brand",
+            "source_term": "CHEVROLET",
+            "canonical_name": "Chevrolet",
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "match_type": "approved_compact_prefix",
+        },
+        "brand:MG": {
+            "kind": "manufacturer_entity",
+            "entity_id": "MFE-MG-COMPACT",
+            "source_field": "brand",
+            "source_term": "MG",
+            "canonical_name": "MG",
+            "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "match_type": "approved_compact_prefix",
+        },
+    }
+
+    joined = normalize_ts_record(
+        {"brand": "CHEVROLETV8 BEL AIR CAB"}, manufacturer_entity_rules=rules
+    )
+    spaced = normalize_ts_record(
+        {"brand": "M G B BMC 1800"}, manufacturer_entity_rules=rules
+    )
+    embedded = normalize_ts_record(
+        {"brand": "STEFANS CHEVROLET ROADSTER"}, manufacturer_entity_rules=rules
+    )
+
+    assert joined.normalized["manufacturer"] == "Chevrolet"
+    assert joined.applied_rule_ids == ("MFE-CHEVROLET-COMPACT",)
+    assert spaced.normalized["manufacturer"] == "MG"
+    assert embedded.review_reasons == ("manufacturer_missing",)
+
+
 def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     passenger = normalize_ts_record(
         {"manufacturer": "Volvo", "eu_category": "M1", "body_code": "AC"}

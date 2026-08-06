@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-06 — Bravo manufacturer review reduced to four
+
+- Activated immutable version `ts-review-20260806T170328350936Z` with 16 approved general manufacturer definitions: Brand-confirmed Peugeot/JLR/Maxus/FCA mappings, Magyar Suzuki, Adria converter/base handling, reviewed Brand parents, and an explicitly enabled compact-prefix mode for joined TS names. Disposable and local 1,000-car reprocessing both changed exactly 22 review cases, preserved every prior non-review status, and produced 67 resolved, 929 provisional, 4 review-required, and 0 failed. The remaining Acadian, BG-Hot, Miller-Maryland, and Stefans Ford Roadster records stay held for evidence.
+
 ## 2026-08-06 — Reproducible reviewed-rule SQL pattern
 
 - Added `northstar-ingest export-rule-delta` so immutable PostgreSQL rule versions—not hand-edited SQL—generate deterministic baseline-to-latest deployment artifacts. The generator emits canonical JSON, SHA-256, exact version/note/timestamp, catalog and removal guards, locking, idempotent conflict checks, and verification output. Generated `northstar_latest_reviewed_rule_delta.sql` for 33 definitions/53 total overrides; fresh-database install, idempotent retry, and Bravo reprocessing reproduce 62 resolved, 912 provisional, 26 review-required, and 0 failed. All 376 tests, Ruff, strict mypy, compilation, and 205 golden cases pass.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-06 — Alpha review-required analysis
 
 - Analyzed all 67 review-required records in isolated batch `normalization-external-test-alpha-1000-v1` without changing rules. Reasons are 40 missing manufacturers, 21 unknown legal entities, 3 unresolved corporate groups, 1 compound Brand, 1 motorhome evidence gap, and 1 bodywork conflict. Strong reviewed-rule candidates include recurring Brand prefixes (Chevrolet 11, Suzuki 6, Cadillac/Oldsmobile 3 each), legal-entity-to-Brand mappings (Citroën, Kia, Mazda, SAIC/MG, etc.), and PSA→Peugeot/FCA US→Jeep. Quattro/Audi, Rapido, Hymer, LMC, Renault/Adria, Volkswagen California, and Volkswagen Multivan need separate evidence or policy review.
-
-## 2026-08-06 — Alpha 1,000-car isolated import
-
-- Inspected `northstar_ts_normalization_alpha_1000_2026-08-06.xlsx`, confirmed its portable public-safe bundle contract, and imported it into the disposable `northstar_bundle_test` PostgreSQL database. Exact verification reproduced all 1,000 results: 43 resolved, 890 provisional, 67 review-required, and 0 failed. The running review dashboard and batch-filtered API return HTTP 200 with matching totals; the existing `app` database was not changed.

@@ -507,6 +507,13 @@ def _manufacturer_match_key(value: object) -> str | None:
     return re.sub(r"[^A-Z0-9]+", " ", folded).strip()
 
 
+def _manufacturer_compact_key(value: object) -> str | None:
+    """Return a folded key for explicitly approved joined-name Brand rules."""
+
+    key = _manufacturer_match_key(value)
+    return key.replace(" ", "") if key is not None else None
+
+
 def manufacturer_entity_catalog() -> tuple[Mapping[str, str | None], ...]:
     """Return the reviewed Tillverkare classifications used by the normalizer."""
 
@@ -572,7 +579,8 @@ def _manufacturer_entity_rule(
         if (
             rule.get("kind") != "manufacturer_entity"
             or rule.get("source_field") != source_field
-            or rule.get("match_type") != "diacritic_insensitive_prefix"
+            or rule.get("match_type")
+            not in {"diacritic_insensitive_prefix", "approved_compact_prefix"}
         ):
             continue
         configured_aliases = rule.get("aliases")
@@ -582,9 +590,21 @@ def _manufacturer_entity_rule(
         ]
         for alias in aliases:
             alias_key = _manufacturer_match_key(alias)
-            if alias_key is not None and (
-                match_key == alias_key or match_key.startswith(f"{alias_key} ")
-            ):
+            if alias_key is None:
+                continue
+            if rule.get("match_type") == "approved_compact_prefix":
+                compact_source = _manufacturer_compact_key(raw.get(source_field))
+                compact_alias = _manufacturer_compact_key(alias)
+                ordinary_prefix = match_key == alias_key or match_key.startswith(f"{alias_key} ")
+                matched = (
+                    not ordinary_prefix
+                    and compact_source is not None
+                    and compact_alias is not None
+                    and compact_source.startswith(compact_alias)
+                )
+            else:
+                matched = match_key == alias_key or match_key.startswith(f"{alias_key} ")
+            if matched:
                 matches.append((len(alias_key), rule))
                 break
     if not matches:
@@ -689,7 +709,8 @@ def _manufacturer_from_brand_prefix(
         if (
             rule.get("kind") != "manufacturer_entity"
             or rule.get("source_field") != "brand"
-            or rule.get("match_type") != "whole_token_prefix"
+            or rule.get("match_type")
+            not in {"whole_token_prefix", "approved_compact_prefix"}
             or rule.get("entity_role") != "vehicle_manufacturer"
         ):
             continue
