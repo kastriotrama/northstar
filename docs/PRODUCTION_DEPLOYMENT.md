@@ -24,6 +24,9 @@ connect to, migrate, or modify that database.
 2. Copy `infra/production/.env.production.example` to `.env.production` and
    replace every placeholder with a random secret.
 3. Create `infra/production/htpasswd` for the web administrator.
+   The deploy script sets this password-hash file to mode `0644` so the
+   unprivileged nginx worker can read the bind mount. The clear-text password
+   must not be stored in the repository or this file.
 4. Run `./infra/production/deploy.sh`.
 5. Import a reviewed portable bundle with the tools profile, for example:
 

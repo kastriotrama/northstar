@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — Isolated NorthStar production stack deployed
+
+- Added and validated an isolated Hetzner production deployment patterned after VD-AI: protected nginx gateway on port 8765, healthy API, and private PostgreSQL, Neo4j, Elasticsearch, and Redis services with persistent volumes. Deployed commit `a4bde54` to `/opt/northstar` without changing VD-AI or its database, imported the Atlas, Borealis, and Charlie-plus bundles for 15,000 verified passenger vehicles with 0 failures, and externally verified authentication plus the normalization-review screen. Corrected nginx access to the bcrypt htpasswd bind mount; remaining operational next steps are HTTPS/domain setup and activating the GitHub deployment workflow after the branch is pushed and repository secrets are installed.
+
 ## 2026-08-06 — Three 5,000-car passenger batches loaded
 
 - Loaded and normalized three disjoint passenger-only cohorts with latest immutable rules `ts-review-20260806T170328350936Z`: Atlas produced 345 resolved, 4,600 provisional, 55 review-required; Borealis 331/4,560/109; Charlie-plus 351/4,539/110; every batch has 5,000 completed records and 0 failed. Charlie-plus contains all 1,000 original Charlie workbook vehicles plus 4,000 fresh vehicles; exact plate/VIN membership and zero cross-batch overlap were verified. Exported all three as public-safe portable Excel bundles containing sanitized TS evidence, exact normalized results, 99 translation rules, 184 base manufacturer entities, 302 effective entities, and 67 active overrides; each workbook passed a clean-database import with exact 5,000-result verification.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-06 — Chevrolet parent rule activated
 
 - Directly activated immutable isolated-DB version `ts-review-20260806T131607358843Z` with reviewed Brand parent `CHEVROLET` → Chevrolet using complete whole-token-prefix matching and 13 distinct reviewed values covering 14 observed rows. Reprocessed alpha into `normalization-external-test-alpha-1000-v1-rules-20260806T131616282916Z`: 43→50 resolved, 890→894 provisional, 67→56 review-required, and 0 failed. All 11 formerly blocked Chevrolet rows now normalize to Chevrolet; exactly those 11 changed and zero non-Chevrolet records changed.
-
-## 2026-08-06 — Chevrolet general-rule analysis
-
-- Inspected active entities and every Chevrolet Brand row in `northstar_bundle_test` without changing rules. The database has only three exact built-in Chevrolet mappings (`CHEVROLET IMPALA`, `CHEVROLET KL1T`, `CHEVROLET VAN`); 11 alpha rows remain review-required despite all 14 observed values beginning with the complete `CHEVROLET` token and none containing it elsewhere. Recommended replacing scattered exact handling with one reviewed `CHEVROLET` → Chevrolet parent Brand entity using whole-token-prefix matching: reviewed examples resolve, unseen prefixed values remain provisional, and arbitrary contains/substring matching stays disallowed.

@@ -16,6 +16,10 @@ if [ ! -f infra/production/htpasswd ]; then
     exit 1
 fi
 
+# The unprivileged nginx workers must be able to read the mounted password-hash
+# file. It contains an Apache bcrypt hash, never the clear-text password.
+chmod 0644 infra/production/htpasswd
+
 docker compose --env-file "$environment_file" -f "$compose_file" config --quiet
 docker compose --env-file "$environment_file" -f "$compose_file" build api ingestion
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
