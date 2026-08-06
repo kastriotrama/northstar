@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-06 — Three portable 1,000-car cohorts
+
+- Added three mutually exclusive 1,000-passenger-car Excel bundles (`alpha`, `bravo`, and `charlie`) from distinct database batches. Every workbook contains sanitized TS source rows, its exact 1,000 normalized results, the active `ts-review-20260805T184254528647Z` rule version, all translation/manufacturer catalogs, and active overrides. All three imported together into a clean PostgreSQL database and reproduced 3,000/3,000 results with `verified=true`; ZIP integrity, synthetic plate/VIN checks, source/workbook non-overlap checks, and visual review pass.
+
 ## 2026-08-06 — Portable normalization test bundle
 
 - Exported and visually verified `outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx`: 250 sanitized TS staging records with deterministic synthetic plate/VIN values, 250 expected normalized results, 99 effective translation rules, the complete 184-row built-in manufacturer catalog, the 189-row effective runtime manufacturer view, 18 active database overrides, exact immutable rule-version metadata, and explicit Adria/Dethleffs exclusions. Added `import-normalization-bundle` to validate the workbook, populate an isolated PostgreSQL database, normalize, and compare every generated result; clean-database import and retry both reproduced 37 resolved, 212 provisional, 1 review-required, and 0 failed with `verified=true`. Validation: 371 tests, Ruff, strict mypy, compilation, XLSX archive checks, 205 golden cases, and a 500-identifier leak scan all pass.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-05 — Manufacturer entities and review backlog
 
 - Extended the Rules workspace with 239 reviewed/discovered Tillverkare entities from the latest batch. Reviewers can draft vehicle-manufacturer, bodybuilder/converter, corporate-group, or unknown classifications; converter rules use Tillverkare grundfordonet and retain the converter; Brand-only entities remain review-only until explicitly approved. Activated entity rules join the same immutable cumulative version and safe re-import flow. Added live review-reason guidance for the overlapping 162 cases: 106 missing Tillverkare, 55 Brand evidence gaps, and 85 category/bodywork conflicts. Ruff, strict mypy, JavaScript syntax, all 352 tests, live PostgreSQL reads, and browser draft/discard validation pass with zero drafts left behind; Jira, push, and PR remain unchanged.
-
-## 2026-08-05 — Translation rule review workbench
-
-- Added a Rules tab to the normalization review screen with dictionary search/filtering, immutable source-match evidence, vocabulary-constrained output editing, draft notes, version activation, and safe re-import of the selected 1–1,000-record batch into a new staging/result batch. Activated rule versions are immutable and cumulative, drafts never affect normalization, re-import is blocked until drafts are approved or discarded, and the UI shows before/after routing totals. Added API/service/repository/reprocessing boundaries, migrations, documentation, and regression coverage. Ruff, strict mypy, JavaScript syntax, all 349 tests, and the real browser workflow against PostgreSQL pass; a no-op BDY-110 verification re-import preserved 7 resolved, 81 provisional, 162 review-required, and 0 failed. Jira, push, and PR remain unchanged.

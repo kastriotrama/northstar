@@ -69,6 +69,20 @@ northstar-ingest import-normalization-bundle \
   --file outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx
 ```
 
+Three larger, mutually exclusive passenger-car cohorts are also included for
+testing different environments:
+
+| Cohort | File | Resolved | Provisional | Review required | Failed |
+|---|---|---:|---:|---:|---:|
+| Alpha | `northstar_ts_normalization_alpha_1000_2026-08-06.xlsx` | 43 | 890 | 67 | 0 |
+| Bravo | `northstar_ts_normalization_bravo_1000_2026-08-06.xlsx` | 59 | 855 | 86 | 0 |
+| Charlie | `northstar_ts_normalization_charlie_1000_2026-08-06.xlsx` | 63 | 876 | 61 | 0 |
+
+All four workbooks are stored under
+`outputs/019fadda-d238-75d3-8312-142dfdce2612/`. Run the same command with the
+desired filename. The three 1,000-car files can coexist in one database because
+their source batches and vehicle cohorts do not overlap.
+
 The command performs the complete bootstrap rather than merely copying cells:
 
 1. validates every required sheet, JSON payload, batch/record relationship,

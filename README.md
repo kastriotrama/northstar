@@ -19,7 +19,8 @@ northstar-ingest import-normalization-bundle \
 
 The committed workbook uses synthetic plate/VIN identifiers and is safe for
 the public repository; see `docs/normalization-command.md` for the full import
-contract and safety boundaries.
+contract, the three additional non-overlapping 1,000-car bundles, and safety
+boundaries.
 
 For a fresh Python environment:
 
