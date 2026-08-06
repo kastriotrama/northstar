@@ -9,6 +9,18 @@ FastAPI backend foundation for vehicle intelligence, ingestion, graph data, sear
 3. Run `uvicorn api.main:app --reload`.
 4. Run `pytest`.
 
+To populate an isolated test database from the portable normalization workbook
+and verify the generated results immediately, run:
+
+```bash
+northstar-ingest import-normalization-bundle \
+  --file outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx
+```
+
+The committed workbook uses synthetic plate/VIN identifiers and is safe for
+the public repository; see `docs/normalization-command.md` for the full import
+contract and safety boundaries.
+
 For a fresh Python environment:
 
 ```sh

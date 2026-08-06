@@ -22,6 +22,7 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "migrate-review-queue" in output
     assert "migrate-job-bookkeeping" in output
     assert "migrate-confidence-routing" in output
+    assert "import-normalization-bundle" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
@@ -54,3 +55,16 @@ def test_normalize_requires_an_explicit_source_batch() -> None:
 
     args = parser.parse_args(["normalize", "--batch-id", "ts-pilot"])
     assert args.batch_id == "ts-pilot"
+
+
+def test_bundle_import_requires_an_explicit_excel_file() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["import-normalization-bundle"])
+
+    args = parser.parse_args(
+        ["import-normalization-bundle", "--file", "snapshot.xlsx"]
+    )
+    assert args.command == "import-normalization-bundle"
+    assert str(args.file) == "snapshot.xlsx"

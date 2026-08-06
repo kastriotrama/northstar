@@ -54,3 +54,34 @@ excluded before staging and normalization.
 The SCRUM-82 pilot workbook is redacted and intended for rule review. Its
 coverage numbers describe outputs or candidates, not automatically approved
 canonical values.
+
+## Populate a test database from the portable Excel bundle
+
+The PR includes a public-safe workbook whose registration plates and VINs are
+deterministic synthetic values. VIN WMI prefixes and identifier presence are
+preserved, so the workbook produces the same normalization decisions without
+publishing real source identifiers.
+
+Install the PR version, start an isolated PostgreSQL database, and run:
+
+```bash
+northstar-ingest import-normalization-bundle \
+  --file outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx
+```
+
+The command performs the complete bootstrap rather than merely copying cells:
+
+1. validates every required sheet, JSON payload, batch/record relationship,
+   application catalog, base rule version, and override layer;
+2. applies the staging, review-queue, job-safety, and normalization migrations;
+3. inserts the exact immutable rule-version row and sanitized TS staging rows;
+4. runs normalization with the workbook's effective translation and
+   manufacturer rules;
+5. compares every generated payload, status, rule list, review reason, and
+   confidence value with the `Normalized Results` sheet;
+6. prints a JSON summary and exits with code `0` only after exact verification.
+
+The operation is idempotent: retrying an already verified bundle succeeds
+without duplicating records. It rejects a conflicting batch, rule version,
+application catalog, mapping version, pipeline version, or result payload.
+Run it only in a disposable local or CI test database, never production.
