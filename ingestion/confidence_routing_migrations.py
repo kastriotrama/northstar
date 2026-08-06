@@ -63,13 +63,17 @@ CONFIDENCE_ROUTING_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ),
     (
         "create_match_routing_batch_route_index",
-        f"CREATE INDEX IF NOT EXISTS match_routing_batch_route_idx "
-        f"ON {MATCH_ROUTING_TABLE} (source_batch_id, route)",
+        (
+            f"CREATE INDEX IF NOT EXISTS match_routing_batch_route_idx "
+            f"ON {MATCH_ROUTING_TABLE} (source_batch_id, route)"
+        ),
     ),
     (
         "create_match_routing_source_index",
-        f"CREATE INDEX IF NOT EXISTS match_routing_source_idx "
-        f"ON {MATCH_ROUTING_TABLE} (source_table, source_record_id)",
+        (
+            f"CREATE INDEX IF NOT EXISTS match_routing_source_idx "
+            f"ON {MATCH_ROUTING_TABLE} (source_table, source_record_id)"
+        ),
     ),
 )
 

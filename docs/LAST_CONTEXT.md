@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-06 — Portable normalization test bundle
 
-- Exported and visually verified `outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx`: 250 original TS staging records, 250 expected normalized results, 99 effective translation rules, the complete 184-row built-in manufacturer catalog, the 189-row effective runtime manufacturer view, 18 active database overrides, exact immutable rule-version metadata, database-test instructions, and explicit exclusions for the known Adria/Dethleffs rule defects. The workbook contains plate/VIN evidence and must remain restricted to authorized test recipients.
+- Exported and visually verified `outputs/019fadda-d238-75d3-8312-142dfdce2612/northstar_normalization_test_bundle_2026-08-06.xlsx`: 250 original TS staging records, 250 expected normalized results, 99 effective translation rules, the complete 184-row built-in manufacturer catalog, the 189-row effective runtime manufacturer view, 18 active database overrides, exact immutable rule-version metadata, database-test instructions, and explicit exclusions for the known Adria/Dethleffs rule defects. The workbook contains plate/VIN evidence and must remain restricted to authorized test recipients. Pre-PR cleanup resolved all Ruff 0.16 findings; 367 tests, strict mypy, JavaScript syntax, compilation, and all 205 golden cases pass.
 
 ## 2026-08-05 — General manufacturer and converter rules
 

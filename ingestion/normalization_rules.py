@@ -14,7 +14,7 @@ from calendar import monthrange
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Literal
 
 from ingestion.normalization_pipeline import (
@@ -1093,7 +1093,7 @@ def _positive_rounded_int(value: object, *, multiplier: Decimal, maximum: int) -
     parsed = _parse_decimal(value)
     if parsed is None or parsed <= 0:
         return None
-    converted = int((parsed * multiplier).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    converted = int((parsed * multiplier).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     return converted if 0 < converted <= maximum else None
 
 
@@ -1273,7 +1273,7 @@ def _normalize_engine_measurements(context: NormalizationContext) -> None:
         context.applied_rule_ids.append("ENGINE-FAMILY-NAME-V1")
 
     power_fields = (
-        ("kw", Decimal("1"), "UNIT-POWER-KW-V1"),
+        ("kw", Decimal(1), "UNIT-POWER-KW-V1"),
         ("power_ps", Decimal("0.73549875"), "UNIT-POWER-PS-V1"),
     )
     populated_power = [item for item in power_fields if raw.get(item[0]) not in (None, "")]
@@ -1290,8 +1290,8 @@ def _normalize_engine_measurements(context: NormalizationContext) -> None:
             context.applied_rule_ids.append(rule_id)
 
     displacement_fields = (
-        ("ccm", Decimal("1"), "UNIT-DISPLACEMENT-CCM-V1"),
-        ("displacement_l", Decimal("1000"), "UNIT-DISPLACEMENT-LITRE-V1"),
+        ("ccm", Decimal(1), "UNIT-DISPLACEMENT-CCM-V1"),
+        ("displacement_l", Decimal(1000), "UNIT-DISPLACEMENT-LITRE-V1"),
     )
     populated_displacement = [
         item for item in displacement_fields if raw.get(item[0]) not in (None, "")
