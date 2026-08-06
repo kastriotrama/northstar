@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-06 — Three 5,000-car passenger batches loaded
+
+- Loaded and normalized three disjoint passenger-only cohorts with latest immutable rules `ts-review-20260806T170328350936Z`: Atlas produced 345 resolved, 4,600 provisional, 55 review-required; Borealis 331/4,560/109; Charlie-plus 351/4,539/110; every batch has 5,000 completed records and 0 failed. Charlie-plus contains all 1,000 original Charlie workbook vehicles plus 4,000 fresh vehicles; exact plate/VIN membership and zero cross-batch overlap were verified.
+
 ## 2026-08-06 — Bravo manufacturer review reduced to four
 
 - Activated immutable version `ts-review-20260806T170328350936Z` with 16 approved general manufacturer definitions: Brand-confirmed Peugeot/JLR/Maxus/FCA mappings, Magyar Suzuki, Adria converter/base handling, reviewed Brand parents, and an explicitly enabled compact-prefix mode for joined TS names. Disposable and local 1,000-car reprocessing both changed exactly 22 review cases, preserved every prior non-review status, and produced 67 resolved, 929 provisional, 4 review-required, and 0 failed. The remaining Acadian, BG-Hot, Miller-Maryland, and Stefans Ford Roadster records stay held for evidence.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-06 — Chevrolet general-rule analysis
 
 - Inspected active entities and every Chevrolet Brand row in `northstar_bundle_test` without changing rules. The database has only three exact built-in Chevrolet mappings (`CHEVROLET IMPALA`, `CHEVROLET KL1T`, `CHEVROLET VAN`); 11 alpha rows remain review-required despite all 14 observed values beginning with the complete `CHEVROLET` token and none containing it elsewhere. Recommended replacing scattered exact handling with one reviewed `CHEVROLET` → Chevrolet parent Brand entity using whole-token-prefix matching: reviewed examples resolve, unseen prefixed values remain provisional, and arbitrary contains/substring matching stays disallowed.
-
-## 2026-08-06 — Alpha review-required analysis
-
-- Analyzed all 67 review-required records in isolated batch `normalization-external-test-alpha-1000-v1` without changing rules. Reasons are 40 missing manufacturers, 21 unknown legal entities, 3 unresolved corporate groups, 1 compound Brand, 1 motorhome evidence gap, and 1 bodywork conflict. Strong reviewed-rule candidates include recurring Brand prefixes (Chevrolet 11, Suzuki 6, Cadillac/Oldsmobile 3 each), legal-entity-to-Brand mappings (Citroën, Kia, Mazda, SAIC/MG, etc.), and PSA→Peugeot/FCA US→Jeep. Quattro/Audi, Rapido, Hymer, LMC, Renault/Adria, Volkswagen California, and Volkswagen Multivan need separate evidence or policy review.
