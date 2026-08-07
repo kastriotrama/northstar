@@ -632,6 +632,14 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
         if actual and expected:
             field_names = ("source_record_id", "source_batch_id", "mapping_version", "rule_version", "pipeline_version", "status", "normalized_payload", "applied_rule_ids", "review_reasons", "confidence")
             mismatch_fields = [name for name, left, right in zip(field_names, actual[0], expected[0]) if left != right]
+            if "normalized_payload" in mismatch_fields:
+                actual_payload = json.loads(actual[0][6])
+                expected_payload = json.loads(expected[0][6])
+                payload_differences = [
+                    key for key in sorted(set(actual_payload) | set(expected_payload))
+                    if actual_payload.get(key) != expected_payload.get(key)
+                ]
+                mismatch_fields.append(f"payload_keys={payload_differences}")
         raise NormalizationBundleError(
             "normalized results differ from the workbook"
             + (f" for source IDs {mismatch_ids}" if mismatch_ids else "")
