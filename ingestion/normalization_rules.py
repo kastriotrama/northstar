@@ -1690,6 +1690,10 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
         source_field=source_field,
         source_term=source_term,
     )
+    if code_rule is not None and code_rule.canonical_value == rule.canonical_value:
+        normalized["marketing_body_style"] = rule.canonical_value
+        context.applied_rule_ids.append(rule.rule_id)
+        return
     manufacturer = normalized.get("manufacturer")
     if not _manufacturer_is_in_scope(rule, manufacturer):
         context.review_reasons.append("bodywork_marketing_scope_unresolved")

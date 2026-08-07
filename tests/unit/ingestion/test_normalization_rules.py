@@ -48,6 +48,46 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert "SENSITIVEVIN123456" not in str(outcome.to_payload())
 
 
+def test_registry_bodywork_confirmation_allows_out_of_scope_marketing_term() -> None:
+    outcome = normalize_ts_record(
+        {
+            "brand": "NIO",
+            "model": "ET5 TOURING",
+            "eu_category": "M1",
+            "body_code": "AC",
+        },
+        manufacturer_entity_rules={
+            "brand:NIO": {
+                "entity_id": "MFE-NIO",
+                "canonical_name": "NIO",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "NIO"
+    assert outcome.normalized["bodywork_form"] == "estate"
+    assert outcome.normalized["marketing_body_style"] == "estate"
+    assert "bodywork_marketing_scope_unresolved" not in outcome.review_reasons
+
+
+def test_approved_passenger_body_code_98_normalizes_as_other() -> None:
+    base = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
+    rules = tuple(
+        replace(rule, canonical_value="other") if rule.rule_id == "BDY-120" else rule
+        for rule in base.rules
+    )
+    outcome = normalize_ts_record(
+        {"brand": "VOLVO", "eu_category": "M1", "body_code": "98"},
+        rule_set=TranslationRuleSet(version="test-body-98", rules=rules),
+    )
+
+    assert outcome.normalized["bodywork_form"] == "other"
+    assert outcome.normalized["bodywork_registry_code"] == "98"
+    assert "bodywork_requires_review" not in outcome.review_reasons
+
+
 def test_converter_uses_recognized_base_manufacturer_and_is_retained() -> None:
     outcome = normalize_ts_record(
         {"manufacturer": "Brabus GmbH", "base_manufacturer": "Mercedes-Benz AG"}

@@ -2,9 +2,17 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — 35,000-passenger approved rules activated
+
+- Activated immutable rule version `ts-review-20260807T112656115381Z` with 88 exact manufacturer definitions covering 182 approved review cases plus accepted passenger body code `98` → `other`. Reprocessed the cohort after excluding all 90 legacy `body_code=08` motorhomes: 34,545 cars produced 4,866 resolved, 29,668 provisional, 11 review-required, and 0 failed. Exported the 11-case JSON and updated the established `northstar_alpha_reviewed_rule_delta_2026-08-06.sql` artifact in place with 180 cumulative changes from its retained baseline to the 229-override target; Ruff, strict mypy, all 345 runnable tests, JSON validation, live PostgreSQL reconciliation, and byte-identical SQL regeneration pass.
+
+## 2026-08-07 — Reviewed 35,000-passenger workbook re-import
+
+- Imported `northstar_ts_normalization_passenger_35000_reviewed_2026-08-07.xlsx` into fresh additive batch `normalization-passenger-35000-reviewed-cars-current-20260807T1130Z` using active rule version `ts-review-20260807T091238765007Z`. Excluded 365 confirmed motorhomes and normalized 34,635 cars: 4,825 resolved, 29,614 provisional, 196 review-required, and 0 failed. Exported all review evidence to `northstar_passenger_35000_remaining_review_cases_2026-08-07.json`; JSON validation and live PostgreSQL reconciliation pass with no retained `SA` motorhomes.
+
 ## 2026-08-07 — 20,000 passenger vehicles normalized with v5
 
-- Deployed the CI-verified v5 normalizer to the isolated Hetzner NorthStar stack and selected exactly 20,000 Transportstyrelsen passenger records (`vehicle_type=PB`, EU category `M1`/`M1G`) from the source database. Imported them as immutable batch `normalization-passenger-ts20k-v5-20260807`: 20,000 processed, 2,702 resolved, 8,136 provisional, 9,162 review-required, and 0 failed. Exported a 20,000-row CSV containing selected TS evidence, complete raw JSON, normalized payload, rule IDs, review reasons, confidence, and version metadata. Older batches and VD-AI remain unchanged.
+- Deployed the CI-verified v5 normalizer to the isolated Hetzner NorthStar stack and selected exactly 20,000 Transportstyrelsen passenger records (`vehicle_type=PB`, EU category `M1`/`M1G`) from the source database. The base import produced 2,702 resolved, 8,136 provisional, 9,162 review-required, and 0 failed; reprocessing the same records with the active PostgreSQL rules created `normalization-passenger-ts20k-v5-reviewed-20260807` with 2,759 resolved, 16,992 provisional, 249 review-required, and 0 failed. Exported the reviewed 20,000-row CSV; older batches and VD-AI remain unchanged.
 
 ## 2026-08-07 — Three-workbook motorhome exclusion re-import
 
@@ -33,22 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-07 — Charlie motorhomes permanently removed
 
 - Permanently deleted all 49 confirmed motorhome/camper vehicles from every Charlie batch in the isolated test database. This removed 60 duplicated staging rows, 60 normalization results, and 38 review items; all three Charlie batches now contain the same 4,951 cars with no confirmed motorhomes and consistent completed job counts. The original public-safe Excel workbook remains unchanged and can restore the removed records if needed.
-
-## 2026-08-07 — Charlie cars-only cohort
-
-- Created `normalization-passenger-charlie-cars-4951-v5-20260807T0900Z` by excluding 38 records with official secondary code `SA` plus 11 clearly identified legacy camper records without that code. The cars-only cohort produced 662 resolved, 4,251 provisional, 38 review-required, and 0 failed; exported the complete review evidence to `northstar_charlie_cars_remaining_38_review_cases_2026-08-07.json`.
-
-## 2026-08-07 — Charlie-plus 65-review JSON
-
-- Exported all 65 review-required rows from `normalization-passenger-charlie-plus-5000-v5-20260807T0840Z` to `northstar_charlie_plus_remaining_65_review_cases_2026-08-07.json`, including complete public-safe raw evidence, normalized values, candidates, applied/candidate rule IDs, confidence, and blank decision fields. Reasons reconcile to 48 missing manufacturers, 6 unknown, 5 compound Brands, 2 converter/base gaps, and one each for corporate group, body code, motorhome supporting evidence, and transmission conflict; failed remains 0.
-
-## 2026-08-07 — Charlie-plus pipeline-v5 import
-
-- The original portable import correctly stopped because its expected results use the older workbook contract. Extracted exactly 5,000 public-safe TS raw records from `northstar_ts_normalization_charlie_plus_5000_2026-08-06.xlsx` and loaded them additively as `normalization-passenger-charlie-plus-5000-v5-20260807T0840Z` under active rule version `ts-review-20260807T081534112439Z`: 664 resolved, 4,271 provisional, 65 review-required, and 0 failed. The source workbook and prior immutable batches were not modified.
-2026-08-07 — Reprocessed 20,000 passenger vehicles with active reviewed rules
-
-- Fixed the CLI normalization job so it loads the latest activated translation and manufacturer-entity rules from PostgreSQL.
-- Preserved the original base-rule batch and created `normalization-passenger-ts20k-v5-reviewed-20260807` from the same 20,000 passenger records.
-- Reviewed batch result: 20,000 processed, 2,759 resolved, 16,992 provisional, 249 review-required, 0 failed.
-- Remaining review reasons: 236 missing manufacturer comparisons, 6 evidence conflicts, 5 compound-brand reviews, 3 bodywork scope cases, 1 bodywork review, and 1 fuel conflict.
-- Exported `northstar_ts_normalization_20k_v5_reviewed_2026-08-07.csv`; the original export remains unchanged for before/after comparison.
