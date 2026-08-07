@@ -2,6 +2,12 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — Normalization decision review UX
+
+- Replaced the narrow vehicle inspector with a focused two-column dialog showing TS source evidence, normalized output, field-specific missing/uncertain information, and raw-to-canonical mappings.
+- Added a Decision guide documenting actual routing and fixed confidence levels: resolved 95%, provisional 80%, review-required 55%, and failed 0%.
+- Exposed complete source evidence through the review API; visual browser verification found no errors and 337 relevant tests pass.
+
 ## 2026-08-07 — 35,000-passenger approved rules activated
 
 - Activated immutable rule version `ts-review-20260807T112656115381Z` with 88 exact manufacturer definitions covering 182 approved review cases plus accepted passenger body code `98` → `other`. Reprocessed the cohort after excluding all 90 legacy `body_code=08` motorhomes: 34,545 cars produced 4,866 resolved, 29,668 provisional, 11 review-required, and 0 failed. Exported the 11-case JSON and updated the established `northstar_alpha_reviewed_rule_delta_2026-08-06.sql` artifact in place with 180 cumulative changes from its retained baseline to the 229-override target; Ruff, strict mypy, all 345 runnable tests, JSON validation, live PostgreSQL reconciliation, and byte-identical SQL regeneration pass.
@@ -37,7 +43,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-07 — Charlie cars review reduced to one
 
 - Activated 28 reviewed manufacturer entities as immutable version `ts-review-20260807T091238765007Z` and implemented evidence-aware fixes for Ferrari California bodywork, Porsche PDK transmission, primary police code `93`, self-built vehicles, compact BMW models, DS/PSA context, shared Citroën/DS evidence, and duplicated manufacturer prefixes in models. Reprocessed all 4,951 retained cars into `normalization-passenger-charlie-cars-4951-rules-20260807T0920Z`: 713 resolved, 4,237 provisional, 1 review-required (`JAGUAR DAIMLER`), and 0 failed. All 343 tests, Ruff, strict production mypy, and JSON validation pass.
-
-## 2026-08-07 — Charlie motorhomes permanently removed
-
-- Permanently deleted all 49 confirmed motorhome/camper vehicles from every Charlie batch in the isolated test database. This removed 60 duplicated staging rows, 60 normalization results, and 38 review items; all three Charlie batches now contain the same 4,951 cars with no confirmed motorhomes and consistent completed job counts. The original public-safe Excel workbook remains unchanged and can restore the removed records if needed.

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=8" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=10" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,6 +17,7 @@
         <nav class="view-tabs" aria-label="Normalization workspace">
           <button class="view-tab active" type="button" data-view="vehicles">Vehicles</button>
           <button class="view-tab" type="button" data-view="rules">Rules</button>
+          <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
           <span class="live-dot" aria-hidden="true"></span>
@@ -32,8 +33,8 @@
         </div>
         <dl class="summary-metrics">
           <div><dt>Resolved</dt><dd id="summary-resolved">—</dd></div>
-          <div><dt>Provisional</dt><dd id="summary-provisional">—</dd></div>
-          <div><dt>Needs review</dt><dd id="summary-review">—</dd></div>
+          <div><dt>Provisional <span class="metric-help" title="A useful candidate was found, but another evidence source is still needed before it becomes canonical.">?</span></dt><dd id="summary-provisional">—</dd><small id="summary-provisional-rate">—</small></div>
+          <div><dt>Needs review <span class="metric-help" title="The available evidence conflicts or is insufficient for a safe automatic decision.">?</span></dt><dd id="summary-review">—</dd><small id="summary-review-rate">—</small></div>
           <div><dt>Failed</dt><dd id="summary-failed">—</dd></div>
         </dl>
         <div class="coverage">
@@ -106,6 +107,7 @@
               <div>
                 <span class="eyebrow" id="inspector-record">Source record</span>
                 <h1 id="inspector-name">Vehicle</h1>
+                <p id="inspector-status-explanation" class="status-explanation"></p>
               </div>
               <span id="inspector-status" class="status-badge"></span>
             </div>
@@ -115,13 +117,15 @@
               <div class="confidence-track"><span id="confidence-fill"></span></div>
             </div>
 
-            <section class="inspector-section">
+            <section class="inspector-section" id="source-section">
               <h2>Source evidence</h2>
+              <p class="section-hint">Values exactly as received from Transportstyrelsen.</p>
               <dl id="source-evidence" class="field-list"></dl>
             </section>
 
-            <section class="inspector-section">
+            <section class="inspector-section" id="normalized-section">
               <h2>Normalized vehicle</h2>
+              <p class="section-hint">Accepted canonical values produced by the normalizer.</p>
               <dl id="normalized-fields" class="field-list"></dl>
             </section>
 
@@ -130,12 +134,22 @@
               <div id="review-reasons" class="reason-list"></div>
             </section>
 
-            <section class="inspector-section">
-              <h2>Raw → normalized evidence</h2>
-              <ol id="decision-trace" class="trace-list"></ol>
+            <section class="inspector-section" id="missing-section">
+              <h2>What is missing or uncertain</h2>
+              <div id="missing-fields" class="missing-list"></div>
             </section>
 
-            <section class="inspector-section">
+            <section class="inspector-section" id="evidence-section">
+              <h2>Raw → normalized evidence</h2>
+              <p class="section-hint">Each row shows the source value, the candidate interpretation, and the accepted output.</p>
+              <div id="evidence-map" class="evidence-map"></div>
+              <details class="technical-trace">
+                <summary>Technical decision trace</summary>
+                <ol id="decision-trace" class="trace-list"></ol>
+              </details>
+            </section>
+
+            <section class="inspector-section" id="provenance-section">
               <h2>Rule provenance</h2>
               <div id="rule-list" class="rule-list"></div>
             </section>
@@ -242,8 +256,40 @@
           </aside>
         </main>
       </div>
+
+      <div id="guide-view" hidden>
+        <main class="guide-page">
+          <header class="guide-head">
+            <span class="eyebrow">Normalization decisions</span>
+            <h1>How a vehicle receives its status</h1>
+            <p>The percentage is a routing confidence level, not the mathematical probability that every field is correct. Status is determined by the strongest unresolved condition found in the record.</p>
+          </header>
+
+          <section class="status-method" aria-label="Status routing rules">
+            <article class="method-resolved"><span>95%</span><div><h2>Resolved</h2><p>No review reason, candidate value, or provisional model-family signal remains. Accepted rules produced the result.</p></div></article>
+            <article class="method-provisional"><span>80%</span><div><h2>Provisional</h2><p>No blocking conflict exists, but at least one field is still a candidate or the model family needs corroboration.</p></div></article>
+            <article class="method-review"><span>55%</span><div><h2>Needs review</h2><p>At least one explicit review reason exists—for example missing manufacturer evidence, conflicting manufacturer evidence, or an unresolved fuel/bodywork interpretation.</p></div></article>
+            <article class="method-failed"><span>0%</span><div><h2>Failed</h2><p>The source record is structurally invalid and could not be processed safely.</p></div></article>
+          </section>
+
+          <section class="decision-flow">
+            <div class="flow-title"><span class="eyebrow">Routing order</span><h2>The first applicable safety condition wins</h2></div>
+            <ol>
+              <li><b>1</b><div><strong>Can the record be read?</strong><span>No → Failed · 0%</span></div></li>
+              <li><b>2</b><div><strong>Does any rule produce a review reason?</strong><span>Yes → Needs review · 55%</span></div></li>
+              <li><b>3</b><div><strong>Are candidate values or a provisional model family present?</strong><span>Yes → Provisional · 80%</span></div></li>
+              <li><b>4</b><div><strong>Only accepted normalized values remain</strong><span>Resolved · 95%</span></div></li>
+            </ol>
+          </section>
+
+          <section class="guide-details">
+            <div><span class="eyebrow">What sends a car to review</span><h2>Review reasons are explicit</h2><ul><li>Manufacturer is missing and Brand cannot safely confirm it.</li><li>Manufacturer, Brand, base manufacturer, or entity evidence conflicts.</li><li>A bodywork code is unresolved for the vehicle category.</li><li>Fuel fields describe an inconsistent carrier combination.</li><li>A marketing term lacks the required manufacturer or category scope.</li></ul></div>
+            <div><span class="eyebrow">How review is completed</span><h2>Add evidence, then reprocess</h2><ul><li>Approve a manufacturer entity or translation rule.</li><li>Confirm the vehicle through VIN evidence or TecDoc KType.</li><li>Correct an incorrect rule or source classification.</li><li>Re-import into a new immutable batch and compare the status totals.</li></ul></div>
+          </section>
+        </main>
+      </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=8" defer></script>
+    <script src="/normalization-review/assets/app.js?v=10" defer></script>
   </body>
 </html>

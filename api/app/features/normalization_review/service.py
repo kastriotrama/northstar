@@ -65,6 +65,7 @@ class NormalizationReviewService:
         return NormalizationReviewVehicle(
             source_record_id=int(row["source_record_id"]),
             source_brand=row.get("source_brand"),
+            source_evidence=row.get("source_evidence") or {},
             status=row["status"],
             confidence=float(row["confidence"]),
             manufacturer=normalized.get("manufacturer") or candidates.get("manufacturer"),

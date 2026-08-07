@@ -16,6 +16,7 @@ const elements = {
   transmission: document.querySelector("#filter-transmission"),
   rulesView: document.querySelector("#rules-view"),
   vehiclesView: document.querySelector("#vehicles-view"),
+  guideView: document.querySelector("#guide-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -60,6 +61,15 @@ function percent(value) {
   return `${Math.round(Number(value || 0) * 100)}%`;
 }
 
+function statusExplanation(status) {
+  return {
+    resolved: "All required fields were resolved with accepted evidence.",
+    provisional: "A likely value was found, but it still needs corroboration before becoming canonical.",
+    review_required: "The evidence is missing or conflicting, so the system stopped instead of guessing.",
+    failed: "The record could not be normalized safely and needs technical review.",
+  }[status] ?? "Normalization outcome needs inspection.";
+}
+
 function formatDateTime(value, fallback) {
   if (!value) return fallback;
   return new Intl.DateTimeFormat(undefined, {
@@ -81,6 +91,29 @@ function displayValue(value) {
   if (Array.isArray(value)) return value.map(humanize).join(", ");
   if (typeof value === "object") return JSON.stringify(value);
   return humanize(value);
+}
+
+function sourceLabel(key) {
+  return { manufacturer: "Tillverkare", brand: "Brand", model: "Model", variant: "Variant", version: "Version", body_code: "Body code", fuel1: "Fuel 1", fuel2: "Fuel 2", fuel3: "Fuel 3", gearbox: "Gearbox", eu_category: "EU category", vin: "VIN" }[key] || humanize(key);
+}
+
+function missingFields(vehicle) {
+  const missing = [];
+  if (!vehicle.normalized.manufacturer) missing.push("Manufacturer could not be confirmed");
+  if (!vehicle.normalized.model_family && !vehicle.candidates.model_family) missing.push("Model family is unresolved");
+  Object.entries(vehicle.candidates || {}).filter(([field, value]) => !field.endsWith("_confidence") && field !== "manufacturer_confirmation" && value !== null && value !== undefined && value !== "").forEach(([field, value]) => {
+    missing.push(`${humanize(field)} “${displayValue(value)}” is a candidate; confirm it with an approved rule, VIN, or TecDoc KType match`);
+  });
+  const manufacturerConfirmation = vehicle.candidates?.manufacturer_confirmation;
+  if (manufacturerConfirmation?.canonical_name) {
+    const evidence = (manufacturerConfirmation.source_fields || []).map(sourceLabel).join(" and ") || "source evidence";
+    missing.push(`Manufacturer “${manufacturerConfirmation.canonical_name}” was inferred from ${evidence}; confirm it with an approved manufacturer entity, VIN, or TecDoc KType match`);
+  }
+  if (vehicle.status === "provisional" && vehicle.normalized.model_family_candidate && !vehicle.candidates.model_family) {
+    missing.push(`Model family “${displayValue(vehicle.normalized.model_family)}” was inferred from TS model text; confirm it with TecDoc KType or reviewed model evidence`);
+  }
+  vehicle.review_reasons.forEach((reason) => missing.push(humanize(reason)));
+  return [...new Set(missing)];
 }
 
 function params() {
@@ -117,6 +150,8 @@ function renderPage() {
   document.querySelector("#summary-resolved").textContent = page.summary.resolved.toLocaleString();
   document.querySelector("#summary-provisional").textContent = page.summary.provisional.toLocaleString();
   document.querySelector("#summary-review").textContent = page.summary.review_required.toLocaleString();
+  document.querySelector("#summary-provisional-rate").textContent = `${percent(page.summary.provisional / Math.max(page.summary.total, 1))} of batch`;
+  document.querySelector("#summary-review-rate").textContent = `${percent(page.summary.review_required / Math.max(page.summary.total, 1))} of batch`;
   document.querySelector("#summary-failed").textContent = page.summary.failed.toLocaleString();
   document.querySelector("#visible-count").textContent = `${page.items.length} / ${PAGE_SIZE}`;
   document.querySelector("#result-count").textContent = `${page.filtered_total.toLocaleString()} matching vehicle${page.filtered_total === 1 ? "" : "s"}`;
@@ -167,7 +202,7 @@ function selectVehicle(id) {
   state.selectedId = id;
   elements.rows.querySelectorAll("tr").forEach((row) => row.classList.toggle("selected", Number(row.dataset.id) === id));
   renderInspector(state.page.items.find((item) => item.source_record_id === id));
-  if (window.innerWidth <= 820) elements.inspector.classList.add("open");
+  elements.inspector.classList.add("open");
 }
 
 function renderInspector(vehicle) {
@@ -180,17 +215,21 @@ function renderInspector(vehicle) {
   const status = document.querySelector("#inspector-status");
   status.className = `status-badge status-${vehicle.status}`;
   status.textContent = labels[vehicle.status] ?? humanize(vehicle.status);
+  document.querySelector("#inspector-status-explanation").textContent = statusExplanation(vehicle.status);
   document.querySelector("#inspector-confidence").textContent = percent(vehicle.confidence);
   document.querySelector("#confidence-fill").style.width = percent(vehicle.confidence);
 
   const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"))
     || vehicle.applied_rule_ids.find((rule) => rule === "MFR-BRAND-REVIEWED-EXAMPLE")
     || vehicle.applied_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
+  const rawFields = ["manufacturer", "brand", "model", "variant", "version", "body_code", "eu_category", "fuel1", "fuel2", "fuel3", "gearbox", "is_4wd", "vin"];
+  const rawEntries = rawFields.filter((key) => vehicle.source_evidence?.[key] !== undefined && vehicle.source_evidence[key] !== null && vehicle.source_evidence[key] !== "").map((key) => [key, vehicle.source_evidence[key]]);
   document.querySelector("#source-evidence").innerHTML = [
     ["Brand", vehicle.source_brand || "Not supplied"],
     ["Source record", vehicle.source_record_id],
     ["Manufacturer decision", manufacturerRule ? ruleExplanation(manufacturerRule) : "No Manufacturer entity fallback used"],
-  ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+    ...rawEntries,
+  ].map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
 
   const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
   const entries = fieldOrder.filter((key) => vehicle.normalized[key] !== undefined).map((key) => [key, vehicle.normalized[key]]);
@@ -202,7 +241,25 @@ function renderInspector(vehicle) {
   reasons.innerHTML = vehicle.review_reasons.length
     ? vehicle.review_reasons.map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")
     : "<span>No review reasons</span>";
-  document.querySelector("#review-section").hidden = vehicle.status === "resolved" && !vehicle.review_reasons.length;
+  document.querySelector("#review-section").hidden = !vehicle.review_reasons.length;
+  const missing = missingFields(vehicle);
+  document.querySelector("#missing-section").hidden = missing.length === 0;
+  document.querySelector("#missing-fields").innerHTML = missing.map((item) => `<div><span class="missing-icon">!</span><span>${escapeHtml(item)}</span></div>`).join("");
+
+  const source = vehicle.source_evidence || {};
+  const normalized = vehicle.normalized || {};
+  const candidates = vehicle.candidates || {};
+  const mappings = [
+    ["manufacturer", "manufacturer"], ["brand", "manufacturer"], ["model", "model_family"], ["variant", "model_family"],
+    ["body_code", "bodywork_form"], ["fuel1", "energy_sources"], ["fuel2", "energy_sources"], ["fuel3", "energy_sources"], ["gearbox", "transmission_type"],
+  ].filter(([raw]) => source[raw] !== undefined && source[raw] !== null && source[raw] !== "" && !(["fuel2", "fuel3"].includes(raw) && String(source[raw]) === "0"));
+  document.querySelector("#evidence-map").innerHTML = mappings.length ? mappings.map(([rawKey, target]) => {
+    const accepted = normalized[target];
+    const candidate = candidates[target];
+    const output = accepted ?? candidate;
+    const outputState = accepted !== undefined ? "accepted" : candidate !== undefined ? "candidate" : "unresolved";
+    return `<div class="evidence-row"><div class="evidence-field">${escapeHtml(sourceLabel(rawKey))}<small>→ ${escapeHtml(humanize(target))}</small></div><code>${escapeHtml(displayValue(source[rawKey]))}</code><span class="evidence-arrow">→</span><code class="evidence-${outputState}">${escapeHtml(displayValue(output))}</code><span class="evidence-state">${escapeHtml(outputState)}</span></div>`;
+  }).join("") : "<p class='section-hint'>No comparable source fields were supplied.</p>";
 
   document.querySelector("#decision-trace").innerHTML = vehicle.decision_trace.length
     ? vehicle.decision_trace.map((entry) => `<li><span class="trace-index">•</span><div class="trace-copy"><strong>${escapeHtml(humanize(entry.field || entry.signal || "decision"))}</strong><div class="trace-values"><span title="${escapeHtml(displayValue(entry.before ?? entry.value))}">${escapeHtml(displayValue(entry.before ?? entry.value))}</span><b>→</b><span title="${escapeHtml(displayValue(entry.after ?? entry.contribution))}">${escapeHtml(displayValue(entry.after ?? entry.contribution))}</span></div></div></li>`).join("")
@@ -273,8 +330,10 @@ async function apiRequest(url, options = {}) {
 
 function switchView(view) {
   const showRules = view === "rules";
-  elements.vehiclesView.hidden = showRules;
+  const showGuide = view === "guide";
+  elements.vehiclesView.hidden = showRules || showGuide;
   elements.rulesView.hidden = !showRules;
+  elements.guideView.hidden = !showGuide;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
 }

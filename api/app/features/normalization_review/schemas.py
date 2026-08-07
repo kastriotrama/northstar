@@ -35,6 +35,7 @@ class NormalizationReviewFacets(BaseModel):
 class NormalizationReviewVehicle(BaseModel):
     source_record_id: int
     source_brand: str | None = None
+    source_evidence: dict[str, Any] = Field(default_factory=dict)
     status: NormalizationStatus
     confidence: float = Field(ge=0.0, le=1.0)
     manufacturer: str | None = None
