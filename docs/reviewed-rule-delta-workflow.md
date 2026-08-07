@@ -6,6 +6,12 @@
 Every activation from the web workbench creates a new immutable row that inherits the prior
 overrides. SQL files are generated deployment artifacts; they are never edited to define rules.
 
+Application catalog upgrades, such as the reviewed Drive category introduced by
+`ts-translation-v5`, use a separate checked SQL activation artifact. That artifact advances the
+immutable database version to the matching application catalog while preserving every activated
+override. Apply the application commit and its catalog-activation SQL together; either one alone
+is intentionally insufficient.
+
 This separation keeps rule review understandable:
 
 1. inspect current data and create drafts in `/normalization-review`;

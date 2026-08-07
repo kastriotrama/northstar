@@ -72,13 +72,15 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
         results = fetch_batch_results(pg_connection, batch_id)
 
         assert summary.processed == 2
-        assert summary.provisional == 1
+        assert summary.resolved == 1
+        assert summary.provisional == 0
         assert summary.review_required == 1
         assert retry.already_completed is True
         assert len(results) == 2
         assert "plate" not in str(results)
         normalized_payloads = [result["normalized_payload"]["normalized"] for result in results]
         structured = next(payload for payload in normalized_payloads if "engine_code" in payload)
+        assert structured["model_family"] == "V60"
         assert structured["registration_date"] == "2024-01-31"
         assert structured["production_date"] == "2023-12-15"
         assert structured["engine_code"] == "B4204T"

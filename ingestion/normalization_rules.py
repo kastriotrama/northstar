@@ -758,8 +758,7 @@ def _manufacturer_from_brand_prefix(
         if (
             rule.get("kind") != "manufacturer_entity"
             or rule.get("source_field") != "brand"
-            or rule.get("match_type")
-            not in {"whole_token_prefix", "approved_compact_prefix"}
+            or rule.get("match_type") not in {"whole_token_prefix", "approved_compact_prefix"}
             or rule.get("entity_role") != "vehicle_manufacturer"
         ):
             continue
@@ -1232,11 +1231,9 @@ def _normalize_manufacturer(
     applied.append("MFR-102")
 
 
-def _normalize_model_family(
-    raw: dict[str, Any],
-    normalized: dict[str, Any],
-    candidates: dict[str, Any],
-) -> None:
+def _normalize_model_family(context: NormalizationContext) -> None:
+    raw = context.canonical_record
+    normalized = context.normalized
     model = normalize_text(raw.get("model"))
     manufacturer = normalize_text(normalized.get("manufacturer")) or _resolve_manufacturer(
         raw.get("manufacturer")
@@ -1261,7 +1258,32 @@ def _normalize_model_family(
                 model = compact_remainder
     if model is None:
         return
-    candidates["model_family"] = model
+
+    model_key = _normalized_entity(model)
+    matches: list[tuple[int, TranslationRule, str]] = []
+    if model_key is not None:
+        for rule in _rule_set(context).rules:
+            if rule.area != "model_family" or not _manufacturer_is_in_scope(rule, manufacturer):
+                continue
+            for term in rule.source_terms:
+                term_key = _normalized_entity(term)
+                if term_key is not None and (
+                    model_key == term_key or model_key.startswith(f"{term_key} ")
+                ):
+                    matches.append((len(term_key), rule, term))
+    if matches:
+        _, rule, source_term = max(matches, key=lambda match: (match[0], match[1].rule_id))
+        normalized[rule.canonical_field] = rule.canonical_value
+        context.applied_rule_ids.append(rule.rule_id)
+        _record_dictionary_match(
+            context,
+            rule,
+            source_field="model",
+            source_term=source_term,
+        )
+        return
+
+    context.candidates["model_family"] = model
     normalized["model_family_candidate"] = True
 
 
@@ -1375,7 +1397,12 @@ def _rule_set(context: NormalizationContext) -> TranslationRuleSet:
 
 def _marketing_match(
     context: NormalizationContext,
-    area: Literal["transmission_marketing", "bodywork_marketing", "electrification_marketing"],
+    area: Literal[
+        "transmission_marketing",
+        "bodywork_marketing",
+        "electrification_marketing",
+        "drive_marketing",
+    ],
     *,
     vehicle_scope: str | None = None,
     extra_fields: tuple[str, ...] = (),
@@ -1390,7 +1417,8 @@ def _marketing_match(
             if text is None:
                 continue
             for term in rule.source_terms:
-                pattern = rf"(?<!\w){re.escape(term)}(?!\w)"
+                trailing_boundary = r"(?=\d|\b)" if term.casefold() == "xdrive" else r"(?!\w)"
+                pattern = rf"(?<!\w){re.escape(term)}{trailing_boundary}"
                 if re.search(pattern, text, flags=re.IGNORECASE):
                     matches.append((len(term), rule, field_name, term))
     if not matches:
@@ -1599,10 +1627,7 @@ def _normalize_transmission(context: NormalizationContext) -> None:
         context.review_reasons.append("transmission_electrification_evidence_missing")
         return
     if code_rule is not None and code_rule.canonical_value != rule.canonical_value:
-        if (
-            code_rule.canonical_value == "automatic"
-            and rule.canonical_value == "dct"
-        ):
+        if code_rule.canonical_value == "automatic" and rule.canonical_value == "dct":
             normalized["transmission_name"] = source_term
             context.applied_rule_ids.append(rule.rule_id)
             return
@@ -1659,9 +1684,7 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
             normalized["bodywork_source"] = "special_purpose_registry"
             context.applied_rule_ids.append(f"PURPOSE-PRIMARY-{canonical_code}")
         else:
-            matches = _rule_set(context).match(
-                "bodywork_code", canonical_code, vehicle_scope=scope
-            )
+            matches = _rule_set(context).match("bodywork_code", canonical_code, vehicle_scope=scope)
             if not matches:
                 context.review_reasons.append("bodywork_code_unresolved_for_category")
                 return
@@ -1728,20 +1751,52 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     context.applied_rule_ids.append(rule.rule_id)
 
 
-def _normalize_drive(
-    raw: dict[str, Any],
-    candidates: dict[str, Any],
-    candidate_rules: list[str],
-    reasons: list[str],
-) -> None:
+def _normalize_drive(context: NormalizationContext) -> None:
+    raw = context.canonical_record
+    normalized = context.normalized
     flag = normalize_text(raw.get("is_4wd"))
-    if flag is None:
-        return
+    flag_rule: TranslationRule | None = None
     if flag == "1":
-        candidates["drive_type"] = "awd"
-        candidate_rules.append("DRV-008")
-    elif flag != "0":
-        reasons.append("is_4wd_malformed")
+        matches = _rule_set(context).match("drive_flag", flag)
+        if matches:
+            flag_rule = matches[0]
+            _record_dictionary_match(
+                context,
+                flag_rule,
+                source_field="is_4wd",
+                source_term=flag,
+            )
+            normalized[flag_rule.canonical_field] = flag_rule.canonical_value
+            context.applied_rule_ids.append(flag_rule.rule_id)
+    elif flag not in {None, "0"}:
+        context.review_reasons.append("is_4wd_malformed")
+
+    marketing = _marketing_match(context, "drive_marketing")
+    if marketing is None:
+        return
+    rule, source_field, source_term = marketing
+    _record_dictionary_match(
+        context,
+        rule,
+        source_field=source_field,
+        source_term=source_term,
+    )
+    manufacturer = normalized.get("manufacturer")
+    if flag_rule is not None:
+        if flag_rule.canonical_value == rule.canonical_value and _manufacturer_is_in_scope(
+            rule, manufacturer
+        ):
+            context.applied_rule_ids.append(rule.rule_id)
+        elif flag_rule.canonical_value != rule.canonical_value:
+            context.candidate_rule_ids.append(rule.rule_id)
+            context.review_reasons.append("drive_registry_marketing_conflict")
+        return
+    if not _manufacturer_is_in_scope(rule, manufacturer):
+        context.candidate_rule_ids.append(rule.rule_id)
+        context.review_reasons.append("drive_marketing_scope_unresolved")
+        return
+    normalized[rule.canonical_field] = rule.canonical_value
+    context.applied_rule_ids.append(rule.rule_id)
 
 
 def _normalize_fuel(context: NormalizationContext) -> None:
@@ -1879,11 +1934,7 @@ def _apply_manufacturer(context: NormalizationContext) -> None:
 
 
 def _apply_model_family(context: NormalizationContext) -> None:
-    _normalize_model_family(
-        context.canonical_record,
-        context.normalized,
-        context.candidates,
-    )
+    _normalize_model_family(context)
 
 
 def _apply_dates(context: NormalizationContext) -> None:
@@ -1903,12 +1954,7 @@ def _apply_bodywork(context: NormalizationContext) -> None:
 
 
 def _apply_drive(context: NormalizationContext) -> None:
-    _normalize_drive(
-        context.canonical_record,
-        context.candidates,
-        context.candidate_rule_ids,
-        context.review_reasons,
-    )
+    _normalize_drive(context)
 
 
 def _apply_fuel(context: NormalizationContext) -> None:
@@ -1940,6 +1986,7 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             default_rule_id="MODEL-CANDIDATE-V1",
             handler=_apply_model_family,
             source_fields=("model",),
+            normalized_confidence_effect=0.1,
             candidate_confidence_effect=0.05,
         ),
         _RuleTransformer(
@@ -2005,8 +2052,8 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             order=70,
             default_rule_id="DRV-LOOKUP-V1",
             handler=_apply_drive,
-            source_fields=("is_4wd",),
-            candidate_confidence_effect=0.05,
+            source_fields=("is_4wd", "model", "variant", "version", "type"),
+            normalized_confidence_effect=0.05,
         ),
         _RuleTransformer(
             transformer_id="ts.fuel",

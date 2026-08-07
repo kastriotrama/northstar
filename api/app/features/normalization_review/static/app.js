@@ -98,9 +98,15 @@ function ruleExplanation(ruleId) {
     "MFR-PARENT-MODEL-CHILD": "If Tillverkare names a parent company and Model clearly identifies an approved child brand, use that child brand.",
     "MFR-BRAND-BASE-CONFIRMED": "If Tillverkare is a bodybuilder or converter and Brand agrees with Tillverkare grundfordonet, use the base manufacturer and keep the bodybuilder separately.",
     "MFR-MODEL-VARIANT-FALLBACK": "If Tillverkare is missing, a manufacturer found at the beginning of Model or Variant may become a candidate, but supporting evidence is required.",
+    "DRV-001": "For Mercedes-Benz vehicles, 4MATIC is accepted as all-wheel drive.",
+    "DRV-002": "For BMW vehicles, xDrive is accepted as all-wheel drive.",
+    "DRV-003": "For Audi vehicles, quattro is accepted as all-wheel drive.",
+    "DRV-004": "For Volkswagen vehicles, 4Motion is accepted as all-wheel drive.",
+    "DRV-008": "When the official TS is_4wd flag is 1, all-wheel drive is accepted. A value of 0 does not identify front- or rear-wheel drive.",
   };
   if (explanations[ruleId]) return explanations[ruleId];
   if (ruleId.startsWith("MFE-")) return "If the source company matches this approved manufacturer entity, its reviewed classification and canonical manufacturer name are used.";
+  if (ruleId.startsWith("MOD-")) return "When the confirmed manufacturer matches this rule and TS Model begins with the approved complete model-family term, that family is accepted while the remaining text stays available as source evidence.";
   return "If this rule's conditions match the source vehicle, its normalized value is applied according to the active rule version.";
 }
 
@@ -249,7 +255,7 @@ function renderInspector(vehicle) {
     ...rawEntries,
   ].map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
 
-  const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
+  const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "drive_type", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
   const entries = fieldOrder.filter((key) => vehicle.normalized[key] !== undefined).map((key) => [key, vehicle.normalized[key]]);
   document.querySelector("#normalized-fields").innerHTML = entries.length
     ? entries.map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("")

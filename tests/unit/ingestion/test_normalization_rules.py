@@ -22,11 +22,12 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
         }
     )
 
-    assert outcome.status == "provisional"
+    assert outcome.status == "resolved"
     assert outcome.normalized["manufacturer"] == "Volvo"
     assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
-    assert outcome.candidates["model_family"] == "V60"
+    assert outcome.normalized["model_family"] == "V60"
+    assert "model_family" not in outcome.candidates
     assert outcome.pipeline_version == "normalization-pipeline-v5"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
@@ -226,9 +227,7 @@ def test_parent_company_rows_use_agreeing_consumer_brand_and_model() -> None:
 
 
 def test_ds4_requires_ds_brand_and_psa_parent_context() -> None:
-    ds = normalize_ts_record(
-        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "DS", "model": "DS4"}
-    )
+    ds = normalize_ts_record({"manufacturer": "PSA AUTOMOBILES SA", "brand": "DS", "model": "DS4"})
     citroen = normalize_ts_record(
         {
             "brand": "CITROEN N",
@@ -318,7 +317,8 @@ def test_model_candidate_is_extracted_from_composite_or_duplicated_brand_text() 
         {"brand": "MITSUBISHI", "manufacturer": "MITSUBISHI", "model": "MITSUBISHI SPACE STAR"}
     )
 
-    assert composite.candidates["model_family"] == "523I"
+    assert composite.normalized["model_family"] == "5 Series"
+    assert "model_family" not in composite.candidates
     assert duplicated.candidates["model_family"] == "SPACE STAR"
 
 
@@ -781,9 +781,7 @@ def test_approved_compact_brand_prefix_handles_joined_and_spaced_names_only_when
     joined = normalize_ts_record(
         {"brand": "CHEVROLETV8 BEL AIR CAB"}, manufacturer_entity_rules=rules
     )
-    spaced = normalize_ts_record(
-        {"brand": "M G B BMC 1800"}, manufacturer_entity_rules=rules
-    )
+    spaced = normalize_ts_record({"brand": "M G B BMC 1800"}, manufacturer_entity_rules=rules)
     embedded = normalize_ts_record(
         {"brand": "STEFANS CHEVROLET ROADSTER"}, manufacturer_entity_rules=rules
     )
@@ -834,9 +832,7 @@ def test_special_purpose_body_codes_are_not_forced_into_body_shape() -> None:
 
 
 def test_primary_police_code_is_special_purpose_not_unknown_bodywork() -> None:
-    outcome = normalize_ts_record(
-        {"manufacturer": "SAAB", "eu_category": "M1", "body_code": "93"}
-    )
+    outcome = normalize_ts_record({"manufacturer": "SAAB", "eu_category": "M1", "body_code": "93"})
 
     assert outcome.normalized["special_purpose_type"] == "police"
     assert outcome.normalized["bodywork_registry_code"] == "93"
@@ -936,15 +932,27 @@ def test_runtime_rule_set_applies_an_activated_override() -> None:
     assert outcome.normalized["bodywork_form"] == "sedan"
 
 
-def test_reviewed_fuel_is_accepted_while_drive_remains_a_candidate() -> None:
+def test_reviewed_fuel_and_registry_awd_are_accepted() -> None:
     outcome = normalize_ts_record(
         {"manufacturer": "BMW", "fuel1": "01", "fuel2": "03", "is_4wd": "1"}
     )
-    assert outcome.status == "provisional"
+    assert outcome.status == "resolved"
     assert outcome.normalized["energy_sources"] == ["petrol", "electricity"]
-    assert outcome.candidates["drive_type"] == "awd"
+    assert outcome.normalized["drive_type"] == "awd"
+    assert "drive_type" not in outcome.candidates
+    assert {match.rule_id for match in outcome.rule_matches} >= {
+        "DRV-008",
+        "FUEL-001",
+        "FUEL-003",
+    }
+
+
+def test_registry_zero_does_not_guess_fwd_or_rwd() -> None:
+    outcome = normalize_ts_record({"manufacturer": "BMW", "is_4wd": "0"})
+
     assert "drive_type" not in outcome.normalized
-    assert {match.rule_id for match in outcome.rule_matches} >= {"FUEL-001", "FUEL-003"}
+    assert "drive_type" not in outcome.candidates
+    assert "is_4wd_malformed" not in outcome.review_reasons
 
 
 def test_explicit_hybrid_marker_adds_electricity_to_petrol_carrier() -> None:
@@ -1005,7 +1013,8 @@ def test_text_canonicalization_runs_before_translation_rules() -> None:
     assert outcome.normalized["manufacturer"] == "Volvo"
     assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
-    assert outcome.candidates["model_family"] == "V60 Recharge"
+    assert outcome.normalized["model_family"] == "V60"
+    assert "model_family" not in outcome.candidates
     assert any(
         entry.transformer_id == "ts.text-canonicalization"
         and entry.target == "canonical"

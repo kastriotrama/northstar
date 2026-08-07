@@ -2,6 +2,34 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — Model-family phase two implemented locally
+
+- Added immutable `ts-translation-v7` with 102 additional manufacturer-scoped model rules covering clean families, composite decomposition, and spelling variants. BMW designations such as 320d/330e map to `3 Series`, 520d/530e to `5 Series`; trim, body, power, battery and AWD suffixes remain source evidence.
+- Deliberately retained Kia SL/ED and other unverified internal codes as candidates; no TecDoc inference is included. Added guarded SQL activation `northstar_model_family_rule_catalog_v7.sql`, preserving all 229 active overrides.
+- Reprocessed 34,545 passenger cars locally as `normalization-passenger-34545-model-v7-local-20260807`: 18,459 resolved, 16,075 provisional, 11 review-required, and 0 failed. Phase two applied to 7,684 cars, accepted model coverage reached 15,913, moved another 5,965 vehicles to resolved, and reduced remaining model candidates from 11,134 to 3,450.
+- Local web now serves v7 with 231 translation rules, including 127 Model Family rules. Ruff, strict mypy, golden corpus, JavaScript syntax, and 414 tests pass; the pre-existing stateful bundle-fixture collision remains excluded.
+
+## 2026-08-07 — Remaining 11,134 model candidates analyzed
+
+- All 11,134 remaining model candidates have a resolved manufacturer; 11,133 are provisional only because model family is unapproved, while one also has the existing fuel-combination conflict.
+- Found 1,128 distinct manufacturer/model pairs: 150 pairs occurring at least 20 times cover 7,580 cars, 256 pairs occurring at least 10 times cover 9,049, and 385 pairs occurring at least five times cover 9,895. There are 444 one-off pairs.
+- Split the work into 7,024 single-token candidates, 4,110 composite candidates, at least 2,144 with explicit trim/powertrain/body suffixes, and 420 short-code candidates requiring special caution. Recommended direct manufacturer-scoped rules for clean families, reviewed decomposition rules for composites, and retaining internal codes such as Kia SL/ED until corroborated.
+
+## 2026-08-07 — First 25 model-family rules implemented locally
+
+- Added immutable `ts-translation-v6` with 25 manufacturer-scoped, complete-prefix model-family rules for the highest-volume TS candidates; suffix text remains source evidence, wrong-manufacturer and partial-token matches remain candidates, and no TecDoc inference is used.
+- Added the Model Family category to the Rules UI and guarded SQL catalog activation `northstar_model_family_rule_catalog_v6.sql`, preserving all 229 active overrides.
+- Reprocessed 34,545 passenger cars locally as `normalization-passenger-34545-model-v6-local-20260807`: 12,494 resolved, 22,040 provisional, 11 review-required, and 0 failed. The rules accepted 8,229 model families and moved 7,116 vehicles from provisional to resolved; 11,134 model candidates and 15,182 missing-model cases remain.
+- Local web now serves v6 with 129 translation rules including 25 Model Family rules. JavaScript syntax, Ruff, strict mypy, the golden corpus, and 403 tests pass; the one pre-existing stateful bundle-fixture collision remains excluded.
+
+## 2026-08-07 — Reviewed drive rules added as catalog v5
+
+- Added accepted `drive_type=awd` rules for the official TS `is_4wd=1` flag and manufacturer-scoped 4MATIC, xDrive, quattro, and 4Motion terms; `is_4wd=0` deliberately remains unresolved and never guesses FWD or RWD.
+- Advanced the immutable application catalog to `ts-translation-v5`, retained v4 for exact replay, exposed Drive rules and plain explanations in the Rules/vehicle UI, and added a guarded SQL activation artifact that preserves the live 229 overrides.
+- Activated v5 locally and reprocessed all 34,545 passenger cars into immutable batch `normalization-passenger-34545-drive-v5-local-20260807`: 5,378 resolved, 29,156 provisional, 11 review-required, and 0 failed. AWD is now accepted on 7,656 cars (7,655 TS flags plus one marketing-only match); all 985 scoped marketing matches were applied with no new drive review reasons. Compared by source order, 512 provisional cars became resolved. The previously reviewed Jeep returned to review because its vehicle-only correction is not yet replayed across a copied batch.
+- Restarted the local app from the updated worktree after confirming the previous processes had cached v4. The local Rules API now exposes `ts-translation-v5`, 104 total rules, and accepted Drive rules DRV-001/002/003/004/008.
+- JavaScript syntax, targeted Ruff, strict mypy, and 401 tests pass. One stateful bundle-import integration test remains blocked by a pre-existing fixture batch in the shared local PostgreSQL test database. The SQL must be applied only with the matching application version; the live environment has not yet been changed by this task.
+
 ## 2026-08-07 — Web review queue for unresolved cars
 
 - Added a Review Queue tab backed by the existing immutable `core.review_queue`: the latest 34,545-car batch correctly shows its 11 pending cases with TS evidence, current normalization, candidates, reasons, confidence, and Pending/In review/Resolved/Rejected controls.
@@ -36,19 +64,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-07 — Reviewed 35,000-passenger workbook re-import
 
 - Imported `northstar_ts_normalization_passenger_35000_reviewed_2026-08-07.xlsx` into fresh additive batch `normalization-passenger-35000-reviewed-cars-current-20260807T1130Z` using active rule version `ts-review-20260807T091238765007Z`. Excluded 365 confirmed motorhomes and normalized 34,635 cars: 4,825 resolved, 29,614 provisional, 196 review-required, and 0 failed. Exported all review evidence to `northstar_passenger_35000_remaining_review_cases_2026-08-07.json`; JSON validation and live PostgreSQL reconciliation pass with no retained `SA` motorhomes.
-
-## 2026-08-07 — 20,000 passenger vehicles normalized with v5
-
-- Deployed the CI-verified v5 normalizer to the isolated Hetzner NorthStar stack and selected exactly 20,000 Transportstyrelsen passenger records (`vehicle_type=PB`, EU category `M1`/`M1G`) from the source database. The base import produced 2,702 resolved, 8,136 provisional, 9,162 review-required, and 0 failed; reprocessing the same records with the active PostgreSQL rules created `normalization-passenger-ts20k-v5-reviewed-20260807` with 2,759 resolved, 16,992 provisional, 249 review-required, and 0 failed. Exported the reviewed 20,000-row CSV; older batches and VD-AI remain unchanged.
-
-## 2026-08-07 — Three-workbook motorhome exclusion re-import
-
-- Re-imported Atlas, Borealis, and Charlie-plus into fresh additive cars-only batches using active rule version `ts-review-20260807T091238765007Z`, excluding records identified as motorhomes by primary or secondary `SA` body code plus the established camper-brand evidence list. Atlas excluded 92 and retained 4,908 cars with 16 review-required; Borealis excluded 80 and retained 4,920 with 4 review-required; Charlie-plus excluded 86 and retained 4,914 with 1 review-required. All three imports completed with 0 failures; older immutable batches and source workbooks remain unchanged.
-
-## 2026-08-07 — Atlas 17-case decisions reviewed
-
-- Checked the proposed Atlas decisions against all raw evidence without changing rules or data. Confirmed `MILLER-MARYLAND` is a motorhome via primary `body_code=SA` and should be excluded; 12 car manufacturer decisions are safe as exact/evidence-gated rules, while `STEFANS FORD ROADSTER`, `BG-HOT`, `BOSSE`, and `SUPER SNAKE` should remain manual. The specific historical `JAGUAR DAIMLER SOU` → Daimler decision is supportable only as a narrow year/evidence rule, not a global Jaguar/Daimler mapping.
-
-## 2026-08-07 — Atlas 17-review JSON
-
-- Exported all 17 review-required rows from `normalization-passenger-atlas-cars-latest-20260807T1010Z` to `northstar_atlas_remaining_17_review_cases_2026-08-07.json`, including complete public-safe raw evidence, normalized values, candidates, applied/candidate rule IDs, confidence, and blank structured decision fields. Reasons reconcile to 15 missing manufacturers, one unknown legal manufacturer, and one Jaguar/Daimler compound Brand; failed remains 0 and JSON validation passes.
