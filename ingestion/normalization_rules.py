@@ -34,7 +34,7 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-PIPELINE_VERSION = "normalization-pipeline-v4"
+PIPELINE_VERSION = "normalization-pipeline-v5"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -345,6 +345,21 @@ _REVIEWED_LEGACY_BRAND_ENTITIES: dict[str, str] = {
     "YAMAHA YZF1000R 4VD": "Yamaha",
 }
 
+_REVIEWED_EXACT_BRAND_REPAIRS: dict[str, str] = {
+    "DAIMLER 2 5 V8": "Daimler",
+    "DAIMLER SOVEREIGN XJ6L": "Daimler",
+    "HYUNDAI EL": "Hyundai",
+    "MERCEDES BENZ 197": "Mercedes-Benz",
+}
+
+_EVIDENCE_ONLY_MANUFACTURER_ALIASES: dict[str, str] = {
+    "DS": "DS",
+    "LYNK CO": "Lynk & Co",
+    "ALFA ROMEO": "Alfa Romeo",
+    "ALFA ROMEO SPA": "Alfa Romeo",
+    "MITSUBISHI": "Mitsubishi",
+}
+
 _CORPORATE_GROUP_MARKERS = ("STELLANTIS", "PSA", "FCA")
 
 _MODEL_MANUFACTURERS: dict[str, str] = {
@@ -353,6 +368,10 @@ _MODEL_MANUFACTURERS: dict[str, str] = {
     "COMPASS": "Jeep",
     "2008": "Peugeot",
     "C4 X": "Citroën",
+    "ORA FUNKY CAT": "ORA",
+    "DS 7 CROSSBACK": "DS",
+    "LYNK CO 01": "Lynk & Co",
+    "LYNK AND CO 01": "Lynk & Co",
     "PASSAT": "Volkswagen",
     "PASSAT CC": "Volkswagen",
     "GOLF": "Volkswagen",
@@ -377,6 +396,9 @@ _MODEL_MANUFACTURERS: dict[str, str] = {
     "AURIS": "Toyota",
     "YARIS": "Toyota",
     "DUCATO": "Fiat",
+    "IX35": "Hyundai",
+    "SLS AMG": "Mercedes-Benz",
+    "STELVIO": "Alfa Romeo",
 }
 
 _VIN_WMI_MANUFACTURERS: dict[str, str] = {
@@ -396,12 +418,39 @@ _VIN_WMI_MANUFACTURERS: dict[str, str] = {
     "WVW": "Volkswagen",
     "WVG": "Volkswagen",
     "WF0": "Ford",
+    "VF7": "Citroën",
+    "ZAR": "Alfa Romeo",
+}
+
+_FAB_CODE_MANUFACTURERS: dict[str, str] = {
+    "AR": "Alfa Romeo",
+    "CI": "Citroën",
+    "HK": "Hyundai",
+    "MB": "Mercedes-Benz",
+    "NA": "Nissan",
+    "OP": "Opel",
+    "VW": "Volkswagen",
+}
+
+_PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
+    "93": ("police", "Polis"),
+    "95": ("fire_rescue_vehicle", "Brandfordon övrigt"),
+    "99": ("ambulance", "Ambulans"),
+}
+
+_SECONDARY_PURPOSE_CODES: dict[str, tuple[str, str, str]] = {
+    "06": ("usage_type", "taxi", "Taxi"),
+    "93": ("special_purpose_type", "police", "Polis"),
+    "SA": ("special_purpose_type", "motor_caravan", "Campingbil"),
 }
 
 _MARKETED_PARENT_CHILDREN: dict[str, frozenset[str]] = {
     "BMW": frozenset({"MINI"}),
-    "PSA": frozenset({"Citroën", "Peugeot", "Opel"}),
+    "PSA": frozenset({"Citroën", "Peugeot", "Opel", "DS"}),
     "FCA": frozenset({"Fiat", "Jeep"}),
+    "TOYOTA": frozenset({"Lexus"}),
+    "GEELY": frozenset({"Lynk & Co"}),
+    "GREAT_WALL": frozenset({"ORA"}),
 }
 
 _NON_WORD = re.compile(r"[^A-Z0-9ÅÄÖÉÜ]+")
@@ -759,10 +808,31 @@ def _apply_manufacturer_entity_rule(
             normalized["manufacturer"] = marketed_manufacturer
             normalized["manufacturer_role"] = "vehicle_manufacturer"
             normalized["builder_converter_names"] = []
+            normalized["manufacturer_evidence"] = ["brand", "manufacturer"]
             applied.extend((entity_id, "MFR-CORPORATE-BRAND-OVERRIDE"))
             return True
         return False
     if behavior == "require_evidence_review" or role in {"corporate_group", "unknown"}:
+        source_term = normalize_text(rule.get("source_term")) or ""
+        parent = _parent_key(_normalized_entity(source_term) or "", None)
+        if parent is not None:
+            brand_child = _resolve_manufacturer(raw.get("brand"))
+            model_child = _resolve_model_manufacturer(raw.get("model"))
+            allowed = _MARKETED_PARENT_CHILDREN[parent]
+            child = (
+                brand_child
+                if brand_child in allowed and model_child == brand_child
+                else model_child
+                if model_child in allowed and brand_child not in allowed
+                else None
+            )
+            if child in allowed:
+                normalized["manufacturer"] = child
+                normalized["manufacturer_role"] = "vehicle_manufacturer"
+                normalized["builder_converter_names"] = []
+                normalized["manufacturer_evidence"] = ["brand", "manufacturer", "model"]
+                applied.extend((entity_id, "MFR-PARENT-CHILD-EVIDENCE"))
+                return True
         if canonical_name:
             candidates["manufacturer"] = canonical_name
         reasons.append(
@@ -781,12 +851,17 @@ def _apply_manufacturer_entity_rule(
         normalized["manufacturer"] = base
         normalized["manufacturer_role"] = "bodybuilder_converter"
         normalized["builder_converter_names"] = [canonical_name] if canonical_name else []
+        normalized["manufacturer_evidence"] = ["base_manufacturer", "manufacturer"]
         applied.append(entity_id)
         return True
     if role == "vehicle_manufacturer" and canonical_name:
         normalized["manufacturer"] = canonical_name
         normalized["manufacturer_role"] = "vehicle_manufacturer"
         normalized["builder_converter_names"] = []
+        source_field = rule.get("source_field")
+        normalized["manufacturer_evidence"] = [
+            source_field if isinstance(source_field, str) else "manufacturer"
+        ]
         applied.append(entity_id)
         return True
     reasons.append("manufacturer_entity_configuration_invalid")
@@ -797,10 +872,11 @@ def _resolve_manufacturer(value: object) -> str | None:
     entity = _normalized_entity(value)
     if entity is None:
         return None
-    direct = _MANUFACTURER_ALIASES.get(entity)
+    aliases = {**_MANUFACTURER_ALIASES, **_EVIDENCE_ONLY_MANUFACTURER_ALIASES}
+    direct = aliases.get(entity)
     if direct is not None:
         return direct
-    for alias, canonical in _MANUFACTURER_ALIASES.items():
+    for alias, canonical in aliases.items():
         if entity.startswith(f"{alias} "):
             return canonical
     return None
@@ -839,6 +915,11 @@ def _resolve_vin_manufacturer(value: object) -> str | None:
     return _VIN_WMI_MANUFACTURERS.get(vin[:3].upper())
 
 
+def _resolve_fab_manufacturer(value: object) -> str | None:
+    code = _normalized_entity(value)
+    return _FAB_CODE_MANUFACTURERS.get(code) if code is not None else None
+
+
 def _marketed_manufacturer_evidence(
     raw: dict[str, Any],
 ) -> tuple[str | None, tuple[str, ...], bool]:
@@ -846,8 +927,10 @@ def _marketed_manufacturer_evidence(
     if brand is None:
         return None, (), False
     corroborators = (
+        ("MFR-BRAND-BASE", _resolve_base_manufacturer(raw.get("base_manufacturer"))),
         ("MFR-BRAND-MODEL", _resolve_model_manufacturer(raw.get("model"))),
         ("MFR-BRAND-VIN-WMI", _resolve_vin_manufacturer(raw.get("vin"))),
+        ("MFR-BRAND-FAB-CODE", _resolve_fab_manufacturer(raw.get("fab_code"))),
         ("MFR-BRAND-KTYPE", _resolve_manufacturer(raw.get("ktype_manufacturer"))),
     )
     present = tuple((rule_id, value) for rule_id, value in corroborators if value is not None)
@@ -865,6 +948,12 @@ def _parent_key(entity: str, manufacturer: str | None) -> str | None:
         return "PSA"
     if "FCA" in entity:
         return "FCA"
+    if "TOYOTA MOTOR" in entity:
+        return "TOYOTA"
+    if "ZHEJIANG GEELY" in entity:
+        return "GEELY"
+    if "GREAT WALL MOTOR" in entity:
+        return "GREAT_WALL"
     return None
 
 
@@ -875,6 +964,39 @@ def _resolve_base_manufacturer(value: object) -> str | None:
     if entity.startswith("FCA ITALY"):
         return "Fiat"
     return _resolve_manufacturer(value)
+
+
+def _fragmented_manufacturer(raw: dict[str, Any]) -> str | None:
+    """Repair only short manufacturer/base fragments confirmed by the Brand."""
+
+    manufacturer = _manufacturer_compact_key(raw.get("manufacturer"))
+    base = _manufacturer_compact_key(raw.get("base_manufacturer"))
+    brand = _resolve_manufacturer(raw.get("brand"))
+    if (
+        manufacturer is None
+        or base is None
+        or brand is None
+        or len(manufacturer) > 6
+        or len(base) > 6
+    ):
+        return None
+    repaired = _resolve_manufacturer(f"{manufacturer}{base}")
+    return repaired if repaired == brand else None
+
+
+def _retain_manufacturer_evidence(
+    raw: dict[str, Any], normalized: dict[str, Any], *, fragmented: str | None = None
+) -> None:
+    legal = normalize_text(raw.get("manufacturer"))
+    base = normalize_text(raw.get("base_manufacturer"))
+    if fragmented is not None:
+        normalized["legal_manufacturer"] = fragmented
+        normalized["manufacturer_source_repair"] = "concatenated_manufacturer_base_fragments"
+        return
+    if legal is not None:
+        normalized["legal_manufacturer"] = legal
+    if base is not None:
+        normalized["base_manufacturer"] = base
 
 
 def _normalize_manufacturer(
@@ -888,7 +1010,34 @@ def _normalize_manufacturer(
 ) -> None:
     entity = _normalized_entity(raw.get("manufacturer"))
     base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
+    fragmented = _fragmented_manufacturer(raw)
+    _retain_manufacturer_evidence(raw, normalized, fragmented=fragmented)
+    if entity is None and _normalized_entity(raw.get("brand")) == "EGEN TILLVERKNING":
+        normalized["manufacturer_role"] = "self_built"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand"]
+        applied.append("MFR-SELF-BUILT-EXACT")
+        return
+    if (
+        entity is None
+        and _normalized_entity(raw.get("brand")) == "DS"
+        and _normalized_entity(raw.get("fab_code")) == "DSS"
+        and (_normalized_entity(raw.get("model")) or "").startswith("DS")
+    ):
+        normalized["manufacturer"] = "DS"
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand", "fab_code", "model"]
+        applied.append("MFR-DS-BRAND-FAB-MODEL")
+        return
     marketed, evidence_rules, evidence_conflict = _marketed_manufacturer_evidence(raw)
+    if fragmented is not None:
+        normalized["manufacturer"] = fragmented
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand", "manufacturer", "base_manufacturer"]
+        applied.append("MFR-FRAGMENTED-SOURCE-REPAIR")
+        return
     if entity is None:
         reviewed_brand = _manufacturer_entity_rule(raw, "brand", entity_rules)
         if reviewed_brand is not None:
@@ -904,9 +1053,18 @@ def _normalize_manufacturer(
             applied.append("MFR-BRAND-REVIEWED-EXAMPLE")
             return
         brand_key = _normalized_entity(raw.get("brand"))
+        reviewed_exact_brand = (
+            _REVIEWED_EXACT_BRAND_REPAIRS.get(brand_key) if brand_key is not None else None
+        )
         reviewed_legacy_brand = (
             _REVIEWED_LEGACY_BRAND_ENTITIES.get(brand_key) if brand_key is not None else None
         )
+        if reviewed_exact_brand is not None:
+            normalized["manufacturer"] = reviewed_exact_brand
+            normalized["manufacturer_role"] = "vehicle_manufacturer"
+            normalized["builder_converter_names"] = []
+            applied.append("MFR-BRAND-REVIEWED-EXACT")
+            return
         if reviewed_legacy_brand is not None:
             normalized["manufacturer"] = reviewed_legacy_brand
             normalized["manufacturer_role"] = "vehicle_manufacturer"
@@ -995,10 +1153,28 @@ def _normalize_manufacturer(
 
     manufacturer = _resolve_manufacturer(raw.get("manufacturer"))
     parent = _parent_key(entity, manufacturer)
-    if marketed is not None and evidence_conflict:
-        candidates["manufacturer"] = marketed
-        candidate_rules.extend(evidence_rules)
-        reasons.append("manufacturer_evidence_conflict")
+    if (
+        parent == "PSA"
+        and _normalized_entity(raw.get("brand")) == "DS"
+        and (_normalized_entity(raw.get("model")) or "").startswith("DS4")
+    ):
+        normalized["manufacturer"] = "DS"
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand", "manufacturer", "model"]
+        applied.append("MFR-PSA-DS4-EXACT-EVIDENCE")
+        return
+    parent_model_child = _resolve_model_manufacturer(raw.get("model"))
+    if (
+        parent is not None
+        and parent_model_child in _MARKETED_PARENT_CHILDREN[parent]
+        and _resolve_manufacturer(raw.get("brand")) is None
+    ):
+        normalized["manufacturer"] = parent_model_child
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand", "manufacturer", "model"]
+        applied.append("MFR-PARENT-MODEL-CHILD")
         return
     if (
         marketed is not None
@@ -1011,6 +1187,38 @@ def _normalize_manufacturer(
         normalized["builder_converter_names"] = []
         applied.extend(("MFR-PARENT-MARKETED", *evidence_rules))
         return
+    if marketed is not None and evidence_conflict:
+        candidates["manufacturer"] = marketed
+        candidate_rules.extend(evidence_rules)
+        reasons.append("manufacturer_evidence_conflict")
+        return
+    brand_manufacturer = _resolve_manufacturer(raw.get("brand"))
+    if manufacturer is None and base is not None and brand_manufacturer == base:
+        normalized["manufacturer"] = brand_manufacturer
+        normalized["manufacturer_role"] = "bodybuilder_converter"
+        normalized["builder_converter_names"] = [normalize_text(raw.get("manufacturer"))]
+        normalized["manufacturer_evidence"] = ["brand", "base_manufacturer"]
+        applied.append("MFR-BRAND-BASE-CONFIRMED")
+        return
+    if manufacturer is None and marketed is not None and evidence_rules and not evidence_conflict:
+        normalized["manufacturer"] = marketed
+        normalized["manufacturer_role"] = "vehicle_manufacturer"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = [
+            "brand",
+            *(
+                "model"
+                if rule_id == "MFR-BRAND-MODEL"
+                else "vin"
+                if rule_id == "MFR-BRAND-VIN-WMI"
+                else "fab_code"
+                if rule_id == "MFR-BRAND-FAB-CODE"
+                else "ktype_manufacturer"
+                for rule_id in evidence_rules
+            ),
+        ]
+        applied.extend(("MFR-BRAND-EVIDENCE-CONFIRMED", *evidence_rules))
+        return
     if any(marker in entity for marker in _CORPORATE_GROUP_MARKERS):
         reasons.append("manufacturer_corporate_group_unresolved")
         return
@@ -1020,6 +1228,7 @@ def _normalize_manufacturer(
     normalized["manufacturer"] = manufacturer
     normalized["manufacturer_role"] = "vehicle_manufacturer"
     normalized["builder_converter_names"] = []
+    normalized["manufacturer_evidence"] = ["manufacturer"]
     applied.append("MFR-102")
 
 
@@ -1029,6 +1238,27 @@ def _normalize_model_family(
     candidates: dict[str, Any],
 ) -> None:
     model = normalize_text(raw.get("model"))
+    manufacturer = normalize_text(normalized.get("manufacturer")) or _resolve_manufacturer(
+        raw.get("manufacturer")
+    )
+    manufacturer_key = _normalized_entity(manufacturer)
+    if model is not None and manufacturer is not None and manufacturer_key is not None:
+        model_key = _normalized_entity(model)
+        if model_key is not None and model_key.startswith(f"{manufacturer_key} "):
+            model = model[len(manufacturer) :].strip()
+    if model is None and manufacturer_key is not None:
+        brand = normalize_text(raw.get("brand"))
+        brand_key = _normalized_entity(brand)
+        if (
+            brand is not None
+            and brand_key is not None
+            and brand_key.startswith(manufacturer_key)
+            and not brand_key.startswith(f"{manufacturer_key} ")
+            and len(brand_key) > len(manufacturer_key)
+        ):
+            compact_remainder = brand_key[len(manufacturer_key) :]
+            if compact_remainder[0].isdigit():
+                model = compact_remainder
     if model is None:
         return
     candidates["model_family"] = model
@@ -1148,13 +1378,14 @@ def _marketing_match(
     area: Literal["transmission_marketing", "bodywork_marketing", "electrification_marketing"],
     *,
     vehicle_scope: str | None = None,
+    extra_fields: tuple[str, ...] = (),
 ) -> tuple[TranslationRule, str, str] | None:
     matches: list[tuple[int, TranslationRule, str, str]] = []
     raw = context.canonical_record
     for rule in _rule_set(context).rules:
         if rule.area != area or (rule.vehicle_scopes and vehicle_scope not in rule.vehicle_scopes):
             continue
-        for field_name in rule.source_fields:
+        for field_name in (*rule.source_fields, *extra_fields):
             text = normalize_text(raw.get(field_name))
             if text is None:
                 continue
@@ -1368,6 +1599,13 @@ def _normalize_transmission(context: NormalizationContext) -> None:
         context.review_reasons.append("transmission_electrification_evidence_missing")
         return
     if code_rule is not None and code_rule.canonical_value != rule.canonical_value:
+        if (
+            code_rule.canonical_value == "automatic"
+            and rule.canonical_value == "dct"
+        ):
+            normalized["transmission_name"] = source_term
+            context.applied_rule_ids.append(rule.rule_id)
+            return
         context.candidate_rule_ids.append(rule.rule_id)
         context.review_reasons.append("transmission_structured_marketing_conflict")
         return
@@ -1395,23 +1633,54 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     raw = context.canonical_record
     normalized = context.normalized
     code = normalize_text(raw.get("body_code"))
+    secondary_code = normalize_text(raw.get("body_code2"))
     scope = _vehicle_scope(raw)
     code_rule: TranslationRule | None = None
-    if code is not None:
-        matches = _rule_set(context).match("bodywork_code", code.upper(), vehicle_scope=scope)
-        if not matches:
-            context.review_reasons.append("bodywork_code_unresolved_for_category")
-            return
-        code_rule = matches[0]
-        _record_dictionary_match(context, code_rule, source_field="body_code", source_term=code)
-        normalized["bodywork_registry_label_sv"] = code_rule.display_value
-        if code_rule.canonical_value is not None:
-            normalized[code_rule.canonical_field] = code_rule.canonical_value
-        elif code.upper() in {"98", "SG"}:
-            context.review_reasons.append("bodywork_requires_review")
-        context.applied_rule_ids.append(code_rule.rule_id)
+    special_purpose: tuple[str, str] | None = None
 
-    marketing = _marketing_match(context, "bodywork_marketing", vehicle_scope=scope)
+    if secondary_code is not None:
+        canonical_secondary = secondary_code.upper()
+        normalized["secondary_registry_body_code"] = canonical_secondary
+        secondary = _SECONDARY_PURPOSE_CODES.get(canonical_secondary)
+        if secondary is not None:
+            field_name, canonical_value, display_value = secondary
+            normalized[field_name] = canonical_value
+            normalized["secondary_registry_body_label_sv"] = display_value
+            context.applied_rule_ids.append(f"PURPOSE-SECONDARY-{canonical_secondary}")
+
+    if code is not None:
+        canonical_code = code.upper()
+        normalized["bodywork_registry_code"] = canonical_code
+        special_purpose = _PRIMARY_SPECIAL_PURPOSE_CODES.get(canonical_code)
+        if special_purpose is not None:
+            special_type, display_value = special_purpose
+            normalized["special_purpose_type"] = special_type
+            normalized["bodywork_registry_label_sv"] = display_value
+            normalized["bodywork_source"] = "special_purpose_registry"
+            context.applied_rule_ids.append(f"PURPOSE-PRIMARY-{canonical_code}")
+        else:
+            matches = _rule_set(context).match(
+                "bodywork_code", canonical_code, vehicle_scope=scope
+            )
+            if not matches:
+                context.review_reasons.append("bodywork_code_unresolved_for_category")
+                return
+            code_rule = matches[0]
+            _record_dictionary_match(context, code_rule, source_field="body_code", source_term=code)
+            normalized["bodywork_registry_label_sv"] = code_rule.display_value
+            if code_rule.canonical_value is not None:
+                normalized[code_rule.canonical_field] = code_rule.canonical_value
+                normalized["bodywork_source"] = "registry"
+            elif canonical_code in {"98", "SG"}:
+                context.review_reasons.append("bodywork_requires_review")
+            context.applied_rule_ids.append(code_rule.rule_id)
+
+    marketing = _marketing_match(
+        context,
+        "bodywork_marketing",
+        vehicle_scope=scope,
+        extra_fields=("brand",) if special_purpose is not None else (),
+    )
     if marketing is None:
         return
     rule, source_field, source_term = marketing
@@ -1425,9 +1694,17 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     if not _manufacturer_is_in_scope(rule, manufacturer):
         context.review_reasons.append("bodywork_marketing_scope_unresolved")
         return
+    if special_purpose is not None:
+        normalized["marketing_body_style"] = rule.canonical_value
+        context.candidates["bodywork_form"] = rule.canonical_value
+        context.candidates["bodywork_confidence"] = 0.8
+        context.candidate_rule_ids.append(rule.rule_id)
+        return
     if rule.rule_id == "BDY-013" and (
         code_rule is None or code_rule.rule_id not in {"BDY-118", "BDY-SA"}
     ):
+        if code_rule is not None:
+            return
         context.candidates[rule.canonical_field] = rule.canonical_value
         context.candidate_rule_ids.append(rule.rule_id)
         context.review_reasons.append("motorhome_supporting_evidence_missing")
@@ -1435,12 +1712,15 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     if code_rule is not None and code_rule.canonical_value != rule.canonical_value:
         compatible_forms = frozenset({code_rule.canonical_value, rule.canonical_value})
         if compatible_forms == frozenset({"multi_purpose_vehicle", "passenger_van"}):
+            normalized["marketing_body_style"] = rule.canonical_value
             context.applied_rule_ids.append(rule.rule_id)
             return
-        context.candidate_rule_ids.append(rule.rule_id)
-        context.review_reasons.append("bodywork_structured_marketing_conflict")
+        normalized["marketing_body_style"] = rule.canonical_value
+        context.applied_rule_ids.append(rule.rule_id)
         return
     normalized[rule.canonical_field] = rule.canonical_value
+    normalized["bodywork_source"] = "registry" if code_rule is not None else "marketing"
+    normalized["marketing_body_style"] = rule.canonical_value
     context.applied_rule_ids.append(rule.rule_id)
 
 
@@ -1705,8 +1985,10 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             handler=_apply_bodywork,
             source_fields=(
                 "body_code",
+                "body_code2",
                 "eu_category",
                 "vehicle_type",
+                "brand",
                 "model",
                 "variant",
                 "version",

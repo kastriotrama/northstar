@@ -27,7 +27,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["bodywork_form"] == "estate"
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.candidates["model_family"] == "V60"
-    assert outcome.pipeline_version == "normalization-pipeline-v4"
+    assert outcome.pipeline_version == "normalization-pipeline-v5"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -55,6 +55,56 @@ def test_converter_uses_recognized_base_manufacturer_and_is_retained() -> None:
     assert outcome.normalized["manufacturer"] == "Mercedes-Benz"
     assert outcome.normalized["manufacturer_role"] == "bodybuilder_converter"
     assert outcome.normalized["builder_converter_names"] == ["Brabus"]
+    assert outcome.normalized["legal_manufacturer"] == "Brabus GmbH"
+    assert outcome.normalized["base_manufacturer"] == "Mercedes-Benz AG"
+
+
+def test_unknown_converter_uses_optional_base_only_when_brand_confirms_oem() -> None:
+    outcome = normalize_ts_record(
+        {
+            "brand": "VOLKSWAGEN",
+            "model": "CRAFTER",
+            "manufacturer": "NORDIC VEHICLE CONVERSION AB",
+            "base_manufacturer": "VOLKSWAGEN AG",
+            "fab_code": "VW",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volkswagen"
+    assert outcome.normalized["legal_manufacturer"] == "NORDIC VEHICLE CONVERSION AB"
+    assert outcome.normalized["base_manufacturer"] == "VOLKSWAGEN AG"
+    assert outcome.normalized["builder_converter_names"] == ["NORDIC VEHICLE CONVERSION AB"]
+    assert outcome.normalized["manufacturer_evidence"] == ["brand", "base_manufacturer"]
+    assert "manufacturer_unknown" not in outcome.review_reasons
+
+
+def test_short_manufacturer_and_base_fragments_repair_only_with_brand_confirmation() -> None:
+    repaired = normalize_ts_record(
+        {
+            "brand": "NISSAN",
+            "model": "NISSAN LEAF 40KWH",
+            "manufacturer": "NI",
+            "base_manufacturer": "SSAN",
+            "fab_code": "NA",
+        }
+    )
+    unsafe = normalize_ts_record(
+        {
+            "brand": "VOLKSWAGEN",
+            "manufacturer": "NI",
+            "base_manufacturer": "SSAN",
+        }
+    )
+
+    assert repaired.normalized["manufacturer"] == "Nissan"
+    assert repaired.normalized["legal_manufacturer"] == "Nissan"
+    assert "base_manufacturer" not in repaired.normalized
+    assert repaired.normalized["manufacturer_source_repair"] == (
+        "concatenated_manufacturer_base_fragments"
+    )
+    assert "MFR-FRAGMENTED-SOURCE-REPAIR" in repaired.applied_rule_ids
+    assert "manufacturer" not in unsafe.normalized
+    assert "manufacturer_unknown" in unsafe.review_reasons
 
 
 def test_kabe_converter_uses_fiat_base_and_retains_builder() -> None:
@@ -115,6 +165,121 @@ def test_multibrand_groups_require_marketed_brand_evidence() -> None:
     assert jeep.normalized["manufacturer"] == "Jeep"
     assert "manufacturer" not in unresolved.normalized
     assert "manufacturer_corporate_group_unresolved" in unresolved.review_reasons
+
+
+def test_parent_company_rows_use_agreeing_consumer_brand_and_model() -> None:
+    ds = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "DS", "model": "DS 7 CROSSBACK"}
+    )
+    lexus = normalize_ts_record(
+        {
+            "manufacturer": "TOYOTA MOTOR EUROPE NV/SA",
+            "base_manufacturer": "TOYOTA MOTOR EUROPE NV/SA",
+            "brand": "LEXUS",
+            "model": "LEXUS RX450H",
+        }
+    )
+
+    assert ds.normalized["manufacturer"] == "DS"
+    assert lexus.normalized["manufacturer"] == "Lexus"
+    assert "manufacturer_evidence_conflict" not in lexus.review_reasons
+
+
+def test_ds4_requires_ds_brand_and_psa_parent_context() -> None:
+    ds = normalize_ts_record(
+        {"manufacturer": "PSA AUTOMOBILES SA", "brand": "DS", "model": "DS4"}
+    )
+    citroen = normalize_ts_record(
+        {
+            "brand": "CITROEN N",
+            "model": "DS4",
+            "fab_code": "CI",
+            "vin": "VF700000000000000",
+        }
+    )
+
+    assert ds.normalized["manufacturer"] == "DS"
+    assert citroen.normalized["manufacturer"] == "Citroën"
+    assert "manufacturer_evidence_conflict" not in citroen.review_reasons
+
+
+def test_ds_brand_fab_and_model_override_shared_citroen_wmi() -> None:
+    outcome = normalize_ts_record(
+        {
+            "brand": "DS",
+            "model": "DS 3",
+            "fab_code": "DSS",
+            "vin": "VF700000000000000",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "DS"
+    assert "manufacturer_evidence_conflict" not in outcome.review_reasons
+
+
+def test_unknown_legal_parent_uses_reviewed_model_brand_child() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "GREAT WALL MOTOR COMPANY LIMITED",
+            "brand": "GREAT WALL MOTOR COMPANY",
+            "model": "ORA FUNKY CAT",
+        },
+        manufacturer_entity_rules={
+            "manufacturer:GREAT WALL MOTOR COMPANY LIMITED": {
+                "entity_id": "MFE-GREAT-WALL",
+                "canonical_name": None,
+                "entity_role": "unknown",
+                "base_behavior": "require_evidence_review",
+                "source_term": "GREAT WALL MOTOR COMPANY LIMITED",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "ORA"
+    assert "MFR-PARENT-CHILD-EVIDENCE" in outcome.applied_rule_ids
+    assert "manufacturer_entity_requires_review" not in outcome.review_reasons
+
+
+def test_great_wall_legal_parent_uses_ora_model_brand_without_entity_override() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "GREAT WALL MOTOR COMPANY LIMITED",
+            "brand": "GREAT WALL MOTOR COMPANY",
+            "model": "ORA FUNKY CAT",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "ORA"
+    assert "MFR-PARENT-MODEL-CHILD" in outcome.applied_rule_ids
+    assert "manufacturer_unknown" not in outcome.review_reasons
+
+
+def test_self_built_vehicle_is_valid_without_a_manufacturer_marque() -> None:
+    outcome = normalize_ts_record({"brand": "EGEN TILLVERKNING", "body_code": "02"})
+
+    assert "manufacturer" not in outcome.normalized
+    assert outcome.normalized["manufacturer_role"] == "self_built"
+    assert "manufacturer_missing" not in outcome.review_reasons
+
+
+def test_model_candidate_is_extracted_from_composite_or_duplicated_brand_text() -> None:
+    composite = normalize_ts_record(
+        {"brand": "BMW523I"},
+        manufacturer_entity_rules={
+            "brand:BMW523I": {
+                "entity_id": "MFE-BMW523I",
+                "canonical_name": "BMW",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+            }
+        },
+    )
+    duplicated = normalize_ts_record(
+        {"brand": "MITSUBISHI", "manufacturer": "MITSUBISHI", "model": "MITSUBISHI SPACE STAR"}
+    )
+
+    assert composite.candidates["model_family"] == "523I"
+    assert duplicated.candidates["model_family"] == "SPACE STAR"
 
 
 def test_missing_manufacturer_accepts_brand_only_with_corroborating_model() -> None:
@@ -210,7 +375,7 @@ def test_unknown_manufacturer_is_not_replaced_by_agreeing_brand_and_model() -> N
     )
 
     assert "manufacturer" not in outcome.normalized
-    assert "manufacturer_unknown" in outcome.review_reasons
+    assert "manufacturer_evidence_conflict" in outcome.review_reasons
 
 
 def test_recognized_brand_is_only_a_candidate_when_manufacturer_is_missing() -> None:
@@ -219,7 +384,7 @@ def test_recognized_brand_is_only_a_candidate_when_manufacturer_is_missing() -> 
     assert outcome.status == "review_required"
     assert outcome.candidates["manufacturer"] == "Volvo"
     assert "manufacturer" not in outcome.normalized
-    assert "manufacturer_missing_compare_brand" in outcome.review_reasons
+    assert "manufacturer_evidence_conflict" in outcome.review_reasons
 
 
 def test_approved_policy_uses_manufacturer_entity_alias_from_model_when_brand_missing() -> None:
@@ -597,6 +762,122 @@ def test_bodywork_codes_are_vehicle_category_scoped() -> None:
     assert passenger.normalized["bodywork_form"] == "estate"
     assert goods.status == "review_required"
     assert "bodywork_form" not in goods.normalized
+
+
+def test_special_purpose_body_codes_are_not_forced_into_body_shape() -> None:
+    fire = normalize_ts_record(
+        {
+            "brand": "OPEL ASTRA COMBI GLS 512",
+            "manufacturer": "OPEL",
+            "eu_category": "M1",
+            "body_code": "95",
+        }
+    )
+    ambulance = normalize_ts_record(
+        {
+            "brand": "NILSSON V70 AMBULANS",
+            "manufacturer": "NILSSON",
+            "base_manufacturer": "VOLVO",
+            "eu_category": "M1",
+            "body_code": "99",
+        }
+    )
+
+    assert fire.normalized["special_purpose_type"] == "fire_rescue_vehicle"
+    assert fire.normalized["bodywork_registry_code"] == "95"
+    assert fire.normalized["marketing_body_style"] == "estate"
+    assert fire.candidates["bodywork_form"] == "estate"
+    assert "bodywork_code_unresolved_for_category" not in fire.review_reasons
+    assert ambulance.normalized["special_purpose_type"] == "ambulance"
+    assert ambulance.normalized["bodywork_registry_code"] == "99"
+    assert "bodywork_code_unresolved_for_category" not in ambulance.review_reasons
+
+
+def test_primary_police_code_is_special_purpose_not_unknown_bodywork() -> None:
+    outcome = normalize_ts_record(
+        {"manufacturer": "SAAB", "eu_category": "M1", "body_code": "93"}
+    )
+
+    assert outcome.normalized["special_purpose_type"] == "police"
+    assert outcome.normalized["bodywork_registry_code"] == "93"
+    assert "bodywork_form" not in outcome.normalized
+    assert "bodywork_code_unresolved_for_category" not in outcome.review_reasons
+
+
+def test_registry_convertible_blocks_california_motorhome_false_positive() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "FERRARI",
+            "brand": "FERRARI F149",
+            "model": "CALIFORNIA",
+            "eu_category": "M1",
+            "body_code": "AE",
+        }
+    )
+
+    assert outcome.normalized["bodywork_form"] == "convertible"
+    assert outcome.candidates.get("bodywork_form") != "motorhome"
+    assert "motorhome_supporting_evidence_missing" not in outcome.review_reasons
+
+
+def test_pdk_supports_structured_automatic_transmission() -> None:
+    outcome = normalize_ts_record(
+        {"manufacturer": "PORSCHE", "model": "CAYMAN PDK", "gearbox": "A"}
+    )
+
+    assert outcome.normalized["transmission_type"] == "automatic"
+    assert outcome.normalized["transmission_name"] == "PDK"
+    assert "transmission_structured_marketing_conflict" not in outcome.review_reasons
+
+
+def test_secondary_body_code_enriches_purpose_without_replacing_primary_bodywork() -> None:
+    camper = normalize_ts_record(
+        {
+            "manufacturer": "VOLVO",
+            "eu_category": "M1",
+            "body_code": "AF",
+            "body_code2": "SA",
+        }
+    )
+    police = normalize_ts_record(
+        {
+            "manufacturer": "VOLKSWAGEN",
+            "eu_category": "M1",
+            "body_code": "AC",
+            "body_code2": "93",
+        }
+    )
+    taxi = normalize_ts_record(
+        {
+            "manufacturer": "VOLVO",
+            "eu_category": "M1",
+            "body_code": "AB",
+            "body_code2": "06",
+        }
+    )
+
+    assert camper.normalized["bodywork_form"] == "multi_purpose_vehicle"
+    assert camper.normalized["special_purpose_type"] == "motor_caravan"
+    assert police.normalized["bodywork_form"] == "estate"
+    assert police.normalized["special_purpose_type"] == "police"
+    assert taxi.normalized["bodywork_form"] == "hatchback"
+    assert taxi.normalized["usage_type"] == "taxi"
+
+
+def test_registry_and_marketing_bodywork_are_retained_as_separate_facts() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "MERCEDES-BENZ AG",
+            "model": "GLE 350 DE 4MATIC COUPE",
+            "eu_category": "M1G",
+            "body_code": "AC",
+        }
+    )
+
+    assert outcome.normalized["bodywork_form"] == "estate"
+    assert outcome.normalized["bodywork_source"] == "registry"
+    assert outcome.normalized["marketing_body_style"] == "coupe"
+    assert "bodywork_structured_marketing_conflict" not in outcome.review_reasons
 
 
 def test_runtime_rule_set_applies_an_activated_override() -> None:

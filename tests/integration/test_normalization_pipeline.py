@@ -100,7 +100,7 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
                 "WHERE source_batch_id = %s",
                 (batch_id,),
             )
-            assert cursor.fetchall() == [("normalization-pipeline-v4",)]
+            assert cursor.fetchall() == [("normalization-pipeline-v5",)]
     finally:
         pg_connection.rollback()
         with pg_connection.cursor() as cursor:
