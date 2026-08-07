@@ -2,6 +2,27 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — Web review queue for unresolved cars
+
+- Added a Review Queue tab backed by the existing immutable `core.review_queue`: the latest 34,545-car batch correctly shows its 11 pending cases with TS evidence, current normalization, candidates, reasons, confidence, and Pending/In review/Resolved/Rejected controls.
+- Review decisions require reviewer and reason. Vehicle-only decisions are audited in the queue; reusable decisions create an existing translation-rule or manufacturer-entity draft before resolution, then remain visible in reusable rule-change history for normal activation and reprocessing.
+- Limited queue rule activity to current, unactivated translation-rule and manufacturer-entity drafts; activated rules no longer appear there.
+- Added durable `review_draft` storage for in-review corrections. Starting or saving a review now preserves reviewer, field, canonical value, scope, rule/entity reference, and reason, and the form restores them when reopened. The one correction entered before this storage existed cannot be recovered and must be entered once more.
+- Vehicle-only approvals now persist a new provenance-linked normalization result instead of only closing the queue item. Applied the existing review `1998` to record `990075154`: Manufacturer is now Jeep, `manufacturer_missing` is cleared, and the vehicle correctly moved from review-required 55% to provisional 80% because its AWD candidate remains unresolved; batch totals are now 4,866 resolved, 29,669 provisional, 10 review-required, and 0 failed.
+- Ruff, strict mypy, JavaScript syntax, 28 focused tests, real local API reconciliation, and browser interaction checks pass with no console errors.
+
+## 2026-08-07 — Vehicle dialog shows exact rule details
+
+- Made applied and candidate rule badges in the vehicle detail dialog clickable. The selected translation rule, manufacturer entity, or built-in pipeline policy now expands directly inside the same dialog with its matching inputs, canonical output, scopes, status, and other relevant evidence. Code-based manufacturer policies use plain "If … then …" explanations, including the Tillverkare-missing Brand fallback and its supporting-evidence requirement.
+- JavaScript syntax validation and the normalization-review integration suite pass (4 tests).
+
+## 2026-08-07 — Latest reviewed rules installed in both databases
+
+- Installed immutable target `ts-review-20260807T112656115381Z` in the local and isolated server PostgreSQL databases, advancing both from 67 to 229 active overrides.
+- Verified target checksum `42a628f178321ef00eed3c2c4203a6c8264d13680ee816d0f209717e3d933a29` and applied a guarded 164-definition delta from the actual deployed baseline.
+- The complete 35,000 PB workbook includes 362 official `SA` motorhomes and 93 legacy `body_code=08` motorhomes. After reproducing the collaborator-approved cars-only exclusion, reprocessed 34,545 retained cars locally and on the isolated live server as `normalization-passenger-34545-rules-229-cars-20260807`: 4,866 resolved, 29,668 provisional, 11 review-required, and 0 failed under pipeline v5.
+- The 11 remaining reasons are 9 missing manufacturers, 1 compound Brand, and 1 fuel-carrier conflict.
+
 ## 2026-08-07 — Normalization decision review UX
 
 - Replaced the narrow vehicle inspector with a focused two-column dialog showing TS source evidence, normalized output, field-specific missing/uncertain information, and raw-to-canonical mappings.
@@ -31,15 +52,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-07 — Atlas 17-review JSON
 
 - Exported all 17 review-required rows from `normalization-passenger-atlas-cars-latest-20260807T1010Z` to `northstar_atlas_remaining_17_review_cases_2026-08-07.json`, including complete public-safe raw evidence, normalized values, candidates, applied/candidate rule IDs, confidence, and blank structured decision fields. Reasons reconcile to 15 missing manufacturers, one unknown legal manufacturer, and one Jaguar/Daimler compound Brand; failed remains 0 and JSON validation passes.
-
-## 2026-08-07 — Three latest-rule cars-only imports
-
-- Re-imported the Atlas, Borealis, and Charlie-plus 5,000-row public-safe workbooks into fresh additive cars-only batches using active rule version `ts-review-20260807T091238765007Z`. After excluding confirmed motorhomes (39 Atlas, 41 Borealis, 50 Charlie), Atlas produced 675 resolved, 4,269 provisional, 17 review-required, and 0 failed across 4,961 cars; Borealis produced 695/4,260/4/0 across 4,959 cars; Charlie produced 713/4,236/1/0 across 4,950 cars. Remaining cases are manufacturer-only and no confirmed motorhomes remain in the selected batches.
-
-## 2026-08-07 — Reviewed-rule SQL artifacts refreshed
-
-- Regenerated both reviewed-rule SQL artifacts directly from immutable PostgreSQL versions. `northstar_latest_reviewed_rule_delta.sql` contains 75 changes after deployed baseline `ts-review-20260806T170328350936Z`; `northstar_alpha_reviewed_rule_delta_2026-08-06.sql` now contains only the 91 additions/changes after its former target `ts-review-20260806T133621914615Z`. Both reach target `ts-review-20260807T091238765007Z`, reconstruct all 140 overrides, embed checksum `4e1f262da545a7c37928396cd3a96bae6821c794c5d1dd584df09005498f0d96`, regenerate byte-identically, and pass `git diff --check`.
-
-## 2026-08-07 — Charlie cars review reduced to one
-
-- Activated 28 reviewed manufacturer entities as immutable version `ts-review-20260807T091238765007Z` and implemented evidence-aware fixes for Ferrari California bodywork, Porsche PDK transmission, primary police code `93`, self-built vehicles, compact BMW models, DS/PSA context, shared Citroën/DS evidence, and duplicated manufacturer prefixes in models. Reprocessed all 4,951 retained cars into `normalization-passenger-charlie-cars-4951-rules-20260807T0920Z`: 713 resolved, 4,237 provisional, 1 review-required (`JAGUAR DAIMLER`), and 0 failed. All 343 tests, Ruff, strict production mypy, and JSON validation pass.

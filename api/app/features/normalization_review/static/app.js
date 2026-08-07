@@ -1,6 +1,7 @@
 const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
 const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
+const queueState = { page: null, selectedId: null, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -17,6 +18,7 @@ const elements = {
   rulesView: document.querySelector("#rules-view"),
   vehiclesView: document.querySelector("#vehicles-view"),
   guideView: document.querySelector("#guide-view"),
+  queueView: document.querySelector("#queue-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -79,11 +81,27 @@ function formatDateTime(value, fallback) {
 }
 
 function ruleExplanation(ruleId) {
-  if (ruleId === "MFR-BRAND-PREFIX-FALLBACK") return "Brand begins with an approved Manufacturer entity alias";
-  if (ruleId === "MFR-BRAND-REVIEWED-EXAMPLE") return "Brand is an exact reviewed example beneath its Manufacturer entity";
-  if (ruleId === "MFR-MODEL-VARIANT-FALLBACK") return "Model or Variant begins with an approved Manufacturer entity alias";
-  if (ruleId.startsWith("MFE-")) return "Reviewed Manufacturer entity classification";
-  return "Normalization rule evidence";
+  const explanations = {
+    "MFR-102": "If Tillverkare is a recognized vehicle manufacturer, use it as the canonical manufacturer.",
+    "MFR-BRAND-PREFIX-FALLBACK": "If Tillverkare is missing, Brand may become a manufacturer candidate when it begins with an approved manufacturer alias, but supporting evidence is required.",
+    "MFR-BRAND-REVIEWED-EXAMPLE": "If Tillverkare is missing and Brand exactly matches a reviewed example, the linked manufacturer may become a candidate, but supporting evidence is required.",
+    "MFR-BRAND-REVIEWED-EXACT": "If Tillverkare is missing and Brand exactly matches a stakeholder-reviewed repair, use the approved canonical manufacturer.",
+    "MFR-BRAND-LEGACY-EXACT": "If Tillverkare is missing and Brand exactly matches an approved legacy Brand value, use its canonical manufacturer.",
+    "MFR-BRAND-CONFIRMED": "If Tillverkare is missing, use the manufacturer identified from Brand only when another source confirms the same manufacturer.",
+    "MFR-BRAND-EVIDENCE-CONFIRMED": "If Tillverkare is missing and Brand agrees with Model, VIN, fabrication code, or TecDoc KType, use that confirmed manufacturer.",
+    "MFR-BRAND-MODEL": "Model supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-VIN-WMI": "The VIN manufacturer code supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-FAB-CODE": "The fabrication code supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-KTYPE": "TecDoc KType supports the same manufacturer identified from Brand.",
+    "MFR-CORPORATE-BRAND-OVERRIDE": "If Tillverkare names a corporate group but Brand identifies an approved marketed vehicle brand, use the marketed brand as manufacturer.",
+    "MFR-PARENT-MARKETED": "If Tillverkare names a parent company and Brand identifies an approved child brand, use the child brand when independent evidence confirms it.",
+    "MFR-PARENT-MODEL-CHILD": "If Tillverkare names a parent company and Model clearly identifies an approved child brand, use that child brand.",
+    "MFR-BRAND-BASE-CONFIRMED": "If Tillverkare is a bodybuilder or converter and Brand agrees with Tillverkare grundfordonet, use the base manufacturer and keep the bodybuilder separately.",
+    "MFR-MODEL-VARIANT-FALLBACK": "If Tillverkare is missing, a manufacturer found at the beginning of Model or Variant may become a candidate, but supporting evidence is required.",
+  };
+  if (explanations[ruleId]) return explanations[ruleId];
+  if (ruleId.startsWith("MFE-")) return "If the source company matches this approved manufacturer entity, its reviewed classification and canonical manufacturer name are used.";
+  return "If this rule's conditions match the source vehicle, its normalized value is applied according to the active rule version.";
 }
 
 function displayValue(value) {
@@ -272,8 +290,12 @@ function renderInspector(vehicle) {
     ...candidateRules.filter((rule) => !appliedRules.includes(rule)).map((rule) => ({ rule, state: "Candidate" })),
   ];
   document.querySelector("#rule-list").innerHTML = rules.length
-    ? rules.map(({ rule, state }) => `<span class="rule-evidence ${state === "Candidate" ? "candidate" : ""}" title="${escapeHtml(ruleExplanation(rule))}"><b>${escapeHtml(state)}</b>${escapeHtml(rule)}</span>`).join("")
+    ? rules.map(({ rule, state }) => `<button type="button" class="rule-evidence ${state === "Candidate" ? "candidate" : ""}" data-rule-id="${escapeHtml(rule)}" title="Show ${escapeHtml(rule)} details"><b>${escapeHtml(state)}</b>${escapeHtml(rule)}</button>`).join("")
     : "<span>No applied rules</span>";
+  document.querySelector("#vehicle-rule-detail").hidden = true;
+  document.querySelectorAll("#rule-list [data-rule-id]").forEach((button) => {
+    button.addEventListener("click", () => showRuleInVehicle(button.dataset.ruleId));
+  });
 }
 
 function updateFilters() {
@@ -331,11 +353,14 @@ async function apiRequest(url, options = {}) {
 function switchView(view) {
   const showRules = view === "rules";
   const showGuide = view === "guide";
-  elements.vehiclesView.hidden = showRules || showGuide;
+  const showQueue = view === "queue";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
+  elements.queueView.hidden = !showQueue;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
+  if (showQueue) loadQueue();
 }
 
 async function loadRules() {
@@ -350,6 +375,37 @@ async function loadRules() {
     showToast(`Could not load rules. ${error.message}`);
   } finally {
     ruleState.loading = false;
+  }
+}
+
+function ruleDetailField(label, value) {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(displayValue(value))}</strong></div>`;
+}
+
+async function showRuleInVehicle(ruleId) {
+  const detail = document.querySelector("#vehicle-rule-detail");
+  const selectedButton = document.querySelector(`#rule-list [data-rule-id="${CSS.escape(ruleId)}"]`);
+  if (!detail.hidden && detail.dataset.ruleId === ruleId) {
+    detail.hidden = true;
+    selectedButton?.classList.remove("selected");
+    return;
+  }
+
+  detail.hidden = false;
+  detail.dataset.ruleId = ruleId;
+  detail.innerHTML = `<p class="section-hint">Loading ${escapeHtml(ruleId)}…</p>`;
+  document.querySelectorAll("#rule-list [data-rule-id]").forEach((button) => button.classList.toggle("selected", button.dataset.ruleId === ruleId));
+  if (!ruleState.page) await loadRules();
+  if (!ruleState.page) return;
+
+  const translationRule = ruleState.page.rules.find((rule) => rule.rule_id === ruleId);
+  const manufacturerEntity = ruleState.page.manufacturer_entities.find((entity) => entity.entity_id === ruleId);
+  if (translationRule) {
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Translation rule</span><strong>${escapeHtml(ruleId)}</strong><em class="decision-label decision-${escapeHtml(translationRule.effective_decision)}">${escapeHtml(translationRule.effective_decision)}</em></div><div class="vehicle-rule-detail-grid">${ruleDetailField("Area", humanize(translationRule.area))}${ruleDetailField("Source fields", translationRule.source_fields.join(", ") || "Any")}${ruleDetailField("Source terms", translationRule.source_terms.join(", ") || "Any")}${ruleDetailField("Canonical field", humanize(translationRule.canonical_field))}${ruleDetailField("Canonical value", humanize(translationRule.effective_canonical_value))}${ruleDetailField("Vehicle scope", translationRule.vehicle_scopes.join(", ") || "All vehicles")}${ruleDetailField("Manufacturer scope", translationRule.manufacturers.join(", ") || "Any manufacturer")}${ruleDetailField("Version state", translationRule.has_draft ? "Draft change" : "Active")}</div>`;
+  } else if (manufacturerEntity) {
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Manufacturer entity</span><strong>${escapeHtml(ruleId)}</strong><em class="decision-label ${manufacturerEntity.effective_entity_role === "unknown" ? "decision-proposed" : "decision-accepted"}">${escapeHtml(humanize(manufacturerEntity.effective_entity_role))}</em></div><div class="vehicle-rule-detail-grid">${ruleDetailField("Source field", humanize(manufacturerEntity.source_field))}${ruleDetailField("Source term", manufacturerEntity.source_term)}${ruleDetailField("Canonical manufacturer", manufacturerEntity.effective_canonical_name)}${ruleDetailField("Base manufacturers", (manufacturerEntity.base_manufacturers || []).join(", ") || "None")}${ruleDetailField("Occurrences", manufacturerEntity.occurrences ?? 0)}${ruleDetailField("Version state", manufacturerEntity.has_draft ? "Draft change" : "Active")}</div>`;
+  } else {
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Pipeline policy</span><strong>${escapeHtml(ruleId)}</strong></div><div class="policy-explanation"><span>What this rule means</span><p>${escapeHtml(ruleExplanation(ruleId))}</p></div><small>This policy is built into the normalizer and is read-only here.</small>`;
   }
 }
 
@@ -636,6 +692,122 @@ async function reprocessBatch() {
   finally { button.textContent = "Re-import current batch"; renderRules(); }
 }
 
+async function loadQueue() {
+  if (queueState.loading) return;
+  queueState.loading = true;
+  document.querySelector("#queue-result-count").textContent = "Loading queue…";
+  const status = document.querySelector("#queue-status").value;
+  try {
+    const query = new URLSearchParams();
+    if (status) query.set("status", status);
+    if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
+    queueState.page = await apiRequest(`/v1/normalization-review/queue?${query}`);
+    if (!queueState.page.items.some((item) => item.id === queueState.selectedId)) queueState.selectedId = queueState.page.items[0]?.id ?? null;
+    renderQueue();
+  } catch (error) { showToast(`Could not load review queue. ${error.message}`); }
+  finally { queueState.loading = false; }
+}
+
+function renderQueue() {
+  const page = queueState.page;
+  if (!page) return;
+  ["pending", "in_review", "resolved", "rejected"].forEach((status) => {
+    document.querySelector(`#queue-${status.replace("_", "-")}`).textContent = (page.counts[status] || 0).toLocaleString();
+  });
+  document.querySelector("#queue-result-count").textContent = `${page.items.length.toLocaleString()} review item${page.items.length === 1 ? "" : "s"}`;
+  document.querySelector("#queue-empty").hidden = page.items.length > 0;
+  document.querySelector("#queue-rows").innerHTML = page.items.map((item) => {
+    const source = item.source_evidence || {};
+    const vehicle = [source.manufacturer, source.brand, source.model].filter(Boolean).join(" · ") || `Source record ${item.source_record_id}`;
+    return `<tr data-queue-id="${item.id}" class="${item.id === queueState.selectedId ? "selected" : ""}" tabindex="0"><td><div class="vehicle-cell"><strong>${escapeHtml(vehicle)}</strong><span>Record ${item.source_record_id} · ${escapeHtml(item.source_batch_id || "Unknown batch")}</span></div></td><td>${escapeHtml(humanize(item.reason_detail || item.reason_code))}</td><td>${percent(item.confidence)}</td><td><span class="queue-state queue-${escapeHtml(item.status)}">${escapeHtml(humanize(item.status))}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("#queue-rows tr").forEach((row) => {
+    const select = () => { queueState.selectedId = Number(row.dataset.queueId); renderQueue(); };
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  const changes = page.rule_activity || [];
+  document.querySelector("#queue-rule-changes").innerHTML = changes.length ? changes.map((activity) => `<article><div><strong>${escapeHtml(activity.rule_id)}</strong><small>${escapeHtml(humanize(activity.rule_kind))}</small></div><div class="rule-change-values"><span>${escapeHtml(displayValue(activity.previous_value))}</span><b>→</b><strong>${escapeHtml(displayValue(activity.new_value))}</strong><small>${escapeHtml(activity.change_note)}</small></div><div><span class="draft-marker changed">Draft</span><small>${escapeHtml(activity.changed_by || "Reviewer not recorded")} · ${escapeHtml(formatDateTime(activity.changed_at, "Recorded"))}${activity.related_review_item_id ? ` · Queue #${activity.related_review_item_id}` : ""}</small></div></article>`).join("") : "<p>No unactivated rule drafts currently exist.</p>";
+  renderQueueEditor(page.items.find((item) => item.id === queueState.selectedId));
+}
+
+function renderQueueEditor(item) {
+  document.querySelector("#queue-editor-empty").hidden = Boolean(item);
+  document.querySelector("#queue-review-form").hidden = !item;
+  if (!item) return;
+  const source = item.source_evidence || {};
+  document.querySelector("#queue-item-state").textContent = humanize(item.status);
+  document.querySelector("#queue-item-title").textContent = `${source.manufacturer || source.brand || "Unresolved vehicle"} ${source.model || ""}`.trim();
+  document.querySelector("#queue-item-confidence").textContent = percent(item.confidence);
+  document.querySelector("#queue-source-evidence").innerHTML = Object.entries(source).filter(([, value]) => value !== null && value !== "").slice(0, 20).map(([key, value]) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+  document.querySelector("#queue-current-result").innerHTML = Object.entries({ ...item.normalized, ...item.candidates }).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
+  document.querySelector("#queue-reason-detail").textContent = item.reason_detail || item.reason_code;
+  const terminal = item.status === "resolved" || item.status === "rejected";
+  document.querySelector("#queue-decision-fields").hidden = terminal;
+  document.querySelector("#queue-actions").hidden = terminal;
+  document.querySelector("#queue-resolution-summary").hidden = !terminal;
+  document.querySelector("#start-review").hidden = item.status !== "pending";
+  document.querySelector("#save-review-draft").hidden = item.status !== "in_review";
+  const draft = item.review_draft || {};
+  document.querySelector("#queue-reviewer").value = draft.reviewer || "";
+  document.querySelector("#queue-field").value = draft.field || "manufacturer";
+  document.querySelector("#queue-canonical-value").value = draft.canonical_value || "";
+  document.querySelector("#queue-decision-scope").value = draft.decision_scope || "vehicle_only";
+  document.querySelector("#queue-rule-reference").value = draft.rule_reference || "";
+  document.querySelector("#queue-rule-reference-label").hidden = (draft.decision_scope || "vehicle_only") === "vehicle_only";
+  document.querySelector("#queue-decision-reason").value = draft.reason || "";
+  if (terminal) document.querySelector("#queue-resolution-values").innerHTML = Object.entries(item.resolution || {}).filter(([, value]) => value).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+}
+
+async function transitionQueue(status, overrides = {}) {
+  if (!queueState.selectedId) return;
+  const payload = { status, ...overrides };
+  await apiRequest(`/v1/normalization-review/queue/${queueState.selectedId}/transition`, { method: "POST", body: JSON.stringify(payload) });
+  await loadQueue();
+}
+
+function queueDraftPayload() {
+  return {
+    reviewer: document.querySelector("#queue-reviewer").value.trim() || null,
+    field: document.querySelector("#queue-field").value,
+    canonical_value: document.querySelector("#queue-canonical-value").value.trim() || null,
+    decision_scope: document.querySelector("#queue-decision-scope").value,
+    rule_reference: document.querySelector("#queue-rule-reference").value.trim() || null,
+    reason: document.querySelector("#queue-decision-reason").value.trim() || null,
+  };
+}
+
+async function createReviewRuleDraft(scope, reference, canonicalValue, reason) {
+  if (!ruleState.page) await loadRules();
+  if (scope === "manufacturer_entity") {
+    const entity = ruleState.page?.manufacturer_entities.find((item) => item.entity_id === reference);
+    if (!entity) throw new Error(`Manufacturer entity ${reference} was not found.`);
+    await apiRequest(`/v1/normalization-review/rules/entities/${encodeURIComponent(reference)}/draft`, { method: "PUT", body: JSON.stringify({ canonical_name: canonicalValue, entity_role: "vehicle_manufacturer", base_behavior: "use_entity", change_note: reason }) });
+  } else if (scope === "translation_rule") {
+    const rule = ruleState.page?.rules.find((item) => item.rule_id === reference);
+    if (!rule) throw new Error(`Translation rule ${reference} was not found.`);
+    await apiRequest(`/v1/normalization-review/rules/${encodeURIComponent(reference)}/draft`, { method: "PUT", body: JSON.stringify({ canonical_value: canonicalValue, decision: "accepted", change_note: reason }) });
+  }
+  ruleState.page = null;
+}
+
+async function approveQueueDecision(event) {
+  event.preventDefault();
+  const reviewer = document.querySelector("#queue-reviewer").value.trim();
+  const field = document.querySelector("#queue-field").value;
+  const canonicalValue = document.querySelector("#queue-canonical-value").value.trim();
+  const decisionScope = document.querySelector("#queue-decision-scope").value;
+  const ruleReference = document.querySelector("#queue-rule-reference").value.trim() || null;
+  const reason = document.querySelector("#queue-decision-reason").value.trim();
+  if (!reviewer || !canonicalValue || reason.length < 5) { showToast("Add the reviewer, canonical value, and a clear review reason."); return; }
+  if (decisionScope !== "vehicle_only" && !ruleReference) { showToast("Choose the exact existing rule or manufacturer entity ID."); return; }
+  try {
+    if (decisionScope !== "vehicle_only") await createReviewRuleDraft(decisionScope, ruleReference, canonicalValue, reason);
+    await transitionQueue("resolved", { reviewer, field, canonical_value: canonicalValue, decision_scope: decisionScope, rule_reference: ruleReference, reason });
+    showToast(decisionScope === "vehicle_only" ? "Vehicle review decision recorded." : "Review resolved and reusable rule draft created.");
+  } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
+}
+
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
 document.querySelectorAll(".rule-kind").forEach((tab) => tab.addEventListener("click", () => switchRuleKind(tab.dataset.ruleKind)));
 [elements.ruleSearch, elements.ruleArea, elements.ruleStateFilter].forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => { if (ruleState.page) renderRules(); }));
@@ -646,5 +818,26 @@ document.querySelector("#discard-manufacturer-draft").addEventListener("click", 
 document.querySelector("#manufacturer-role").addEventListener("change", syncManufacturerBehavior);
 document.querySelector("#activate-rules").addEventListener("click", activateRules);
 document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
+document.querySelector("#queue-status").addEventListener("change", loadQueue);
+document.querySelector("#refresh-queue").addEventListener("click", loadQueue);
+document.querySelector("#queue-decision-scope").addEventListener("change", (event) => {
+  document.querySelector("#queue-rule-reference-label").hidden = event.target.value === "vehicle_only";
+});
+document.querySelector("#queue-review-form").addEventListener("submit", approveQueueDecision);
+document.querySelector("#start-review").addEventListener("click", async () => {
+  try { await transitionQueue("in_review", queueDraftPayload()); showToast("Review claimed and correction draft saved."); }
+  catch (error) { showToast(`Review was not started. ${error.message}`); }
+});
+document.querySelector("#save-review-draft").addEventListener("click", async () => {
+  try { await transitionQueue("in_review", queueDraftPayload()); showToast("Review correction draft saved."); }
+  catch (error) { showToast(`Review draft was not saved. ${error.message}`); }
+});
+document.querySelector("#reject-review").addEventListener("click", async () => {
+  const reviewer = document.querySelector("#queue-reviewer").value.trim();
+  const reason = document.querySelector("#queue-decision-reason").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear rejection reason."); return; }
+  try { await transitionQueue("rejected", { reviewer, reason }); showToast("Review rejected with its reason recorded."); }
+  catch (error) { showToast(`Review was not rejected. ${error.message}`); }
+});
 
 loadVehicles();

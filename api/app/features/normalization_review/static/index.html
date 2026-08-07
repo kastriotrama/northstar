@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=10" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=11" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,6 +17,7 @@
         <nav class="view-tabs" aria-label="Normalization workspace">
           <button class="view-tab active" type="button" data-view="vehicles">Vehicles</button>
           <button class="view-tab" type="button" data-view="rules">Rules</button>
+          <button class="view-tab" type="button" data-view="queue">Review queue</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
@@ -152,6 +153,7 @@
             <section class="inspector-section" id="provenance-section">
               <h2>Rule provenance</h2>
               <div id="rule-list" class="rule-list"></div>
+              <div id="vehicle-rule-detail" class="vehicle-rule-detail" hidden></div>
             </section>
           </div>
         </aside>
@@ -257,6 +259,40 @@
         </main>
       </div>
 
+      <div id="queue-view" hidden>
+        <section class="queue-hero">
+          <div><span class="eyebrow">Human decisions</span><h1>Review queue</h1><p>Claim unresolved vehicles, record a correction, and preserve the original TS evidence.</p></div>
+          <dl class="queue-counts"><div><dt>Pending</dt><dd id="queue-pending">—</dd></div><div><dt>In review</dt><dd id="queue-in-review">—</dd></div><div><dt>Resolved</dt><dd id="queue-resolved">—</dd></div><div><dt>Rejected</dt><dd id="queue-rejected">—</dd></div></dl>
+        </section>
+        <main class="queue-workspace">
+          <section class="queue-results">
+            <div class="toolbar"><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
+            <div class="result-meta"><span id="queue-result-count">Loading queue…</span><span>Newest activity first</span></div>
+            <div class="table-wrap"><table class="queue-table"><thead><tr><th>Vehicle evidence</th><th>Reason</th><th>Confidence</th><th>Queue state</th></tr></thead><tbody id="queue-rows"></tbody></table><div id="queue-empty" class="empty-state" hidden><strong>No review items in this view</strong><p>Review-required imports are added automatically.</p></div></div>
+            <section class="rule-change-history"><div><span class="eyebrow">Pending governance work</span><h2>Current rule drafts</h2><p class="section-hint">Only unactivated drafts from the Rules workspace and vehicle reviews are shown here.</p></div><div id="queue-rule-changes" class="rule-change-list"><p>No rule drafts recorded yet.</p></div></section>
+          </section>
+          <aside class="queue-editor">
+            <div id="queue-editor-empty" class="inspector-empty"><span class="inspector-glyph">✓</span><strong>Select a queue item</strong><p>Review the source evidence and record an auditable decision.</p></div>
+            <form id="queue-review-form" hidden>
+              <header class="editor-head"><div><span class="eyebrow" id="queue-item-state">Pending</span><h2 id="queue-item-title">Review item</h2></div><span id="queue-item-confidence" class="status-badge">—</span></header>
+              <section class="editor-section readonly-evidence"><h3>Immutable TS evidence</h3><dl id="queue-source-evidence"></dl></section>
+              <section class="editor-section readonly-evidence"><h3>Current normalization</h3><dl id="queue-current-result"></dl><p id="queue-reason-detail" class="section-hint"></p></section>
+              <section id="queue-resolution-summary" class="editor-section readonly-evidence" hidden><h3>Recorded decision</h3><dl id="queue-resolution-values"></dl></section>
+              <section id="queue-decision-fields" class="editor-section editor-fields">
+                <h3>Reviewed correction</h3>
+                <label><span>Reviewer</span><input id="queue-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Field to correct</span><select id="queue-field"><option value="manufacturer">Manufacturer</option><option value="model_family">Model family</option><option value="bodywork_form">Bodywork</option><option value="energy_sources">Fuel / electrification</option><option value="transmission_type">Transmission</option></select></label>
+                <label><span>Canonical value</span><input id="queue-canonical-value" type="text" maxlength="200" required placeholder="Reviewed value" /></label>
+                <label><span>Decision scope</span><select id="queue-decision-scope"><option value="vehicle_only">This vehicle only</option><option value="manufacturer_entity">Manufacturer entity draft</option><option value="translation_rule">Translation rule draft</option></select></label>
+                <label id="queue-rule-reference-label" hidden><span>Existing rule/entity ID</span><input id="queue-rule-reference" type="text" maxlength="160" placeholder="For example MFE-… or BDY-110" /></label>
+                <label><span>Review reason</span><textarea id="queue-decision-reason" minlength="5" maxlength="1000" required placeholder="Explain the evidence behind this decision"></textarea></label>
+              </section>
+              <footer id="queue-actions" class="editor-actions"><button id="start-review" class="text-button" type="button">Start review</button><button id="save-review-draft" class="text-button" type="button">Save review draft</button><button class="primary-button" type="submit">Approve decision</button><button id="reject-review" class="text-button danger" type="button">Reject</button></footer>
+            </form>
+          </aside>
+        </main>
+      </div>
+
       <div id="guide-view" hidden>
         <main class="guide-page">
           <header class="guide-head">
@@ -290,6 +326,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=10" defer></script>
+    <script src="/normalization-review/assets/app.js?v=16" defer></script>
   </body>
 </html>
