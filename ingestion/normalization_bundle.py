@@ -600,9 +600,9 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
             str(row[3]),
             str(row[4]),
             str(row[5]),
-                json.dumps(dict(row[6]), sort_keys=True, separators=(",", ":")),
-                json.dumps(list(row[7]), sort_keys=True, separators=(",", ":")),
-                json.dumps(list(row[8]), sort_keys=True, separators=(",", ":")),
+                dict(row[6]),
+                list(row[7]),
+                list(row[8]),
             float(row[9]),
         )
         for row in rows
@@ -615,9 +615,9 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
             result.rule_version,
             result.pipeline_version,
             result.status,
-            json.dumps(result.normalized_payload, sort_keys=True, separators=(",", ":")),
-            json.dumps(result.applied_rule_ids, sort_keys=True, separators=(",", ":")),
-            json.dumps(result.review_reasons, sort_keys=True, separators=(",", ":")),
+            result.normalized_payload,
+            result.applied_rule_ids,
+            result.review_reasons,
             result.confidence,
         )
         for result in bundle.expected_results
@@ -633,8 +633,8 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
             field_names = ("source_record_id", "source_batch_id", "mapping_version", "rule_version", "pipeline_version", "status", "normalized_payload", "applied_rule_ids", "review_reasons", "confidence")
             mismatch_fields = [name for name, left, right in zip(field_names, actual[0], expected[0]) if left != right]
             if "normalized_payload" in mismatch_fields:
-                actual_payload = json.loads(actual[0][6])
-                expected_payload = json.loads(expected[0][6])
+                actual_payload = actual[0][6]
+                expected_payload = expected[0][6]
                 payload_differences = [
                     key for key in sorted(set(actual_payload) | set(expected_payload))
                     if actual_payload.get(key) != expected_payload.get(key)
