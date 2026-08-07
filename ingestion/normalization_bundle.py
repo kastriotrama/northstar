@@ -600,9 +600,9 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
             str(row[3]),
             str(row[4]),
             str(row[5]),
-            dict(row[6]),
-            list(row[7]),
-            list(row[8]),
+                json.dumps(dict(row[6]), sort_keys=True, separators=(",", ":")),
+                json.dumps(list(row[7]), sort_keys=True, separators=(",", ":")),
+                json.dumps(list(row[8]), sort_keys=True, separators=(",", ":")),
             float(row[9]),
         )
         for row in rows
@@ -615,9 +615,9 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
             result.rule_version,
             result.pipeline_version,
             result.status,
-            result.normalized_payload,
-            result.applied_rule_ids,
-            result.review_reasons,
+                json.dumps(result.normalized_payload, sort_keys=True, separators=(",", ":")),
+                json.dumps(result.applied_rule_ids, sort_keys=True, separators=(",", ":")),
+                json.dumps(result.review_reasons, sort_keys=True, separators=(",", ":")),
             result.confidence,
         )
         for result in bundle.expected_results
