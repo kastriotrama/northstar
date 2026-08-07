@@ -45,3 +45,10 @@ Keep the latest 10 task entries only.
 ## 2026-08-07 — Charlie-plus pipeline-v5 import
 
 - The original portable import correctly stopped because its expected results use the older workbook contract. Extracted exactly 5,000 public-safe TS raw records from `northstar_ts_normalization_charlie_plus_5000_2026-08-06.xlsx` and loaded them additively as `normalization-passenger-charlie-plus-5000-v5-20260807T0840Z` under active rule version `ts-review-20260807T081534112439Z`: 664 resolved, 4,271 provisional, 65 review-required, and 0 failed. The source workbook and prior immutable batches were not modified.
+2026-08-07 — Reprocessed 20,000 passenger vehicles with active reviewed rules
+
+- Fixed the CLI normalization job so it loads the latest activated translation and manufacturer-entity rules from PostgreSQL.
+- Preserved the original base-rule batch and created `normalization-passenger-ts20k-v5-reviewed-20260807` from the same 20,000 passenger records.
+- Reviewed batch result: 20,000 processed, 2,759 resolved, 16,992 provisional, 249 review-required, 0 failed.
+- Remaining review reasons: 236 missing manufacturer comparisons, 6 evidence conflicts, 5 compound-brand reviews, 3 bodywork scope cases, 1 bodywork review, and 1 fuel conflict.
+- Exported `northstar_ts_normalization_20k_v5_reviewed_2026-08-07.csv`; the original export remains unchanged for before/after comparison.
