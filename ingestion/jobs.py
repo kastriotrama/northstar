@@ -4,6 +4,7 @@ from typing import Protocol
 
 from ingestion.confidence_routing_migrations import run_confidence_routing_migrations
 from ingestion.config import IngestionSettings
+from ingestion.active_rules import load_active_rules
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
@@ -264,7 +265,13 @@ class NormalizeTransportstyrelsenJob:
                 run_review_queue_migrations(connection)
                 run_job_bookkeeping_migrations(connection)
                 run_normalization_migrations(connection)
-                summary = normalize_batch(connection, batch_id=batch_id)
+                rule_set, manufacturer_entity_rules = load_active_rules(connection)
+                summary = normalize_batch(
+                    connection,
+                    batch_id=batch_id,
+                    rule_set=rule_set,
+                    manufacturer_entity_rules=manufacturer_entity_rules,
+                )
         # This is the outer job boundary: every unexpected provider failure is
         # converted into a sanitized exit code instead of leaking details.
         except Exception as error:  # noqa: BLE001
