@@ -1,0 +1,36 @@
+name: Deploy NorthStar to Hetzner
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: northstar-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout deployment revision
+        uses: actions/checkout@v4
+
+      - name: Deploy through SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.NORTHSTAR_HETZNER_IP }}
+          username: root
+          key: ${{ secrets.NORTHSTAR_HETZNER_SSH_KEY }}
+          script: |
+            set -eu
+            cd /opt/northstar
+            git fetch origin develop
+            git checkout develop
+            git pull --ff-only origin develop
+            ./infra/production/deploy.sh
+            docker image prune -f

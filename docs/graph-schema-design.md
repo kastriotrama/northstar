@@ -48,8 +48,8 @@ per the table below.
 3. **One source of truth per fact.** The alias-to-node mapping is the
    `REFERS_TO` edge and nothing else — `Alias` has no `target_node_id`
    property to drift out of sync during node merges.
-4. **Confidence-gated membership.** Nodes created from records scoring
-   0.65–0.90 carry the secondary label `:Provisional` (see §4).
+4. **Confidence-gated membership.** Nodes created from records scoring at least
+   `0.70` and below `0.90` carry the secondary label `:Provisional` (see §4).
 
 ## 2. Type system and conventions
 
@@ -146,7 +146,7 @@ Body style vocabulary node. Small, closed-ish set shared by all variants.
 
 | Property | Type | Required | Example | Notes |
 |---|---|---|---|---|
-| `canonical_name` | string | required | `"sedan"` | From the body-type synonym dictionary (Epic 4): sedan, wagon, coupe, convertible, hatchback, suv, van, pickup, chassis_cab |
+| `canonical_name` | string | required | `"sedan"` | From the bodywork synonym dictionary (Epic 4): sedan, estate, coupe, convertible, hatchback, suv, van, passenger_van, pickup, chassis_cab |
 | `door_count` | int | nullable | `4` | Distinguishes 3- vs 5-door hatchback |
 
 ### 3.7 VehicleVariant (`VEH-`)
@@ -269,7 +269,7 @@ manual:assertion-01ARZ3NDEKTSV4RRFFQ69G5FAV
 
 ## 4. `:Provisional` secondary label
 
-Nodes created from records scoring 0.65–0.90 in the normalization gate carry
+Nodes created from records scoring at least `0.70` and below `0.90` in the routing gate carry
 `:Provisional` in addition to their primary label (e.g.
 `:VehicleVariant:Provisional`).
 
@@ -650,7 +650,7 @@ What the example demonstrates:
   `"E350"`, the affected Alias keeps its assertion key and its `alias_text`
   is updated in place — no duplicate Alias is minted.
 - **Provisional lifecycle:** `VEH-08H` exists only from Transportstyrelsen
-  data (single source, 0.65–0.90 band), so it is `:Provisional` and excluded
+  data (single source, `0.70 <= confidence < 0.90`), so it is `:Provisional` and excluded
   from customer resolves until confirmed.
 - **No name on VehicleVariant:** "Mercedes-Benz E 350 CDI Avantgarde" is
   assembled by traversal, never stored.
@@ -847,7 +847,7 @@ checked against:
       value.
 - [ ] Every Alias has exactly one outgoing `REFERS_TO` edge to a live
       (non-`:Superseded`) node.
-- [ ] New-node write paths set `:Provisional` for the 0.65–0.90 confidence
+- [ ] New-node write paths set `:Provisional` for the `0.70 <= confidence < 0.90`
       band and record provenance to the enrichment ledger.
 - [ ] IDs are never reused; merged-away nodes become `:Superseded`, not
       deleted.

@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate normalization review JavaScript
+        run: node --check api/app/features/normalization_review/static/app.js
+
       - name: Build API image
         run: docker build --target api -t northstar-api:ci .
 
@@ -148,6 +151,11 @@ jobs:
 
       - name: Type check application packages
         run: python -m mypy api ingestion northstar
+
+      - name: Verify approved normalization golden corpus
+        run: >-
+          python -m ingestion.golden_corpus verify
+          tests/golden/normalization-reconciliation-v1.json
 
       - name: Test application packages
         run: python -m pytest

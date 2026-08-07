@@ -1,3 +1,4 @@
+import pytest
 from pytest import CaptureFixture
 
 from ingestion.cli import build_parser, main
@@ -20,6 +21,9 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "Transportstyrelsen" in output
     assert "migrate-review-queue" in output
     assert "migrate-job-bookkeeping" in output
+    assert "migrate-confidence-routing" in output
+    assert "import-normalization-bundle" in output
+    assert "export-rule-delta" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
@@ -42,3 +46,45 @@ def test_parser_registers_stub_job_commands() -> None:
 def test_stub_job_command_runs_with_batch_id() -> None:
     assert main(["tecdoc", "--batch-id", "tecdoc-batch-1"]) == 0
     assert main(["healthcheck", "--batch-id", "healthcheck-1"]) == 0
+
+
+def test_normalize_requires_an_explicit_source_batch() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["normalize"])
+
+    args = parser.parse_args(["normalize", "--batch-id", "ts-pilot"])
+    assert args.batch_id == "ts-pilot"
+
+
+def test_bundle_import_requires_an_explicit_excel_file() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["import-normalization-bundle"])
+
+    args = parser.parse_args(
+        ["import-normalization-bundle", "--file", "snapshot.xlsx"]
+    )
+    assert args.command == "import-normalization-bundle"
+    assert str(args.file) == "snapshot.xlsx"
+
+
+def test_rule_delta_export_defaults_to_latest_target() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export-rule-delta",
+            "--baseline-version",
+            "rules-v1",
+            "--output",
+            "latest-rules.sql",
+        ]
+    )
+
+    assert args.command == "export-rule-delta"
+    assert args.baseline_version == "rules-v1"
+    assert args.target_version is None
+    assert str(args.output) == "latest-rules.sql"

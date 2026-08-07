@@ -182,18 +182,27 @@ def fetch_review_items_by_status(
     status: ReviewStatus,
     *,
     limit: int = 100,
+    source_system: str | None = None,
 ) -> tuple[ReviewQueueItem, ...]:
     """Return one status worklist in stable oldest-first order."""
 
     _validate_status(status)
     if not 1 <= limit <= 1000:
         raise ValueError("limit must be between 1 and 1000")
+    normalized_source = _optional_text(source_system)
+    parameters: tuple[Any, ...]
+    predicate = "WHERE status = %s"
+    parameters = (status, limit)
+    if normalized_source is not None:
+        predicate += " AND source_system = %s"
+        parameters = (status, normalized_source, limit)
     with connection.cursor() as cursor:
         cursor.execute(
             _SELECT_ITEM_SQL
             + f" FROM {REVIEW_QUEUE_TABLE} "
-            "WHERE status = %s ORDER BY created_at, id LIMIT %s",
-            (status, limit),
+            + predicate
+            + " ORDER BY created_at, id LIMIT %s",
+            parameters,
         )
         rows = cursor.fetchall()
     return tuple(_row_to_item(row) for row in rows)

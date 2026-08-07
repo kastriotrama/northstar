@@ -2,11 +2,15 @@ import logging
 from dataclasses import dataclass
 from typing import Protocol
 
+from ingestion.active_rules import load_active_rules
+from ingestion.confidence_routing_migrations import run_confidence_routing_migrations
 from ingestion.config import IngestionSettings
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.ledger_migrations import run_ledger_migrations
+from ingestion.normalization_migrations import run_normalization_migrations
+from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import run_review_queue_migrations
 from ingestion.staging_migrations import run_staging_migrations
 
@@ -184,6 +188,36 @@ class MigrateJobBookkeepingJob:
 
 
 @dataclass(frozen=True)
+class MigrateConfidenceRoutingJob:
+    """Apply the durable Stage 2 confidence-routing schema."""
+
+    name: str = "migrate-confidence-routing"
+    description: str = "Apply confidence-routing decision migrations (idempotent)."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_confidence_routing_migrations(connection)
+        logger.info(
+            "Confidence-routing migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -210,6 +244,64 @@ class StubIngestionJob:
         return 0
 
 
+@dataclass(frozen=True)
+class NormalizeTransportstyrelsenJob:
+    """Normalize one explicitly selected Transportstyrelsen staging batch."""
+
+    name: str = "normalize"
+    description: str = "Normalize an existing Transportstyrelsen staging batch."
+    source_name: str = "Transportstyrelsen"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        try:
+            with datastores.postgres.connect() as connection:
+                run_staging_migrations(connection)
+                run_review_queue_migrations(connection)
+                run_job_bookkeeping_migrations(connection)
+                run_normalization_migrations(connection)
+                rule_set, manufacturer_entity_rules = load_active_rules(connection)
+                summary = normalize_batch(
+                    connection,
+                    batch_id=batch_id,
+                    rule_set=rule_set,
+                    manufacturer_entity_rules=manufacturer_entity_rules,
+                )
+        # This is the outer job boundary: every unexpected provider failure is
+        # converted into a sanitized exit code instead of leaking details.
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Normalization job stopped safely",
+                extra={
+                    "job_name": self.name,
+                    "batch_id": batch_id,
+                    "source": self.source_name,
+                    "error_code": type(error).__name__,
+                },
+            )
+            return 1
+        logger.info(
+            "Normalization job completed",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "processed": summary.processed,
+                "resolved": summary.resolved,
+                "provisional": summary.provisional,
+                "review_required": summary.review_required,
+                "failed": summary.failed,
+                "already_completed": summary.already_completed,
+            },
+        )
+        return 0
+
+
 AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     StubIngestionJob(
         name="healthcheck",
@@ -221,16 +313,13 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     MigrateLedgerJob(),
     MigrateReviewQueueJob(),
     MigrateJobBookkeepingJob(),
+    MigrateConfidenceRoutingJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",
         source_name="pipeline",
     ),
-    StubIngestionJob(
-        name="normalize",
-        description="Stub source normalization command.",
-        source_name="pipeline",
-    ),
+    NormalizeTransportstyrelsenJob(),
     StubIngestionJob(
         name="graph-write",
         description="Stub graph write command.",
