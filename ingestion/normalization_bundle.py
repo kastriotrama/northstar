@@ -622,16 +622,21 @@ def _verify_results(connection: Connection, bundle: NormalizationBundle) -> None
         )
         for result in bundle.expected_results
     )
-    if actual != expected:
-        mismatch_ids = [
+        if actual != expected:
+            mismatch_ids = [
             result.source_record_id
             for index, result in enumerate(bundle.expected_results)
             if index >= len(actual) or actual[index] != expected[index]
-        ][:10]
-        raise NormalizationBundleError(
-            "normalized results differ from the workbook"
-            + (f" for source IDs {mismatch_ids}" if mismatch_ids else "")
-        )
+            ][:10]
+            mismatch_fields = []
+            if actual and expected:
+                field_names = ("source_record_id", "source_batch_id", "mapping_version", "rule_version", "pipeline_version", "status", "normalized_payload", "applied_rule_ids", "review_reasons", "confidence")
+                mismatch_fields = [name for name, left, right in zip(field_names, actual[0], expected[0]) if left != right]
+            raise NormalizationBundleError(
+                "normalized results differ from the workbook"
+                + (f" for source IDs {mismatch_ids}" if mismatch_ids else "")
+                + (f"; differing fields: {mismatch_fields}" if mismatch_fields else "")
+            )
 
 
 def import_normalization_bundle(
