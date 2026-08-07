@@ -2,9 +2,9 @@ import logging
 from dataclasses import dataclass
 from typing import Protocol
 
+from ingestion.active_rules import load_active_rules
 from ingestion.confidence_routing_migrations import run_confidence_routing_migrations
 from ingestion.config import IngestionSettings
-from ingestion.active_rules import load_active_rules
 from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
