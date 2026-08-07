@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-07 — 20,000 passenger vehicles normalized with v5
+
+- Deployed the CI-verified v5 normalizer to the isolated Hetzner NorthStar stack and selected exactly 20,000 Transportstyrelsen passenger records (`vehicle_type=PB`, EU category `M1`/`M1G`) from the source database. Imported them as immutable batch `normalization-passenger-ts20k-v5-20260807`: 20,000 processed, 2,702 resolved, 8,136 provisional, 9,162 review-required, and 0 failed. Exported a 20,000-row CSV containing selected TS evidence, complete raw JSON, normalized payload, rule IDs, review reasons, confidence, and version metadata. Older batches and VD-AI remain unchanged.
+
 ## 2026-08-07 — Three-workbook motorhome exclusion re-import
 
 - Re-imported Atlas, Borealis, and Charlie-plus into fresh additive cars-only batches using active rule version `ts-review-20260807T091238765007Z`, excluding records identified as motorhomes by primary or secondary `SA` body code plus the established camper-brand evidence list. Atlas excluded 92 and retained 4,908 cars with 16 review-required; Borealis excluded 80 and retained 4,920 with 4 review-required; Charlie-plus excluded 86 and retained 4,914 with 1 review-required. All three imports completed with 0 failures; older immutable batches and source workbooks remain unchanged.
