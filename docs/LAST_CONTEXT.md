@@ -8,6 +8,7 @@ Keep the latest 10 task entries only.
 - Deliberately retained Kia SL/ED and other unverified internal codes as candidates; no TecDoc inference is included. Added guarded SQL activation `northstar_model_family_rule_catalog_v7.sql`, preserving all 229 active overrides.
 - Reprocessed 34,545 passenger cars locally as `normalization-passenger-34545-model-v7-local-20260807`: 18,459 resolved, 16,075 provisional, 11 review-required, and 0 failed. Phase two applied to 7,684 cars, accepted model coverage reached 15,913, moved another 5,965 vehicles to resolved, and reduced remaining model candidates from 11,134 to 3,450.
 - Local web now serves v7 with 231 translation rules, including 127 Model Family rules. Ruff, strict mypy, golden corpus, JavaScript syntax, and 414 tests pass; the pre-existing stateful bundle-fixture collision remains excluded.
+- Published the complete change as PR #28 commit `06db49d`; its first CI run exposed five Ruff 0.16-only import/UTC findings that Ruff 0.15.20 did not report locally. Applied the exact auto-fixes and verified the affected six tests plus all tracked Python files under pinned Ruff 0.16.
 
 ## 2026-08-07 — Remaining 11,134 model candidates analyzed
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from api.app.features.review_queue.schemas import ReviewTransitionRequest
@@ -15,7 +15,7 @@ class FakeRepository:
     def fetch_items(
         self, *, status: str | None, batch_id: str | None, limit: int
     ) -> list[dict[str, Any]]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return [
             {
                 "id": 1,

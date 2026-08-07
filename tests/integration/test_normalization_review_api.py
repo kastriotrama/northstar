@@ -1,5 +1,6 @@
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
-from datetime import datetime, timezone
 
 from api.app.features.normalization_review.router import get_normalization_review_service
 from api.app.features.normalization_review.schemas import (
@@ -9,14 +10,14 @@ from api.app.features.normalization_review.schemas import (
     NormalizationReviewVehicle,
     NormalizationStatusSummary,
 )
-from api.app.features.rule_review.router import get_rule_review_service
 from api.app.features.review_queue.router import get_review_queue_service
 from api.app.features.review_queue.schemas import (
-    RuleActivityView,
     ReviewQueueItemView,
     ReviewQueuePage,
     ReviewTransitionRequest,
+    RuleActivityView,
 )
+from api.app.features.rule_review.router import get_rule_review_service
 from api.app.features.rule_review.schemas import (
     BatchSummaryView,
     ManufacturerEntityDraftRequest,
@@ -158,7 +159,7 @@ class FakeReviewQueueService:
                     previous_value="estate",
                     new_value="sedan",
                     change_note="Stakeholder correction",
-                    changed_at=datetime.now(timezone.utc),
+                    changed_at=datetime.now(UTC),
                 )
             ],
         )
@@ -177,7 +178,7 @@ class FakeReviewQueueService:
 
     @staticmethod
     def _item(status: str) -> ReviewQueueItemView:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return ReviewQueueItemView(
             id=7,
             review_id="00000000-0000-0000-0000-000000000007",
