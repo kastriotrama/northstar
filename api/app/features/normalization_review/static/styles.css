@@ -107,6 +107,11 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 #inspector-content { animation: inspector-in 220ms ease-out; }
 .inspector-head { display: flex; justify-content: space-between; gap: 16px; padding: 25px 24px 21px; border-bottom: 1px solid var(--line); background: #fff; }
 .inspector-head h1 { max-width: 260px; margin: 5px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weight: 400; line-height: 1.08; letter-spacing: -.025em; }
+.identity-line { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+.identity-line strong { color: var(--teal); font-size: 16px; letter-spacing: .08em; }
+.data-kind { padding: 3px 7px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .06em; }
+.data-kind-real { border-color: #8fb6a8; color: #24614e; background: #edf7f2; }
+.data-kind-synthetic { border-color: #d5af73; color: #7d5317; background: #fff7e9; }
 .status-explanation { max-width: 270px; margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .confidence-line { padding: 17px 24px; border-bottom: 1px solid var(--line); background: #fff; }
 .confidence-line > div:first-child { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
@@ -115,6 +120,15 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .confidence-track span { display: block; width: 0; height: 100%; background: var(--teal); transition: width 360ms ease-out; }
 .inspector-section { padding: 21px 24px; border-bottom: 1px solid var(--line); }
 .inspector-section h2 { margin: 0 0 14px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.special-vehicle-section { background: #fffaf0; }
+.special-vehicle-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border: 1px solid #ddcda9; }
+.special-vehicle-summary div { padding: 12px; border-right: 1px solid #ddcda9; }
+.special-vehicle-summary div:last-child { border-right: 0; }
+.special-vehicle-summary span, .special-vehicle-summary strong { display: block; }
+.special-vehicle-summary span { margin-bottom: 5px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.text-code-list article { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; padding: 13px 0; border-bottom: 1px solid #ddcda9; }
+.text-code-list article strong { color: var(--teal); }
+.text-code-list article em, .text-code-list article small { grid-column: 2; color: var(--muted); font-style: normal; }
 .section-hint { margin: -7px 0 15px; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .field-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin: 0; }
 .field-list div { min-width: 0; }

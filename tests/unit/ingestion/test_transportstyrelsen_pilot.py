@@ -8,7 +8,7 @@ from ingestion.transportstyrelsen_pilot import (
 
 
 def test_parser_selects_vehicle_fields_and_not_owner_data() -> None:
-    chars = [" "] * 1900
+    chars = [" "] * 2073
     values = {
         (0, 6): "ABC123",
         (39, 47): "M1",
@@ -24,6 +24,7 @@ def test_parser_selects_vehicle_fields_and_not_owner_data() -> None:
         (572, 574): "01",
         (578, 582): "0145",
         (681, 682): "1",
+        (2001, 2013): "AMATÖR",
     }
     for (start, end), value in values.items():
         chars[start:end] = value.ljust(end - start)
@@ -37,6 +38,7 @@ def test_parser_selects_vehicle_fields_and_not_owner_data() -> None:
     assert record["model_year"] == 2024
     assert record["ccm"] == 1969
     assert record["kw"] == 145
+    assert record["text_code_descriptions"] == ["AMATÖR"]
     assert all("owner" not in field for field in record)
 
 

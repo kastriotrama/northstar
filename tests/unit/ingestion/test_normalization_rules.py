@@ -73,6 +73,62 @@ def test_registry_bodywork_confirmation_allows_out_of_scope_marketing_term() -> 
     assert "bodywork_marketing_scope_unresolved" not in outcome.review_reasons
 
 
+def test_t12a_amateur_built_vehicle_is_grouped_and_excluded_from_parts_matching() -> None:
+    outcome = normalize_ts_record(
+        {
+            "plate": "AYZ946",
+            "brand": "STEFANS FORD ROADSTER",
+            "model": "ROADSTER",
+            "eu_category": "M1",
+            "body_code": "02",
+            "text_code": "T12A",
+        }
+    )
+
+    assert outcome.normalized["manufacturer_group"] == "Special Modified"
+    assert outcome.normalized["vehicle_classification"] == "special_modified"
+    assert outcome.normalized["parts_matching_policy"] == "excluded"
+    assert outcome.normalized["parts_matching_eligible"] is False
+    assert outcome.normalized["tecdoc_match_policy"] == "exclude"
+    assert outcome.normalized["text_codes"][0]["code"] == "T12A"
+    assert outcome.normalized["text_codes"][0]["description_en"] == "Amateur-built vehicle"
+    assert "manufacturer_missing" not in outcome.review_reasons
+
+
+def test_amateur_description_is_retained_without_guessing_an_exact_text_code() -> None:
+    outcome = normalize_ts_record(
+        {
+            "brand": "STEFANS FORD ROADSTER",
+            "eu_category": "M1",
+            "body_code": "02",
+            "text_code_descriptions": ["AMATÖR"],
+        }
+    )
+
+    evidence = outcome.normalized["text_codes"][0]
+    assert evidence["code"] is None
+    assert evidence["candidate_codes"] == ["T12A", "T12C", "T12BF"]
+    assert outcome.normalized["manufacturer_group"] == "Special Modified"
+    assert outcome.normalized["parts_matching_policy"] == "excluded"
+
+
+def test_special_purpose_body_code_requires_manual_parts_review() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "Volvo",
+            "model": "V90",
+            "eu_category": "M1",
+            "body_code": "AC",
+            "body_code2": "93",
+        }
+    )
+
+    assert outcome.normalized["special_vehicle_flags"] == ["police_vehicle"]
+    assert outcome.normalized["registry_body_codes"] == ["AC", "93"]
+    assert outcome.normalized["parts_matching_policy"] == "manual_review"
+    assert outcome.normalized["parts_matching_eligible"] is False
+
+
 def test_approved_passenger_body_code_98_normalizes_as_other() -> None:
     base = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
     rules = tuple(

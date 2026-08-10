@@ -108,6 +108,7 @@
               <div>
                 <span class="eyebrow" id="inspector-record">Source record</span>
                 <h1 id="inspector-name">Vehicle</h1>
+                <div id="inspector-identity" class="identity-line"></div>
                 <p id="inspector-status-explanation" class="status-explanation"></p>
               </div>
               <span id="inspector-status" class="status-badge"></span>
@@ -128,6 +129,13 @@
               <h2>Normalized vehicle</h2>
               <p class="section-hint">Accepted canonical values produced by the normalizer.</p>
               <dl id="normalized-fields" class="field-list"></dl>
+            </section>
+
+            <section class="inspector-section special-vehicle-section" id="special-vehicle-section" hidden>
+              <h2>Official TS safety classification</h2>
+              <p class="section-hint">Registry codes are preserved as evidence. NorthStar uses them to prevent unsafe spare-parts matching.</p>
+              <div id="special-vehicle-summary" class="special-vehicle-summary"></div>
+              <div id="text-code-list" class="text-code-list"></div>
             </section>
 
             <section class="inspector-section" id="review-section">

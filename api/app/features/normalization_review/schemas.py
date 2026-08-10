@@ -34,17 +34,24 @@ class NormalizationReviewFacets(BaseModel):
 
 class NormalizationReviewVehicle(BaseModel):
     source_record_id: int
+    source_batch_id: str
+    registration_plate: str | None = None
+    source_data_kind: Literal["real", "synthetic"] = "real"
     source_brand: str | None = None
     source_evidence: dict[str, Any] = Field(default_factory=dict)
     status: NormalizationStatus
     confidence: float = Field(ge=0.0, le=1.0)
     manufacturer: str | None = None
+    manufacturer_group: str | None = None
     model_family: str | None = None
     bodywork: str | None = None
     transmission: str | None = None
     energy_sources: list[str] = Field(default_factory=list)
     engine_code: str | None = None
     production_year: int | None = None
+    text_codes: list[dict[str, Any]] = Field(default_factory=list)
+    special_vehicle_flags: list[str] = Field(default_factory=list)
+    parts_matching_policy: str | None = None
     review_reasons: list[str] = Field(default_factory=list)
     applied_rule_ids: list[str] = Field(default_factory=list)
     candidate_rule_ids: list[str] = Field(default_factory=list)

@@ -207,7 +207,7 @@ function populateFacets(facets) {
 function renderRows(items) {
   elements.rows.innerHTML = items.map((vehicle, index) => `
     <tr data-id="${vehicle.source_record_id}" class="${vehicle.source_record_id === state.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
-      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>${vehicle.source_brand ? `Brand: ${escapeHtml(vehicle.source_brand)} · ` : ""}Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
+      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer_group || vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>${vehicle.registration_plate ? `Plate: ${escapeHtml(vehicle.registration_plate)} · ` : ""}${vehicle.source_brand ? `Brand: ${escapeHtml(vehicle.source_brand)} · ` : ""}Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
       <td>${statusBadge(vehicle.status)}</td>
       <td>${escapeHtml(humanize(vehicle.bodywork))}</td>
       <td>${escapeHtml(displayValue(vehicle.energy_sources))}</td>
@@ -235,7 +235,8 @@ function renderInspector(vehicle) {
   if (!vehicle) return;
 
   document.querySelector("#inspector-record").textContent = `Source record ${vehicle.source_record_id}`;
-  document.querySelector("#inspector-name").textContent = `${vehicle.manufacturer || "Unresolved"} ${vehicle.model_family || "vehicle"}`;
+  document.querySelector("#inspector-name").textContent = `${vehicle.manufacturer_group || vehicle.manufacturer || "Unresolved"} ${vehicle.model_family || "vehicle"}`;
+  document.querySelector("#inspector-identity").innerHTML = `<strong>${escapeHtml(vehicle.registration_plate || "No registration plate supplied")}</strong><span class="data-kind data-kind-${escapeHtml(vehicle.source_data_kind)}">${escapeHtml(vehicle.source_data_kind)} source</span><span>${escapeHtml(vehicle.source_batch_id)}</span>`;
   const status = document.querySelector("#inspector-status");
   status.className = `status-badge status-${vehicle.status}`;
   status.textContent = labels[vehicle.status] ?? humanize(vehicle.status);
@@ -246,7 +247,7 @@ function renderInspector(vehicle) {
   const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"))
     || vehicle.applied_rule_ids.find((rule) => rule === "MFR-BRAND-REVIEWED-EXAMPLE")
     || vehicle.applied_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
-  const rawFields = ["manufacturer", "brand", "model", "variant", "version", "body_code", "eu_category", "fuel1", "fuel2", "fuel3", "gearbox", "is_4wd", "vin"];
+  const rawFields = ["plate", "manufacturer", "brand", "model", "variant", "version", "body_code", "body_code2", "body_code_extra", "text_code", "text_codes", "text_code_descriptions", "eu_category", "fuel1", "fuel2", "fuel3", "gearbox", "is_4wd", "vin"];
   const rawEntries = rawFields.filter((key) => vehicle.source_evidence?.[key] !== undefined && vehicle.source_evidence[key] !== null && vehicle.source_evidence[key] !== "").map((key) => [key, vehicle.source_evidence[key]]);
   document.querySelector("#source-evidence").innerHTML = [
     ["Brand", vehicle.source_brand || "Not supplied"],
@@ -260,6 +261,21 @@ function renderInspector(vehicle) {
   document.querySelector("#normalized-fields").innerHTML = entries.length
     ? entries.map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("")
     : "<div><dt>Result</dt><dd>No accepted normalized fields</dd></div>";
+
+  const specialSection = document.querySelector("#special-vehicle-section");
+  const hasSpecialEvidence = vehicle.text_codes.length || vehicle.special_vehicle_flags.length || vehicle.parts_matching_policy;
+  specialSection.hidden = !hasSpecialEvidence;
+  document.querySelector("#special-vehicle-summary").innerHTML = hasSpecialEvidence ? [
+    ["Manufacturer group", vehicle.manufacturer_group || "Not changed"],
+    ["Vehicle flags", vehicle.special_vehicle_flags.length ? vehicle.special_vehicle_flags.map(humanize).join(", ") : "None"],
+    ["Parts matching", vehicle.parts_matching_policy ? humanize(vehicle.parts_matching_policy) : "No restriction"],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("") : "";
+  document.querySelector("#text-code-list").innerHTML = vehicle.text_codes.map((item) => {
+    const code = item.code || "Description-only evidence";
+    const meaning = item.description_en || item.description || "Meaning not yet mapped";
+    const candidates = item.candidate_codes?.length ? `<small>Possible official codes: ${escapeHtml(item.candidate_codes.join(", "))}. Confirm against the full TS text-code field.</small>` : "";
+    return `<article><strong>${escapeHtml(code)}</strong><span>${escapeHtml(meaning)}</span>${item.description_sv ? `<em>${escapeHtml(item.description_sv)}</em>` : ""}${candidates}</article>`;
+  }).join("");
 
   const reasons = document.querySelector("#review-reasons");
   reasons.innerHTML = vehicle.review_reasons.length
@@ -275,7 +291,7 @@ function renderInspector(vehicle) {
   const candidates = vehicle.candidates || {};
   const mappings = [
     ["manufacturer", "manufacturer"], ["brand", "manufacturer"], ["model", "model_family"], ["variant", "model_family"],
-    ["body_code", "bodywork_form"], ["fuel1", "energy_sources"], ["fuel2", "energy_sources"], ["fuel3", "energy_sources"], ["gearbox", "transmission_type"],
+    ["body_code", "bodywork_form"], ["body_code2", "special_vehicle_flags"], ["body_code_extra", "special_vehicle_flags"], ["text_code", "vehicle_classification"], ["fuel1", "energy_sources"], ["fuel2", "energy_sources"], ["fuel3", "energy_sources"], ["gearbox", "transmission_type"],
   ].filter(([raw]) => source[raw] !== undefined && source[raw] !== null && source[raw] !== "" && !(["fuel2", "fuel3"].includes(raw) && String(source[raw]) === "0"));
   document.querySelector("#evidence-map").innerHTML = mappings.length ? mappings.map(([rawKey, target]) => {
     const accepted = normalized[target];

@@ -48,6 +48,8 @@ class FakeReviewService:
             items=[
                 NormalizationReviewVehicle(
                     source_record_id=1,
+                    source_batch_id="screen-demo-250",
+                    registration_plate="ABC123",
                     source_brand="VOLVO V60",
                     status="provisional",
                     confidence=0.8,

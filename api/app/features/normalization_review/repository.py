@@ -43,6 +43,7 @@ class NormalizationReviewRepository:
             WITH latest AS (
                 SELECT DISTINCT ON (source_record_id)
                     source_record_id,
+                    source_batch_id,
                     status,
                     confidence,
                     normalized_payload,
@@ -75,7 +76,7 @@ class NormalizationReviewRepository:
                 cte
                 + sql.SQL(
                     "SELECT source_record_id, status, confidence, normalized_payload, "
-                    "applied_rule_ids, review_reasons, source_evidence, source_brand FROM latest WHERE "
+                    "applied_rule_ids, review_reasons, source_evidence, source_brand, source_batch_id FROM latest WHERE "
                 )
                 + where_clause
                 + sql.SQL(" ORDER BY source_record_id LIMIT %s OFFSET %s"),
@@ -92,6 +93,7 @@ class NormalizationReviewRepository:
                 "review_reasons": list(row[5]),
                 "source_evidence": dict(row[6] or {}),
                 "source_brand": str(row[7]) if row[7] is not None else None,
+                "source_batch_id": str(row[8]),
             }
             for row in rows
         ]
@@ -190,7 +192,8 @@ class NormalizationReviewRepository:
                         {payload} #>> '{{normalized,bodywork_form}}',
                         {payload} #>> '{{normalized,transmission_type}}',
                         {payload} #> '{{normalized,energy_sources}}',
-                        source_brand
+                        source_brand,
+                        source_evidence->>'plate'
                     ) ILIKE %s
                     """
                 )

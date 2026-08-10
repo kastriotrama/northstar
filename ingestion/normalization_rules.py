@@ -433,6 +433,10 @@ _FAB_CODE_MANUFACTURERS: dict[str, str] = {
 }
 
 _PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
+    "75": ("fire_rescue_vehicle", "Brandfordon"),
+    "88": ("customs_vehicle", "Tull"),
+    "89": ("coast_guard_vehicle", "Kustbevakning"),
+    "91": ("recovery_vehicle", "Bärgningsfordon"),
     "93": ("police", "Polis"),
     "95": ("fire_rescue_vehicle", "Brandfordon övrigt"),
     "99": ("ambulance", "Ambulans"),
@@ -442,6 +446,42 @@ _SECONDARY_PURPOSE_CODES: dict[str, tuple[str, str, str]] = {
     "06": ("usage_type", "taxi", "Taxi"),
     "93": ("special_purpose_type", "police", "Polis"),
     "SA": ("special_purpose_type", "motor_caravan", "Campingbil"),
+    "SB": ("special_purpose_type", "armoured_vehicle", "Bepansrat fordon"),
+    "SC": ("special_purpose_type", "ambulance", "Ambulans"),
+    "SD": ("special_purpose_type", "hearse", "Likbil"),
+    "SG": ("special_purpose_type", "other_special_purpose", "Annat särskilt ändamål"),
+    "SH": ("special_purpose_type", "wheelchair_accessible", "Rullstolsanpassat fordon"),
+}
+
+_TEXT_CODE_DEFINITIONS: dict[str, tuple[str, str, str]] = {
+    "T12A": ("Amatörbyggt fordon", "Amateur-built vehicle", "amateur_built"),
+    "T12B": ("Ombyggt fordon", "Rebuilt vehicle", "rebuilt"),
+    "T12BF": (
+        "Amatörbyggt fordon med besiktningsbefrielse",
+        "Inspection-exempt amateur-built vehicle",
+        "amateur_built_inspection_exempt",
+    ),
+    "T12C": ("Amatörbyggd bil, byggsats", "Amateur-built kit car", "amateur_built_kit"),
+    "T12E": ("Provbil", "Test vehicle", "test_vehicle"),
+    "T12S": ("Provfordon", "Trial vehicle", "trial_vehicle"),
+}
+
+_SPECIAL_MODIFIED_TEXT_CODES = frozenset({"T12A", "T12B", "T12BF", "T12C"})
+_SPECIAL_BODY_CODE_FLAGS: dict[str, str] = {
+    "06": "taxi",
+    "75": "fire_rescue_vehicle",
+    "88": "customs_vehicle",
+    "89": "coast_guard_vehicle",
+    "91": "recovery_vehicle",
+    "93": "police_vehicle",
+    "95": "fire_rescue_vehicle",
+    "99": "ambulance",
+    "SA": "motor_caravan",
+    "SB": "armoured_vehicle",
+    "SC": "ambulance",
+    "SD": "hearse",
+    "SG": "other_special_purpose",
+    "SH": "wheelchair_accessible",
 }
 
 _MARKETED_PARENT_CHILDREN: dict[str, frozenset[str]] = {
@@ -461,6 +501,96 @@ def normalize_text(value: object) -> str | None:
         return None
     normalized = unicodedata.normalize("NFKC", value).strip()
     return normalized or None
+
+
+def _source_text_codes(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    values: list[object] = []
+    if raw.get("text_code") is not None:
+        values.append(raw["text_code"])
+    configured = raw.get("text_codes")
+    if isinstance(configured, list):
+        values.extend(configured)
+    codes: list[str] = []
+    for value in values:
+        candidate = value.get("code") if isinstance(value, dict) else value
+        code = normalize_text(candidate)
+        if code is not None and re.fullmatch(r"T[0-9A-Z]+", code.upper()):
+            codes.append(code.upper())
+    return tuple(dict.fromkeys(codes))
+
+
+def _text_code_descriptions(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    configured = raw.get("text_code_descriptions")
+    if not isinstance(configured, list):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            text
+            for value in configured
+            if (text := normalize_text(value)) is not None
+        )
+    )
+
+
+def _apply_special_vehicle_classification(context: NormalizationContext) -> None:
+    raw = context.canonical_record
+    normalized = context.normalized
+    codes = _source_text_codes(raw)
+    descriptions = _text_code_descriptions(raw)
+    text_code_evidence: list[dict[str, Any]] = []
+    flags: list[str] = []
+    modification_types: list[str] = []
+    for code in codes:
+        definition = _TEXT_CODE_DEFINITIONS.get(code)
+        evidence: dict[str, Any] = {"code": code, "source": "transportstyrelsen"}
+        if definition is not None:
+            description_sv, description_en, classification = definition
+            evidence.update(
+                {"description_sv": description_sv, "description_en": description_en}
+            )
+            modification_types.append(classification)
+        text_code_evidence.append(evidence)
+    for description in descriptions:
+        evidence = {"code": None, "description_sv": description, "source": "source_description"}
+        if _normalized_entity(description) == "AMATÖR":
+            evidence["candidate_codes"] = ["T12A", "T12C", "T12BF"]
+            modification_types.append("amateur_built")
+        text_code_evidence.append(evidence)
+
+    body_codes = tuple(
+        dict.fromkeys(
+            code
+            for field_name in ("body_code", "body_code2", "body_code_extra")
+            if (code := normalize_text(raw.get(field_name))) is not None
+        )
+    )
+    for code in body_codes:
+        flag = _SPECIAL_BODY_CODE_FLAGS.get(code.upper())
+        if flag is not None:
+            flags.append(flag)
+
+    special_modified = bool(_SPECIAL_MODIFIED_TEXT_CODES.intersection(codes)) or any(
+        _normalized_entity(description) == "AMATÖR" for description in descriptions
+    )
+    if special_modified:
+        flags.append("special_modified")
+        normalized["vehicle_classification"] = "special_modified"
+        normalized["manufacturer_group"] = "Special Modified"
+        normalized["parts_matching_policy"] = "excluded"
+        normalized["parts_matching_eligible"] = False
+        normalized["parts_matching_exclusion_reason"] = "special_modified_vehicle"
+        normalized["tecdoc_match_policy"] = "exclude"
+    elif flags:
+        normalized["parts_matching_policy"] = "manual_review"
+        normalized["parts_matching_eligible"] = False
+    if modification_types:
+        normalized["modification_types"] = list(dict.fromkeys(modification_types))
+    if text_code_evidence:
+        normalized["text_codes"] = text_code_evidence
+    if body_codes and (text_code_evidence or flags or raw.get("body_code_extra")):
+        normalized["registry_body_codes"] = list(body_codes)
+    if flags:
+        normalized["special_vehicle_flags"] = list(dict.fromkeys(flags))
 
 
 def normalize_ts_record(
@@ -1007,6 +1137,13 @@ def _normalize_manufacturer(
     reasons: list[str],
     entity_rules: ManufacturerEntityRules,
 ) -> None:
+    if normalized.get("vehicle_classification") == "special_modified":
+        _retain_manufacturer_evidence(raw, normalized)
+        normalized["manufacturer_role"] = "special_modified"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["text_codes"]
+        applied.append("MFR-SPECIAL-MODIFIED-GROUP")
+        return
     entity = _normalized_entity(raw.get("manufacturer"))
     base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
     fragmented = _fragmented_manufacturer(raw)
@@ -1933,6 +2070,10 @@ def _apply_manufacturer(context: NormalizationContext) -> None:
     )
 
 
+def _apply_special_vehicle(context: NormalizationContext) -> None:
+    _apply_special_vehicle_classification(context)
+
+
 def _apply_model_family(context: NormalizationContext) -> None:
     _normalize_model_family(context)
 
@@ -1970,6 +2111,20 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             order=10,
             default_rule_id="SYS-TS-INIT",
             handler=_initialize_context,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.special-vehicle",
+            order=15,
+            default_rule_id="TS-SPECIAL-VEHICLE-V1",
+            handler=_apply_special_vehicle,
+            source_fields=(
+                "text_code",
+                "text_codes",
+                "text_code_descriptions",
+                "body_code",
+                "body_code2",
+                "body_code_extra",
+            ),
         ),
         _RuleTransformer(
             transformer_id="ts.manufacturer",
@@ -2037,6 +2192,7 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             source_fields=(
                 "body_code",
                 "body_code2",
+                "body_code_extra",
                 "eu_category",
                 "vehicle_type",
                 "brand",
