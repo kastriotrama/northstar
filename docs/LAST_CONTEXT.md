@@ -2,15 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-07 — Model-family phase two implemented locally
-
-- Added immutable `ts-translation-v7` with 102 additional manufacturer-scoped model rules covering clean families, composite decomposition, and spelling variants. BMW designations such as 320d/330e map to `3 Series`, 520d/530e to `5 Series`; trim, body, power, battery and AWD suffixes remain source evidence.
-- Deliberately retained Kia SL/ED and other unverified internal codes as candidates; no TecDoc inference is included. Added guarded SQL activation `northstar_model_family_rule_catalog_v7.sql`, preserving all 229 active overrides.
-- Reprocessed 34,545 passenger cars locally as `normalization-passenger-34545-model-v7-local-20260807`: 18,459 resolved, 16,075 provisional, 11 review-required, and 0 failed. Phase two applied to 7,684 cars, accepted model coverage reached 15,913, moved another 5,965 vehicles to resolved, and reduced remaining model candidates from 11,134 to 3,450.
-- Local web now serves v7 with 231 translation rules, including 127 Model Family rules. Ruff, strict mypy, golden corpus, JavaScript syntax, and 414 tests pass; the pre-existing stateful bundle-fixture collision remains excluded.
-- Published the complete change as PR #28 commit `06db49d`; its first CI run exposed five Ruff 0.16-only import/UTC findings that Ruff 0.15.20 did not report locally. Applied the exact auto-fixes and verified the affected six tests plus all tracked Python files under pinned Ruff 0.16.
-- The refreshed CI then exposed one stale deterministic-bundle audit value. The approved golden corpus confirms that a model-family candidate carries the intended 0.10 confidence effect, so the fixture—not runtime behavior—must be aligned while preserving all vehicle data and rules.
-
 ## 2026-08-07 — Remaining 11,134 model candidates analyzed
 
 - All 11,134 remaining model candidates have a resolved manufacturer; 11,133 are provisional only because model family is unapproved, while one also has the existing fuel-combination conflict.
@@ -69,3 +60,11 @@ Keep the latest 10 task entries only.
 - Added official T12 and special-purpose body-code meanings, grouped amateur/rebuilt vehicles as `Special Modified`, excluded them from TecDoc/parts matching, and routed other special-purpose vehicles to manual parts review. Description-only `AMATÖR` records retain candidate codes without claiming an exact code.
 - Verified source line 440113 as real plate AYZ946 and exercised it end-to-end. Added a portable 97-passenger-car XLSX containing source evidence, expected results, all 231 v7 translation rules, 184 base manufacturers, and the active 229 overrides; all 97 results reproduce exactly.
 - Ruff, JavaScript syntax, 76 focused tests, the application bundle validator, formula/error scans, and visual checks of all 10 workbook sheets pass. Existing database batches have not yet been mutated or reprocessed.
+
+## 2026-08-10 — Complete 496,251-car portable bundle aligned to special policy
+
+- Split the complete local Transportstyrelsen passenger batch into 100 importable XLSX workbooks: 99 parts of 5,000 and one part of 1,251, with 496,251 unique source IDs and no owner fields.
+- Retained lossless raw TS and normalized payload JSON plus the translation catalog, manufacturer entities, overrides, rule metadata, and known issues in every workbook.
+- Refreshed 2,940 special-purpose-body-code vehicles and 94 amateur-built passenger records under `TS-SPECIAL-VEHICLE-V1`; final totals are 269,803 resolved, 223,367 provisional, 3,081 review-required, and 0 failed.
+- Added guarded, idempotent SQL activation `northstar_special_vehicle_policy_v1.sql` targeting immutable version `ts-review-20260810T143500000000Z`, and taught all active-rule loading paths to replay that policy from SQL.
+- Verified 75 focused tests and Ruff, all 100 workbook contracts/JSON payloads, representative first/middle/last visual renders, and rollback-only SQL validation. The local database remains on the prior immutable version until explicitly activated.

@@ -95,6 +95,26 @@ def test_t12a_amateur_built_vehicle_is_grouped_and_excluded_from_parts_matching(
     assert "manufacturer_missing" not in outcome.review_reasons
 
 
+def test_special_vehicle_policy_can_be_replayed_from_active_sql_overrides() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "CUSTOM ROADSTER", "eu_category": "M1", "text_code": "T12A"},
+        manufacturer_entity_rules={
+            "policy:TS-SPECIAL-VEHICLE-V1": {
+                "kind": "special_vehicle_policy",
+                "special_modified_text_codes": ["T12A"],
+                "manufacturer_group": "Special Modified",
+                "parts_matching_policy": "excluded",
+                "tecdoc_match_policy": "exclude",
+                "other_special_parts_matching_policy": "manual_review",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer_group"] == "Special Modified"
+    assert outcome.normalized["parts_matching_policy"] == "excluded"
+    assert outcome.normalized["tecdoc_match_policy"] == "exclude"
+
+
 def test_amateur_description_is_retained_without_guessing_an_exact_text_code() -> None:
     outcome = normalize_ts_record(
         {

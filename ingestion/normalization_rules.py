@@ -535,6 +535,22 @@ def _text_code_descriptions(raw: Mapping[str, Any]) -> tuple[str, ...]:
 def _apply_special_vehicle_classification(context: NormalizationContext) -> None:
     raw = context.canonical_record
     normalized = context.normalized
+    runtime_rules = context.runtime.get("manufacturer_entity_rules", {})
+    policy = (
+        runtime_rules.get("policy:TS-SPECIAL-VEHICLE-V1", {})
+        if isinstance(runtime_rules, dict)
+        else {}
+    )
+    special_modified_codes = frozenset(
+        policy.get("special_modified_text_codes") or _SPECIAL_MODIFIED_TEXT_CODES
+    )
+    body_code_flags = dict(policy.get("special_body_code_flags") or _SPECIAL_BODY_CODE_FLAGS)
+    manufacturer_group = str(policy.get("manufacturer_group") or "Special Modified")
+    special_parts_policy = str(policy.get("parts_matching_policy") or "excluded")
+    special_tecdoc_policy = str(policy.get("tecdoc_match_policy") or "exclude")
+    other_special_parts_policy = str(
+        policy.get("other_special_parts_matching_policy") or "manual_review"
+    )
     codes = _source_text_codes(raw)
     descriptions = _text_code_descriptions(raw)
     text_code_evidence: list[dict[str, Any]] = []
@@ -565,23 +581,23 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
         )
     )
     for code in body_codes:
-        flag = _SPECIAL_BODY_CODE_FLAGS.get(code.upper())
+        flag = body_code_flags.get(code.upper())
         if flag is not None:
             flags.append(flag)
 
-    special_modified = bool(_SPECIAL_MODIFIED_TEXT_CODES.intersection(codes)) or any(
+    special_modified = bool(special_modified_codes.intersection(codes)) or any(
         _normalized_entity(description) == "AMATÖR" for description in descriptions
     )
     if special_modified:
         flags.append("special_modified")
         normalized["vehicle_classification"] = "special_modified"
-        normalized["manufacturer_group"] = "Special Modified"
-        normalized["parts_matching_policy"] = "excluded"
+        normalized["manufacturer_group"] = manufacturer_group
+        normalized["parts_matching_policy"] = special_parts_policy
         normalized["parts_matching_eligible"] = False
         normalized["parts_matching_exclusion_reason"] = "special_modified_vehicle"
-        normalized["tecdoc_match_policy"] = "exclude"
+        normalized["tecdoc_match_policy"] = special_tecdoc_policy
     elif flags:
-        normalized["parts_matching_policy"] = "manual_review"
+        normalized["parts_matching_policy"] = other_special_parts_policy
         normalized["parts_matching_eligible"] = False
     if modification_types:
         normalized["modification_types"] = list(dict.fromkeys(modification_types))
