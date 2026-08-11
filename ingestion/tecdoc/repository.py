@@ -139,3 +139,46 @@ def count_batch_ledger_entries(connection: Connection, *, batch_id: str) -> int:
     if row is None:
         raise RuntimeError("TecDoc ledger reconciliation returned no row")
     return int(row[0])
+
+
+def write_relationship_candidate(
+    connection: Connection,
+    *,
+    batch_id: str,
+    relationship_type: str,
+    source_assertion_key: str,
+    from_source_key: str,
+    from_node_id: str,
+    to_source_key: str,
+    to_node_id: str,
+    attributes: dict[str, object],
+    evidence: dict[str, object],
+) -> bool:
+    """Write one immutable source relationship candidate idempotently."""
+
+    if relationship_type != "USES_ENGINE":
+        raise ValueError(f"Unsupported TecDoc relationship: {relationship_type}")
+    if not source_assertion_key.strip():
+        raise ValueError("source_assertion_key must not be empty")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO core.tecdoc_candidate_relationships "
+            "(batch_id,relationship_type,source_assertion_key,from_source_key,from_node_id,"
+            "to_source_key,to_node_id,attributes,evidence) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            "ON CONFLICT DO NOTHING RETURNING source_assertion_key",
+            (batch_id, relationship_type, source_assertion_key, from_source_key, from_node_id,
+             to_source_key, to_node_id, Jsonb(attributes), Jsonb(evidence)),
+        )
+        return cursor.fetchone() is not None
+
+
+def count_relationship_candidates(connection: Connection, *, batch_id: str) -> int:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) FROM core.tecdoc_candidate_relationships WHERE batch_id=%s",
+            (batch_id,),
+        )
+        row = cursor.fetchone()
+    if row is None:
+        raise RuntimeError("TecDoc relationship reconciliation returned no row")
+    return int(row[0])

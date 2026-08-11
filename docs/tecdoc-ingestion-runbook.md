@@ -106,3 +106,14 @@ different version, checksum, path, recorded license reference, or count is rejec
 Sample tracing starts with a KType alias candidate, follows its
 `target_source_key` to the vehicle variant, and uses each candidate's
 `source_row_refs` to locate the exact restored provider rows.
+
+### Engine relationship promotion gate
+
+Table 125 evidence first lands in `core.tecdoc_candidate_relationships` as one
+candidate per distinct `(KType, Engine)`, with all country/date applicability
+rows nested as evidence. A candidate is promoted to Neo4j `USES_ENGINE` only
+when that canonical VehicleVariant has exactly one resolved engine. If a KType
+has several engines, resolution must either select one with supporting market
+evidence or split it into separate one-engine VehicleVariants. The graph writer
+rejects a second engine on an existing variant rather than violating the
+accepted singular relationship contract.

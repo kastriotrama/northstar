@@ -30,6 +30,19 @@ TECDOC_MIGRATION_STATEMENTS: tuple[tuple[str, str], ...] = (
         "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
         "PRIMARY KEY (batch_id, entity_type, source_key))"
     ),
+    (
+        "create_tecdoc_candidate_relationships",
+        "CREATE TABLE IF NOT EXISTS core.tecdoc_candidate_relationships ("
+        "batch_id TEXT NOT NULL REFERENCES core.tecdoc_source_batches(batch_id), "
+        "relationship_type TEXT NOT NULL CHECK (relationship_type IN ('USES_ENGINE')), "
+        "source_assertion_key TEXT NOT NULL, from_source_key TEXT NOT NULL, "
+        "from_node_id TEXT NOT NULL, to_source_key TEXT NOT NULL, to_node_id TEXT NOT NULL, "
+        "attributes JSONB NOT NULL DEFAULT '{}', evidence JSONB NOT NULL DEFAULT '{}', "
+        "status TEXT NOT NULL DEFAULT 'candidate' "
+        "CHECK (status IN ('candidate','resolved','rejected')), "
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+        "PRIMARY KEY (batch_id, relationship_type, source_assertion_key))"
+    ),
 )
 
 

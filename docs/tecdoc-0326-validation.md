@@ -56,3 +56,25 @@ applicability records, not interpreted as hundreds of different engines.
 - The canonical persistence layer must write KType-to-engine relationships
   separately from vehicle nodes so multiple engines and country applicability
   are not flattened or lost.
+
+## Relationship persistence validation
+
+The first 1,000 real KTypes were persisted locally as a versioned PostgreSQL
+candidate batch:
+
+| Field | Value |
+|---|---:|
+| KTypes processed | 1,000 |
+| Distinct KType-engine candidates | 1,256 |
+| KTypes with multiple engine candidates | 216 |
+| Duplicate writes on identical rerun | 0 |
+
+Each candidate retains the Table 100/110/120 source references, Table 155
+engine row, deleted-engine flag, and every Table 125 country/date applicability
+row. Candidates remain outside Neo4j until one engine is resolved or the KType
+is deliberately split into multiple canonical variants.
+
+The Neo4j promotion writer was validated against the real local graph service:
+an identical rerun retains one `USES_ENGINE` edge, while promotion of a second
+engine to the same canonical variant aborts transactionally and leaves the
+existing edge unchanged.

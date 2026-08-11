@@ -32,8 +32,11 @@ def test_tecdoc_storage_covers_batch_identity_and_candidates() -> None:
         "create_tecdoc_source_batches",
         "create_tecdoc_identity_registry",
         "create_tecdoc_canonical_candidates",
+        "create_tecdoc_candidate_relationships",
     }
     sql = " ".join(statement for _, statement in TECDOC_MIGRATION_STATEMENTS)
     assert "source_checksum" in sql
     assert "PRIMARY KEY (entity_type, source_key)" in sql
     assert "source_row_refs" in sql
+    assert "source_assertion_key" in sql
+    assert "USES_ENGINE" in sql
