@@ -24,6 +24,11 @@ class Repository:
             "source_row_refs": ["100:1", "110:1", "120:1"],
         }]
 
+    def fetch_entities(self, **_kwargs):
+        return 1, [{"source_key": "manufacturer:5", "name": "VOLVO",
+                    "vehicle_count": 24, "sample_ktypes": ["12345"],
+                    "details": {"canonical_name": "VOLVO"}}]
+
 
 def test_exposes_promoted_vehicle_with_source_lineage() -> None:
     page = TecDocReviewService(Repository()).list_vehicles(query="volvo", limit=100, offset=0)
@@ -36,11 +41,23 @@ def test_exposes_promoted_vehicle_with_source_lineage() -> None:
     assert len(page.promotion_rules) == 4
 
 
+def test_exposes_manufacturer_usage_and_example_ktypes() -> None:
+    page = TecDocReviewService(Repository()).list_entities(
+        kind="manufacturer", query="volvo", limit=100, offset=0
+    )
+    assert page.items[0].name == "VOLVO"
+    assert page.items[0].vehicle_count == 24
+    assert page.items[0].sample_ktypes == ["12345"]
+
+
 class EmptyRepository:
     def latest_batch(self):
         return None
 
     def fetch_vehicles(self, **_kwargs):
+        raise AssertionError("No query should run without a batch")
+
+    def fetch_entities(self, **_kwargs):
         raise AssertionError("No query should run without a batch")
 
 

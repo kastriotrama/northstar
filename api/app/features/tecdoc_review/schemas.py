@@ -40,3 +40,20 @@ class TecDocReviewPage(BaseModel):
     offset: int
     items: list[TecDocVehicle] = Field(default_factory=list)
     promotion_rules: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TecDocEntity(BaseModel):
+    source_key: str
+    name: str
+    vehicle_count: int
+    sample_ktypes: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class TecDocEntityPage(BaseModel):
+    kind: str
+    batch_id: str | None = None
+    filtered_total: int = 0
+    limit: int
+    offset: int
+    items: list[TecDocEntity] = Field(default_factory=list)

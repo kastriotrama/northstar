@@ -321,6 +321,9 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .tecdoc-summary dd { margin: 7px 0 0; font-family: Georgia, serif; font-size: 25px; }
 .tecdoc-workspace { height: calc(100svh - 208px); display: grid; grid-template-columns: minmax(700px, 1fr) minmax(390px, 450px); overflow: hidden; }
 .tecdoc-results { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--line); }
+.tecdoc-kind-tabs { min-height: 44px; display: flex; align-items: end; gap: 20px; padding: 0 24px; border-bottom: 1px solid var(--line); background: #fff; }
+.tecdoc-kind { align-self: stretch; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; font-size: 11px; font-weight: 700; }
+.tecdoc-kind.active { border-bottom-color: var(--teal); color: var(--ink); }
 .tecdoc-table th:nth-child(1) { width: 30%; }.tecdoc-table th:nth-child(2) { width: 20%; }.tecdoc-table th:nth-child(3) { width: 23%; }.tecdoc-table th:nth-child(4) { width: 13%; }.tecdoc-table th:nth-child(5) { width: 14%; }
 .tecdoc-inspector { overflow-y: auto; background: #f6f8f7; }
 .tecdoc-inspector-head { display: flex; justify-content: space-between; gap: 16px; padding: 24px; border-bottom: 1px solid var(--line); background: #fff; }
@@ -335,6 +338,7 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .source-key-list { display: grid; gap: 9px; margin: 0; }.source-key-list div { display: grid; grid-template-columns: 100px 1fr; gap: 10px; }.source-key-list dt { color: var(--muted); font-size: 9px; }.source-key-list dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 9px; }
 .source-row-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 15px; }.source-row-list code { padding: 5px 7px; background: #e9efec; color: #40514e; font-size: 9px; }
 .tecdoc-inspector .platform-wait { border-left: 3px solid var(--amber); background: #fff9ef; }.platform-wait strong { color: #805718; font-size: 11px; }.platform-wait p { margin: 7px 0 0; color: #6f624e; font-size: 10px; line-height: 1.5; }
+.entity-usage { align-self: start; color: var(--teal); font-family: Georgia, serif; font-size: 17px; font-weight: 400; }.entity-sample-count { color: var(--muted); font-size: 9px; }.entity-hint { margin-top: 14px; }
 
 @keyframes arrive { to { opacity: 1; } }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } }

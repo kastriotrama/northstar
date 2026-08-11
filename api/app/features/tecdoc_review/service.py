@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from api.app.features.tecdoc_review.schemas import (
+    TecDocEntity,
+    TecDocEntityPage,
     TecDocPromotionSummary,
     TecDocReviewPage,
     TecDocVehicle,
@@ -12,6 +14,7 @@ from api.app.features.tecdoc_review.schemas import (
 class ReviewRepository(Protocol):
     def latest_batch(self) -> dict[str, Any] | None: ...
     def fetch_vehicles(self, *, batch_id: str, query: str, limit: int, offset: int) -> tuple[int, list[dict[str, Any]]]: ...
+    def fetch_entities(self, *, batch_id: str, kind: str, query: str, limit: int, offset: int) -> tuple[int, list[dict[str, Any]]]: ...
 
 
 PROMOTION_RULES = [
@@ -37,6 +40,19 @@ class TecDocReviewService:
         return TecDocReviewPage(
             summary=TecDocPromotionSummary(**batch), filtered_total=total, limit=limit,
             offset=offset, items=items, promotion_rules=PROMOTION_RULES,
+        )
+
+    def list_entities(self, *, kind: str, query: str, limit: int, offset: int) -> TecDocEntityPage:
+        batch = self._repository.latest_batch()
+        if batch is None:
+            return TecDocEntityPage(kind=kind, limit=limit, offset=offset)
+        total, rows = self._repository.fetch_entities(
+            batch_id=str(batch["batch_id"]), kind=kind, query=query,
+            limit=limit, offset=offset,
+        )
+        return TecDocEntityPage(
+            kind=kind, batch_id=str(batch["batch_id"]), filtered_total=total,
+            limit=limit, offset=offset, items=[TecDocEntity(**row) for row in rows],
         )
 
     @staticmethod

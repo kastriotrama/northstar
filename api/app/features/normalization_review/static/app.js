@@ -2,7 +2,7 @@ const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
 const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
 const queueState = { page: null, selectedId: null, loading: false };
-const tecdocState = { page: null, selectedId: null, offset: 0, loading: false };
+const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -393,17 +393,48 @@ function switchView(view) {
 async function loadTecDoc() {
   if (tecdocState.loading) return;
   tecdocState.loading = true;
+  const requestedKind = tecdocState.kind;
   const query = document.querySelector("#tecdoc-search").value.trim();
   try {
-    tecdocState.page = await apiRequest(`/v1/normalization-review/tecdoc/vehicles?query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
-    if (!tecdocState.page.items.some((item) => item.ktype === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.page.items[0]?.ktype || null;
-    renderTecDoc();
+    if (requestedKind === "vehicle") {
+      tecdocState.page = await apiRequest(`/v1/normalization-review/tecdoc/vehicles?query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
+      if (!tecdocState.page.items.some((item) => item.ktype === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.page.items[0]?.ktype || null;
+      renderTecDoc();
+    } else {
+      tecdocState.entityPage = await apiRequest(`/v1/normalization-review/tecdoc/entities?kind=${requestedKind}&query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
+      if (!tecdocState.entityPage.items.some((item) => item.source_key === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.entityPage.items[0]?.source_key || null;
+      if (tecdocState.kind === requestedKind) renderTecDocEntities();
+    }
   } catch (error) { showToast(`Could not load TecDoc vehicles. ${error.message}`); }
-  finally { tecdocState.loading = false; }
+  finally {
+    tecdocState.loadedKind = requestedKind;
+    tecdocState.loading = false;
+    if (tecdocState.kind !== requestedKind) loadTecDoc();
+  }
+}
+
+function renderTecDocEntities() {
+  const page = tecdocState.entityPage;
+  const kindLabel = humanize(tecdocState.kind);
+  document.querySelector("#tecdoc-result-count").textContent = `${page.filtered_total.toLocaleString()} ${kindLabel} values · ${page.batch_id || "No batch"}`;
+  const rows = document.querySelector("#tecdoc-rows");
+  rows.innerHTML = page.items.map((item) => `<tr data-entity-key="${escapeHtml(item.source_key)}" class="${item.source_key === tecdocState.selectedId ? "selected" : ""}"><td colspan="2"><div class="vehicle-cell"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.source_key)}</span></div></td><td colspan="2"><strong>${item.vehicle_count.toLocaleString()}</strong> promoted KTypes</td><td><span class="entity-sample-count">${item.sample_ktypes.length} examples</span></td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { tecdocState.selectedId = row.dataset.entityKey; renderTecDocEntities(); }));
+  document.querySelector("#tecdoc-empty").hidden = page.items.length !== 0;
+  document.querySelector("#tecdoc-page").textContent = `Page ${Math.floor(tecdocState.offset / 100) + 1}`;
+  document.querySelector("#tecdoc-previous").disabled = tecdocState.offset === 0;
+  document.querySelector("#tecdoc-next").disabled = tecdocState.offset + 100 >= page.filtered_total;
+  document.querySelector("#tecdoc-inspector-empty").hidden = Boolean(tecdocState.selectedId);
+  document.querySelector("#tecdoc-inspector-content").hidden = true;
+  const entity = page.items.find((item) => item.source_key === tecdocState.selectedId);
+  const inspector = document.querySelector("#tecdoc-entity-inspector");
+  inspector.hidden = !entity;
+  if (entity) inspector.innerHTML = `<header class="tecdoc-inspector-head"><div><span class="eyebrow">TecDoc ${escapeHtml(kindLabel)}</span><h2>${escapeHtml(entity.name)}</h2><p>${escapeHtml(entity.source_key)}</p></div><strong class="entity-usage">${entity.vehicle_count.toLocaleString()} vehicles</strong></header><section><h3>Canonical details</h3><dl class="field-list">${Object.entries(entity.details).map(([key,value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(value ?? "—")}</dd></div>`).join("")}</dl></section><section><h3>Example KTypes using this value</h3><div class="source-row-list">${entity.sample_ktypes.map((ktype) => `<code>${escapeHtml(ktype)}</code>`).join("")}</div><p class="section-hint entity-hint">Showing up to 12 examples from ${entity.vehicle_count.toLocaleString()} promoted vehicles.</p></section>`;
 }
 
 function renderTecDoc() {
   const page = tecdocState.page;
+  document.querySelector("#tecdoc-entity-inspector").hidden = true;
   const summary = page.summary;
   document.querySelector("#tecdoc-promoted").textContent = Number(summary.promoted_ktypes).toLocaleString();
   document.querySelector("#tecdoc-manufacturers").textContent = Number(summary.manufacturers).toLocaleString();
@@ -880,6 +911,14 @@ async function approveQueueDecision(event) {
 }
 
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelectorAll(".tecdoc-kind").forEach((tab) => tab.addEventListener("click", () => {
+  tecdocState.kind = tab.dataset.tecdocKind;
+  tecdocState.offset = 0;
+  tecdocState.selectedId = null;
+  document.querySelectorAll(".tecdoc-kind").forEach((item) => item.classList.toggle("active", item === tab));
+  document.querySelector("#tecdoc-search").placeholder = `Search ${humanize(tecdocState.kind)}…`;
+  loadTecDoc();
+}));
 let tecdocSearchTimer;
 document.querySelector("#tecdoc-search").addEventListener("input", () => {
   clearTimeout(tecdocSearchTimer);

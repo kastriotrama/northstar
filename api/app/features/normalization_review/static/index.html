@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=12" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=13" />
   </head>
   <body>
     <div class="app-shell">
@@ -181,6 +181,13 @@
         </section>
         <main class="tecdoc-workspace">
           <section class="tecdoc-results">
+            <nav class="tecdoc-kind-tabs" aria-label="TecDoc data type">
+              <button class="tecdoc-kind active" data-tecdoc-kind="vehicle" type="button">Vehicles</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="manufacturer" type="button">Manufacturers</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="model_family" type="button">Model families</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="engine" type="button">Engines</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="fuel" type="button">Fuels</button>
+            </nav>
             <div class="toolbar">
               <label class="search-field"><span class="sr-only">Search promoted TecDoc vehicles</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg><input id="tecdoc-search" type="search" placeholder="Search KType, manufacturer, model, engine or fuel…" /></label>
             </div>
@@ -197,6 +204,7 @@
               <section><h3>Source lineage</h3><dl id="tecdoc-source-keys" class="source-key-list"></dl><div id="tecdoc-source-rows" class="source-row-list"></div></section>
               <section class="platform-wait"><h3>Hierarchy status</h3><strong>Awaiting platform mapping</strong><p>Manufacturer and model evidence is retained in PostgreSQL. TecDoc Tables 714/715 are needed for the accepted VehicleVariant → Platform → ModelFamily path.</p></section>
             </div>
+            <div id="tecdoc-entity-inspector" hidden></div>
           </aside>
         </main>
       </div>
@@ -367,6 +375,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=19" defer></script>
+    <script src="/normalization-review/assets/app.js?v=20" defer></script>
   </body>
 </html>

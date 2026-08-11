@@ -143,3 +143,8 @@ Reviewers can search by KType, manufacturer, model family, engine code or fuel,
 then inspect canonical values, the four promotion gates, stable source keys and
 the original TecDoc row references. The inspector also explains why the graph
 hierarchy remains provisional until Tables 714/715 are available.
+
+The TecDoc workspace also provides separate Manufacturer, Model family, Engine
+and Fuel browsers. Each list reports the number of promoted KTypes using the
+canonical value and shows up to 12 example KTypes, making shared entities and
+fuel coverage reviewable without opening vehicles one at a time.

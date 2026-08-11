@@ -265,3 +265,9 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
     assert total == 2
     assert promoted[0]["manufacturer_attributes"]["canonical_name"] == "VOLVO"
     assert promoted[0]["engine_attributes"]["engine_code"] == "ENGINE-00003"
+    entity_total, entities = repository.fetch_entities(
+        batch_id=batch_id, kind="manufacturer", query="VOLVO", limit=10, offset=0
+    )
+    assert entity_total == 1
+    assert entities[0]["name"] == "VOLVO"
+    assert entities[0]["vehicle_count"] == 2

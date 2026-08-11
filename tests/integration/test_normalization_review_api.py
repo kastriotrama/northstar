@@ -239,6 +239,7 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert "/v1/normalization-review/vehicles" in javascript.text
     assert "/v1/normalization-review/rules/reprocess" in javascript.text
     assert "/v1/normalization-review/tecdoc/vehicles" in javascript.text
+    assert "/v1/normalization-review/tecdoc/entities" in javascript.text
     assert 'data-rule-id="${escapeHtml(rule)}"' in javascript.text
     assert "showRuleInVehicle(button.dataset.ruleId)" in javascript.text
     assert 'id="vehicle-rule-detail"' in screen.text
