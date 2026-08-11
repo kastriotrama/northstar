@@ -31,6 +31,19 @@ TABLE_FORMATS: dict[str, TableFormat] = {
         Field("description_id", 29, 9), Field("country_code", 38, 3),
         Field("language_id", 41, 3), Field("text", 44, 60),
     ), reserved_prefix=True),
+    "020": TableFormat("020", 47, (
+        Field("language_id", 29, 3), Field("description_id", 32, 9),
+        Field("iso_code", 41, 2), Field("codepage", 43, 4),
+    ), reserved_prefix=True),
+    "030": TableFormat("030", 102, (
+        Field("description_id", 29, 9), Field("language_id", 38, 3),
+        Field("text", 41, 60), Field("deleted", 101, 1),
+    ), reserved_prefix=True),
+    "052": TableFormat("052", 48, (
+        Field("key_table_id", 29, 3), Field("key", 32, 3),
+        Field("description_id", 35, 9), Field("sort_number", 44, 3),
+        Field("deleted", 47, 1),
+    ), reserved_prefix=True),
     "100": TableFormat("100", 40, (
         Field("manufacturer_id", 7, 6), Field("short_code", 13, 10),
         Field("description_id", 23, 9), Field("is_pc", 32, 1),

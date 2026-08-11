@@ -4,6 +4,7 @@ import pytest
 
 from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.fixed_width import TABLE_FORMATS, TecDocFormatError, parse_row
+from ingestion.tecdoc.reference_data import canonical_engine_fuels, load_key_table_labels
 
 
 def make_row(table: str, **values: str) -> str:
@@ -119,3 +120,30 @@ def test_ignores_deleted_and_non_pc_models(tmp_path: Path) -> None:
     write_table(tmp_path, "012", [])
 
     assert tuple(extract_dat_hierarchy(tmp_path)) == ()
+
+
+def test_loads_official_key_labels_and_maps_only_supported_fuels(tmp_path: Path) -> None:
+    write_table(tmp_path, "020", [make_row(
+        "020", language_id="004", description_id="000000001", iso_code="en"
+    )])
+    write_table(tmp_path, "052", [
+        make_row(
+            "052", key_table_id="088", key="001", description_id="000010788", deleted="0"
+        ),
+        make_row(
+            "052", key_table_id="088", key="039", description_id="000012777", deleted="0"
+        ),
+    ])
+    write_table(tmp_path, "030", [
+        make_row(
+            "030", description_id="000010788", language_id="004", text="Petrol", deleted="0"
+        ),
+        make_row(
+            "030", description_id="000012777", language_id="004", text="Bi-Fuel", deleted="0"
+        ),
+    ])
+
+    assert load_key_table_labels(tmp_path, key_table_id="088") == {
+        "001": "Petrol", "039": "Bi-Fuel"
+    }
+    assert canonical_engine_fuels(tmp_path) == {"001": "petrol"}

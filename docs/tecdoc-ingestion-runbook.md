@@ -117,3 +117,20 @@ has several engines, resolution must either select one with supporting market
 evidence or split it into separate one-engine VehicleVariants. The graph writer
 rejects a second engine on an existing variant rather than violating the
 accepted singular relationship contract.
+
+### Canonical KType promotion
+
+Automatic promotion requires one active engine, an official supported fuel
+code, a resolved displacement, and a valid production start year. Exact Table
+155 displacement is preferred; a single Table 120 displacement observed across
+the complete restored source is accepted as corroboration.
+
+Manufacturer, ModelFamily, provisional VehicleVariant, Engine and KType Alias
+nodes may then be created. Until platform Tables 714/715 are restored, the
+accepted graph contract has no path from VehicleVariant to ModelFamily: its
+only hierarchy path is VehicleVariant -> Platform -> ModelFamily. The variant
+candidate therefore retains `manufacturer_source_key`,
+`model_family_source_key`, and `hierarchy_link_status=awaiting_platform_mapping`
+in PostgreSQL. Do not create an ad-hoc direct graph relationship to bridge this
+gap. Ambiguous engines and unresolved fuel/displacement records stay outside
+Neo4j for review.

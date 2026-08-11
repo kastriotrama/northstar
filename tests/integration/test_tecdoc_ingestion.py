@@ -13,6 +13,7 @@ from ingestion.tecdoc.dat_extraction import (
     TecDocHierarchyRecord,
 )
 from ingestion.tecdoc.hierarchy_persistence import persist_engine_relationship_candidates
+from ingestion.tecdoc.canonical_promotion import prepare_canonical_promotions
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.models import TecDocVehicleRow
 from ingestion.tecdoc.service import ingest_tecdoc_vehicle_tree
@@ -152,3 +153,98 @@ def test_multiple_engines_persist_as_candidates_without_graph_flattening(
             ("engine:00001", "155:1"),
             ("engine:00002", "155:2"),
         ]
+
+
+def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
+    pg_connection: Connection,
+) -> None:
+    run_tecdoc_migrations(pg_connection)
+    batch_id = f"tecdoc-promotion-{uuid4()}"
+    register_batch(
+        pg_connection,
+        batch_id=batch_id,
+        source_version="0326",
+        format_version="2.70",
+        license_reference=None,
+        source_path="/licensed/REFERENCE_DATA_0326",
+        source_checksum="c" * 64,
+        source_row_count=3,
+    )
+    applicability = EngineApplicability("001", None, None, None, False, "125:1")
+
+    def engine(engine_id: str) -> EngineAllocation:
+        return EngineAllocation(
+            engine_id=engine_id,
+            engine_code=f"ENGINE-{engine_id}",
+            manufacturer_id="000005",
+            fuel_type_code="001",
+            displacement_cc_from=1969,
+            displacement_cc_to=1969,
+            deleted=False,
+            applicability=(applicability,),
+            engine_source_row_ref=f"155:{engine_id}",
+        )
+
+    def ranged_engine(engine_id: str) -> EngineAllocation:
+        value = engine(engine_id)
+        return EngineAllocation(
+            engine_id=value.engine_id,
+            engine_code=value.engine_code,
+            manufacturer_id=value.manufacturer_id,
+            fuel_type_code=value.fuel_type_code,
+            displacement_cc_from=None,
+            displacement_cc_to=None,
+            deleted=value.deleted,
+            applicability=value.applicability,
+            engine_source_row_ref=value.engine_source_row_ref,
+        )
+
+    def hierarchy(ktype_id: str, engines: tuple[EngineAllocation, ...]) -> TecDocHierarchyRecord:
+        return TecDocHierarchyRecord(
+            manufacturer_id="000005", manufacturer_name="VOLVO", manufacturer_groups=("PC",),
+            model_id="00050", model_name="XC60", ktype_id=ktype_id, ktype_name="D4 AWD",
+            year_from="201801", year_to=None, power_kw=140, displacement_cc=1969,
+            fuel_type_code="001", drive_type_code="004", transmission_type_code="002",
+            body_type_code="006", engines=engines,
+            source_row_refs=("100:1", "110:1", f"120:{ktype_id}"),
+        )
+
+    unique_id = f"unique-{uuid4()}"
+    ambiguous_id = f"ambiguous-{uuid4()}"
+    consensus_id = f"consensus-{uuid4()}"
+    records = (
+        hierarchy(unique_id, (engine("00001"),)),
+        hierarchy(ambiguous_id, (engine("00001"), engine("00002"))),
+        hierarchy(consensus_id, (ranged_engine("00003"),)),
+    )
+
+    first = prepare_canonical_promotions(
+        pg_connection, batch_id=batch_id, records=records, engine_fuels={"001": "petrol"},
+        complete_source=True,
+    )
+    second = prepare_canonical_promotions(
+        pg_connection, batch_id=batch_id, records=records, engine_fuels={"001": "petrol"},
+        complete_source=True,
+    )
+
+    assert len(first.promotions) == 2
+    assert first.promotions[0].alias_text == unique_id
+    assert first.promotions[1].displacement_source == "table_120_complete_source_consensus"
+    assert first.skipped_by_reason == {"engine_ambiguous": 1}
+    assert first.candidates_written == 8
+    assert second.candidates_written == 0
+    with pg_connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT attributes
+            FROM core.tecdoc_canonical_candidates
+            WHERE batch_id = %s AND entity_type = 'vehicle_variant'
+            ORDER BY source_key
+            LIMIT 1
+            """,
+            (batch_id,),
+        )
+        attributes = cursor.fetchone()[0]
+    assert attributes["manufacturer_source_key"] == "manufacturer:000005"
+    assert attributes["model_family_source_key"] == "model:00050"
+    assert attributes["hierarchy_link_status"] == "awaiting_platform_mapping"

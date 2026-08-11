@@ -8,6 +8,8 @@ from neo4j import Driver, ManagedTransaction
 
 from northstar.node_ids import is_valid_node_id
 
+from ingestion.tecdoc.canonical_promotion import CanonicalPromotion
+
 
 @dataclass(frozen=True)
 class ResolvedEngineRelationship:
@@ -81,3 +83,62 @@ def write_resolved_engine_relationships(
         return 0
     with driver.session() as session:
         return session.execute_write(_write_transaction, rows)
+
+
+_PROMOTION_QUERY = """
+UNWIND $rows AS row
+MERGE (manufacturer:Manufacturer {id: row.manufacturer_id})
+SET manufacturer.canonical_name = row.manufacturer_name
+MERGE (family:ModelFamily {id: row.model_family_id})
+SET family.canonical_name = row.model_family_name
+MERGE (family)-[:MADE_BY]->(manufacturer)
+MERGE (engine:Engine {id: row.engine_id})
+SET engine.engine_code = row.engine_code,
+    engine.displacement_cc = row.displacement_cc,
+    engine.fuel_type = row.fuel_type
+MERGE (variant:VehicleVariant:Provisional {id: row.variant_id})
+SET variant.market = [], variant.year_from = row.year_from, variant.year_to = row.year_to
+MERGE (alias:Alias {assertion_identity: row.assertion_identity})
+ON CREATE SET alias.id = row.alias_id,
+              alias.source_system = 'tecdoc',
+              alias.source_record_key = row.source_record_key,
+              alias.source_assertion_key = row.source_assertion_key,
+              alias.alias_type = 'k_type'
+SET alias.alias_text = row.alias_text, alias.confidence = 1.0
+MERGE (alias)-[:REFERS_TO]->(variant)
+WITH row, variant, engine
+OPTIONAL MATCH (variant)-[:USES_ENGINE]->(other:Engine)
+WITH row, variant, engine, collect(other.id) AS existing_engine_ids
+WHERE size(existing_engine_ids) = 0 OR existing_engine_ids = [engine.id]
+MERGE (variant)-[relationship:USES_ENGINE]->(engine)
+SET relationship.power_kw = row.power_kw,
+    relationship.source_system = 'tecdoc',
+    relationship.source_assertion_key = row.source_assertion_key + ':engine'
+RETURN count(variant) AS written
+"""
+
+
+def _promote_transaction(
+    transaction: ManagedTransaction,
+    rows: list[dict[str, object]],
+) -> int:
+    record = transaction.run(_PROMOTION_QUERY, rows=rows).single()
+    written = 0 if record is None else int(record["written"])
+    if written != len(rows):
+        raise GraphRelationshipConflictError(
+            "Canonical promotion stopped: a variant already uses another engine"
+        )
+    return written
+
+
+def promote_canonical_vehicles(
+    driver: Driver,
+    promotions: tuple[CanonicalPromotion, ...],
+) -> int:
+    """Idempotently create graph nodes for graph-safe provisional KTypes."""
+
+    rows = [promotion.__dict__ for promotion in promotions]
+    if not rows:
+        return 0
+    with driver.session() as session:
+        return session.execute_write(_promote_transaction, rows)

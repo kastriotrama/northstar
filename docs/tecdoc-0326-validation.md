@@ -78,3 +78,25 @@ The Neo4j promotion writer was validated against the real local graph service:
 an identical rerun retains one `USES_ENGINE` edge, while promotion of a second
 engine to the same canonical variant aborts transactionally and leaves the
 existing edge unchanged.
+
+## Controlled canonical promotion
+
+Official English labels from Tables 020/030/052 were used to interpret Table
+155 fuel key 088. Across all 72,570 active passenger-car KTypes, 40,965 meet
+the current automatic-promotion gates when complete-source Table 120
+displacement consensus is allowed. The remaining records are held back by
+14,843 missing engines, 8,867 ambiguous engines, 4,012 unsupported or
+unresolved fuel values, and 3,883 unresolved displacements.
+
+A controlled local run promoted 1,000 eligible KTypes and wrote 2,737 new
+PostgreSQL candidates: 1,000 aliases, 1,000 provisional vehicle variants, 507
+engines, 204 model families and 26 manufacturers. Neo4j contains 1,000
+provisional variants and 1,000 `USES_ENGINE` relationships from this run; an
+identical graph rerun matched the same 1,000 records without duplication.
+
+Platform Tables 714/715 are not present. Consequently, ModelFamily and
+Manufacturer nodes can be created, but a VehicleVariant cannot yet traverse
+to them through the accepted `VehicleVariant -> Platform -> ModelFamily ->
+Manufacturer` hierarchy. The PostgreSQL vehicle candidate preserves both
+source keys with `hierarchy_link_status=awaiting_platform_mapping`; no
+unsupported direct relationship is created in Neo4j.
