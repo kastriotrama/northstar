@@ -1,0 +1,121 @@
+from pathlib import Path
+
+import pytest
+
+from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
+from ingestion.tecdoc.fixed_width import TABLE_FORMATS, TecDocFormatError, parse_row
+
+
+def make_row(table: str, **values: str) -> str:
+    table_format = TABLE_FORMATS[table]
+    characters = [" "] * table_format.row_length
+    marker_position = 26 if table_format.reserved_prefix else 4
+    characters[marker_position : marker_position + 3] = table
+    for field in table_format.fields:
+        value = values.get(field.name, "")
+        assert len(value) <= field.length
+        characters[field.position : field.position + field.length] = value.ljust(field.length)
+    return "".join(characters)
+
+
+def write_table(directory: Path, table: str, rows: list[str]) -> None:
+    text = "\r\n".join(rows) + ("\r\n" if rows else "")
+    (directory / f"{table}.dat").write_text(text, encoding="utf-8")
+
+
+def test_parser_uses_documented_positions_and_preserves_unicode() -> None:
+    row = make_row(
+        "100",
+        manufacturer_id="000005",
+        short_code="AUDI",
+        description_id="100000005",
+        is_pc="1",
+        is_engine="1",
+        deleted="0",
+    )
+    parsed = parse_row(row, row_number=7, table_format=TABLE_FORMATS["100"])
+
+    assert parsed.values["manufacturer_id"] == "000005"
+    assert parsed.values["is_pc"] == "1"
+    assert parsed.source_ref == "100:7"
+
+
+def test_parser_rejects_wrong_length_and_table_marker() -> None:
+    with pytest.raises(TecDocFormatError, match="expected 107"):
+        parse_row("too short", row_number=1, table_format=TABLE_FORMATS["120"])
+    row = make_row("120", ktype_id="1")
+    with pytest.raises(TecDocFormatError, match="table marker"):
+        parse_row(row[:4] + "999" + row[7:], row_number=1, table_format=TABLE_FORMATS["120"])
+
+
+def test_extracts_passenger_hierarchy_and_preserves_multiple_engines(tmp_path: Path) -> None:
+    write_table(tmp_path, "100", [make_row(
+        "100", manufacturer_id="000005", description_id="100000005",
+        is_pc="1", is_engine="1", deleted="0",
+    )])
+    write_table(tmp_path, "110", [make_row(
+        "110", model_id="00050", description_id="110000050",
+        manufacturer_id="000005", year_from="201701", is_pc="1", deleted="0",
+    )])
+    write_table(tmp_path, "120", [make_row(
+        "120", ktype_id="000012345", description_id="120012345", model_id="00050",
+        year_from="201801", power_kw="0140", displacement_cc="01969",
+        fuel_type_code="001", drive_type_code="004", body_type_code="006", deleted="0",
+    )])
+    write_table(tmp_path, "155", [
+        make_row(
+            "155", manufacturer_id="000005", engine_id="00001", engine_code="D4204T14",
+            displacement_cc_from="01969", displacement_cc_to="01969",
+            fuel_type_code="002", deleted="0",
+        ),
+        make_row(
+            "155", manufacturer_id="000005", engine_id="00002", engine_code="B4204T35",
+            displacement_cc_from="01969", displacement_cc_to="01969",
+            fuel_type_code="001", deleted="0",
+        ),
+    ])
+    write_table(tmp_path, "125", [
+        make_row("125", ktype_id="000012345", sequence="001", engine_id="00001", exclude="0"),
+        make_row(
+            "125", ktype_id="000012345", sequence="002", engine_id="00001",
+            country_code="S", exclude="0",
+        ),
+        make_row("125", ktype_id="000012345", sequence="003", engine_id="00002", exclude="0"),
+    ])
+    write_table(tmp_path, "012", [
+        make_row("012", description_id="100000005", language_id="004", text="VOLVO"),
+        make_row("012", description_id="110000050", language_id="004", text="XC60"),
+        make_row("012", description_id="120012345", language_id="004", text="D4 AWD"),
+    ])
+
+    records = tuple(extract_dat_hierarchy(tmp_path))
+
+    assert len(records) == 1
+    assert records[0].manufacturer_name == "VOLVO"
+    assert records[0].model_name == "XC60"
+    assert records[0].ktype_name == "D4 AWD"
+    assert records[0].manufacturer_groups == ("PC", "Engine")
+    assert [engine.engine_code for engine in records[0].engines] == ["D4204T14", "B4204T35"]
+    assert records[0].engines[0].engine_source_row_ref == "155:1"
+    assert records[0].engines[0].deleted is False
+    assert records[0].engines[0].applicability[0].source_row_ref == "125:1"
+    assert len(records[0].engines[0].applicability) == 2
+
+
+def test_ignores_deleted_and_non_pc_models(tmp_path: Path) -> None:
+    write_table(tmp_path, "100", [make_row(
+        "100", manufacturer_id="000005", description_id="100000005", is_pc="1", deleted="0"
+    )])
+    write_table(tmp_path, "110", [make_row(
+        "110", model_id="00050", description_id="110000050",
+        manufacturer_id="000005", is_cv="1", deleted="0",
+    )])
+    write_table(tmp_path, "120", [make_row(
+        "120", ktype_id="000012345", description_id="120012345",
+        model_id="00050", deleted="0",
+    )])
+    write_table(tmp_path, "125", [])
+    write_table(tmp_path, "155", [])
+    write_table(tmp_path, "012", [])
+
+    assert tuple(extract_dat_hierarchy(tmp_path)) == ()
