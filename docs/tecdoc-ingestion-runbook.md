@@ -13,6 +13,50 @@ below before NorthStar reads any vehicle data.
 - License reference: optional operational metadata. When it is unavailable,
   NorthStar records `not_provided`; provider source files still stay out of Git.
 
+## Authoritative vehicle hierarchy interpretation
+
+Table `120` contains KType passenger-car objects with their basic vehicle
+information. Its primary key is `KTypNo` (`KTypNr` in the legacy/German field
+names). A Table 120 row is the vehicle object itself, not another navigation
+folder.
+
+The hierarchy is interpreted as follows:
+
+1. **Level 1 - Manufacturer:** Table `100`, keyed by `ManNo`/`HerNr`.
+2. **Manufacturer group:** under each manufacturer, create the applicable
+   group branches indicated by the Table 100 flags: `PC`, `CV`, `Axle`,
+   `Engine`, `Transmission`, and `LCV`.
+3. **Level 2 - Model series:** Table `110`, keyed by `KModNo`/`KModNr` and
+   linked to Table 100 by `ManNo`/`HerNr`. Model-series folders appear only
+   beneath the `PC`, `CV`, or `LCV` manufacturer groups.
+4. **Level 3 - Passenger-car object:** Table `120`, keyed by
+   `KTypNo`/`KTypNr` and linked to its Table 110 model series by
+   `KModNo`/`KModNr`. These are actual vehicle/KType objects, not folders.
+
+Engine information extends each Table 120 vehicle object through these joins:
+
+- Table `125` links a Table 120 `KTypNo`/`KTypNr` to an engine
+  `EngNo`/`MotNr`. Its vehicle-engine identity is the combination of KType and
+  engine allocation keys; the source sequence and applicability fields must
+  also be preserved when multiple allocations exist.
+- Table `155` contains the engine object keyed by `EngNo`/`MotNr`, obtained
+  through Table 125.
+
+In compact form:
+
+```text
+Table 100 Manufacturer
+└── PC / CV / Axle / Engine / Transmission / LCV group
+    └── Table 110 Model series (PC, CV, or LCV only)
+        └── Table 120 KType passenger-car object
+            └── Table 125 engine allocation -> Table 155 Engine
+```
+
+NorthStar's canonical graph does not persist the display-only manufacturer
+group folders as vehicle entities. It preserves the Table 100 capability
+flags as source evidence, while Manufacturer, ModelFamily, VehicleVariant,
+Engine, and KType Alias remain the canonical data objects.
+
 ## 1. Restore and validate
 
 1. Restore the provider dump/files into a dedicated PostgreSQL schema named
