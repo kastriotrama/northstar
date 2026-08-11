@@ -2,6 +2,7 @@ const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
 const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
 const queueState = { page: null, selectedId: null, loading: false };
+const tecdocState = { page: null, selectedId: null, offset: 0, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -19,6 +20,7 @@ const elements = {
   vehiclesView: document.querySelector("#vehicles-view"),
   guideView: document.querySelector("#guide-view"),
   queueView: document.querySelector("#queue-view"),
+  tecdocView: document.querySelector("#tecdoc-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -376,13 +378,60 @@ function switchView(view) {
   const showRules = view === "rules";
   const showGuide = view === "guide";
   const showQueue = view === "queue";
-  elements.vehiclesView.hidden = showRules || showGuide || showQueue;
+  const showTecDoc = view === "tecdoc";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
   elements.queueView.hidden = !showQueue;
+  elements.tecdocView.hidden = !showTecDoc;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
   if (showQueue) loadQueue();
+  if (showTecDoc && !tecdocState.page) loadTecDoc();
+}
+
+async function loadTecDoc() {
+  if (tecdocState.loading) return;
+  tecdocState.loading = true;
+  const query = document.querySelector("#tecdoc-search").value.trim();
+  try {
+    tecdocState.page = await apiRequest(`/v1/normalization-review/tecdoc/vehicles?query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
+    if (!tecdocState.page.items.some((item) => item.ktype === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.page.items[0]?.ktype || null;
+    renderTecDoc();
+  } catch (error) { showToast(`Could not load TecDoc vehicles. ${error.message}`); }
+  finally { tecdocState.loading = false; }
+}
+
+function renderTecDoc() {
+  const page = tecdocState.page;
+  const summary = page.summary;
+  document.querySelector("#tecdoc-promoted").textContent = Number(summary.promoted_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-manufacturers").textContent = Number(summary.manufacturers).toLocaleString();
+  document.querySelector("#tecdoc-models").textContent = Number(summary.model_families).toLocaleString();
+  document.querySelector("#tecdoc-engines").textContent = Number(summary.engines).toLocaleString();
+  document.querySelector("#tecdoc-result-count").textContent = `${page.filtered_total.toLocaleString()} promoted KTypes · ${escapeHtml(summary.batch_id || "No batch")}`;
+  const rows = document.querySelector("#tecdoc-rows");
+  rows.innerHTML = page.items.map((item) => `<tr data-ktype="${escapeHtml(item.ktype)}" class="${item.ktype === tecdocState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.source_name || item.ktype)}</strong><span>KType ${escapeHtml(item.ktype)} · ${escapeHtml(item.model_family || "Model pending")}</span></div></td><td>${escapeHtml(item.manufacturer || "—")}</td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_code || "—")}</strong><span>${item.displacement_cc ? `${escapeHtml(item.displacement_cc)} cc` : "Displacement pending"}</span></div></td><td>${escapeHtml(humanize(item.fuel_type))}</td><td>${statusBadge("provisional")}</td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { tecdocState.selectedId = row.dataset.ktype; renderTecDoc(); }));
+  document.querySelector("#tecdoc-empty").hidden = page.items.length !== 0;
+  document.querySelector("#tecdoc-page").textContent = `Page ${Math.floor(tecdocState.offset / 100) + 1}`;
+  document.querySelector("#tecdoc-previous").disabled = tecdocState.offset === 0;
+  document.querySelector("#tecdoc-next").disabled = tecdocState.offset + 100 >= page.filtered_total;
+  renderTecDocInspector(page.items.find((item) => item.ktype === tecdocState.selectedId));
+}
+
+function renderTecDocInspector(item) {
+  document.querySelector("#tecdoc-inspector-empty").hidden = Boolean(item);
+  const content = document.querySelector("#tecdoc-inspector-content");
+  content.hidden = !item;
+  if (!item) return;
+  document.querySelector("#tecdoc-detail-name").textContent = item.source_name || `KType ${item.ktype}`;
+  document.querySelector("#tecdoc-detail-subtitle").textContent = `${item.manufacturer || "Manufacturer pending"} · ${item.model_family || "Model pending"}`;
+  const fields = { "KType": item.ktype, "Manufacturer": item.manufacturer, "Model family": item.model_family, "Engine code": item.engine_code, "Displacement": item.displacement_cc ? `${item.displacement_cc} cc` : null, "Fuel": humanize(item.fuel_type), "Powertrain years": [item.year_from, item.year_to || "present"].filter(Boolean).join("–") };
+  document.querySelector("#tecdoc-canonical").innerHTML = Object.entries(fields).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value || "—")}</dd></div>`).join("");
+  document.querySelector("#tecdoc-gates").innerHTML = tecdocState.page.promotion_rules.map((rule) => `<article><span>Passed</span><div><strong>${escapeHtml(rule.label)}</strong><p>${escapeHtml(rule.outcome)}</p></div></article>`).join("");
+  document.querySelector("#tecdoc-source-keys").innerHTML = Object.entries(item.source_keys).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  document.querySelector("#tecdoc-source-rows").innerHTML = item.source_row_refs.map((ref) => `<code>${escapeHtml(ref)}</code>`).join("");
 }
 
 async function loadRules() {
@@ -831,6 +880,13 @@ async function approveQueueDecision(event) {
 }
 
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+let tecdocSearchTimer;
+document.querySelector("#tecdoc-search").addEventListener("input", () => {
+  clearTimeout(tecdocSearchTimer);
+  tecdocSearchTimer = setTimeout(() => { tecdocState.offset = 0; loadTecDoc(); }, 220);
+});
+document.querySelector("#tecdoc-previous").addEventListener("click", () => { tecdocState.offset = Math.max(0, tecdocState.offset - 100); loadTecDoc(); });
+document.querySelector("#tecdoc-next").addEventListener("click", () => { tecdocState.offset += 100; loadTecDoc(); });
 document.querySelectorAll(".rule-kind").forEach((tab) => tab.addEventListener("click", () => switchRuleKind(tab.dataset.ruleKind)));
 [elements.ruleSearch, elements.ruleArea, elements.ruleStateFilter].forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => { if (ruleState.page) renderRules(); }));
 document.querySelector("#rule-form").addEventListener("submit", saveRuleDraft);

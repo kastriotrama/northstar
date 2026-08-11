@@ -134,3 +134,12 @@ candidate therefore retains `manufacturer_source_key`,
 in PostgreSQL. Do not create an ad-hoc direct graph relationship to bridge this
 gap. Ambiguous engines and unresolved fuel/displacement records stay outside
 Neo4j for review.
+
+### Frontend inspection
+
+Open `/normalization-review` and select **TecDoc**. The page chooses the largest
+available canonical-promotion batch, avoiding small integration-test batches.
+Reviewers can search by KType, manufacturer, model family, engine code or fuel,
+then inspect canonical values, the four promotion gates, stable source keys and
+the original TecDoc row references. The inspector also explains why the graph
+hierarchy remains provisional until Tables 714/715 are available.

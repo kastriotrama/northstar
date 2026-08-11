@@ -18,6 +18,7 @@ from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.models import TecDocVehicleRow
 from ingestion.tecdoc.service import ingest_tecdoc_vehicle_tree
 from ingestion.tecdoc.repository import register_batch
+from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 
 
 @pytest.fixture(scope="module")
@@ -248,3 +249,19 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
     assert attributes["manufacturer_source_key"] == "manufacturer:000005"
     assert attributes["model_family_source_key"] == "model:00050"
     assert attributes["hierarchy_link_status"] == "awaiting_platform_mapping"
+    assert attributes["engine_source_key"] == "engine:00003"
+
+    class ExistingConnection:
+        def __enter__(self):
+            return pg_connection
+
+        def __exit__(self, *_args):
+            return False
+
+    repository = TecDocReviewRepository(lambda: ExistingConnection())
+    total, promoted = repository.fetch_vehicles(
+        batch_id=batch_id, query="VOLVO", limit=10, offset=0
+    )
+    assert total == 2
+    assert promoted[0]["manufacturer_attributes"]["canonical_name"] == "VOLVO"
+    assert promoted[0]["engine_attributes"]["engine_code"] == "ENGINE-00003"

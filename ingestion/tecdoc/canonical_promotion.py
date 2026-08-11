@@ -134,6 +134,7 @@ def prepare_canonical_promotions(
                         "source_name": record.ktype_name,
                         "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
                         "model_family_source_key": f"model:{record.model_id}",
+                        "engine_source_key": f"engine:{engine.engine_id}",
                         "hierarchy_link_status": "awaiting_platform_mapping",
                     },
                 ),

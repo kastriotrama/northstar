@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=11" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=12" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,6 +18,7 @@
           <button class="view-tab active" type="button" data-view="vehicles">Vehicles</button>
           <button class="view-tab" type="button" data-view="rules">Rules</button>
           <button class="view-tab" type="button" data-view="queue">Review queue</button>
+          <button class="view-tab" type="button" data-view="tecdoc">TecDoc</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
@@ -166,6 +167,38 @@
           </div>
         </aside>
       </main>
+      </div>
+
+      <div id="tecdoc-view" hidden>
+        <section class="tecdoc-summary">
+          <div><span class="eyebrow">TecDoc canonical promotion</span><h1>KTypes ready for inspection</h1><p>Search promoted passenger vehicles and inspect every value used to create the provisional graph record.</p></div>
+          <dl>
+            <div><dt>Promoted KTypes</dt><dd id="tecdoc-promoted">—</dd></div>
+            <div><dt>Manufacturers</dt><dd id="tecdoc-manufacturers">—</dd></div>
+            <div><dt>Model families</dt><dd id="tecdoc-models">—</dd></div>
+            <div><dt>Engines</dt><dd id="tecdoc-engines">—</dd></div>
+          </dl>
+        </section>
+        <main class="tecdoc-workspace">
+          <section class="tecdoc-results">
+            <div class="toolbar">
+              <label class="search-field"><span class="sr-only">Search promoted TecDoc vehicles</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg><input id="tecdoc-search" type="search" placeholder="Search KType, manufacturer, model, engine or fuel…" /></label>
+            </div>
+            <div class="result-meta"><span id="tecdoc-result-count">Loading promoted KTypes…</span><span>Click a row to inspect its canonical evidence</span></div>
+            <div class="table-wrap"><table class="tecdoc-table"><thead><tr><th>KType vehicle</th><th>Manufacturer</th><th>Engine</th><th>Fuel</th><th>Status</th></tr></thead><tbody id="tecdoc-rows"></tbody></table><div id="tecdoc-empty" class="empty-state" hidden><strong>No promoted KTypes found</strong><p>Run a safe canonical promotion or change the search.</p></div></div>
+            <footer class="pagination"><button id="tecdoc-previous" type="button">Previous</button><span id="tecdoc-page">Page 1</span><button id="tecdoc-next" type="button">Next</button></footer>
+          </section>
+          <aside class="tecdoc-inspector">
+            <div id="tecdoc-inspector-empty" class="inspector-empty"><span class="inspector-glyph">↗</span><strong>Select a KType</strong><p>See canonical facts, source rows and the exact safety gates.</p></div>
+            <div id="tecdoc-inspector-content" hidden>
+              <header class="tecdoc-inspector-head"><div><span class="eyebrow">TecDoc KType</span><h2 id="tecdoc-detail-name">—</h2><p id="tecdoc-detail-subtitle">—</p></div><span class="status-badge status-provisional">Provisional</span></header>
+              <section><h3>Canonical vehicle</h3><dl id="tecdoc-canonical" class="field-list"></dl></section>
+              <section><h3>Promotion checks</h3><div id="tecdoc-gates" class="promotion-gates"></div></section>
+              <section><h3>Source lineage</h3><dl id="tecdoc-source-keys" class="source-key-list"></dl><div id="tecdoc-source-rows" class="source-row-list"></div></section>
+              <section class="platform-wait"><h3>Hierarchy status</h3><strong>Awaiting platform mapping</strong><p>Manufacturer and model evidence is retained in PostgreSQL. TecDoc Tables 714/715 are needed for the accepted VehicleVariant → Platform → ModelFamily path.</p></section>
+            </div>
+          </aside>
+        </main>
       </div>
 
       <div id="rules-view" hidden>
@@ -334,6 +367,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=18" defer></script>
+    <script src="/normalization-review/assets/app.js?v=19" defer></script>
   </body>
 </html>
