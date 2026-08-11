@@ -42,7 +42,7 @@ def test_tecdoc_batch_is_traceable_and_repeatable(pg_connection: Connection) -> 
         "batch_id": batch_id,
         "source_version": "0326",
         "format_version": "2.70",
-        "license_reference": "integration-test-license",
+        "license_reference": None,
         "source_path": "/licensed/REFERENCE_DATA_0326",
         "source_checksum": "a" * 64,
     }
@@ -57,11 +57,12 @@ def test_tecdoc_batch_is_traceable_and_repeatable(pg_connection: Connection) -> 
     assert second.ledger_entries_written == 4
     with pg_connection.cursor() as cursor:
         cursor.execute(
-            "SELECT status, source_version, source_row_count FROM core.tecdoc_source_batches "
+            "SELECT status, source_version, source_row_count, license_reference "
+            "FROM core.tecdoc_source_batches "
             "WHERE batch_id=%s",
             (batch_id,),
         )
-        assert cursor.fetchone() == ("completed", "0326", 1)
+        assert cursor.fetchone() == ("completed", "0326", 1, "not_provided")
         cursor.execute(
             "SELECT source_row_refs FROM core.tecdoc_canonical_candidates "
             "WHERE batch_id=%s AND entity_type='alias'",

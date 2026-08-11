@@ -19,6 +19,7 @@ _PREFIXES = {
     "bodywork": NodeIdPrefix.BODY_TYPE,
     "alias": NodeIdPrefix.ALIAS,
 }
+MISSING_LICENSE_REFERENCE = "not_provided"
 
 
 def register_batch(
@@ -27,7 +28,7 @@ def register_batch(
     batch_id: str,
     source_version: str,
     format_version: str,
-    license_reference: str,
+    license_reference: str | None,
     source_path: str,
     source_checksum: str,
     source_row_count: int,
@@ -35,9 +36,13 @@ def register_batch(
     """Register a versioned batch; reject a reused ID with different evidence."""
 
     if not all(value.strip() for value in (
-        batch_id, source_version, format_version, license_reference, source_path, source_checksum
+        batch_id, source_version, format_version, source_path, source_checksum
     )):
         raise ValueError("TecDoc batch metadata fields must not be empty")
+    normalized_license_reference = (
+        license_reference.strip() if license_reference and license_reference.strip()
+        else MISSING_LICENSE_REFERENCE
+    )
     if source_row_count < 0:
         raise ValueError("source_row_count must be non-negative")
     with connection.cursor() as cursor:
@@ -46,7 +51,7 @@ def register_batch(
             "(batch_id, source_version, format_version, license_reference, source_path, "
             "source_checksum, source_row_count, status) VALUES (%s,%s,%s,%s,%s,%s,%s,'loading') "
             "ON CONFLICT (batch_id) DO NOTHING",
-            (batch_id, source_version, format_version, license_reference, source_path,
+            (batch_id, source_version, format_version, normalized_license_reference, source_path,
              source_checksum, source_row_count),
         )
         cursor.execute(
@@ -55,7 +60,7 @@ def register_batch(
             (batch_id,),
         )
         existing = cursor.fetchone()
-    expected = (source_version, format_version, license_reference, source_path,
+    expected = (source_version, format_version, normalized_license_reference, source_path,
                 source_checksum, source_row_count)
     if existing is None or tuple(existing) != expected:
         raise ValueError(f"batch_id {batch_id!r} is already registered with different metadata")

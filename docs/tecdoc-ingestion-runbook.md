@@ -10,8 +10,8 @@ below before NorthStar reads any vehicle data.
 - Delivery: `REFERENCE_DATA_0326`
 - Release: `0326`
 - Format marker in `001.dat`: `2.70`
-- License reference: must be recorded from the customer TecDoc agreement; do
-  not copy the licensed source delivery into Git.
+- License reference: optional operational metadata. When it is unavailable,
+  NorthStar records `not_provided`; provider source files still stay out of Git.
 
 ## 1. Restore and validate
 
@@ -38,7 +38,7 @@ engine, transmission, or bodywork values are forbidden.
 export TECDOC_SOURCE_PATH=/licensed/source/REFERENCE_DATA_0326
 export TECDOC_SOURCE_VERSION=0326
 export TECDOC_FORMAT_VERSION=2.70
-export TECDOC_LICENSE_REFERENCE=<internal-license-reference>
+# Optional: export TECDOC_LICENSE_REFERENCE=<internal-license-reference>
 export TECDOC_SOURCE_CHECKSUM=<sha256-of-source-manifest>
 export TECDOC_SOURCE_SCHEMA=tecdoc_source
 northstar-ingest tecdoc --batch-id tecdoc-0326-initial
@@ -47,7 +47,7 @@ northstar-ingest tecdoc --batch-id tecdoc-0326-initial
 The job records immutable batch metadata, stable source keys, canonical
 candidates and opaque NorthStar IDs. Re-running the identical batch is safe:
 the candidate and ledger writes are idempotent. Reusing a batch ID with a
-different version, checksum, path, license reference, or count is rejected.
+different version, checksum, path, recorded license reference, or count is rejected.
 
 ## 3. Reconciliation and evidence
 

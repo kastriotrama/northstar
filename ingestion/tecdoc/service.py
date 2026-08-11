@@ -27,7 +27,7 @@ def ingest_tecdoc_vehicle_tree(
     batch_id: str,
     source_version: str,
     format_version: str,
-    license_reference: str,
+    license_reference: str | None = None,
     source_path: str,
     source_checksum: str,
 ) -> TecDocIngestionSummary:

@@ -323,7 +323,6 @@ class IngestTecDocJob:
             "TECDOC_SOURCE_PATH": settings.tecdoc_source_path,
             "TECDOC_SOURCE_VERSION": settings.tecdoc_source_version,
             "TECDOC_FORMAT_VERSION": settings.tecdoc_format_version,
-            "TECDOC_LICENSE_REFERENCE": settings.tecdoc_license_reference,
             "TECDOC_SOURCE_CHECKSUM": settings.tecdoc_source_checksum,
         }
         missing = sorted(name for name, value in required.items() if not value)
@@ -349,7 +348,7 @@ class IngestTecDocJob:
                     batch_id=batch_id,
                     source_version=settings.tecdoc_source_version or "",
                     format_version=settings.tecdoc_format_version or "",
-                    license_reference=settings.tecdoc_license_reference or "",
+                    license_reference=settings.tecdoc_license_reference,
                     source_path=settings.tecdoc_source_path or "",
                     source_checksum=settings.tecdoc_source_checksum or "",
                 )
