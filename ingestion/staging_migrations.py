@@ -85,9 +85,21 @@ def tecdoc_staging_table_statement(entity_name: str) -> StagingMigrationStatemen
     )
 
 
-# One worked example proving the TecDoc staging pattern (Story 3.1). Epic 5
-# adds further staging.tecdoc_<entity> tables the same way.
-TECDOC_MANUFACTURER_TABLE = tecdoc_staging_table_statement("manufacturer")
+TECDOC_ENTITY_NAMES: tuple[str, ...] = (
+    "manufacturer",
+    "model_family",
+    "platform",
+    "vehicle_variant",
+    "engine",
+    "transmission",
+    "bodywork",
+    "ktype_alias",
+)
+TECDOC_TABLE_STATEMENTS: tuple[StagingMigrationStatement, ...] = tuple(
+    tecdoc_staging_table_statement(name) for name in TECDOC_ENTITY_NAMES
+)
+# Backwards-compatible name retained for the original staging contract tests.
+TECDOC_MANUFACTURER_TABLE = TECDOC_TABLE_STATEMENTS[0]
 
 TRANSPORTSTYRELSEN_RAW_TABLE = StagingMigrationStatement(
     name="create_staging_transportstyrelsen_raw_table",
@@ -101,7 +113,7 @@ TRANSPORTSTYRELSEN_RAW_TABLE = StagingMigrationStatement(
 
 STAGING_MIGRATION_STATEMENTS: tuple[StagingMigrationStatement, ...] = (
     CREATE_STAGING_SCHEMA,
-    TECDOC_MANUFACTURER_TABLE,
+    *TECDOC_TABLE_STATEMENTS,
     TRANSPORTSTYRELSEN_RAW_TABLE,
 )
 

@@ -567,17 +567,21 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
             modification_types.append(classification)
         text_code_evidence.append(evidence)
     for description in descriptions:
-        evidence = {"code": None, "description_sv": description, "source": "source_description"}
+        description_evidence: dict[str, Any] = {
+            "code": None,
+            "description_sv": description,
+            "source": "source_description",
+        }
         if _normalized_entity(description) == "AMATÖR":
-            evidence["candidate_codes"] = ["T12A", "T12C", "T12BF"]
+            description_evidence["candidate_codes"] = ["T12A", "T12C", "T12BF"]
             modification_types.append("amateur_built")
-        text_code_evidence.append(evidence)
+        text_code_evidence.append(description_evidence)
 
     body_codes = tuple(
         dict.fromkeys(
-            code
+            body_code
             for field_name in ("body_code", "body_code2", "body_code_extra")
-            if (code := normalize_text(raw.get(field_name))) is not None
+            if (body_code := normalize_text(raw.get(field_name))) is not None
         )
     )
     for code in body_codes:

@@ -2,12 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-07 — Remaining 11,134 model candidates analyzed
-
-- All 11,134 remaining model candidates have a resolved manufacturer; 11,133 are provisional only because model family is unapproved, while one also has the existing fuel-combination conflict.
-- Found 1,128 distinct manufacturer/model pairs: 150 pairs occurring at least 20 times cover 7,580 cars, 256 pairs occurring at least 10 times cover 9,049, and 385 pairs occurring at least five times cover 9,895. There are 444 one-off pairs.
-- Split the work into 7,024 single-token candidates, 4,110 composite candidates, at least 2,144 with explicit trim/powertrain/body suffixes, and 420 short-code candidates requiring special caution. Recommended direct manufacturer-scoped rules for clean families, reviewed decomposition rules for composites, and retaining internal codes such as Kia SL/ED until corroborated.
-
 ## 2026-08-07 — First 25 model-family rules implemented locally
 
 - Added immutable `ts-translation-v6` with 25 manufacturer-scoped, complete-prefix model-family rules for the highest-volume TS candidates; suffix text remains source evidence, wrong-manufacturer and partial-token matches remain candidates, and no TecDoc inference is used.
@@ -68,3 +62,9 @@ Keep the latest 10 task entries only.
 - Refreshed 2,940 special-purpose-body-code vehicles and 94 amateur-built passenger records under `TS-SPECIAL-VEHICLE-V1`; final totals are 269,803 resolved, 223,367 provisional, 3,081 review-required, and 0 failed.
 - Added guarded, idempotent SQL activation `northstar_special_vehicle_policy_v1.sql` targeting immutable version `ts-review-20260810T143500000000Z`, and taught all active-rule loading paths to replay that policy from SQL.
 - Verified 75 focused tests and Ruff, all 100 workbook contracts/JSON payloads, representative first/middle/last visual renders, and rollback-only SQL validation. The local database remains on the prior immutable version until explicitly activated.
+
+## 2026-08-11 — TecDoc week-two ingestion pipeline implemented
+
+- Replaced the TecDoc stub with a versioned ingestion job covering SCRUM-95–98: restore/view contract, vehicle-tree extraction, canonical mapping, stable KType aliases, opaque ID registry, shared-component deduplication, and append-only provenance.
+- Registered all canonical TecDoc staging entities and durable source-batch/candidate metadata. The `0326` / format `2.70` source is documented without committing licensed provider files or guessing fixed-width offsets.
+- Added a repeatable PostgreSQL integration test proving reruns do not duplicate candidates or ledger events and preserve exact source-row references. All 369 unit and TecDoc integration tests, Ruff, and strict mypy pass; the unrelated full-suite bundle fixture still collides with existing shared local database state.

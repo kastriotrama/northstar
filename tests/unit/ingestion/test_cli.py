@@ -43,8 +43,9 @@ def test_parser_registers_stub_job_commands() -> None:
     assert parsed_healthcheck.batch_id == "healthcheck-1"
 
 
-def test_stub_job_command_runs_with_batch_id() -> None:
-    assert main(["tecdoc", "--batch-id", "tecdoc-batch-1"]) == 0
+def test_commands_fail_safely_or_run_with_batch_id() -> None:
+    # TecDoc is now a real job and refuses to run without version/license evidence.
+    assert main(["tecdoc", "--batch-id", "tecdoc-batch-1"]) == 2
     assert main(["healthcheck", "--batch-id", "healthcheck-1"]) == 0
 
 

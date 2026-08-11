@@ -22,6 +22,13 @@ class IngestionSettings(BaseSettings):
 
     ingestion_batch_size: int = Field(default=500, alias="INGESTION_BATCH_SIZE")
     tecdoc_source_path: str | None = Field(default=None, alias="TECDOC_SOURCE_PATH")
+    tecdoc_source_version: str | None = Field(default=None, alias="TECDOC_SOURCE_VERSION")
+    tecdoc_format_version: str | None = Field(default=None, alias="TECDOC_FORMAT_VERSION")
+    tecdoc_license_reference: str | None = Field(
+        default=None, alias="TECDOC_LICENSE_REFERENCE"
+    )
+    tecdoc_source_checksum: str | None = Field(default=None, alias="TECDOC_SOURCE_CHECKSUM")
+    tecdoc_source_schema: str = Field(default="tecdoc_source", alias="TECDOC_SOURCE_SCHEMA")
     transportstyrelsen_source_path: str | None = Field(
         default=None,
         alias="TRANSPORTSTYRELSEN_SOURCE_PATH",
