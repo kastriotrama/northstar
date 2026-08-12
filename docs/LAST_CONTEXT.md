@@ -2,13 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-07 — First 25 model-family rules implemented locally
-
-- Added immutable `ts-translation-v6` with 25 manufacturer-scoped, complete-prefix model-family rules for the highest-volume TS candidates; suffix text remains source evidence, wrong-manufacturer and partial-token matches remain candidates, and no TecDoc inference is used.
-- Added the Model Family category to the Rules UI and guarded SQL catalog activation `northstar_model_family_rule_catalog_v6.sql`, preserving all 229 active overrides.
-- Reprocessed 34,545 passenger cars locally as `normalization-passenger-34545-model-v6-local-20260807`: 12,494 resolved, 22,040 provisional, 11 review-required, and 0 failed. The rules accepted 8,229 model families and moved 7,116 vehicles from provisional to resolved; 11,134 model candidates and 15,182 missing-model cases remain.
-- Local web now serves v6 with 129 translation rules including 25 Model Family rules. JavaScript syntax, Ruff, strict mypy, the golden corpus, and 403 tests pass; the one pre-existing stateful bundle-fixture collision remains excluded.
-
 ## 2026-08-07 — Reviewed drive rules added as catalog v5
 
 - Added accepted `drive_type=awd` rules for the official TS `is_4wd=1` flag and manufacturer-scoped 4MATIC, xDrive, quattro, and 4Motion terms; `is_4wd=0` deliberately remains unresolved and never guesses FWD or RWD.
@@ -77,3 +70,13 @@ Keep the latest 10 task entries only.
 - Added dedicated Manufacturer, Model family, Engine and Fuel browsers with usage counts, canonical details and example KTypes. The real batch exposes 26 manufacturers, 204 model families, 507 engines and two currently promoted fuel values; all views were browser-verified locally.
 - Added the repeatable `promote-tecdoc-canonical` command and completed the full local promotion: 40,965 of 72,570 KTypes, 101,178 PostgreSQL candidates, 40,965 Neo4j variants and 10,971 shared engines. An identical rerun added zero candidates and reconciled the same graph counts.
 - Corrected Table 125 semantics from “missing engine” to “engine-number allocation missing.” Full v2 coverage is 55,808 variants: 40,965 linked to 10,971 shared engines and 14,843 safely represented from Table 120 facts with no fabricated engine relationship.
+
+## 2026-08-12 — Optional Platform graph hierarchy corrected
+
+- Added `VehicleVariant-[:VARIANT_OF]->ModelFamily-[:MADE_BY]->Manufacturer` as the required hierarchy path; `BUILT_ON->Platform` is now explicitly optional and evidence-gated.
+- Backfilled all 55,808 local TecDoc variants: 55,808 model-family links, 55,808 manufacturer paths, zero missing family links and zero fabricated platform links.
+- Updated candidate hierarchy status, frontend explanation, graph contract, runbook and regression coverage. Ruff, strict mypy and 22 focused tests pass; the full suite has 447 passing tests with one unrelated stateful normalization-bundle fixture failure.
+- Added evidence-backed Bodywork and Transmission enrichment. All 55,808 variants now have `HAS_BODY` through 24 official KT 086 codes; 4,383 variants have one safe `USES_TRANSMISSION` link across 817 shared transmissions, while 4,802 ambiguous and 46,623 unallocated cases remain unlinked. The TecDoc inspector exposes both values and their allocation status.
+- Validated newly supplied Tables 010/020/030/052 and replaced every code-only local BodyType and Transmission placeholder with official English KT 086/085 terminology. All 24 bodywork nodes and all 817 transmission nodes resolved without missing labels; Ford Explorer KType 000001615 now displays bodywork `SUV` while preserving source code `053`.
+- Added the reviewed KT 086 canonical layer shared with the TS vocabulary: 43,479 variants map through 17 safe codes, while 12,329 variants across seven ambiguous/out-of-scope official forms retain evidence and require review without a `HAS_BODY` edge. Ford Explorer now stores canonical `suv`, official `SUV`, and source code `053` separately.
+- Added KT 082 drive normalization and graph UI: 46,008 variants map to FWD/RWD/AWD while 9,800 mechanism-code cases remain review evidence. The local inspector now renders the complete vehicle connection view, and Drive, Bodywork, and Transmission have searchable entity tabs; the refreshed local server runs on port 8765.

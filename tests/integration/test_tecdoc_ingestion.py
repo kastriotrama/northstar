@@ -270,7 +270,7 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
         attributes = cursor.fetchone()[0]
     assert attributes["manufacturer_source_key"] == "manufacturer:000005"
     assert attributes["model_family_source_key"] == "model:00050"
-    assert attributes["hierarchy_link_status"] == "awaiting_platform_mapping"
+    assert attributes["hierarchy_link_status"] == "model_family_linked_platform_optional"
     assert attributes["engine_source_key"] == "engine:00003"
 
     class ExistingConnection:

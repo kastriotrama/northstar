@@ -65,7 +65,9 @@ class TecDocReviewRepository:
                     v.source_row_refs,
                     m.attributes AS manufacturer_attributes,
                     f.attributes AS family_attributes,
-                    e.attributes AS engine_attributes
+                    e.attributes AS engine_attributes,
+                    t.attributes AS transmission_attributes,
+                    bw.attributes AS bodywork_attributes
                 FROM core.tecdoc_canonical_candidates a
                 JOIN core.tecdoc_canonical_candidates v
                   ON v.batch_id=a.batch_id AND v.entity_type='vehicle_variant'
@@ -79,13 +81,20 @@ class TecDocReviewRepository:
                 LEFT JOIN core.tecdoc_canonical_candidates e
                   ON e.batch_id=v.batch_id AND e.entity_type='engine'
                  AND e.source_key=v.attributes->>'engine_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates t
+                  ON t.batch_id=v.batch_id AND t.entity_type='transmission'
+                 AND t.source_key=v.attributes->>'transmission_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates bw
+                  ON bw.batch_id=v.batch_id AND bw.entity_type='bodywork'
+                 AND bw.source_key=v.attributes->>'bodywork_source_key'
                 WHERE a.batch_id=%s AND a.entity_type='alias'
             )
         """
         condition = """WHERE %s='' OR concat_ws(' ', source_key,
             variant_attributes->>'source_name', manufacturer_attributes->>'canonical_name',
             family_attributes->>'canonical_name', engine_attributes->>'engine_code',
-            engine_attributes->>'fuel_type') ILIKE %s"""
+            engine_attributes->>'fuel_type', transmission_attributes->>'transmission_code',
+            bodywork_attributes->>'tecdoc_body_type_code') ILIKE %s"""
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 statement + "SELECT count(*) FROM vehicles " + condition,
@@ -123,6 +132,22 @@ class TecDocReviewRepository:
                 "coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type')",
                 "jsonb_build_object('fuel_type', coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type'))",
             ),
+            "bodywork": (
+                "bw.source_key",
+                "bw.attributes->>'canonical_name'",
+                "bw.attributes",
+            ),
+            "transmission": (
+                "t.source_key",
+                "coalesce(t.attributes->>'transmission_code', t.source_key)",
+                "t.attributes",
+            ),
+            "drive": (
+                "'drive:' || (v.attributes->>'drive_type')",
+                "upper(v.attributes->>'drive_type')",
+                "jsonb_build_object('drive_type', v.attributes->>'drive_type', "
+                "'official_evidence', v.attributes->>'tecdoc_drive_official_label')",
+            ),
         }
         source_expression, name_expression, details_expression = expressions[kind]
         base = f"""
@@ -144,6 +169,12 @@ class TecDocReviewRepository:
                 LEFT JOIN core.tecdoc_canonical_candidates e
                   ON e.batch_id=v.batch_id AND e.entity_type='engine'
                  AND e.source_key=v.attributes->>'engine_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates t
+                  ON t.batch_id=v.batch_id AND t.entity_type='transmission'
+                 AND t.source_key=v.attributes->>'transmission_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates bw
+                  ON bw.batch_id=v.batch_id AND bw.entity_type='bodywork'
+                 AND bw.source_key=v.attributes->>'bodywork_source_key'
                 WHERE a.batch_id=%s AND a.entity_type='alias'
             ), grouped AS (
                 SELECT source_key, name, max(details::text)::jsonb AS details,

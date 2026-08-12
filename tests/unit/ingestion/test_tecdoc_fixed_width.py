@@ -4,7 +4,14 @@ import pytest
 
 from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.fixed_width import TABLE_FORMATS, TecDocFormatError, parse_row
-from ingestion.tecdoc.reference_data import canonical_engine_fuels, load_key_table_labels
+from ingestion.tecdoc.reference_data import (
+    canonical_engine_fuels,
+    canonical_bodywork_by_kt086,
+    canonical_drive_by_kt082,
+    load_key_table_labels,
+    official_bodywork_labels,
+    official_transmission_type_labels,
+)
 
 
 def make_row(table: str, **values: str) -> str:
@@ -83,6 +90,15 @@ def test_extracts_passenger_hierarchy_and_preserves_multiple_engines(tmp_path: P
         ),
         make_row("125", ktype_id="000012345", sequence="003", engine_id="00002", exclude="0"),
     ])
+    write_table(tmp_path, "544", [make_row(
+        "544", transmission_id="00042", manufacturer_id="000005",
+        transmission_code="TG-81SC", transmission_type_code="002",
+        transmission_identity="AWF8F45", speeds="08",
+    )])
+    write_table(tmp_path, "547", [make_row(
+        "547", ktype_id="000012345", sequence="01", transmission_id="00042",
+        year_from="201801", exclude="0",
+    )])
     write_table(tmp_path, "012", [
         make_row("012", description_id="100000005", language_id="004", text="VOLVO"),
         make_row("012", description_id="110000050", language_id="004", text="XC60"),
@@ -101,6 +117,10 @@ def test_extracts_passenger_hierarchy_and_preserves_multiple_engines(tmp_path: P
     assert records[0].engines[0].deleted is False
     assert records[0].engines[0].applicability[0].source_row_ref == "125:1"
     assert len(records[0].engines[0].applicability) == 2
+    assert len(records[0].transmissions) == 1
+    assert records[0].transmissions[0].transmission_code == "TG-81SC"
+    assert records[0].transmissions[0].speeds == 8
+    assert records[0].transmissions[0].applicability[0].source_row_ref == "547:1"
 
 
 def test_ignores_deleted_and_non_pc_models(tmp_path: Path) -> None:
@@ -147,3 +167,26 @@ def test_loads_official_key_labels_and_maps_only_supported_fuels(tmp_path: Path)
         "001": "Petrol", "039": "Bi-Fuel"
     }
     assert canonical_engine_fuels(tmp_path) == {"001": "petrol"}
+
+
+def test_exposes_official_bodywork_and_transmission_labels(tmp_path: Path) -> None:
+    write_table(tmp_path, "020", [make_row(
+        "020", language_id="004", description_id="000000001", iso_code="en"
+    )])
+    write_table(tmp_path, "052", [
+        make_row("052", key_table_id="085", key="002", description_id="000000085", deleted="0"),
+        make_row("052", key_table_id="086", key="053", description_id="000000086", deleted="0"),
+    ])
+    write_table(tmp_path, "030", [
+        make_row("030", description_id="000000085", language_id="004", text="Fully Automatic", deleted="0"),
+        make_row("030", description_id="000000086", language_id="004", text="SUV", deleted="0"),
+    ])
+
+    assert official_transmission_type_labels(tmp_path) == {"002": "Fully Automatic"}
+    assert official_bodywork_labels(tmp_path) == {"053": "SUV"}
+    assert canonical_bodywork_by_kt086()["053"] == "suv"
+    assert canonical_bodywork_by_kt086()["040"] == "multi_purpose_vehicle"
+    assert canonical_drive_by_kt082() == {
+        "001": "fwd", "002": "rwd", "003": "awd", "004": "awd",
+        "005": "awd", "011": "awd",
+    }

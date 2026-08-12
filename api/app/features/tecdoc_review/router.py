@@ -33,7 +33,9 @@ def list_tecdoc_vehicles(
 @router.get("/entities", response_model=TecDocEntityPage)
 def list_tecdoc_entities(
     service: TecDocReviewService = Depends(get_tecdoc_review_service),
-    kind: Literal["manufacturer", "model_family", "engine", "fuel"] = "manufacturer",
+    kind: Literal[
+        "manufacturer", "model_family", "engine", "fuel", "bodywork", "transmission", "drive"
+    ] = "manufacturer",
     query: str = Query(default="", max_length=120),
     limit: int = Query(default=100, ge=1, le=300),
     offset: int = Query(default=0, ge=0),

@@ -304,6 +304,7 @@ would otherwise be unable to update those assertions idempotently.
 | Relationship | Start label | End label | Intent | Phase 1 properties |
 |---|---|---|---|---|
 | `MADE_BY` | `ModelFamily` | `Manufacturer` | Assign one marketed family to its manufacturer | None |
+| `VARIANT_OF` | `VehicleVariant` | `ModelFamily` | Assign a sellable variant directly to its marketed family; independent of optional platform evidence | None |
 | `PLATFORM_OF` | `Platform` | `ModelFamily` | Assign one chassis/generation to its model family | None |
 | `BUILT_ON` | `VehicleVariant` | `Platform` | Select the platform for a sellable variant | None |
 | `USES_ENGINE` | `VehicleVariant` | `Engine` | Select the resolved engine installation | `power_kw`, `torque_nm`, `emission_standard` |
@@ -330,8 +331,9 @@ are:
 | Relationship | Outgoing cardinality | Provisional exception |
 |---|---|---|
 | `MADE_BY` | `ModelFamily` `1..1` | None |
+| `VARIANT_OF` | `VehicleVariant` `1..1` | None |
 | `PLATFORM_OF` | `Platform` `1..1` | None |
-| `BUILT_ON` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
+| `BUILT_ON` | `VehicleVariant` `0..1` | Platform is optional and must only be linked from reliable platform evidence |
 | `USES_ENGINE` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
 | `USES_TRANSMISSION` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
 | `HAS_BODY` | `VehicleVariant` `1..1` | A provisional variant may temporarily have `0..1` |
@@ -520,7 +522,7 @@ MATCH (v:VehicleVariant {id: variant_id})
 WHERE NOT v:Provisional
   AND NOT v:Superseded
   AND (
-    NOT EXISTS { MATCH (v)-[:BUILT_ON]->(:Platform) }
+    NOT EXISTS { MATCH (v)-[:VARIANT_OF]->(:ModelFamily) }
     OR NOT EXISTS { MATCH (v)-[:USES_ENGINE]->(:Engine) }
     OR NOT EXISTS { MATCH (v)-[:USES_TRANSMISSION]->(:Transmission) }
     OR NOT EXISTS { MATCH (v)-[:HAS_BODY]->(:BodyType) }

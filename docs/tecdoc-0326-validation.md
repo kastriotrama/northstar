@@ -47,11 +47,14 @@ applicability records, not interpreted as hundreds of different engines.
 
 ## Remaining canonical-load decisions
 
-- Table 120 fuel, drive, transmission and body fields currently retain their
-  exact TecDoc key-table codes. Table `052` is still required to attach the
-  official labels before mapping those codes to NorthStar vocabulary.
-- Table `020` is still required to formally name language IDs. Validation used
-  language `004`, for which all required hierarchy descriptions were present.
+- Table 120 fuel, drive, transmission and body fields retain their exact TecDoc
+  key-table codes. Tables 020/030/052 now provide official English KT 086
+  bodywork and KT 085 transmission terminology alongside those source codes.
+- Tables 547 and 544 create `USES_TRANSMISSION` only when a KType has one
+  distinct allocated transmission. Multiple allocations remain explicitly
+  ambiguous and no transmission edge is guessed.
+- Table `020` identifies English as language `004`; all required hierarchy and
+  key-table descriptions resolve through Tables 030/052.
 - Platform remains optional until Tables `714` and `715` are supplied.
 - The canonical persistence layer must write KType-to-engine relationships
   separately from vehicle nodes so multiple engines and country applicability
@@ -94,12 +97,11 @@ engines, 204 model families and 26 manufacturers. Neo4j contains 1,000
 provisional variants and 1,000 `USES_ENGINE` relationships from this run; an
 identical graph rerun matched the same 1,000 records without duplication.
 
-Platform Tables 714/715 are not present. Consequently, ModelFamily and
-Manufacturer nodes can be created, but a VehicleVariant cannot yet traverse
-to them through the accepted `VehicleVariant -> Platform -> ModelFamily ->
-Manufacturer` hierarchy. The PostgreSQL vehicle candidate preserves both
-source keys with `hierarchy_link_status=awaiting_platform_mapping`; no
-unsupported direct relationship is created in Neo4j.
+Platform Tables 714/715 are not present, so no `BUILT_ON` relationship is
+fabricated. Each VehicleVariant is connected directly to its known ModelFamily
+with `VARIANT_OF`, and the family remains connected to its Manufacturer with
+`MADE_BY`. The PostgreSQL candidate records
+`hierarchy_link_status=model_family_linked_platform_optional`.
 
 The controlled gate was subsequently run over the complete 72,570-KType
 passenger source as batch `tecdoc-0326-canonical-full-local`. It promoted
@@ -124,3 +126,17 @@ facts only. Those variants carry `engine_link_status=allocation_missing`, raw
 TecDoc fuel/engine-type codes, power and technical displacement. They have no
 fabricated Engine node or relationship. PostgreSQL and Neo4j both reconcile to
 these exact coverage counts.
+
+The KT 086 normalization layer maps 17 official body codes into the approved
+NorthStar/TS vocabulary. The graph contains 43,479 safe `HAS_BODY`
+relationships. Another 12,329 variants retain their official code and label as
+evidence but have no canonical body relationship because `Targa`, `Bus`,
+`Truck Tractor`, `Hardtop`, `Municipal Vehicle`, `Motorcycle`, and
+`Box Body/MPV` require review. The graph also contains 4,383 conservative
+`USES_TRANSMISSION` relationships across 817 shared transmissions; 4,802
+variants have multiple allocations and 46,623 have no Table 547 allocation.
+
+Official KT 082 drive evidence maps 46,008 variants: 18,612 FWD, 17,101 RWD,
+and 10,295 AWD. The remaining 9,800 use mechanism-oriented values such as
+Chain, Direct, Cardan, Belts, Vario, or Direct 2x2 and retain their official
+code/label with `drive_normalization_status=review_required`.

@@ -3,6 +3,8 @@ import pytest
 from ingestion.tecdoc.graph_writer import (
     GraphRelationshipConflictError,
     ResolvedEngineRelationship,
+    _PROMOTION_QUERY,
+    _VEHICLE_FACTS_PROMOTION_QUERY,
     write_resolved_engine_relationships,
 )
 from northstar.node_ids import NodeIdGenerator
@@ -66,6 +68,14 @@ def test_writes_one_resolved_relationship_idempotently() -> None:
 
     assert write_resolved_engine_relationships(driver, (relationship,)) == 1  # type: ignore[arg-type]
     assert driver.transaction.rows[0]["power_kw"] == 140
+
+
+def test_both_promotion_paths_link_variant_directly_to_model_family() -> None:
+    for query in (_PROMOTION_QUERY, _VEHICLE_FACTS_PROMOTION_QUERY):
+        assert "MERGE (variant)-[:VARIANT_OF]->(family)" in query
+        assert "MERGE (variant)-[:BUILT_ON]" not in query
+        assert "MERGE (variant)-[:HAS_BODY]->(bodywork)" in query
+        assert "MERGE (variant)-[:USES_TRANSMISSION]->(transmission)" in query
 
 
 def test_rejects_multiple_engines_for_one_canonical_variant_before_writing() -> None:

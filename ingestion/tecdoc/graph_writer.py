@@ -103,7 +103,27 @@ SET variant.engine_link_status = row.engine_link_status,
     variant.displacement_cc = row.displacement_cc,
     variant.fuel_type = row.fuel_type,
     variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
-    variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code
+    variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code,
+    variant.drive_type = row.drive_type,
+    variant.tecdoc_drive_type_code = row.drive_code,
+    variant.tecdoc_drive_official_label = row.drive_official_label
+MERGE (variant)-[:VARIANT_OF]->(family)
+FOREACH (_ IN CASE WHEN row.bodywork_id IS NULL THEN [] ELSE [1] END |
+  MERGE (bodywork:BodyType {id: row.bodywork_id})
+  SET bodywork.canonical_name = row.bodywork_name,
+      bodywork.official_label = row.bodywork_official_label,
+      bodywork.tecdoc_body_type_code = row.bodywork_code,
+      bodywork.terminology_status = 'canonical_mapped_from_official_english'
+  MERGE (variant)-[:HAS_BODY]->(bodywork)
+)
+FOREACH (_ IN CASE WHEN row.transmission_id IS NULL THEN [] ELSE [1] END |
+  MERGE (transmission:Transmission {id: row.transmission_id})
+  SET transmission.transmission_code = row.transmission_code,
+      transmission.tecdoc_transmission_type_code = row.transmission_type_code,
+      transmission.transmission_type_name = row.transmission_type_name,
+      transmission.speeds = row.transmission_speeds
+  MERGE (variant)-[:USES_TRANSMISSION]->(transmission)
+)
 MERGE (alias:Alias {assertion_identity: row.assertion_identity})
 ON CREATE SET alias.id = row.alias_id,
               alias.source_system = 'tecdoc',
@@ -138,6 +158,26 @@ SET variant.market = [], variant.year_from = row.year_from, variant.year_to = ro
     variant.fuel_type = row.fuel_type,
     variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
     variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code
+SET variant.drive_type = row.drive_type,
+    variant.tecdoc_drive_type_code = row.drive_code,
+    variant.tecdoc_drive_official_label = row.drive_official_label
+MERGE (variant)-[:VARIANT_OF]->(family)
+FOREACH (_ IN CASE WHEN row.bodywork_id IS NULL THEN [] ELSE [1] END |
+  MERGE (bodywork:BodyType {id: row.bodywork_id})
+  SET bodywork.canonical_name = row.bodywork_name,
+      bodywork.official_label = row.bodywork_official_label,
+      bodywork.tecdoc_body_type_code = row.bodywork_code,
+      bodywork.terminology_status = 'canonical_mapped_from_official_english'
+  MERGE (variant)-[:HAS_BODY]->(bodywork)
+)
+FOREACH (_ IN CASE WHEN row.transmission_id IS NULL THEN [] ELSE [1] END |
+  MERGE (transmission:Transmission {id: row.transmission_id})
+  SET transmission.transmission_code = row.transmission_code,
+      transmission.tecdoc_transmission_type_code = row.transmission_type_code,
+      transmission.transmission_type_name = row.transmission_type_name,
+      transmission.speeds = row.transmission_speeds
+  MERGE (variant)-[:USES_TRANSMISSION]->(transmission)
+)
 MERGE (alias:Alias {assertion_identity: row.assertion_identity})
 ON CREATE SET alias.id = row.alias_id,
               alias.source_system = 'tecdoc',

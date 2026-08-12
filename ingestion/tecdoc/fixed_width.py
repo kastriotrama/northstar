@@ -84,6 +84,18 @@ TABLE_FORMATS: dict[str, TableFormat] = {
         Field("engine_type_code", 213, 3), Field("sales_term", 231, 30),
         Field("exclude", 261, 1), Field("deleted", 262, 1),
     )),
+    "544": TableFormat("544", 90, (
+        Field("transmission_id", 7, 5), Field("manufacturer_id", 12, 6),
+        Field("transmission_code", 18, 30), Field("transmission_type_code", 48, 3),
+        Field("year_from", 51, 6), Field("year_to", 57, 6),
+        Field("transmission_identity", 78, 10), Field("speeds", 88, 2),
+    )),
+    "547": TableFormat("547", 61, (
+        Field("ktype_id", 29, 9), Field("sequence", 38, 2),
+        Field("transmission_id", 40, 5), Field("year_from", 45, 6),
+        Field("year_to", 51, 6), Field("country_code", 57, 3),
+        Field("exclude", 60, 1),
+    ), reserved_prefix=True),
 }
 
 

@@ -27,6 +27,9 @@ out/
 
 *.log
 
+# Licensed/local source datasets are restored outside Git.
+data/
+
 # Terraform
 **/.terraform/
 *.tfstate

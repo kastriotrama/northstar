@@ -88,6 +88,8 @@ class TecDocReviewService:
         manufacturer = dict(row["manufacturer_attributes"] or {})
         family = dict(row["family_attributes"] or {})
         engine = dict(row["engine_attributes"] or {})
+        transmission = dict(row.get("transmission_attributes") or {})
+        bodywork = dict(row.get("bodywork_attributes") or {})
         alias = dict(row["alias_attributes"] or {})
         source_key = str(row["source_key"])
         return TecDocVehicle(
@@ -98,6 +100,22 @@ class TecDocReviewService:
             manufacturer=manufacturer.get("canonical_name"),
             model_family=family.get("canonical_name"),
             engine_code=engine.get("engine_code"),
+            transmission_code=transmission.get("transmission_code"),
+            transmission_type_code=transmission.get("tecdoc_transmission_type_code"),
+            transmission_type_name=transmission.get("transmission_type_name"),
+            transmission_speeds=transmission.get("speeds"),
+            transmission_link_status=str(
+                variant.get("transmission_link_status") or "allocation_missing"
+            ),
+            bodywork_code=bodywork.get("tecdoc_body_type_code")
+            or variant.get("tecdoc_body_type_code"),
+            bodywork_name=bodywork.get("canonical_name")
+            or variant.get("tecdoc_bodywork_official_label"),
+            bodywork_status=str(variant.get("bodywork_link_status") or "code_missing"),
+            drive_type=variant.get("drive_type"),
+            drive_code=variant.get("tecdoc_drive_type_code"),
+            drive_official_label=variant.get("tecdoc_drive_official_label"),
+            drive_status=str(variant.get("drive_normalization_status") or "review_required"),
             displacement_cc=engine.get("displacement_cc") or variant.get("displacement_cc"),
             displacement_source=engine.get("displacement_source")
             or variant.get("displacement_source"),
@@ -108,7 +126,8 @@ class TecDocReviewService:
             year_from=variant.get("year_from"),
             year_to=variant.get("year_to"),
             hierarchy_status=str(
-                variant.get("hierarchy_link_status") or "awaiting_platform_mapping"
+                variant.get("hierarchy_link_status")
+                or "model_family_linked_platform_optional"
             ),
             source_row_refs=list(row["source_row_refs"] or []),
             source_keys={
@@ -117,6 +136,8 @@ class TecDocReviewService:
                     "alias": source_key,
                     "variant": alias.get("target_source_key"),
                     "engine": variant.get("engine_source_key"),
+                    "transmission": variant.get("transmission_source_key"),
+                    "bodywork": variant.get("bodywork_source_key"),
                     "model_family": variant.get("model_family_source_key"),
                     "manufacturer": variant.get("manufacturer_source_key"),
                 }.items()

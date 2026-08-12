@@ -126,23 +126,40 @@ code, a resolved displacement, and a valid production start year. Exact Table
 the complete restored source is accepted as corroboration.
 
 Manufacturer, ModelFamily, provisional VehicleVariant, Engine and KType Alias
-nodes may then be created. Until platform Tables 714/715 are restored, the
-accepted graph contract has no path from VehicleVariant to ModelFamily: its
-only hierarchy path is VehicleVariant -> Platform -> ModelFamily. The variant
-candidate therefore retains `manufacturer_source_key`,
-`model_family_source_key`, and `hierarchy_link_status=awaiting_platform_mapping`
-in PostgreSQL. Do not create an ad-hoc direct graph relationship to bridge this
-gap. Ambiguous engines and unresolved fuel/displacement records stay outside
-Neo4j for review.
+nodes may then be created. Every promoted variant receives a `VARIANT_OF`
+relationship to its known ModelFamily, which connects to Manufacturer through
+`MADE_BY`. Platform is optional: create `BUILT_ON` only when Tables 714/715 or
+another approved source supplies reliable platform evidence. The variant
+candidate retains both hierarchy source keys and records
+`hierarchy_link_status=model_family_linked_platform_optional`. Ambiguous
+engines and unresolved fuel/displacement records stay outside Neo4j for review.
+
+Bodywork is optional but directly available as the Table 120 KT 086 code. Link
+it with `HAS_BODY`, preserve the code, and use Tables 020/030/052 for its
+official English display label with
+`terminology_status=canonical_mapped_from_official_english`.
+Create the canonical relationship only for codes in the reviewed KT 086 to
+NorthStar mapping. Unmapped official forms retain their code and label with
+`bodywork_link_status=review_required`; do not force them into a nearby form.
+Transmission is also optional: resolve Table 547 KType allocations through Table 544 and create
+`USES_TRANSMISSION` only for one distinct transmission. Preserve multiple
+allocations as `transmission_link_status=ambiguous` without choosing one.
+
+Drive is a VehicleVariant property sourced from Table 120 KT 082. Map Front-
+Wheel Drive to `fwd`, Rear-Wheel Drive to `rwd`, and all explicit selectable,
+permanent, or electronically regulated all-wheel forms to `awd`. Preserve
+mechanism values such as Chain, Direct, Cardan, Belts, Vario and Direct 2x2 as
+review evidence without inferring wheel drive.
 
 ### Frontend inspection
 
 Open `/normalization-review` and select **TecDoc**. The page chooses the largest
 available canonical-promotion batch, avoiding small integration-test batches.
 Reviewers can search by KType, manufacturer, model family, engine code or fuel,
-then inspect canonical values, the four promotion gates, stable source keys and
-the original TecDoc row references. The inspector also explains why the graph
-hierarchy remains provisional until Tables 714/715 are available.
+then inspect canonical values, Bodywork and Transmission allocation, the four
+promotion gates, stable source keys and original TecDoc row references. The
+inspector also explains that Platform is optional until reliable evidence is
+available.
 
 The TecDoc workspace also provides separate Manufacturer, Model family, Engine
 and Fuel browsers. Each list reports the number of promoted KTypes using the

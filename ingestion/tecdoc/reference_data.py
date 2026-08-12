@@ -94,3 +94,61 @@ def canonical_vehicle_fuels(reference_directory: Path) -> dict[str, str]:
         for code, label in labels.items()
         if (canonical := _ENGINE_FUEL_LABELS.get(label)) is not None
     }
+
+
+def official_bodywork_labels(reference_directory: Path) -> dict[str, str]:
+    """Return official English TecDoc KT 086 bodywork terminology."""
+
+    return load_key_table_labels(reference_directory, key_table_id="086")
+
+
+def official_transmission_type_labels(reference_directory: Path) -> dict[str, str]:
+    """Return official English TecDoc KT 085 transmission terminology."""
+
+    return load_key_table_labels(reference_directory, key_table_id="085")
+
+
+_BODYWORK_CANONICAL_BY_KT086: dict[str, str] = {
+    "021": "cargo_estate",
+    "025": "hatchback",
+    "027": "sedan",
+    "028": "estate",
+    "029": "coupe",
+    "030": "convertible",
+    "032": "pickup",
+    "034": "van",
+    "038": "suv",
+    "039": "suv",
+    "040": "multi_purpose_vehicle",
+    "042": "chassis_cab",
+    "048": "chassis_cab",
+    "052": "van",
+    "053": "suv",
+    "054": "van",
+    "055": "van",
+}
+
+
+def canonical_bodywork_by_kt086() -> dict[str, str]:
+    """Return reviewed TecDoc body codes that safely map to NorthStar vocabulary."""
+
+    return dict(_BODYWORK_CANONICAL_BY_KT086)
+
+
+def official_drive_type_labels(reference_directory: Path) -> dict[str, str]:
+    """Return official English TecDoc KT 082 drive terminology."""
+
+    return load_key_table_labels(reference_directory, key_table_id="082")
+
+
+def canonical_drive_by_kt082() -> dict[str, str]:
+    """Map only wheel-drive classifications to NorthStar drive vocabulary."""
+
+    return {
+        "001": "fwd",
+        "002": "rwd",
+        "003": "awd",
+        "004": "awd",
+        "005": "awd",
+        "011": "awd",
+    }

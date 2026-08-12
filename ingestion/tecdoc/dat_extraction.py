@@ -34,6 +34,17 @@ class EngineAllocation:
 
 
 @dataclass(frozen=True)
+class TransmissionAllocation:
+    transmission_id: str
+    transmission_code: str | None
+    transmission_type_code: str | None
+    transmission_identity: str | None
+    speeds: int | None
+    applicability: tuple[EngineApplicability, ...]
+    transmission_source_row_ref: str
+
+
+@dataclass(frozen=True)
 class TecDocHierarchyRecord:
     manufacturer_id: str
     manufacturer_name: str
@@ -53,6 +64,7 @@ class TecDocHierarchyRecord:
     body_type_code: str | None
     engines: tuple[EngineAllocation, ...]
     source_row_refs: tuple[str, str, str]
+    transmissions: tuple[TransmissionAllocation, ...] = ()
 
 
 def _required(row: ParsedRow, field: str) -> str:
@@ -110,6 +122,15 @@ def extract_dat_hierarchy(
     allocations: dict[str, list[ParsedRow]] = defaultdict(list)
     for row in read_table(source_directory, "125"):
         allocations[_required(row, "ktype_id")].append(row)
+    transmission_rows: dict[str, ParsedRow] = {}
+    transmission_allocations: dict[str, list[ParsedRow]] = defaultdict(list)
+    if (source_directory / "544.dat").is_file() and (source_directory / "547.dat").is_file():
+        transmission_rows = {
+            _required(row, "transmission_id"): row
+            for row in read_table(source_directory, "544")
+        }
+        for row in read_table(source_directory, "547"):
+            transmission_allocations[_required(row, "ktype_id")].append(row)
 
     ktypes: list[ParsedRow] = []
     for row in read_table(source_directory, "120"):
@@ -176,6 +197,38 @@ def extract_dat_hierarchy(
                     engine_source_row_ref=engine.source_ref,
                 )
             )
+        applicability_by_transmission: dict[str, list[EngineApplicability]] = defaultdict(list)
+        for allocation in transmission_allocations.get(_required(ktype, "ktype_id"), ()):
+            transmission_id = _required(allocation, "transmission_id")
+            applicability_by_transmission[transmission_id].append(
+                EngineApplicability(
+                    sequence=_required(allocation, "sequence"),
+                    year_from=allocation.values["year_from"],
+                    year_to=allocation.values["year_to"],
+                    country_code=allocation.values["country_code"],
+                    exclude=allocation.values["exclude"] == "1",
+                    source_row_ref=allocation.source_ref,
+                )
+            )
+        transmissions: list[TransmissionAllocation] = []
+        for transmission_id, applicability in applicability_by_transmission.items():
+            transmission = transmission_rows.get(transmission_id)
+            if transmission is None:
+                raise ValueError(
+                    f"{applicability[0].source_row_ref} references missing transmission "
+                    f"{transmission_id}"
+                )
+            transmissions.append(
+                TransmissionAllocation(
+                    transmission_id=transmission_id,
+                    transmission_code=transmission.values["transmission_code"],
+                    transmission_type_code=transmission.values["transmission_type_code"],
+                    transmission_identity=transmission.values["transmission_identity"],
+                    speeds=_integer(transmission.values["speeds"]),
+                    applicability=tuple(applicability),
+                    transmission_source_row_ref=transmission.source_ref,
+                )
+            )
         yield TecDocHierarchyRecord(
             manufacturer_id=_required(manufacturer, "manufacturer_id"),
             manufacturer_name=descriptions[_required(manufacturer, "description_id")],
@@ -195,4 +248,5 @@ def extract_dat_hierarchy(
             body_type_code=ktype.values["body_type_code"],
             engines=tuple(engine_allocations),
             source_row_refs=(manufacturer.source_ref, model.source_ref, ktype.source_ref),
+            transmissions=tuple(transmissions),
         )

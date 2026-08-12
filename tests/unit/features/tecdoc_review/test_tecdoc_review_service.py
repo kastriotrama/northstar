@@ -15,7 +15,8 @@ class Repository:
             "variant_attributes": {
                 "source_name": "D4 AWD", "manufacturer_source_key": "manufacturer:5",
                 "model_family_source_key": "model:50", "engine_source_key": "engine:8",
-                "year_from": 2018, "hierarchy_link_status": "awaiting_platform_mapping",
+                "year_from": 2018,
+                "hierarchy_link_status": "model_family_linked_platform_optional",
             },
             "manufacturer_attributes": {"canonical_name": "VOLVO"},
             "family_attributes": {"canonical_name": "XC60"},

@@ -187,6 +187,9 @@
               <button class="tecdoc-kind" data-tecdoc-kind="model_family" type="button">Model families</button>
               <button class="tecdoc-kind" data-tecdoc-kind="engine" type="button">Engines</button>
               <button class="tecdoc-kind" data-tecdoc-kind="fuel" type="button">Fuels</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="drive" type="button">Drive</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="bodywork" type="button">Bodywork</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="transmission" type="button">Transmissions</button>
             </nav>
             <div class="toolbar">
               <label class="search-field"><span class="sr-only">Search promoted TecDoc vehicles</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg><input id="tecdoc-search" type="search" placeholder="Search KType, manufacturer, model, engine or fuel…" /></label>
@@ -200,9 +203,10 @@
             <div id="tecdoc-inspector-content" hidden>
               <header class="tecdoc-inspector-head"><div><span class="eyebrow">TecDoc KType</span><h2 id="tecdoc-detail-name">—</h2><p id="tecdoc-detail-subtitle">—</p></div><span class="status-badge status-provisional">Provisional</span></header>
               <section><h3>Canonical vehicle</h3><dl id="tecdoc-canonical" class="field-list"></dl></section>
+              <section><h3>Graph connections</h3><div id="tecdoc-graph" class="tecdoc-graph"></div></section>
               <section><h3>Promotion checks</h3><div id="tecdoc-gates" class="promotion-gates"></div></section>
               <section><h3>Source lineage</h3><dl id="tecdoc-source-keys" class="source-key-list"></dl><div id="tecdoc-source-rows" class="source-row-list"></div></section>
-              <section class="platform-wait"><h3>Hierarchy status</h3><strong>Awaiting platform mapping</strong><p>Manufacturer and model evidence is retained in PostgreSQL. TecDoc Tables 714/715 are needed for the accepted VehicleVariant → Platform → ModelFamily path.</p></section>
+              <section class="platform-wait"><h3>Hierarchy status</h3><strong>Model family connected · Platform optional</strong><p>The vehicle is connected directly to its ModelFamily and Manufacturer. A BUILT_ON → Platform relationship is added only when reliable platform evidence is available.</p></section>
             </div>
             <div id="tecdoc-entity-inspector" hidden></div>
           </aside>

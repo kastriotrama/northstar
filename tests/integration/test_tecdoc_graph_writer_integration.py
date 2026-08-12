@@ -79,6 +79,8 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
     family_id = mint_node_id("FAM")
     variant_id = mint_node_id("VEH")
     engine_id = mint_node_id("ENG")
+    transmission_id = mint_node_id("TRN")
+    bodywork_id = mint_node_id("BDY")
     alias_id = mint_node_id("ALI")
     assertion_key = f"ktype:{variant_id}"
     promotion = CanonicalPromotion(
@@ -103,6 +105,15 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
         source_record_key="ktype:12345",
         source_assertion_key=assertion_key,
         assertion_identity=build_assertion_identity("tecdoc", assertion_key),
+        bodywork_id=bodywork_id,
+        bodywork_code="027",
+        transmission_id=transmission_id,
+        transmission_code="TG-81SC",
+        transmission_type_code="002",
+        transmission_speeds=8,
+        bodywork_name="sedan",
+        bodywork_official_label="Saloon",
+        transmission_type_name="Fully Automatic",
     )
     try:
         assert promote_canonical_vehicles(graph_driver, (promotion,)) == 1
@@ -110,15 +121,21 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
         with graph_driver.session() as session:
             record = session.run(
                 "MATCH (a:Alias {id:$alias_id})-[:REFERS_TO]->(v:VehicleVariant) "
+                "MATCH (v)-[:VARIANT_OF]->(f:ModelFamily) "
                 "MATCH (v)-[:USES_ENGINE]->(e:Engine) "
-                "MATCH (f:ModelFamily {id:$family_id})-[:MADE_BY]->(m:Manufacturer) "
+                "MATCH (v)-[:USES_TRANSMISSION]->(t:Transmission) "
+                "MATCH (v)-[:HAS_BODY]->(b:BodyType) "
+                "MATCH (f)-[:MADE_BY]->(m:Manufacturer) "
                 "RETURN a.alias_text AS alias, v.id AS variant, e.id AS engine, "
-                "f.id AS family, m.id AS manufacturer",
+                "f.id AS family, m.id AS manufacturer, t.id AS transmission, "
+                "t.speeds AS speeds, t.transmission_type_name AS transmission_type, "
+                "b.id AS bodywork, b.tecdoc_body_type_code AS body_code, "
+                "b.canonical_name AS body_name",
                 alias_id=alias_id,
                 family_id=family_id,
             ).single(strict=True)
-            unsupported_direct_links = session.run(
-                "MATCH (:VehicleVariant {id:$variant_id})-[r]->"
+            model_family_links = session.run(
+                "MATCH (:VehicleVariant {id:$variant_id})-[r:VARIANT_OF]->"
                 "(:ModelFamily {id:$family_id}) RETURN count(r) AS count",
                 variant_id=variant_id,
                 family_id=family_id,
@@ -129,13 +146,20 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
             "engine": engine_id,
             "family": family_id,
             "manufacturer": manufacturer_id,
+            "transmission": transmission_id,
+            "speeds": 8,
+            "transmission_type": "Fully Automatic",
+            "bodywork": bodywork_id,
+            "body_code": "027",
+            "body_name": "sedan",
         }
-        assert unsupported_direct_links == 0
+        assert model_family_links == 1
     finally:
         with graph_driver.session() as session:
             session.run(
                 "MATCH (n) WHERE n.id IN $ids DETACH DELETE n",
-                ids=[manufacturer_id, family_id, variant_id, engine_id, alias_id],
+                ids=[manufacturer_id, family_id, variant_id, engine_id, transmission_id,
+                     bodywork_id, alias_id],
             ).consume()
 
 
@@ -168,12 +192,19 @@ def test_promotes_ktype_facts_without_fabricating_engine(graph_driver: Driver) -
         with graph_driver.session() as session:
             record = session.run(
                 "MATCH (:Alias {id:$alias_id})-[:REFERS_TO]->(v:VehicleVariant) "
+                "MATCH (v)-[:VARIANT_OF]->(f:ModelFamily)-[:MADE_BY]->(m:Manufacturer) "
                 "OPTIONAL MATCH (v)-[:USES_ENGINE]->(e:Engine) "
                 "RETURN v.engine_link_status AS status, v.tecdoc_engine_type_code AS type, "
-                "count(e) AS engines",
+                "count(e) AS engines, f.id AS family, m.id AS manufacturer",
                 alias_id=promotion.alias_id,
             ).single(strict=True)
-        assert dict(record) == {"status": "allocation_missing", "type": "040", "engines": 0}
+        assert dict(record) == {
+            "status": "allocation_missing",
+            "type": "040",
+            "engines": 0,
+            "family": promotion.model_family_id,
+            "manufacturer": promotion.manufacturer_id,
+        }
     finally:
         with graph_driver.session() as session:
             session.run(
