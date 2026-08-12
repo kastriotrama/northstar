@@ -83,3 +83,14 @@ def canonical_engine_fuels(reference_directory: Path) -> dict[str, str]:
         for code, label in labels.items()
         if (canonical := _ENGINE_FUEL_LABELS.get(label)) is not None
     }
+
+
+def canonical_vehicle_fuels(reference_directory: Path) -> dict[str, str]:
+    """Map unambiguous official KT 182 KType fuels to graph values."""
+
+    labels = load_key_table_labels(reference_directory, key_table_id="182")
+    return {
+        code: canonical
+        for code, label in labels.items()
+        if (canonical := _ENGINE_FUEL_LABELS.get(label)) is not None
+    }

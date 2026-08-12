@@ -47,6 +47,7 @@ class TecDocHierarchyRecord:
     power_kw: int | None
     displacement_cc: int | None
     fuel_type_code: str | None
+    engine_type_code: str | None
     drive_type_code: str | None
     transmission_type_code: str | None
     body_type_code: str | None
@@ -188,6 +189,7 @@ def extract_dat_hierarchy(
             power_kw=_integer(ktype.values["power_kw"]),
             displacement_cc=_integer(ktype.values["displacement_cc"]),
             fuel_type_code=ktype.values["fuel_type_code"],
+            engine_type_code=ktype.values["engine_type_code"],
             drive_type_code=ktype.values["drive_type_code"],
             transmission_type_code=ktype.values["transmission_type_code"],
             body_type_code=ktype.values["body_type_code"],

@@ -437,6 +437,8 @@ function renderTecDoc() {
   document.querySelector("#tecdoc-entity-inspector").hidden = true;
   const summary = page.summary;
   document.querySelector("#tecdoc-promoted").textContent = Number(summary.promoted_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-linked").textContent = Number(summary.engine_linked_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-facts-only").textContent = Number(summary.facts_only_ktypes).toLocaleString();
   document.querySelector("#tecdoc-manufacturers").textContent = Number(summary.manufacturers).toLocaleString();
   document.querySelector("#tecdoc-models").textContent = Number(summary.model_families).toLocaleString();
   document.querySelector("#tecdoc-engines").textContent = Number(summary.engines).toLocaleString();
@@ -458,9 +460,9 @@ function renderTecDocInspector(item) {
   if (!item) return;
   document.querySelector("#tecdoc-detail-name").textContent = item.source_name || `KType ${item.ktype}`;
   document.querySelector("#tecdoc-detail-subtitle").textContent = `${item.manufacturer || "Manufacturer pending"} · ${item.model_family || "Model pending"}`;
-  const fields = { "KType": item.ktype, "Manufacturer": item.manufacturer, "Model family": item.model_family, "Engine code": item.engine_code, "Displacement": item.displacement_cc ? `${item.displacement_cc} cc` : null, "Fuel": humanize(item.fuel_type), "Powertrain years": [item.year_from, item.year_to || "present"].filter(Boolean).join("–") };
+  const fields = { "KType": item.ktype, "Manufacturer": item.manufacturer, "Model family": item.model_family, "Engine allocation": item.engine_link_status === "linked" ? "Table 155 engine linked" : "No Table 125 allocation", "Engine code": item.engine_code, "Displacement": item.displacement_cc ? `${item.displacement_cc} cc` : null, "Fuel": item.fuel_type ? humanize(item.fuel_type) : `TecDoc code ${item.tecdoc_fuel_code || "—"}`, "Engine type code": item.tecdoc_engine_type_code, "Powertrain years": [item.year_from, item.year_to || "present"].filter(Boolean).join("–") };
   document.querySelector("#tecdoc-canonical").innerHTML = Object.entries(fields).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value || "—")}</dd></div>`).join("");
-  document.querySelector("#tecdoc-gates").innerHTML = tecdocState.page.promotion_rules.map((rule) => `<article><span>Passed</span><div><strong>${escapeHtml(rule.label)}</strong><p>${escapeHtml(rule.outcome)}</p></div></article>`).join("");
+  document.querySelector("#tecdoc-gates").innerHTML = tecdocState.page.promotion_rules.map((rule, index) => `<article><span>${index === 1 && item.engine_link_status === "allocation_missing" ? "Safe omit" : "Passed"}</span><div><strong>${escapeHtml(rule.label)}</strong><p>${escapeHtml(index === 1 && item.engine_link_status === "allocation_missing" ? "No Table 125 allocation exists, so no Engine node or USES_ENGINE relationship was fabricated." : rule.outcome)}</p></div></article>`).join("");
   document.querySelector("#tecdoc-source-keys").innerHTML = Object.entries(item.source_keys).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   document.querySelector("#tecdoc-source-rows").innerHTML = item.source_row_refs.map((ref) => `<code>${escapeHtml(ref)}</code>`).join("");
 }

@@ -49,9 +49,7 @@ def test_resolved_engine_relationship_is_idempotent_and_conflict_safe(
             engine_id=engine_id,
             conflicting_engine_id=conflicting_engine_id,
         ).consume()
-    relationship = ResolvedEngineRelationship(
-        variant_id, engine_id, 140, "ktype:1:engine:1"
-    )
+    relationship = ResolvedEngineRelationship(variant_id, engine_id, 140, "ktype:1:engine:1")
 
     assert write_resolved_engine_relationships(graph_driver, (relationship,)) == 1
     assert write_resolved_engine_relationships(graph_driver, (relationship,)) == 1
@@ -70,8 +68,7 @@ def test_resolved_engine_relationship_is_idempotent_and_conflict_safe(
         write_resolved_engine_relationships(graph_driver, (conflict,))
     with graph_driver.session() as session:
         target = session.run(
-            "MATCH (:VehicleVariant {id:$variant_id})-[:USES_ENGINE]->(e:Engine) "
-            "RETURN e.id AS id",
+            "MATCH (:VehicleVariant {id:$variant_id})-[:USES_ENGINE]->(e:Engine) RETURN e.id AS id",
             variant_id=variant_id,
         ).single(strict=True)["id"]
     assert target == engine_id
@@ -97,6 +94,9 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
         displacement_cc=1969,
         displacement_source="table_155_exact",
         fuel_type="diesel",
+        tecdoc_fuel_code="002",
+        tecdoc_engine_type_code="002",
+        engine_link_status="linked",
         power_kw=140,
         alias_id=alias_id,
         alias_text="12345",
@@ -136,4 +136,52 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
             session.run(
                 "MATCH (n) WHERE n.id IN $ids DETACH DELETE n",
                 ids=[manufacturer_id, family_id, variant_id, engine_id, alias_id],
+            ).consume()
+
+
+def test_promotes_ktype_facts_without_fabricating_engine(graph_driver: Driver) -> None:
+    promotion = CanonicalPromotion(
+        manufacturer_id=mint_node_id("MFR"),
+        manufacturer_name="TESLA",
+        model_family_id=mint_node_id("FAM"),
+        model_family_name="MODEL 3",
+        variant_id=mint_node_id("VEH"),
+        year_from=2020,
+        year_to=None,
+        engine_id=None,
+        engine_code=None,
+        displacement_cc=None,
+        displacement_source=None,
+        fuel_type="electric",
+        tecdoc_fuel_code="011",
+        tecdoc_engine_type_code="040",
+        engine_link_status="allocation_missing",
+        power_kw=208,
+        alias_id=mint_node_id("ALI"),
+        alias_text="900001",
+        source_record_key="ktype:900001",
+        source_assertion_key="ktype:900001",
+        assertion_identity=build_assertion_identity("tecdoc", "ktype:900001"),
+    )
+    try:
+        assert promote_canonical_vehicles(graph_driver, (promotion,)) == 1
+        with graph_driver.session() as session:
+            record = session.run(
+                "MATCH (:Alias {id:$alias_id})-[:REFERS_TO]->(v:VehicleVariant) "
+                "OPTIONAL MATCH (v)-[:USES_ENGINE]->(e:Engine) "
+                "RETURN v.engine_link_status AS status, v.tecdoc_engine_type_code AS type, "
+                "count(e) AS engines",
+                alias_id=promotion.alias_id,
+            ).single(strict=True)
+        assert dict(record) == {"status": "allocation_missing", "type": "040", "engines": 0}
+    finally:
+        with graph_driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.id IN $ids DETACH DELETE n",
+                ids=[
+                    promotion.manufacturer_id,
+                    promotion.model_family_id,
+                    promotion.variant_id,
+                    promotion.alias_id,
+                ],
             ).consume()

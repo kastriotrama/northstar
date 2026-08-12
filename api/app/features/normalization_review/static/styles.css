@@ -315,6 +315,7 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .tecdoc-summary { min-height: 142px; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(560px, 1.4fr); align-items: center; gap: 40px; padding: 24px 30px; border-bottom: 1px solid var(--line); background: #fff; }
 .tecdoc-summary h1 { margin: 5px 0 7px; font-family: Georgia, serif; font-size: 29px; font-weight: 400; letter-spacing: -.025em; }
 .tecdoc-summary p { max-width: 620px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.tecdoc-summary .tecdoc-coverage-line { margin-top: 9px; color: #40514e; }.tecdoc-coverage-line strong { color: var(--teal); }
 .tecdoc-summary dl { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0; }
 .tecdoc-summary dl div { padding-left: 20px; border-left: 1px solid var(--line); }
 .tecdoc-summary dt { color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }

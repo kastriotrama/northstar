@@ -98,6 +98,12 @@ SET engine.engine_code = row.engine_code,
     engine.fuel_type = row.fuel_type
 MERGE (variant:VehicleVariant:Provisional {id: row.variant_id})
 SET variant.market = [], variant.year_from = row.year_from, variant.year_to = row.year_to
+SET variant.engine_link_status = row.engine_link_status,
+    variant.power_kw = row.power_kw,
+    variant.displacement_cc = row.displacement_cc,
+    variant.fuel_type = row.fuel_type,
+    variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
+    variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code
 MERGE (alias:Alias {assertion_identity: row.assertion_identity})
 ON CREATE SET alias.id = row.alias_id,
               alias.source_system = 'tecdoc',
@@ -116,6 +122,43 @@ SET relationship.power_kw = row.power_kw,
     relationship.source_assertion_key = row.source_assertion_key + ':engine'
 RETURN count(variant) AS written
 """
+
+_VEHICLE_FACTS_PROMOTION_QUERY = """
+UNWIND $rows AS row
+MERGE (manufacturer:Manufacturer {id: row.manufacturer_id})
+SET manufacturer.canonical_name = row.manufacturer_name
+MERGE (family:ModelFamily {id: row.model_family_id})
+SET family.canonical_name = row.model_family_name
+MERGE (family)-[:MADE_BY]->(manufacturer)
+MERGE (variant:VehicleVariant:Provisional {id: row.variant_id})
+SET variant.market = [], variant.year_from = row.year_from, variant.year_to = row.year_to,
+    variant.engine_link_status = row.engine_link_status,
+    variant.power_kw = row.power_kw,
+    variant.displacement_cc = row.displacement_cc,
+    variant.fuel_type = row.fuel_type,
+    variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
+    variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code
+MERGE (alias:Alias {assertion_identity: row.assertion_identity})
+ON CREATE SET alias.id = row.alias_id,
+              alias.source_system = 'tecdoc',
+              alias.source_record_key = row.source_record_key,
+              alias.source_assertion_key = row.source_assertion_key,
+              alias.alias_type = 'k_type'
+SET alias.alias_text = row.alias_text, alias.confidence = 1.0
+MERGE (alias)-[:REFERS_TO]->(variant)
+RETURN count(variant) AS written
+"""
+
+
+def _promote_vehicle_facts_transaction(
+    transaction: ManagedTransaction,
+    rows: list[dict[str, object]],
+) -> int:
+    record = transaction.run(_VEHICLE_FACTS_PROMOTION_QUERY, rows=rows).single()
+    written = 0 if record is None else int(record["written"])
+    if written != len(rows):
+        raise GraphRelationshipConflictError("KType facts-only promotion was incomplete")
+    return written
 
 
 def _promote_transaction(
@@ -137,8 +180,12 @@ def promote_canonical_vehicles(
 ) -> int:
     """Idempotently create graph nodes for graph-safe provisional KTypes."""
 
-    rows = [promotion.__dict__ for promotion in promotions]
-    if not rows:
+    linked_rows = [promotion.__dict__ for promotion in promotions if promotion.engine_id]
+    facts_only_rows = [promotion.__dict__ for promotion in promotions if not promotion.engine_id]
+    if not linked_rows and not facts_only_rows:
         return 0
     with driver.session() as session:
-        return session.execute_write(_promote_transaction, rows)
+        written = session.execute_write(_promote_transaction, linked_rows) if linked_rows else 0
+        if facts_only_rows:
+            written += session.execute_write(_promote_vehicle_facts_transaction, facts_only_rows)
+        return written

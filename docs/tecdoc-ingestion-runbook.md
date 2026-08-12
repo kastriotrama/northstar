@@ -164,3 +164,10 @@ The command parses the complete source before writing, uses official English
 fuel labels, persists only safe candidates, loads Neo4j in bounded chunks, and
 reconciles the final PostgreSQL candidate count. Reusing the identical batch
 is safe and produces zero additional candidates.
+
+KTypes without a Table 125 row are not engine-less vehicles. Table 120 already
+contains their vehicle-level engine facts. Promote them as provisional variants
+with `engine_link_status=allocation_missing`; preserve power, technical
+displacement, KT 182 fuel and KT 080 engine type, and omit `USES_ENGINE` until a
+real Table 155 allocation is available. Electric engine type `040` does not
+require displacement under the official format contract.

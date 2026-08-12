@@ -109,3 +109,18 @@ PostgreSQL candidates: 40,965 aliases, 40,965 provisional vehicle variants,
 and Neo4j reconcile at 40,965 variants and 10,971 engines. An identical full
 rerun wrote zero additional PostgreSQL candidates and matched the same 40,965
 graph rows.
+
+## Corrected Table 120 coverage
+
+The official format documentation defines Table 120 as the authoritative KType
+vehicle record with mandatory power, fuel and engine-type facts. Table 125 only
+allocates an optional reusable Table 155 engine number. The earlier
+`engine_missing` gate therefore excluded valid KTypes too aggressively.
+
+Corrected batch `tecdoc-0326-canonical-full-v2-local` promotes 55,808 KTypes:
+40,965 have a Table 155 Engine and `USES_ENGINE`; 14,843 have no Table 125
+allocation and are represented as provisional VehicleVariants using Table 120
+facts only. Those variants carry `engine_link_status=allocation_missing`, raw
+TecDoc fuel/engine-type codes, power and technical displacement. They have no
+fabricated Engine node or relationship. PostgreSQL and Neo4j both reconcile to
+these exact coverage counts.

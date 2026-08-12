@@ -25,7 +25,9 @@ def list_tecdoc_vehicles(
     try:
         return service.list_vehicles(query=query, limit=limit, offset=offset)
     except psycopg.Error as error:
-        raise HTTPException(status_code=503, detail="TecDoc review data is temporarily unavailable.") from error
+        raise HTTPException(
+            status_code=503, detail="TecDoc review data is temporarily unavailable."
+        ) from error
 
 
 @router.get("/entities", response_model=TecDocEntityPage)
@@ -39,4 +41,6 @@ def list_tecdoc_entities(
     try:
         return service.list_entities(kind=kind, query=query, limit=limit, offset=offset)
     except psycopg.Error as error:
-        raise HTTPException(status_code=503, detail="TecDoc entity data is temporarily unavailable.") from error
+        raise HTTPException(
+            status_code=503, detail="TecDoc entity data is temporarily unavailable."
+        ) from error

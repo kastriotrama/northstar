@@ -16,7 +16,7 @@ from ingestion.tecdoc.canonical_promotion import (
 from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.graph_writer import promote_canonical_vehicles
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
-from ingestion.tecdoc.reference_data import canonical_engine_fuels
+from ingestion.tecdoc.reference_data import canonical_engine_fuels, canonical_vehicle_fuels
 from ingestion.tecdoc.repository import complete_batch, register_batch
 
 
@@ -77,6 +77,7 @@ def run_full_canonical_promotion(
         batch_id=batch_id,
         records=records,
         engine_fuels=canonical_engine_fuels(reference_directory),
+        vehicle_fuels=canonical_vehicle_fuels(reference_directory),
         complete_source=True,
     )
     graph_rows, graph_chunks = promote_graph_in_chunks(

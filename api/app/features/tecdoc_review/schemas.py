@@ -8,6 +8,8 @@ class TecDocPromotionSummary(BaseModel):
     source_version: str | None = None
     source_rows: int = 0
     promoted_ktypes: int = 0
+    engine_linked_ktypes: int = 0
+    facts_only_ktypes: int = 0
     manufacturers: int = 0
     model_families: int = 0
     engines: int = 0
@@ -28,6 +30,9 @@ class TecDocVehicle(BaseModel):
     year_from: int | None = None
     year_to: int | None = None
     status: str = "provisional"
+    engine_link_status: str = "linked"
+    tecdoc_fuel_code: str | None = None
+    tecdoc_engine_type_code: str | None = None
     hierarchy_status: str = "awaiting_platform_mapping"
     source_row_refs: list[str] = Field(default_factory=list)
     source_keys: dict[str, str] = Field(default_factory=dict)

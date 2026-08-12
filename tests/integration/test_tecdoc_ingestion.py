@@ -126,6 +126,7 @@ def test_multiple_engines_persist_as_candidates_without_graph_flattening(
         power_kw=140,
         displacement_cc=1969,
         fuel_type_code="001",
+        engine_type_code="001",
         drive_type_code="004",
         transmission_type_code="002",
         body_type_code="006",
@@ -169,7 +170,7 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
         license_reference=None,
         source_path="/licensed/REFERENCE_DATA_0326",
         source_checksum="c" * 64,
-        source_row_count=3,
+        source_row_count=4,
     )
     applicability = EngineApplicability("001", None, None, None, False, "125:1")
 
@@ -202,11 +203,23 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
 
     def hierarchy(ktype_id: str, engines: tuple[EngineAllocation, ...]) -> TecDocHierarchyRecord:
         return TecDocHierarchyRecord(
-            manufacturer_id="000005", manufacturer_name="VOLVO", manufacturer_groups=("PC",),
-            model_id="00050", model_name="XC60", ktype_id=ktype_id, ktype_name="D4 AWD",
-            year_from="201801", year_to=None, power_kw=140, displacement_cc=1969,
-            fuel_type_code="001", drive_type_code="004", transmission_type_code="002",
-            body_type_code="006", engines=engines,
+            manufacturer_id="000005",
+            manufacturer_name="VOLVO",
+            manufacturer_groups=("PC",),
+            model_id="00050",
+            model_name="XC60",
+            ktype_id=ktype_id,
+            ktype_name="D4 AWD",
+            year_from="201801",
+            year_to=None,
+            power_kw=140,
+            displacement_cc=1969,
+            fuel_type_code="001",
+            engine_type_code="001",
+            drive_type_code="004",
+            transmission_type_code="002",
+            body_type_code="006",
+            engines=engines,
             source_row_refs=("100:1", "110:1", f"120:{ktype_id}"),
         )
 
@@ -217,22 +230,31 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
         hierarchy(unique_id, (engine("00001"),)),
         hierarchy(ambiguous_id, (engine("00001"), engine("00002"))),
         hierarchy(consensus_id, (ranged_engine("00003"),)),
+        hierarchy(f"facts-{uuid4()}", ()),
     )
 
     first = prepare_canonical_promotions(
-        pg_connection, batch_id=batch_id, records=records, engine_fuels={"001": "petrol"},
+        pg_connection,
+        batch_id=batch_id,
+        records=records,
+        engine_fuels={"001": "petrol"},
         complete_source=True,
     )
     second = prepare_canonical_promotions(
-        pg_connection, batch_id=batch_id, records=records, engine_fuels={"001": "petrol"},
+        pg_connection,
+        batch_id=batch_id,
+        records=records,
+        engine_fuels={"001": "petrol"},
         complete_source=True,
     )
 
-    assert len(first.promotions) == 2
+    assert len(first.promotions) == 3
     assert first.promotions[0].alias_text == unique_id
     assert first.promotions[1].displacement_source == "table_120_complete_source_consensus"
     assert first.skipped_by_reason == {"engine_ambiguous": 1}
-    assert first.candidates_written == 8
+    assert first.promotions[2].engine_link_status == "allocation_missing"
+    assert first.promotions[2].engine_id is None
+    assert first.candidates_written == 10
     assert second.candidates_written == 0
     with pg_connection.cursor() as cursor:
         cursor.execute(
@@ -262,7 +284,7 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
     total, promoted = repository.fetch_vehicles(
         batch_id=batch_id, query="VOLVO", limit=10, offset=0
     )
-    assert total == 2
+    assert total == 3
     assert promoted[0]["manufacturer_attributes"]["canonical_name"] == "VOLVO"
     assert promoted[0]["engine_attributes"]["engine_code"] == "ENGINE-00003"
     entity_total, entities = repository.fetch_entities(
@@ -270,4 +292,4 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
     )
     assert entity_total == 1
     assert entities[0]["name"] == "VOLVO"
-    assert entities[0]["vehicle_count"] == 2
+    assert entities[0]["vehicle_count"] == 3
