@@ -5,6 +5,17 @@ does not guess offsets in licensed fixed-width files. The provider table
 dictionary must be applied during restore and exposed through the stable view
 below before NorthStar reads any vehicle data.
 
+## Private portable restore bundle
+
+Approved team members can download the versioned PostgreSQL and Neo4j restore
+bundle from [Google Drive](https://drive.google.com/file/d/1H-2XmZucsF2SsZxcKLMqQN-FYd36xLyg/view?usp=sharing).
+
+The bundle is aligned with commit `c039eea` / PR 29 and contains derived TecDoc
+data, restore instructions, a manifest, and SHA-256 checksums. Treat it as
+licensed private data: do not commit it to Git or redistribute it outside the
+approved team. Verify `SHA256SUMS` before restoring and follow the included
+`README-restore.md`.
+
 ## Source currently available
 
 - Delivery: `REFERENCE_DATA_0326`
