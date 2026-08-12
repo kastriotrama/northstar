@@ -148,3 +148,19 @@ The TecDoc workspace also provides separate Manufacturer, Model family, Engine
 and Fuel browsers. Each list reports the number of promoted KTypes using the
 canonical value and shows up to 12 example KTypes, making shared entities and
 fuel coverage reviewable without opening vehicles one at a time.
+
+Run the complete safe promotion with:
+
+```bash
+northstar-ingest promote-tecdoc-canonical \
+  --batch-id tecdoc-0326-canonical-full \
+  --source-path /licensed/source/REFERENCE_DATA_0326 \
+  --reference-path /licensed/reference/REFERENCE_DATA_0326 \
+  --source-version 0326 --format-version 2.70 \
+  --source-checksum <source-manifest-sha256> --chunk-size 500
+```
+
+The command parses the complete source before writing, uses official English
+fuel labels, persists only safe candidates, loads Neo4j in bounded chunks, and
+reconciles the final PostgreSQL candidate count. Reusing the identical batch
+is safe and produces zero additional candidates.

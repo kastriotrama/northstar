@@ -100,3 +100,12 @@ to them through the accepted `VehicleVariant -> Platform -> ModelFamily ->
 Manufacturer` hierarchy. The PostgreSQL vehicle candidate preserves both
 source keys with `hierarchy_link_status=awaiting_platform_mapping`; no
 unsupported direct relationship is created in Neo4j.
+
+The controlled gate was subsequently run over the complete 72,570-KType
+passenger source as batch `tecdoc-0326-canonical-full-local`. It promoted
+40,965 KTypes in 82 rollback-safe Neo4j transactions and persisted 101,178
+PostgreSQL candidates: 40,965 aliases, 40,965 provisional vehicle variants,
+10,971 shared engines, 7,973 model families and 304 manufacturers. PostgreSQL
+and Neo4j reconcile at 40,965 variants and 10,971 engines. An identical full
+rerun wrote zero additional PostgreSQL candidates and matched the same 40,965
+graph rows.

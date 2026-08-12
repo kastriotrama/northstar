@@ -12,6 +12,7 @@ from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_delta import export_rule_delta
+from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,18 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Immutable rule version that the target environment must already contain.",
     )
+
+    promotion_parser = subparsers.add_parser(
+        "promote-tecdoc-canonical",
+        help="Promote every safe passenger-car KType to PostgreSQL and Neo4j.",
+    )
+    promotion_parser.add_argument("--batch-id", required=True)
+    promotion_parser.add_argument("--source-path", type=Path, required=True)
+    promotion_parser.add_argument("--reference-path", type=Path, required=True)
+    promotion_parser.add_argument("--source-version", default="0326")
+    promotion_parser.add_argument("--format-version", default="2.70")
+    promotion_parser.add_argument("--source-checksum", required=True)
+    promotion_parser.add_argument("--chunk-size", type=int, default=500)
     delta_parser.add_argument(
         "--target-version",
         default=None,
@@ -132,6 +145,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         print(json.dumps(asdict(delta_summary), sort_keys=True))
+        return 0
+
+    if args.command == "promote-tecdoc-canonical":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
+                summary = run_full_canonical_promotion(
+                    connection, driver, source_directory=args.source_path,
+                    reference_directory=args.reference_path, batch_id=args.batch_id,
+                    source_version=args.source_version, format_version=args.format_version,
+                    source_checksum=args.source_checksum,
+                    license_reference=settings.tecdoc_license_reference,
+                    chunk_size=args.chunk_size,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error("TecDoc canonical promotion stopped safely", extra={"error_code": type(error).__name__})
+            return 1
+        print(json.dumps(asdict(summary), sort_keys=True))
         return 0
 
     datastores = DatastoreClients.from_settings(settings)
