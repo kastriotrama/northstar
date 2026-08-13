@@ -752,7 +752,7 @@ _RULES = (
     ),
     _rule("FUEL-018", "fuel_carrier", ("fuel1", "fuel2", "fuel3"), "18", "energy_sources", "other"),
     _rule(
-        "FUEL-019", "fuel_carrier", ("fuel1", "fuel2", "fuel3"), "19", "energy_sources", "diesel"
+        "FUEL-019", "fuel_carrier", ("fuel1", "fuel2", "fuel3"), "19", "energy_sources", "biodiesel"
     ),
     _rule("FUEL-020", "fuel_carrier", ("fuel1", "fuel2", "fuel3"), "20", "energy_sources", "cng"),
     _rule("FUEL-021", "fuel_carrier", ("fuel1", "fuel2", "fuel3"), "21", "energy_sources", "lng"),

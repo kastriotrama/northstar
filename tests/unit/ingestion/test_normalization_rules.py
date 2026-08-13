@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from ingestion.normalization_rules import manufacturer_entity_catalog, normalize_ts_record
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
@@ -149,6 +151,71 @@ def test_special_purpose_body_code_requires_manual_parts_review() -> None:
     assert outcome.normalized["parts_matching_eligible"] is False
 
 
+def test_passenger_police_code_96_keeps_real_manufacturer_and_requires_review() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "VOLVO CAR CORPORATION",
+            "brand": "VOLVO",
+            "model": "V90",
+            "eu_category": "M1",
+            "body_code": "96",
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.normalized["special_vehicle_flags"] == ["police_vehicle"]
+    assert outcome.normalized["parts_matching_policy"] == "manual_review"
+    assert outcome.normalized["parts_matching_eligible"] is False
+    assert outcome.normalized.get("manufacturer_group") != "Special Modified"
+
+
+def test_unknown_text_code_is_preserved_without_changing_real_manufacturer() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "VOLVO CAR CORPORATION",
+            "brand": "VOLVO",
+            "eu_category": "M1",
+            "text_codes": [{"code": "T99ZZ"}],
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.normalized["text_codes"] == [
+        {"code": "T99ZZ", "source": "transportstyrelsen"}
+    ]
+    assert outcome.normalized.get("manufacturer_group") != "Special Modified"
+
+
+@pytest.mark.parametrize(
+    ("text_code", "expected_flag", "expected_modification"),
+    [
+        ("T17B", "taxi", "taxi_equipment"),
+        ("T31A", "engine_replaced", "engine_replaced"),
+        ("T31EC", "fuel_converted", "fuel_converted_ethanol"),
+        ("T71R", "rally_vehicle", "rally_vehicle"),
+    ],
+)
+def test_safety_text_codes_keep_manufacturer_and_require_manual_parts_review(
+    text_code: str,
+    expected_flag: str,
+    expected_modification: str,
+) -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "VOLVO CAR CORPORATION",
+            "brand": "VOLVO",
+            "eu_category": "M1",
+            "text_code": text_code,
+        }
+    )
+
+    assert outcome.normalized["manufacturer"] == "Volvo"
+    assert outcome.normalized["special_vehicle_flags"] == [expected_flag]
+    assert outcome.normalized["modification_types"] == [expected_modification]
+    assert outcome.normalized["parts_matching_policy"] == "manual_review"
+    assert outcome.normalized.get("manufacturer_group") != "Special Modified"
+
+
 def test_approved_passenger_body_code_98_normalizes_as_other() -> None:
     base = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
     rules = tuple(
@@ -262,9 +329,8 @@ def test_mini_requires_agreeing_parent_brand_model_and_vin_evidence() -> None:
     )
 
     assert outcome.normalized["manufacturer"] == "MINI"
-    assert {"MFR-PARENT-MARKETED", "MFR-BRAND-MODEL", "MFR-BRAND-VIN-WMI"} <= set(
-        outcome.applied_rule_ids
-    )
+    assert {"MFR-PARENT-MARKETED", "MFR-BRAND-MODEL"} <= set(outcome.applied_rule_ids)
+    assert outcome.normalized["vin_manufacturing_entity"] == "MINI"
 
 
 def test_multibrand_groups_require_marketed_brand_evidence() -> None:
@@ -942,6 +1008,39 @@ def test_pdk_supports_structured_automatic_transmission() -> None:
     assert "transmission_structured_marketing_conflict" not in outcome.review_reasons
 
 
+def test_cvt_supports_structured_automatic_transmission() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "SUZUKI", "model": "SWIFT", "version": "CVT/L", "gearbox": "A"},
+        manufacturer_entity_rules={
+            "brand:SUZUKI": {
+                "entity_id": "MFE-SUZUKI",
+                "canonical_name": "Suzuki",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+            }
+        },
+    )
+
+    assert outcome.normalized["transmission_type"] == "automatic"
+    assert outcome.normalized["transmission_name"] == "CVT"
+    assert "transmission_structured_marketing_conflict" not in outcome.review_reasons
+
+
+def test_registry_bodywork_wins_over_out_of_scope_marketing_candidate() -> None:
+    outcome = normalize_ts_record(
+        {
+            "manufacturer": "CHRYSLER",
+            "model": "CHRYSLER PACIFICA",
+            "eu_category": "M1",
+            "body_code": "AF",
+        }
+    )
+
+    assert outcome.normalized["bodywork_form"] == "multi_purpose_vehicle"
+    assert outcome.normalized["bodywork_source"] == "registry"
+    assert "bodywork_marketing_scope_unresolved" not in outcome.review_reasons
+
+
 def test_secondary_body_code_enriches_purpose_without_replacing_primary_bodywork() -> None:
     camper = normalize_ts_record(
         {
@@ -1233,3 +1332,355 @@ def test_all_three_ts_fuel_fields_are_retained() -> None:
 
     assert outcome.normalized["energy_sources"] == ["petrol", "cng", "electricity"]
     assert outcome.normalized["fuel_combination"] == "tri_fuel"
+
+
+def test_evidence_gated_quattro_amg_sub_brand_and_california_candidate() -> None:
+    rules = {
+        "brand:QUATTRO": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-QUATTRO-AUDI",
+            "canonical_name": "Audi", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "requires_model_manufacturer": "Audi",
+            "match_type": "diacritic_insensitive_prefix",
+            "source_field": "brand", "source_term": "QUATTRO",
+        },
+        "brand:MERCEDES AMG": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-MERCEDES-AMG",
+            "canonical_name": "Mercedes-Benz", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "sub_brand": "Mercedes-AMG",
+        },
+        "brand:VOLKSWAGEN": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-VW",
+            "canonical_name": "Volkswagen", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+        },
+    }
+    quattro = normalize_ts_record({"brand": "QUATTRO", "model": "AUDI RS6"}, manufacturer_entity_rules=rules)
+    spaced_quattro = normalize_ts_record(
+        {"brand": "QUATTRO         8P", "model": "AUDI RS3"},
+        manufacturer_entity_rules=rules,
+    )
+    unsupported_quattro = normalize_ts_record(
+        {"brand": "QUATTRO SPECIAL", "model": "CUSTOM"},
+        manufacturer_entity_rules=rules,
+    )
+    amg = normalize_ts_record({"brand": "MERCEDES-AMG", "model": "AMG GT C"}, manufacturer_entity_rules=rules)
+    california = normalize_ts_record({"brand": "VOLKSWAGEN", "model": "CALIFORNIA BEACH", "eu_category": "M1"}, manufacturer_entity_rules=rules)
+
+    assert quattro.normalized["manufacturer"] == "Audi"
+    assert spaced_quattro.normalized["manufacturer"] == "Audi"
+    assert unsupported_quattro.normalized.get("manufacturer") is None
+    assert amg.normalized["manufacturer"] == "Mercedes-Benz"
+    assert amg.normalized["sub_brand"] == "Mercedes-AMG"
+    assert california.normalized["manufacturer"] == "Volkswagen"
+    assert california.candidates["marketing_body_style"] == "motorhome"
+    assert "motorhome_supporting_evidence_missing" not in california.review_reasons
+
+
+def test_approved_registered_marque_replica_coachbuilder_and_fuel_policies() -> None:
+    special = normalize_ts_record({"brand": "AC COBRA REPLIKA", "model": "COBRA"})
+    assert special.normalized["manufacturer_group"] == "Special Modified"
+    assert special.normalized["classification_source"] == "brand_model_text"
+    assert special.normalized["parts_matching_policy"] == "excluded"
+    assert "manufacturer" not in special.normalized
+
+    rules = {
+        "brand:NILSSON": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-NILSSON",
+            "canonical_name": "Nilsson", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "registered_marque_converter": True,
+            "base_model_terms": ["XC90", "V70", "S80"],
+        },
+        "brand:BERTONE RITMO": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-BERTONE-RITMO",
+            "canonical_name": "Bertone", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "base_vehicle_manufacturer": "Fiat",
+            "base_model": "Ritmo", "coachbuilder": "Bertone",
+        },
+    }
+    nilsson = normalize_ts_record(
+        {"brand": "NILSSON", "model": "XC90 AMBULANCE", "vin": "YV1LC68TCK1495039"},
+        manufacturer_entity_rules=rules,
+    )
+    bertone = normalize_ts_record(
+        {"brand": "BERTONE RITMO", "model": "RITMO 85 CABRIO"},
+        manufacturer_entity_rules=rules,
+    )
+    assert nilsson.normalized["manufacturer"] == "Nilsson"
+    assert nilsson.normalized["base_vehicle_manufacturer"] == "Volvo"
+    assert nilsson.normalized["base_model"] == "XC90"
+    assert nilsson.normalized["builder_converter_names"] == ["Nilsson"]
+    assert bertone.normalized["manufacturer"] == "Bertone"
+    assert bertone.normalized["base_vehicle_manufacturer"] == "Fiat"
+    assert bertone.normalized["base_model"] == "Ritmo"
+
+    fuel = normalize_ts_record(
+        {"manufacturer": "TOYOTA", "fuel1": "2", "fuel2": "19", "fuel_combo": "F"}
+    )
+    assert fuel.normalized["energy_sources"] == ["diesel", "biodiesel"]
+    assert fuel.normalized["fuel_combination"] == "flex_fuel"
+    assert "fuel_mapping_status" not in fuel.normalized
+    assert "fuel_code_19_meaning_unverified" not in fuel.review_reasons
+
+
+def test_wmi_entity_does_not_override_marque_and_scoped_composites_resolve() -> None:
+    hyundai = normalize_ts_record(
+        {"brand": "HYUNDAI", "model": "IX35", "vin": "U5YZT81UABL057910"}
+    )
+    assert hyundai.normalized["manufacturer"] == "Hyundai"
+    assert hyundai.normalized["vin_manufacturing_entity"] == "Kia"
+    assert hyundai.normalized["registered_make"] == "HYUNDAI"
+    assert "manufacturer_evidence_conflict" not in hyundai.review_reasons
+
+    rules = {
+        "brand:JAGUAR DAIMLER": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-JD-DOUBLE-SIX",
+            "source_field": "brand", "source_term": "JAGUAR DAIMLER",
+            "match_type": "diacritic_insensitive_prefix",
+            "canonical_name": "Daimler", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity",
+            "requires_any_text_terms": ["DOUBLE SIX", "DAIMLER SIX"],
+        },
+        "brand:CARBODIES": {
+            "kind": "manufacturer_entity", "entity_id": "MFE-CARBODIES-FAIRWAY",
+            "source_field": "brand", "source_term": "CARBODIES",
+            "match_type": "diacritic_insensitive_prefix",
+            "canonical_name": "Carbodies", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "requires_any_text_terms": ["FAIRWAY"],
+            "special_purpose_type": "taxi",
+        },
+    }
+    double_six = normalize_ts_record(
+        {"brand": "JAGUAR DAIMLER", "model": "DOUBLE SIX LWB AUTO"},
+        manufacturer_entity_rules=rules,
+    )
+    bare = normalize_ts_record(
+        {"brand": "JAGUAR DAIMLER", "model": "4.0"},
+        manufacturer_entity_rules=rules,
+    )
+    fairway = normalize_ts_record(
+        {"brand": "CARBODIES", "model": "FAIRWAY"}, manufacturer_entity_rules=rules
+    )
+    assert double_six.normalized["manufacturer"] == "Daimler"
+    assert bare.normalized.get("manufacturer") is None
+    assert fairway.normalized["manufacturer"] == "Carbodies"
+    assert fairway.normalized["special_purpose_type"] == "taxi"
+
+
+def test_regex_manufacturer_rules_require_strict_year_fab_and_no_conflict() -> None:
+    rules = {
+        "brand:HISTORIC": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-HISTORIC-ALVIS",
+            "source_field": "brand", "source_term": "HISTORIC",
+            "match_type": "evidence_regex", "source_regex": r"^ALVIS\b",
+            "canonical_name": "Alvis", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "requires_year_between": [1919, 1967],
+            "excludes_text_regex": "REPLICA|AMAT[ÖO]R",
+            "requires_no_manufacturer_conflict": True,
+        },
+        "brand:FAB": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-FAB-MB",
+            "source_field": "brand", "source_term": "FAB",
+            "match_type": "evidence_regex", "source_regex": r"MERC|MERS|BENZ",
+            "canonical_name": "Mercedes-Benz", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "requires_fab_code": "MB",
+            "requires_any_field_regex": r"MERC|MERS|BENZ",
+            "requires_no_manufacturer_conflict": True,
+        },
+    }
+    historic = normalize_ts_record(
+        {"brand": "ALVIS TD21", "model_year": 1962}, manufacturer_entity_rules=rules
+    )
+    missing_year = normalize_ts_record(
+        {"brand": "ALVIS TD21"}, manufacturer_entity_rules=rules
+    )
+    replica = normalize_ts_record(
+        {"brand": "ALVIS REPLICA", "model_year": 1962}, manufacturer_entity_rules=rules
+    )
+    typo = normalize_ts_record(
+        {"brand": "MERSEDEZ BENZ 230 CE", "fab_code": "MB"},
+        manufacturer_entity_rules=rules,
+    )
+    wrong_code = normalize_ts_record(
+        {"brand": "MERSEDEZ BENZ 230 CE", "fab_code": "VO"},
+        manufacturer_entity_rules=rules,
+    )
+
+    assert historic.normalized["manufacturer"] == "Alvis"
+    assert missing_year.normalized.get("manufacturer") is None
+    assert replica.normalized.get("manufacturer") is None
+    assert typo.normalized["manufacturer"] == "Mercedes-Benz"
+    assert wrong_code.normalized.get("manufacturer") is None
+
+
+def test_test_prefix_is_quarantined_without_stripping_registered_make() -> None:
+    outcome = normalize_ts_record({"brand": "TEST/FORD", "vin": "11111111111111111"})
+
+    assert outcome.normalized["registered_make"] == "TEST/FORD"
+    assert outcome.normalized["record_route"] == "quarantine_test_record"
+    assert outcome.normalized["parts_matching_policy"] == "excluded"
+    assert outcome.normalized.get("manufacturer") is None
+
+
+def test_v31_scoped_marques_and_generic_custom_review() -> None:
+    rules = {
+        "brand:BUIK": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-BUIK-FAB-BU-V1",
+            "source_field": "brand", "source_term": "BUIK",
+            "match_type": "evidence_regex", "source_regex": r"^BUIK\b",
+            "canonical_name": "Buick", "entity_role": "vehicle_manufacturer",
+            "base_behavior": "use_entity", "requires_fab_code": "BU",
+            "requires_any_field_regex": "BUIK", "requires_no_manufacturer_conflict": True,
+        },
+        "brand:TIGER AVON": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-TIGER-AVON-V1",
+            "source_field": "brand", "source_term": "TIGER AVON",
+            "match_type": "diacritic_insensitive_prefix", "canonical_name": "Tiger",
+            "entity_role": "vehicle_manufacturer", "base_behavior": "use_entity",
+            "parts_matching_policy": "restricted",
+        },
+        "brand:DMC DE LOREAN": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-DMC-DELOREAN-V1",
+            "source_field": "brand", "source_term": "DMC DE LOREAN",
+            "match_type": "diacritic_insensitive_prefix", "canonical_name": "DeLorean",
+            "entity_role": "vehicle_manufacturer", "base_behavior": "use_entity",
+        },
+        "brand:FACTORY FIVE": {
+            "kind": "manufacturer_entity", "entity_id": "MFR-FACTORY-FIVE-ROADSTER-V1",
+            "source_field": "brand", "source_term": "FACTORY FIVE",
+            "match_type": "diacritic_insensitive_prefix", "canonical_name": "Factory Five",
+            "entity_role": "vehicle_manufacturer", "base_behavior": "use_entity",
+            "requires_any_text_terms": ["ROADSTER"], "parts_matching_policy": "restricted",
+        },
+    }
+    buick = normalize_ts_record(
+        {"brand": "BUIK RIVIERA", "fab_code": "BU"}, manufacturer_entity_rules=rules
+    )
+    tiger = normalize_ts_record({"brand": "TIGER AVON"}, manufacturer_entity_rules=rules)
+    delorean = normalize_ts_record(
+        {"brand": "DMC DE LOREAN"}, manufacturer_entity_rules=rules
+    )
+    factory_five = normalize_ts_record(
+        {"brand": "FACTORY FIVE ROADSTER"}, manufacturer_entity_rules=rules
+    )
+    hot_rod = normalize_ts_record({"brand": "HOT ROD"})
+
+    assert buick.normalized["manufacturer"] == "Buick"
+    assert tiger.normalized["manufacturer"] == "Tiger"
+    assert tiger.normalized["parts_matching_policy"] == "restricted"
+    assert delorean.normalized["manufacturer"] == "DeLorean"
+    assert factory_five.normalized["manufacturer"] == "Factory Five"
+    assert factory_five.normalized["parts_matching_policy"] == "restricted"
+    assert hot_rod.normalized.get("manufacturer") is None
+    assert hot_rod.normalized["parts_matching_policy"] == "restricted"
+    assert "generic_custom_identity_unverified" in hot_rod.review_reasons
+
+
+def test_v31_motorhome_route_and_nilsson_special_parts_policy() -> None:
+    motorhome = normalize_ts_record(
+        {"brand": "RAPIDO 9087DF", "body_code": "SA", "vehicle_class": "II"}
+    )
+    nilsson = normalize_ts_record(
+        {
+            "brand": "NILSSON", "model": "XC90 AMBULANCE",
+            "base_manufacturer": "VOLVO CAR CORPORATION",
+            "special_purpose_type": "ambulance",
+        },
+        manufacturer_entity_rules={
+            "brand:NILSSON": {
+                "kind": "manufacturer_entity", "entity_id": "MFE-BRAND-NILSSON",
+                "source_field": "brand", "source_term": "NILSSON",
+                "canonical_name": "Nilsson", "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity", "registered_marque_converter": True,
+                "parts_matching_policy_when_special_purpose": "restricted",
+            }
+        },
+    )
+
+    assert motorhome.normalized["record_route"] == "exclude_from_passenger_car_dataset"
+    assert motorhome.normalized["parts_matching_policy"] == "excluded"
+    assert nilsson.normalized["manufacturer"] == "Nilsson"
+    assert nilsson.normalized["builder_converter_names"] == ["Nilsson"]
+    assert nilsson.normalized["base_vehicle_manufacturer"] == "Volvo"
+    assert nilsson.normalized["parts_matching_policy"] == "restricted"
+
+
+def test_v321_routes_supported_motorhome_and_test_rows_without_manufacturer_review() -> None:
+    motorhome = normalize_ts_record(
+        {
+            "brand": "ADRIA",
+            "model": "CORAL S 670SL",
+            "base_manufacturer": "FCA ITALY S.P.A.",
+            "body_code": "AF",
+            "vehicle_class": "I",
+            "vehicle_type": "PB",
+            "eu_category": "M1",
+            "vin": "ZFA25000002H70931",
+        }
+    )
+    test_record = normalize_ts_record({"brand": "TEST/VOLVO 1421341 S"})
+
+    for outcome, route in (
+        (motorhome, "exclude_from_passenger_car_dataset"),
+        (test_record, "quarantine_test_record"),
+    ):
+        assert outcome.normalized["record_route"] == route
+        assert outcome.normalized["parts_matching_policy"] == "excluded"
+        assert outcome.status != "review_required"
+        assert not any(
+            reason.startswith("manufacturer_") for reason in outcome.review_reasons
+        )
+
+
+def test_v321_strong_self_built_text_is_special_modified() -> None:
+    for brand in (
+        "EGET",
+        "EGET, MS SPECIAL",
+        "EGEN TILL TRIUMPH",
+        "EGEN T LOTOS CEVEN 11 S",
+        "HEMMABYGGE",
+        "DAX COBRAREPLIKA",
+        "LOCUST LOTUS 7 REPL.",
+    ):
+        outcome = normalize_ts_record({"brand": brand})
+
+        assert outcome.normalized["vehicle_classification"] == "special_modified"
+        assert outcome.normalized["manufacturer_group"] == "Special Modified"
+        assert outcome.normalized["parts_matching_policy"] == "excluded"
+        assert outcome.normalized.get("manufacturer") is None
+
+
+def test_v322_routes_motorhome_marque_with_scoped_fab_code_only() -> None:
+    motorhome = normalize_ts_record(
+        {"brand": "KABE", "fab_code": "KB", "vin": "W1V9100401N197816"}
+    )
+    unsupported = normalize_ts_record(
+        {"brand": "MCLOUIS", "fab_code": "ÖV", "vin": "YF7YGBPAU12U95799"}
+    )
+
+    assert motorhome.normalized["record_route"] == "exclude_from_passenger_car_dataset"
+    assert motorhome.status != "review_required"
+    assert unsupported.normalized.get("record_route") is None
+    assert "manufacturer_missing" in unsupported.review_reasons
+
+
+def test_v322_exact_source_value_rule_coexists_with_existing_lookup_key() -> None:
+    outcome = normalize_ts_record(
+        {"brand": "HULT HEALEY"},
+        manufacturer_entity_rules={
+            "brand:V322-EXACT-HULT": {
+                "kind": "manufacturer_entity",
+                "entity_id": "V322-EXACT-HULT",
+                "source_field": "brand",
+                "source_term": "V322-EXACT-HULT",
+                "match_type": "exact_source_value",
+                "exact_source_value": "HULT HEALEY",
+                "canonical_name": "Hult",
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+                "parts_matching_policy": "restricted",
+            }
+        },
+    )
+
+    assert outcome.normalized["manufacturer"] == "Hult"
+    assert outcome.normalized["parts_matching_policy"] == "restricted"

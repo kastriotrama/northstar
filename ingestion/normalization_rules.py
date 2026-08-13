@@ -438,6 +438,7 @@ _PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
     "89": ("coast_guard_vehicle", "Kustbevakning"),
     "91": ("recovery_vehicle", "Bärgningsfordon"),
     "93": ("police", "Polis"),
+    "96": ("police", "Polisbil"),
     "95": ("fire_rescue_vehicle", "Brandfordon övrigt"),
     "99": ("ambulance", "Ambulans"),
 }
@@ -445,6 +446,7 @@ _PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
 _SECONDARY_PURPOSE_CODES: dict[str, tuple[str, str, str]] = {
     "06": ("usage_type", "taxi", "Taxi"),
     "93": ("special_purpose_type", "police", "Polis"),
+    "96": ("special_purpose_type", "police", "Polisbil"),
     "SA": ("special_purpose_type", "motor_caravan", "Campingbil"),
     "SB": ("special_purpose_type", "armoured_vehicle", "Bepansrat fordon"),
     "SC": ("special_purpose_type", "ambulance", "Ambulans"),
@@ -464,9 +466,75 @@ _TEXT_CODE_DEFINITIONS: dict[str, tuple[str, str, str]] = {
     "T12C": ("Amatörbyggd bil, byggsats", "Amateur-built kit car", "amateur_built_kit"),
     "T12E": ("Provbil", "Test vehicle", "test_vehicle"),
     "T12S": ("Provfordon", "Trial vehicle", "trial_vehicle"),
+    "T12D": ("Tidigare EEG-typgodkänt importfordon", "Previously EEG-approved import", "imported_vehicle"),
+    "T13A": ("Sammansatt av delar från flera fordon", "Built from parts from multiple vehicles", "composite_vehicle"),
+    "T13K": ("Första datum i trafik uppskattat", "Estimated first-use date", "estimated_registration_history"),
+    "T14D": ("Tidigare EES-typgodkänt fordon", "Previously EEA type-approved vehicle", "imported_vehicle"),
+    "T14F": ("Etappvis typgodkänt fordon", "Multi-stage type-approved vehicle", "multi_stage_vehicle"),
+    "T14G": ("Ändrat fordon med grundfordon", "Modified vehicle with a base vehicle", "modified_vehicle"),
+    "T16X": ("Identitetsbärare ersatt", "Identity carrier replaced", "identity_modified"),
+    "T17A": ("Taxibil utan mellanvägg", "Taxi without partition", "taxi_equipment"),
+    "T17B": ("Taxibil utan taxameter", "Taxi without taximeter", "taxi_equipment"),
+    "T17BA": ("Taxibil med särskild utrustning", "Taxi with special equipment", "taxi_equipment"),
+    "T17C": ("Särskild karosserikod i textfält", "Special body code carried in text", "special_body_code_carrier"),
+    "T17U": ("Rallybil med utbytt karosseri", "Rally car with replaced body", "rally_modified"),
+    "T20A": ("Sjukbil med bårutrustning", "Medical vehicle with stretcher equipment", "medical_transport"),
+    "T20F": ("Baksäte ej för personbefordran", "Rear seat unavailable for passengers", "occupant_safety_modified"),
+    "T20G": ("Sjuktransport med bårplatser", "Medical transport with stretcher positions", "medical_transport"),
+    "T31A": ("Motorn utbytt", "Engine replaced", "engine_replaced"),
+    "T31AX": ("Motorn utbytt med särskilda utsläppskrav", "Engine replaced under specific emissions requirements", "engine_replaced"),
+    "T31AY": ("Motorn modifierad med särskilda utsläppskrav", "Engine modified under specific emissions requirements", "engine_modified"),
+    "T31B": ("Motorn ändrad", "Engine output modified", "engine_modified"),
+    "T31EA": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
+    "T31EB": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
+    "T31EC": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
+    "T31ED": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
+    "T31EE": ("Konverterad för metangasdrift", "Converted to methane operation", "fuel_converted_methane"),
+    "T31EF": ("Konverterad för metangasdrift", "Converted to methane operation", "fuel_converted_methane"),
+    "T71R": ("Rallybil av specialtyp", "Special-type rally car", "rally_vehicle"),
+    "T71ZO": ("Rallybil av standardtyp", "Standard-type rally car", "rally_vehicle"),
+}
+
+_TEXT_CODE_FLAGS: dict[str, str] = {
+    "T13A": "composite_vehicle",
+    "T14F": "multi_stage_vehicle",
+    "T14G": "modified_vehicle",
+    "T16X": "identity_modified",
+    "T17A": "taxi",
+    "T17B": "taxi",
+    "T17BA": "taxi",
+    "T17C": "special_body_code_text",
+    "T17U": "rally_vehicle",
+    "T20A": "medical_transport_vehicle",
+    "T20F": "occupant_safety_modified",
+    "T20G": "medical_transport_vehicle",
+    "T31A": "engine_replaced",
+    "T31AX": "engine_replaced",
+    "T31AY": "engine_modified",
+    "T31B": "engine_modified",
+    "T31EA": "fuel_converted",
+    "T31EB": "fuel_converted",
+    "T31EC": "fuel_converted",
+    "T31ED": "fuel_converted",
+    "T31EE": "fuel_converted",
+    "T31EF": "fuel_converted",
+    "T71R": "rally_vehicle",
+    "T71ZO": "rally_vehicle",
 }
 
 _SPECIAL_MODIFIED_TEXT_CODES = frozenset({"T12A", "T12B", "T12BF", "T12C"})
+
+_MOTORHOME_REGISTERED_MARQUE = re.compile(
+    r"^(?:ADRIA|ADRIA\s+SUN\s+LIVING|MAN\s+ADRIA|DETHLEFFS|KABE|"
+    r"B[ÜU]RSTNER|CAPRON|CARTHAGO|KNAUS|MCLOUIS|SUN\s+LIVING|"
+    r"KARMANN[- ]MOBIL|RAPIDO|RIMOR|WEINSBERG|CARADO|HYMER|CHAUSSON|"
+    r"POESSL|PÖSSL)(?:\b|$)",
+    flags=re.IGNORECASE,
+)
+
+_MOTORHOME_MARQUE_FAB_CODES = frozenset(
+    {"AA", "BN", "C*", "C8", "H7", "K+", "KB", "KN", "MA", "R+", "WG"}
+)
 _SPECIAL_BODY_CODE_FLAGS: dict[str, str] = {
     "06": "taxi",
     "75": "fire_rescue_vehicle",
@@ -474,6 +542,7 @@ _SPECIAL_BODY_CODE_FLAGS: dict[str, str] = {
     "89": "coast_guard_vehicle",
     "91": "recovery_vehicle",
     "93": "police_vehicle",
+    "96": "police_vehicle",
     "95": "fire_rescue_vehicle",
     "99": "ambulance",
     "SA": "motor_caravan",
@@ -545,6 +614,7 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
         policy.get("special_modified_text_codes") or _SPECIAL_MODIFIED_TEXT_CODES
     )
     body_code_flags = dict(policy.get("special_body_code_flags") or _SPECIAL_BODY_CODE_FLAGS)
+    text_code_flags = dict(policy.get("safety_text_code_flags") or _TEXT_CODE_FLAGS)
     manufacturer_group = str(policy.get("manufacturer_group") or "Special Modified")
     special_parts_policy = str(policy.get("parts_matching_policy") or "excluded")
     special_tecdoc_policy = str(policy.get("tecdoc_match_policy") or "exclude")
@@ -565,6 +635,8 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
                 {"description_sv": description_sv, "description_en": description_en}
             )
             modification_types.append(classification)
+        if code in text_code_flags:
+            flags.append(text_code_flags[code])
         text_code_evidence.append(evidence)
     for description in descriptions:
         evidence = {"code": None, "description_sv": description, "source": "source_description"}
@@ -585,9 +657,22 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
         if flag is not None:
             flags.append(flag)
 
+    descriptive_text = " ".join(
+        text
+        for field_name in ("brand", "model")
+        if (text := _normalized_entity(raw.get(field_name))) is not None
+    )
+    descriptive_special_modified = bool(
+        re.search(
+            r"\b(?:HEMBYGG\w*|AMAT[ÖO]R\w*|REPLIK\w*|REPLICA\w*|"
+            r"EGEN\s*TILLVERK\w*|EGEN\s*TILLV\w*|EGEN\s+T(?:ILL)?\b|"
+            r"EGENTILLVERK\w*|EGENTILLV\w*|EGET(?:\b|\s+FABRIKAT))",
+            descriptive_text,
+        )
+    ) or bool(re.search(r"(?:HEM+ABYGG|REPLIK|REPLICA|\bREPL\b)", descriptive_text))
     special_modified = bool(special_modified_codes.intersection(codes)) or any(
         _normalized_entity(description) == "AMATÖR" for description in descriptions
-    )
+    ) or descriptive_special_modified
     if special_modified:
         flags.append("special_modified")
         normalized["vehicle_classification"] = "special_modified"
@@ -596,6 +681,34 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
         normalized["parts_matching_eligible"] = False
         normalized["parts_matching_exclusion_reason"] = "special_modified_vehicle"
         normalized["tecdoc_match_policy"] = special_tecdoc_policy
+        if descriptive_special_modified and not special_modified_codes.intersection(codes):
+            normalized["classification_source"] = "brand_model_text"
+    elif (normalize_text(raw.get("brand")) or "").upper().startswith("TEST/"):
+        normalized["record_route"] = "quarantine_test_record"
+        normalized["parts_matching_policy"] = "excluded"
+        normalized["parts_matching_eligible"] = False
+        normalized["parts_matching_exclusion_reason"] = "test_record"
+        flags.append("test_record")
+    elif (
+        "SA" in {code.upper() for code in body_codes}
+        and (_normalized_entity(raw.get("vehicle_class")) or "") == "II"
+    ) or (
+        _MOTORHOME_REGISTERED_MARQUE.search(str(raw.get("brand") or ""))
+        and (
+            (_normalized_entity(raw.get("vehicle_class")) or "") == "II"
+            or "SA" in {code.upper() for code in body_codes}
+            or raw.get("base_manufacturer") not in (None, "")
+            or (_normalized_entity(raw.get("body_code")) or "") == "AF"
+            or _resolve_vin_manufacturer(raw.get("vin")) is not None
+            or (_normalized_entity(raw.get("fab_code")) or "")
+            in _MOTORHOME_MARQUE_FAB_CODES
+        )
+    ):
+        normalized["record_route"] = "exclude_from_passenger_car_dataset"
+        normalized["parts_matching_policy"] = "excluded"
+        normalized["parts_matching_eligible"] = False
+        normalized["parts_matching_exclusion_reason"] = "motorhome_out_of_passenger_scope"
+        flags.append("motor_caravan")
     elif flags:
         normalized["parts_matching_policy"] = other_special_parts_policy
         normalized["parts_matching_eligible"] = False
@@ -653,6 +766,17 @@ def normalize_ts_record(
     applied = context.applied_rule_ids
     candidate_rules = context.candidate_rule_ids
     reasons = context.review_reasons
+
+    if normalized.get("record_route") in {
+        "exclude_from_passenger_car_dataset",
+        "quarantine_test_record",
+    }:
+        reasons[:] = [
+            reason
+            for reason in reasons
+            if not reason.startswith("manufacturer_")
+            and reason not in {"generic_custom_identity_unverified"}
+        ]
 
     if reasons:
         status: NormalizationStatus = "review_required"
@@ -764,7 +888,7 @@ def _manufacturer_entity_rule(
     if source_term is None:
         return None
     exact = rules.get(f"{source_field}:{source_term}")
-    if exact is not None:
+    if exact is not None and _manufacturer_entity_evidence_matches(exact, raw):
         return exact
     match_key = _manufacturer_match_key(raw.get(source_field))
     if match_key is None:
@@ -775,7 +899,13 @@ def _manufacturer_entity_rule(
             rule.get("kind") != "manufacturer_entity"
             or rule.get("source_field") != source_field
             or rule.get("match_type")
-            not in {"diacritic_insensitive_prefix", "approved_compact_prefix"}
+            not in {
+                "diacritic_insensitive_prefix",
+                "approved_compact_prefix",
+                "evidence_regex",
+                "exact_source_value",
+            }
+            or not _manufacturer_entity_evidence_matches(rule, raw)
         ):
             continue
         configured_aliases = rule.get("aliases")
@@ -783,6 +913,18 @@ def _manufacturer_entity_rule(
             rule.get("source_term"),
             *(configured_aliases if isinstance(configured_aliases, list) else []),
         ]
+        if rule.get("match_type") == "evidence_regex":
+            source_regex = rule.get("source_regex")
+            if isinstance(source_regex, str) and re.search(
+                source_regex, str(raw.get(source_field) or ""), flags=re.IGNORECASE
+            ):
+                matches.append((len(source_regex), rule))
+            continue
+        if rule.get("match_type") == "exact_source_value":
+            exact_source_value = _normalized_entity(rule.get("exact_source_value"))
+            if exact_source_value is not None and source_term == exact_source_value:
+                matches.append((len(exact_source_value), rule))
+            continue
         for alias in aliases:
             alias_key = _manufacturer_match_key(alias)
             if alias_key is None:
@@ -808,6 +950,76 @@ def _manufacturer_entity_rule(
     best = [rule for length, rule in matches if length == longest]
     canonical_names = {rule.get("canonical_name") for rule in best}
     return best[0] if len(canonical_names) == 1 else None
+
+
+def _manufacturer_entity_evidence_matches(
+    rule: Mapping[str, Any], raw: dict[str, Any]
+) -> bool:
+    required_model_manufacturer = rule.get("requires_model_manufacturer")
+    if isinstance(required_model_manufacturer, str) and (
+        (
+            _resolve_model_manufacturer(raw.get("model"))
+            or _resolve_manufacturer(raw.get("model"))
+        )
+        != required_model_manufacturer
+    ):
+        return False
+    required_terms = rule.get("requires_any_text_terms")
+    if isinstance(required_terms, list):
+        evidence = " ".join(
+            value
+            for field_name in ("brand", "model", "variant", "version")
+            if (value := _normalized_entity(raw.get(field_name))) is not None
+        )
+        if not any(
+            isinstance(term, str) and (_normalized_entity(term) or "") in evidence
+            for term in required_terms
+        ):
+            return False
+    evidence_values = [
+        str(raw.get(field_name) or "")
+        for field_name in ("brand", "model", "variant", "version", "type_text", "vin")
+    ]
+    evidence_text = " ".join(evidence_values)
+    required_regex = rule.get("requires_any_field_regex")
+    if isinstance(required_regex, str) and re.search(
+        required_regex, evidence_text, flags=re.IGNORECASE
+    ) is None:
+        return False
+    excluded_regex = rule.get("excludes_text_regex")
+    if isinstance(excluded_regex, str) and re.search(
+        excluded_regex, evidence_text, flags=re.IGNORECASE
+    ) is not None:
+        return False
+    required_fab_code = rule.get("requires_fab_code")
+    if isinstance(required_fab_code, str) and (
+        _normalized_entity(raw.get("fab_code")) != _normalized_entity(required_fab_code)
+    ):
+        return False
+    year_range = rule.get("requires_year_between")
+    if isinstance(year_range, list) and len(year_range) == 2:
+        year = _parse_year(raw.get("model_year")) or _parse_year(raw.get("vehicle_year"))
+        if year is None or not int(year_range[0]) <= year <= int(year_range[1]):
+            return False
+    required_vin_regex = rule.get("requires_vin_regex")
+    if isinstance(required_vin_regex, str) and re.search(
+        required_vin_regex, str(raw.get("vin") or ""), flags=re.IGNORECASE
+    ) is None:
+        return False
+    if rule.get("requires_no_manufacturer_conflict") is True:
+        canonical = rule.get("canonical_name")
+        recognized = {
+            value
+            for value in (
+                _resolve_manufacturer(raw.get("brand")),
+                _resolve_model_manufacturer(raw.get("model")),
+                _resolve_base_manufacturer(raw.get("base_manufacturer")),
+            )
+            if value is not None
+        }
+        if isinstance(canonical, str) and any(value != canonical for value in recognized):
+            return False
+    return True
 
 
 def _reviewed_brand_example_rule(
@@ -910,6 +1122,11 @@ def _manufacturer_from_brand_prefix(
             continue
         alias = _normalized_entity(rule.get("source_term"))
         canonical = rule.get("canonical_name")
+        required_model_manufacturer = rule.get("requires_model_manufacturer")
+        if isinstance(required_model_manufacturer, str) and (
+            _resolve_model_manufacturer(raw.get("model")) != required_model_manufacturer
+        ):
+            continue
         if (
             alias is not None
             and isinstance(canonical, str)
@@ -1007,6 +1224,66 @@ def _apply_manufacturer_entity_rule(
         normalized["manufacturer_evidence"] = [
             source_field if isinstance(source_field, str) else "manufacturer"
         ]
+        sub_brand = rule.get("sub_brand")
+        if isinstance(sub_brand, str) and sub_brand:
+            normalized["sub_brand"] = sub_brand
+        if rule.get("registered_marque_converter") is True:
+            normalized["builder_converter_names"] = [canonical_name]
+            evidence_manufacturer = _resolve_base_manufacturer(raw.get("base_manufacturer"))
+            if evidence_manufacturer is None:
+                evidence_manufacturer = _resolve_vin_manufacturer(raw.get("vin"))
+            if evidence_manufacturer is not None:
+                normalized["base_vehicle_manufacturer"] = evidence_manufacturer
+            model = _normalized_entity(raw.get("model")) or ""
+            for candidate in rule.get("base_model_terms", []):
+                if isinstance(candidate, str) and re.search(
+                    rf"\b{re.escape(candidate)}\b", model, flags=re.IGNORECASE
+                ):
+                    normalized["base_model"] = candidate.upper()
+                    break
+        configured_base = rule.get("base_vehicle_manufacturer")
+        if isinstance(configured_base, str):
+            normalized["base_vehicle_manufacturer"] = configured_base
+        configured_model = rule.get("base_model")
+        if isinstance(configured_model, str):
+            normalized["base_model"] = configured_model
+        configured_builder = rule.get("coachbuilder")
+        if isinstance(configured_builder, str):
+            normalized["builder_converter_names"] = [configured_builder]
+        special_purpose = rule.get("special_purpose_type")
+        if isinstance(special_purpose, str):
+            normalized["special_purpose_type"] = special_purpose
+        manufacturer_group = rule.get("manufacturer_group")
+        if isinstance(manufacturer_group, str):
+            normalized["manufacturer_group"] = manufacturer_group
+        configured_model_name = rule.get("model_name")
+        if isinstance(configured_model_name, str):
+            normalized["model"] = configured_model_name
+        configured_model_family = rule.get("model_family")
+        if isinstance(configured_model_family, str):
+            normalized["model_family"] = configured_model_family
+        parts_policy = rule.get("parts_matching_policy")
+        conditional_parts_policy = rule.get("parts_matching_policy_when_special_purpose")
+        if (
+            parts_policy is None
+            and isinstance(conditional_parts_policy, str)
+            and (
+                normalize_text(normalized.get("special_purpose_type")) is not None
+                or normalize_text(raw.get("special_purpose_type")) is not None
+                or any(
+                    normalize_text(raw.get(field_name)) is not None
+                    for field_name in ("body_code2", "body_code_extra")
+                )
+            )
+        ):
+            parts_policy = conditional_parts_policy
+        if isinstance(parts_policy, str):
+            normalized["parts_matching_policy"] = parts_policy
+            normalized["parts_matching_eligible"] = parts_policy not in {
+                "excluded",
+                "restricted",
+                "manual_review",
+            }
         applied.append(entity_id)
         return True
     reasons.append("manufacturer_entity_configuration_invalid")
@@ -1074,7 +1351,6 @@ def _marketed_manufacturer_evidence(
     corroborators = (
         ("MFR-BRAND-BASE", _resolve_base_manufacturer(raw.get("base_manufacturer"))),
         ("MFR-BRAND-MODEL", _resolve_model_manufacturer(raw.get("model"))),
-        ("MFR-BRAND-VIN-WMI", _resolve_vin_manufacturer(raw.get("vin"))),
         ("MFR-BRAND-FAB-CODE", _resolve_fab_manufacturer(raw.get("fab_code"))),
         ("MFR-BRAND-KTYPE", _resolve_manufacturer(raw.get("ktype_manufacturer"))),
     )
@@ -1134,6 +1410,8 @@ def _retain_manufacturer_evidence(
 ) -> None:
     legal = normalize_text(raw.get("manufacturer"))
     base = normalize_text(raw.get("base_manufacturer"))
+    registered_make = normalize_text(raw.get("brand"))
+    vin_manufacturing_entity = _resolve_vin_manufacturer(raw.get("vin"))
     if fragmented is not None:
         normalized["legal_manufacturer"] = fragmented
         normalized["manufacturer_source_repair"] = "concatenated_manufacturer_base_fragments"
@@ -1142,6 +1420,10 @@ def _retain_manufacturer_evidence(
         normalized["legal_manufacturer"] = legal
     if base is not None:
         normalized["base_manufacturer"] = base
+    if registered_make is not None:
+        normalized["registered_make"] = registered_make
+    if vin_manufacturing_entity is not None:
+        normalized["vin_manufacturing_entity"] = vin_manufacturing_entity
 
 
 def _normalize_manufacturer(
@@ -1155,10 +1437,24 @@ def _normalize_manufacturer(
 ) -> None:
     if normalized.get("vehicle_classification") == "special_modified":
         _retain_manufacturer_evidence(raw, normalized)
-        normalized["manufacturer_role"] = "special_modified"
+        normalized["manufacturer_role"] = (
+            "self_built"
+            if _normalized_entity(raw.get("brand")) == "EGEN TILLVERKNING"
+            else "special_modified"
+        )
         normalized["builder_converter_names"] = []
         normalized["manufacturer_evidence"] = ["text_codes"]
         applied.append("MFR-SPECIAL-MODIFIED-GROUP")
+        return
+    if (_normalized_entity(raw.get("brand")) or "") == "HOT ROD":
+        _retain_manufacturer_evidence(raw, normalized)
+        normalized["manufacturer_role"] = "custom_identity_unverified"
+        normalized["builder_converter_names"] = []
+        normalized["manufacturer_evidence"] = ["brand"]
+        normalized["parts_matching_policy"] = "restricted"
+        normalized["parts_matching_eligible"] = False
+        reasons.append("generic_custom_identity_unverified")
+        applied.append("MFR-GENERIC-HOT-ROD-REVIEW-V1")
         return
     entity = _normalized_entity(raw.get("manufacturer"))
     base = _resolve_base_manufacturer(raw.get("base_manufacturer"))
@@ -1780,7 +2076,7 @@ def _normalize_transmission(context: NormalizationContext) -> None:
         context.review_reasons.append("transmission_electrification_evidence_missing")
         return
     if code_rule is not None and code_rule.canonical_value != rule.canonical_value:
-        if code_rule.canonical_value == "automatic" and rule.canonical_value == "dct":
+        if code_rule.canonical_value == "automatic" and rule.canonical_value in {"cvt", "dct"}:
             normalized["transmission_name"] = source_term
             context.applied_rule_ids.append(rule.rule_id)
             return
@@ -1872,6 +2168,10 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
         return
     manufacturer = normalized.get("manufacturer")
     if not _manufacturer_is_in_scope(rule, manufacturer):
+        if code_rule is not None:
+            context.candidates["marketing_body_style"] = rule.canonical_value
+            context.candidate_rule_ids.append(rule.rule_id)
+            return
         context.review_reasons.append("bodywork_marketing_scope_unresolved")
         return
     if special_purpose is not None:
@@ -1883,6 +2183,13 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     if rule.rule_id == "BDY-013" and (
         code_rule is None or code_rule.rule_id not in {"BDY-118", "BDY-SA"}
     ):
+        if (
+            normalized.get("manufacturer") == "Volkswagen"
+            and (_normalized_entity(raw.get("model")) or "").startswith("CALIFORNIA")
+        ):
+            context.candidates["marketing_body_style"] = rule.canonical_value
+            context.candidate_rule_ids.append(rule.rule_id)
+            return
         if code_rule is not None:
             return
         context.candidates[rule.canonical_field] = rule.canonical_value
