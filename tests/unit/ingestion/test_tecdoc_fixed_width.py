@@ -5,9 +5,9 @@ import pytest
 from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.fixed_width import TABLE_FORMATS, TecDocFormatError, parse_row
 from ingestion.tecdoc.reference_data import (
-    canonical_engine_fuels,
     canonical_bodywork_by_kt086,
     canonical_drive_by_kt082,
+    canonical_engine_fuels,
     load_key_table_labels,
     official_bodywork_labels,
     official_transmission_type_labels,

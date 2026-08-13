@@ -5,13 +5,13 @@ from neo4j import Driver, GraphDatabase
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from api.app.core.settings import get_settings
+from ingestion.tecdoc.canonical_promotion import CanonicalPromotion
 from ingestion.tecdoc.graph_writer import (
     GraphRelationshipConflictError,
     ResolvedEngineRelationship,
-    write_resolved_engine_relationships,
     promote_canonical_vehicles,
+    write_resolved_engine_relationships,
 )
-from ingestion.tecdoc.canonical_promotion import CanonicalPromotion
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
 

@@ -1,10 +1,12 @@
+from typing import Self
+
 import pytest
 
 from ingestion.tecdoc.graph_writer import (
-    GraphRelationshipConflictError,
-    ResolvedEngineRelationship,
     _PROMOTION_QUERY,
     _VEHICLE_FACTS_PROMOTION_QUERY,
+    GraphRelationshipConflictError,
+    ResolvedEngineRelationship,
     write_resolved_engine_relationships,
 )
 from northstar.node_ids import NodeIdGenerator
@@ -33,7 +35,7 @@ class FakeSession:
     def __init__(self, transaction: FakeTransaction) -> None:
         self.transaction = transaction
 
-    def __enter__(self) -> "FakeSession":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -55,9 +57,7 @@ def ids() -> tuple[str, str, str]:
     generator = NodeIdGenerator(clock_ms=lambda: 1, entropy=lambda _: b"\x01" * 10)
     variant = generator.mint("VEH")
     engine_one = generator.mint("ENG")
-    engine_two = NodeIdGenerator(
-        clock_ms=lambda: 1, entropy=lambda _: b"\x02" * 10
-    ).mint("ENG")
+    engine_two = NodeIdGenerator(clock_ms=lambda: 1, entropy=lambda _: b"\x02" * 10).mint("ENG")
     return variant, engine_one, engine_two
 
 

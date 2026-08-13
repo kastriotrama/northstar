@@ -145,8 +145,10 @@ class TecDocReviewRepository:
             "drive": (
                 "'drive:' || (v.attributes->>'drive_type')",
                 "upper(v.attributes->>'drive_type')",
-                "jsonb_build_object('drive_type', v.attributes->>'drive_type', "
-                "'official_evidence', v.attributes->>'tecdoc_drive_official_label')",
+                (
+                    "jsonb_build_object('drive_type', v.attributes->>'drive_type', "
+                    "'official_evidence', v.attributes->>'tecdoc_drive_official_label')"
+                ),
             ),
         }
         source_expression, name_expression, details_expression = expressions[kind]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 

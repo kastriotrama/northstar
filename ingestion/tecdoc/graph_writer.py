@@ -6,9 +6,8 @@ from dataclasses import dataclass
 
 from neo4j import Driver, ManagedTransaction
 
-from northstar.node_ids import is_valid_node_id
-
 from ingestion.tecdoc.canonical_promotion import CanonicalPromotion
+from northstar.node_ids import is_valid_node_id
 
 
 @dataclass(frozen=True)

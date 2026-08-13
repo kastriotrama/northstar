@@ -17,9 +17,9 @@ from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.graph_writer import promote_canonical_vehicles
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.reference_data import (
-    canonical_engine_fuels,
     canonical_bodywork_by_kt086,
     canonical_drive_by_kt082,
+    canonical_engine_fuels,
     canonical_vehicle_fuels,
     official_bodywork_labels,
     official_drive_type_labels,

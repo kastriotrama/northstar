@@ -5,20 +5,20 @@ import psycopg
 import pytest
 from psycopg import Connection
 
+from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 from ingestion.config import get_ingestion_settings
 from ingestion.ledger_migrations import run_ledger_migrations
+from ingestion.tecdoc.canonical_promotion import prepare_canonical_promotions
 from ingestion.tecdoc.dat_extraction import (
     EngineAllocation,
     EngineApplicability,
     TecDocHierarchyRecord,
 )
 from ingestion.tecdoc.hierarchy_persistence import persist_engine_relationship_candidates
-from ingestion.tecdoc.canonical_promotion import prepare_canonical_promotions
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.models import TecDocVehicleRow
-from ingestion.tecdoc.service import ingest_tecdoc_vehicle_tree
 from ingestion.tecdoc.repository import register_batch
-from api.app.features.tecdoc_review.repository import TecDocReviewRepository
+from ingestion.tecdoc.service import ingest_tecdoc_vehicle_tree
 
 
 @pytest.fixture(scope="module")
