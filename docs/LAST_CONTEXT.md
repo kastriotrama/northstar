@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-13 — VD-AI passenger import and PR consolidation
+
+- Imported and normalized all 6,515,471 VD-AI passenger vehicles into 267 durable checkpoints: 2,219,392 resolved, 4,271,690 provisional, 24,389 review-required, and 0 failed. Retained only the 24,389 review rows and their raw evidence. Merged PR #28 into PR #29, fixed Ruff 0.16 findings, and refreshed the normalization-bundle fixture for the reviewed `FUEL-019` catalog value.
+
 ## 2026-08-13 — V3.2.2 agreed-brand batch activated
 
 - Activated immutable version `ts-review-20260813T104653142376Z` with 138 non-shadowing exact Brand rules covering 191 agreed workbook records, plus code-level corroborated motorhome-fab routing and expanded strong self-built/replica text. A full 25,295-car audit found zero canonical conflicts and zero resolved/provisional regressions. Reprocessed as `normalization-remote-passenger-cars-only-v322-20260813`: 10,475 resolved, 12,682 provisional, 2,138 review-required, 0 failed, reducing review by another 215. Updated the established SQL delta in place to 654 cumulative definitions/875 overrides; 88 focused tests and Ruff pass. The remaining queue is dominated by 2,094 manufacturer-missing records, mostly ambiguous custom/one-off identities.
