@@ -40,7 +40,7 @@ def test_stakeholder_changes_are_captured_without_concept_conflation() -> None:
     assert rules.get("FUEL-010").canonical_value == "rme"
     assert rules.get("FUEL-012").canonical_value == "cng"
     assert rules.get("FUEL-013").canonical_value == "renewable_cng"
-    assert rules.get("FUEL-019").canonical_value == "diesel"
+    assert rules.get("FUEL-019").canonical_value == "biodiesel"
     assert rules.get("BDY-115").canonical_value == "truck"
     assert rules.get("BDY-010").canonical_value == "passenger_van"
     assert rules.get("BDY-110").canonical_value == "estate"

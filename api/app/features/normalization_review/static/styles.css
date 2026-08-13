@@ -129,6 +129,8 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
 .text-code-list article { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; padding: 13px 0; border-bottom: 1px solid #ddcda9; }
 .text-code-list article strong { color: var(--teal); }
 .text-code-list article em, .text-code-list article small { grid-column: 2; color: var(--muted); font-style: normal; }
+.official-code-links { margin: 13px 0 0; color: var(--muted); font-size: 10px; }
+.official-code-links a { color: var(--teal); font-weight: 700; }
 .section-hint { margin: -7px 0 15px; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .field-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin: 0; }
 .field-list div { min-width: 0; }

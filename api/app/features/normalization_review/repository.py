@@ -11,6 +11,9 @@ from psycopg import Connection, sql
 from api.app.features.normalization_review.schemas import NormalizationReviewFilters
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 
+ALL_PARTS_SUFFIX = "-all-parts"
+PART_MARKER = "-part-"
+
 
 class ConnectionFactory(Protocol):
     def __call__(self) -> AbstractContextManager[Connection[Any]]: ...
@@ -28,7 +31,22 @@ class NormalizationReviewRepository:
                 "LIMIT 1"
             )
             row = cursor.fetchone()
-        return str(row[0]) if row is not None else None
+        if row is None:
+            return None
+        batch_id = str(row[0])
+        if PART_MARKER in batch_id:
+            return f"{batch_id.rsplit(PART_MARKER, maxsplit=1)[0]}{ALL_PARTS_SUFFIX}"
+        return batch_id
+
+    @staticmethod
+    def _batch_condition(batch_id: str) -> tuple[sql.Composable, tuple[object, ...]]:
+        if batch_id.endswith(ALL_PARTS_SUFFIX):
+            prefix = batch_id.removesuffix(ALL_PARTS_SUFFIX)
+            return (
+                sql.SQL("source_batch_id = ANY(%s)"),
+                ([f"{prefix}{PART_MARKER}{part:03d}" for part in range(1, 1000)],),
+            )
+        return sql.SQL("source_batch_id = %s"), (batch_id,)
 
     def fetch_page(
         self,
@@ -38,7 +56,9 @@ class NormalizationReviewRepository:
     ) -> tuple[int, list[dict[str, Any]]]:
         conditions, parameters = self._filter_conditions(filters)
         where_clause = sql.SQL(" AND ").join(conditions) if conditions else sql.SQL("TRUE")
-        cte = sql.SQL(
+        batch_condition, batch_parameters = self._batch_condition(batch_id)
+        cte = (
+            sql.SQL(
             f"""
             WITH latest AS (
                 SELECT DISTINCT ON (source_record_id)
@@ -60,15 +80,21 @@ class NormalizationReviewRepository:
                         WHERE raw.id = source_record_id
                     ) AS source_brand
                 FROM {NORMALIZATION_RESULTS_TABLE}
-                WHERE source_batch_id = %s
+                WHERE
+            """
+            )
+            + batch_condition
+            + sql.SQL(
+                """
                 ORDER BY source_record_id, updated_at DESC, id DESC
             )
             """
+            )
         )
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 cte + sql.SQL("SELECT count(*) FROM latest WHERE ") + where_clause,
-                (batch_id, *parameters),
+                (*batch_parameters, *parameters),
             )
             count_row = cursor.fetchone()
             filtered_total = int(count_row[0]) if count_row is not None else 0
@@ -80,7 +106,7 @@ class NormalizationReviewRepository:
                 )
                 + where_clause
                 + sql.SQL(" ORDER BY source_record_id LIMIT %s OFFSET %s"),
-                (batch_id, *parameters, filters.limit, filters.offset),
+                (*batch_parameters, *parameters, filters.limit, filters.offset),
             )
             rows = cursor.fetchall()
         return filtered_total, [
@@ -100,18 +126,26 @@ class NormalizationReviewRepository:
 
     def fetch_summary(self, *, batch_id: str) -> dict[str, int]:
         counts = {"resolved": 0, "provisional": 0, "review_required": 0, "failed": 0}
+        batch_condition, batch_parameters = self._batch_condition(batch_id)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                f"""
+                sql.SQL(
+                    f"""
                 WITH latest AS (
                     SELECT DISTINCT ON (source_record_id) source_record_id, status
                     FROM {NORMALIZATION_RESULTS_TABLE}
-                    WHERE source_batch_id = %s
+                    WHERE
+                """
+                )
+                + batch_condition
+                + sql.SQL(
+                    """
                     ORDER BY source_record_id, updated_at DESC, id DESC
                 )
                 SELECT status, count(*) FROM latest GROUP BY status
-                """,
-                (batch_id,),
+                """
+                ),
+                batch_parameters,
             )
             for status, count in cursor.fetchall():
                 counts[str(status)] = int(count)
@@ -119,44 +153,52 @@ class NormalizationReviewRepository:
         return counts
 
     def fetch_facets(self, *, batch_id: str) -> dict[str, list[str]]:
+        batch_condition, batch_parameters = self._batch_condition(batch_id)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                f"""
+                sql.SQL(
+                    f"""
                 WITH latest AS (
                     SELECT DISTINCT ON (source_record_id)
                         source_record_id,
                         normalized_payload
                     FROM {NORMALIZATION_RESULTS_TABLE}
-                    WHERE source_batch_id = %s
+                    WHERE
+                """
+                )
+                + batch_condition
+                + sql.SQL(
+                    """
                     ORDER BY source_record_id, updated_at DESC, id DESC
                 ), values AS (
                     SELECT
                         coalesce(
-                            normalized_payload #>> '{{normalized,manufacturer}}',
-                            normalized_payload #>> '{{candidates,manufacturer}}'
+                            normalized_payload #>> '{normalized,manufacturer}',
+                            normalized_payload #>> '{candidates,manufacturer}'
                         ) AS manufacturer,
-                        normalized_payload #>> '{{normalized,bodywork_form}}' AS bodywork,
-                        normalized_payload #>> '{{normalized,transmission_type}}' AS transmission,
-                        normalized_payload #> '{{normalized,energy_sources}}' AS fuels
+                        normalized_payload #>> '{normalized,bodywork_form}' AS bodywork,
+                        normalized_payload #>> '{normalized,transmission_type}' AS transmission,
+                        normalized_payload #> '{normalized,energy_sources}' AS fuels
                     FROM latest
                 )
                 SELECT
                     coalesce(array_agg(DISTINCT manufacturer)
-                        FILTER (WHERE manufacturer IS NOT NULL), '{{}}'),
+                        FILTER (WHERE manufacturer IS NOT NULL), '{}'),
                     coalesce(array_agg(DISTINCT bodywork)
-                        FILTER (WHERE bodywork IS NOT NULL), '{{}}'),
+                        FILTER (WHERE bodywork IS NOT NULL), '{}'),
                     coalesce(array_agg(DISTINCT transmission)
-                        FILTER (WHERE transmission IS NOT NULL), '{{}}'),
+                        FILTER (WHERE transmission IS NOT NULL), '{}'),
                     coalesce(
                         (
                             SELECT array_agg(DISTINCT fuel ORDER BY fuel)
                             FROM values, jsonb_array_elements_text(coalesce(fuels, '[]')) AS fuel
                         ),
-                        '{{}}'
+                        '{}'
                     )
                 FROM values
-                """,
-                (batch_id,),
+                """
+                ),
+                batch_parameters,
             )
             row = cursor.fetchone()
         if row is None:

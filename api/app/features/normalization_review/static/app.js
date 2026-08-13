@@ -105,6 +105,7 @@ function ruleExplanation(ruleId) {
     "DRV-003": "For Audi vehicles, quattro is accepted as all-wheel drive.",
     "DRV-004": "For Volkswagen vehicles, 4Motion is accepted as all-wheel drive.",
     "DRV-008": "When the official TS is_4wd flag is 1, all-wheel drive is accepted. A value of 0 does not identify front- or rear-wheel drive.",
+    "TS-SPECIAL-VEHICLE-V1": "Official TS text and body codes preserve modifications and special use. Amateur/rebuilt vehicles are grouped as Special Modified and excluded from parts matching; taxi, police, ambulance, rally and other safety-modified vehicles keep their real manufacturer and require manual parts review.",
   };
   if (explanations[ruleId]) return explanations[ruleId];
   if (ruleId.startsWith("MFE-")) return "If the source company matches this approved manufacturer entity, its reviewed classification and canonical manufacturer name are used.";
@@ -171,7 +172,10 @@ async function loadVehicles({ preserveSelection = false } = {}) {
 
 function renderPage() {
   const page = state.page;
-  document.querySelector("#batch-label").textContent = page.batch_id ? `Batch · ${page.batch_id}` : "No normalized batch yet";
+  const batchLabel = page.batch_id?.endsWith("-all-parts")
+    ? `${page.batch_id.slice(0, -"-all-parts".length)} · all imported parts`
+    : page.batch_id;
+  document.querySelector("#batch-label").textContent = batchLabel ? `Batch · ${batchLabel}` : "No normalized batch yet";
   document.querySelector("#summary-total").textContent = page.summary.total.toLocaleString();
   document.querySelector("#summary-resolved").textContent = page.summary.resolved.toLocaleString();
   document.querySelector("#summary-provisional").textContent = page.summary.provisional.toLocaleString();
@@ -238,7 +242,7 @@ function renderInspector(vehicle) {
 
   document.querySelector("#inspector-record").textContent = `Source record ${vehicle.source_record_id}`;
   document.querySelector("#inspector-name").textContent = `${vehicle.manufacturer_group || vehicle.manufacturer || "Unresolved"} ${vehicle.model_family || "vehicle"}`;
-  document.querySelector("#inspector-identity").innerHTML = `<strong>${escapeHtml(vehicle.registration_plate || "No registration plate supplied")}</strong><span class="data-kind data-kind-${escapeHtml(vehicle.source_data_kind)}">${escapeHtml(vehicle.source_data_kind)} source</span><span>${escapeHtml(vehicle.source_batch_id)}</span>`;
+  document.querySelector("#inspector-identity").innerHTML = `<strong>Plate · ${escapeHtml(vehicle.registration_plate || "Not supplied")}</strong><span class="data-kind data-kind-${escapeHtml(vehicle.source_data_kind)}">${escapeHtml(vehicle.source_data_kind)} source</span><span>${escapeHtml(vehicle.source_batch_id)}</span>`;
   const status = document.querySelector("#inspector-status");
   status.className = `status-badge status-${vehicle.status}`;
   status.textContent = labels[vehicle.status] ?? humanize(vehicle.status);
@@ -520,7 +524,8 @@ async function showRuleInVehicle(ruleId) {
   } else if (manufacturerEntity) {
     detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Manufacturer entity</span><strong>${escapeHtml(ruleId)}</strong><em class="decision-label ${manufacturerEntity.effective_entity_role === "unknown" ? "decision-proposed" : "decision-accepted"}">${escapeHtml(humanize(manufacturerEntity.effective_entity_role))}</em></div><div class="vehicle-rule-detail-grid">${ruleDetailField("Source field", humanize(manufacturerEntity.source_field))}${ruleDetailField("Source term", manufacturerEntity.source_term)}${ruleDetailField("Canonical manufacturer", manufacturerEntity.effective_canonical_name)}${ruleDetailField("Base manufacturers", (manufacturerEntity.base_manufacturers || []).join(", ") || "None")}${ruleDetailField("Occurrences", manufacturerEntity.occurrences ?? 0)}${ruleDetailField("Version state", manufacturerEntity.has_draft ? "Draft change" : "Active")}</div>`;
   } else {
-    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Pipeline policy</span><strong>${escapeHtml(ruleId)}</strong></div><div class="policy-explanation"><span>What this rule means</span><p>${escapeHtml(ruleExplanation(ruleId))}</p></div><small>This policy is built into the normalizer and is read-only here.</small>`;
+    const officialLinks = ruleId === "TS-SPECIAL-VEHICLE-V1" ? `<p class="official-code-links">Official definitions: <a href="https://www.transportstyrelsen.se/sv/vagtrafik/fordon/fordonsregler/koder-for-fordonsuppgifter/Textkod/" target="_blank" rel="noreferrer">Text codes</a> · <a href="https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/fordonsregler/Koder-for-fordonsuppgifter/Karosserikoder/Fordon-for-sarskilda-andamal/" target="_blank" rel="noreferrer">Special-purpose codes</a></p>` : "";
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Pipeline policy</span><strong>${escapeHtml(ruleId)}</strong></div><div class="policy-explanation"><span>What this rule means</span><p>${escapeHtml(ruleExplanation(ruleId))}</p></div>${officialLinks}<small>This policy is built into the normalizer and is read-only here.</small>`;
   }
 }
 
