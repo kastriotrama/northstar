@@ -2,6 +2,18 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-14 — Production normalization gaps documented
+
+- Added `docs/NORMALIZATION_PRODUCTION_GAPS.md` as a concise handoff of completed normalization assets and remaining production work. It identifies the background worker, resumable checkpoints, incremental reprocessing, deployment ordering, manually triggered GitHub Action, and operational visibility as the remaining implementation, while preserving the 2,138 ambiguous records for restricted/manual review. No pipeline, database, or workflow behavior changed.
+
+## 2026-08-13 — Local TS-to-KType conservative match audit
+
+- Compared the 22,023 resolved/provisional records from retained-review batch `normalization-local-review-24389-v322-20260813T180554Z` with 97,895 KTypes from `tecdoc-0326-canonical-full-v2-local`. After excluding 1,149 records restricted by parts-matching policy, an exact manufacturer/year-range/displacement/power/fuel join found 94 cars with 269 technical candidates: 12 unique and 82 ambiguous. Model evidence reduced this to 6 unique model-supported candidates and 72 ambiguous model-supported cars; 20,780 had no exact technical candidate. No production links were written because ambiguity and sparse coverage require a reviewed matching/persistence step.
+
+## 2026-08-13 — Local V3.2.2 retained-review reprocessing
+
+- Reprocessed all 24,389 review-required source records retained from the 6,515,471-car import using active rules `ts-review-20260813T104653142376Z`, without changing the original batch. New batch `normalization-local-review-24389-v322-20260813T180554Z` produced 10,047 resolved, 11,976 provisional, 2,366 review-required, and 0 failed; exact raw and result counts both reconcile to 24,389. Full-dataset reprocessing still requires restoring the pruned resolved/provisional source records.
+
 ## 2026-08-13 — VD-AI passenger import and PR consolidation
 
 - Imported and normalized all 6,515,471 VD-AI passenger vehicles into 267 durable checkpoints: 2,219,392 resolved, 4,271,690 provisional, 24,389 review-required, and 0 failed. Retained only the 24,389 review rows and their raw evidence. Merged PR #28 into PR #29, fixed Ruff 0.16 findings, and refreshed the normalization-bundle fixture for the reviewed `FUEL-019` catalog value.
@@ -29,19 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-12 — V3.1 safe rules and strict contracts
 
 - Added strict V3.1 ruleset and test-file JSON Schemas with raw/normalized namespaces, enumerated stages/operators/actions/fields, conditional action requirements, and non-empty constraints, plus a dependency-free semantic validator for rule IDs, stage/priority ambiguity, dictionaries, regexes, canonical fields, and terminal ordering. Activated immutable version `ts-review-20260812T150129143531Z` with scoped corroborated BUIK, Tiger Avon, DMC DeLorean, Factory Five Roadster, and Nilsson special-purpose restrictions; generic HOT ROD now stays unresolved with restricted parts/review guidance, and SA + class II routes outside the passenger dataset. Reprocessed 25,295 cars: 9,746 resolved, 12,671 provisional, 2,878 review-required, and 0 failed, reducing review by 17. All 110 focused tests, Ruff, JSON parsing, PostgreSQL examples, and SQL export pass; Bertone Ritmo behavior remains unchanged pending PM confirmation.
-
-## 2026-08-12 — V3 schema and regression-test review
-
-- Reviewed the proposed v3 JSON Schema and 15 behavioral tests without changing code or the database. Eight tests already match the active normalized behavior; seven expose useful gaps: Nilsson special-purpose parts restriction, guarded Bertone Ritmo policy, Buick typo corroboration, generic custom-identity routing, motorhome exclusion routing, DeLorean aliasing, and restricted Tiger/Factory Five kit-car handling. The schema is a useful envelope but needs enumerated operators/actions/fields, operation-specific required properties, non-empty action/match constraints, and a separate schema for tests before it can serve as an executable contract. Bertone Ritmo remains the only stakeholder policy decision; the other gaps can be implemented with scoped rules.
-
-## 2026-08-12 — Verified-v2 guarded manufacturer rules activated
-
-- Implemented executable regex, strict-year, fab-code corroboration, custom-text exclusion, and manufacturer-conflict guards for the reviewed v2 proposal. A 5,529-row dry run identified the expected 2,698 affected rows (2,682 manufacturer resolutions plus 16 TEST quarantines), with four same-canonical BINZ overlaps consolidated to zero overlaps and zero canonical conflicts. Activated immutable version `ts-review-20260812T143204290357Z` with 134 guarded manufacturer definitions and official TS fuel mappings (`19=biodiesel`, `F=flex_fuel`), then reprocessed 25,295 cars: 9,729 resolved, 12,671 provisional, 2,895 review-required, and 0 failed. Real PostgreSQL checks confirm TEST quarantine, strict historic/fab mappings, and Toyota diesel+biodiesel flex-fuel; 106 focused tests and Ruff pass, and the established SQL delta now has 262 cumulative changes/483 overrides.
-
-## 2026-08-12 — Manufacturer-missing review export
-
-- Exported all 5,529 `manufacturer_missing` rows from the active 25,295-car cohort to `northstar_manufacturer_missing_5529_2026-08-12.csv`. The UTF-8 CSV contains 42 analysis columns, including plate/VIN, Brand and model evidence, base manufacturer, vehicle/body/fuel fields, candidates, review reasons, applied rules, and the complete raw JSON. Database count and artifact-tool structure checks both pass.
-
-## 2026-08-12 — Registered marque separated from VIN manufacturing entity
-
-- Updated normalization so WMI/VIN evidence is preserved as `vin_manufacturing_entity` and cannot override the canonical registered marque. Activated immutable version `ts-review-20260812T123137994999Z` with evidence-scoped Jaguar/Daimler, Rodriguez Lopez MAN TGE, Carbodies Fairway, and LTI TX1 policies; reprocessed 25,295 cars to 2,994 resolved, 16,336 provisional, 5,965 review-required, and 0 failed (158 fewer reviews). Real checks confirm Hyundai IX35 remains Hyundai with Kia recorded only as its VIN manufacturing entity, while unsupported Jaguar/Daimler composites remain in review. All 76 focused tests and Ruff pass; the established SQL delta was updated in place to 128 cumulative changes/349 overrides.
