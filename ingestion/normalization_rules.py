@@ -647,9 +647,9 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
 
     body_codes = tuple(
         dict.fromkeys(
-            code
+            body_code
             for field_name in ("body_code", "body_code2", "body_code_extra")
-            if (code := normalize_text(raw.get(field_name))) is not None
+            if (body_code := normalize_text(raw.get(field_name))) is not None
         )
     )
     for code in body_codes:

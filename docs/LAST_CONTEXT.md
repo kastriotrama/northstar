@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-14 — Production normalization gaps documented
+
+- Added `docs/NORMALIZATION_PRODUCTION_GAPS.md` as a concise handoff of completed normalization assets and remaining production work. It identifies the background worker, resumable checkpoints, incremental reprocessing, deployment ordering, manually triggered GitHub Action, and operational visibility as the remaining implementation, while preserving the 2,138 ambiguous records for restricted/manual review. No pipeline, database, or workflow behavior changed.
+
 ## 2026-08-13 — V3.2.2 agreed-brand batch activated
 
 - Activated immutable version `ts-review-20260813T104653142376Z` with 138 non-shadowing exact Brand rules covering 191 agreed workbook records, plus code-level corroborated motorhome-fab routing and expanded strong self-built/replica text. A full 25,295-car audit found zero canonical conflicts and zero resolved/provisional regressions. Reprocessed as `normalization-remote-passenger-cars-only-v322-20260813`: 10,475 resolved, 12,682 provisional, 2,138 review-required, 0 failed, reducing review by another 215. Updated the established SQL delta in place to 654 cumulative definitions/875 overrides; 88 focused tests and Ruff pass. The remaining queue is dominated by 2,094 manufacturer-missing records, mostly ambiguous custom/one-off identities.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-12 — Manufacturer-missing review export
 
 - Exported all 5,529 `manufacturer_missing` rows from the active 25,295-car cohort to `northstar_manufacturer_missing_5529_2026-08-12.csv`. The UTF-8 CSV contains 42 analysis columns, including plate/VIN, Brand and model evidence, base manufacturer, vehicle/body/fuel fields, candidates, review reasons, applied rules, and the complete raw JSON. Database count and artifact-tool structure checks both pass.
-
-## 2026-08-12 — Registered marque separated from VIN manufacturing entity
-
-- Updated normalization so WMI/VIN evidence is preserved as `vin_manufacturing_entity` and cannot override the canonical registered marque. Activated immutable version `ts-review-20260812T123137994999Z` with evidence-scoped Jaguar/Daimler, Rodriguez Lopez MAN TGE, Carbodies Fairway, and LTI TX1 policies; reprocessed 25,295 cars to 2,994 resolved, 16,336 provisional, 5,965 review-required, and 0 failed (158 fewer reviews). Real checks confirm Hyundai IX35 remains Hyundai with Kia recorded only as its VIN manufacturing entity, while unsupported Jaguar/Daimler composites remain in review. All 76 focused tests and Ruff pass; the established SQL delta was updated in place to 128 cumulative changes/349 overrides.
