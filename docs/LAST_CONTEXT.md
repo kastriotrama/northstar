@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-17 — Local datastore reconciliation and full-source restore gate
+
+- Applied the SCRUM-171 migrations locally and reconciled PostgreSQL with Neo4j. The checkpoint ledger proves 6,515,471 passenger rows were processed in 267 parts, but pruning left 738,960 raw rows / 568,469 plates; Neo4j contains 55,808 KTypes, all `Provisional`, with zero TS aliases, while the new decision tables are empty. The VD-AI database and `REMOTE_DATABASE_URL` are unavailable locally; the only file is an older 6,300,739-line snapshot, and available disk is 30 GB. No partial substitute import, KType promotion, or alias write was performed.
+
 ## 2026-08-17 — SCRUM-170 controlled KType promotion
 
 - Added dry-run, controlled-cohort and production graph modes that consume only current resolved SCRUM-171 decision heads. Preflight requires one TecDoc KType target, rejects conflicting or multi-target TS aliases, then atomically removes `Provisional` and attaches a collision-safe evidence alias with the immutable decision ID. Replays are idempotent and a PostgreSQL-to-Neo4j reconciliation query reports missing or divergent assertions. Live Neo4j/PostgreSQL integration tests and Ruff pass.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-14 — Controlled TS-to-KType safety validation
 
 - Ran the production fuzzy/phonetic/confidence gates as a read-only dry run over retained batch `normalization-local-review-24389-v322-20260813T180554Z` against 55,808 promoted KTypes. Of 24,389 records, 2,366 remained in normalization review, 1,149 were policy-excluded, and 20,874 were matcher-eligible; 228 routed resolved, 222 provisional, 3,071 review, and 17,353 lacked an exact TecDoc manufacturer/model scope. Hard gates blocked 205 year, 22 fuel and 2 model-series conflicts; all decisions had complete evidence and no plate mapped to multiple targets. Sixty focused PostgreSQL/Neo4j/unit tests passed. No aliases were written because all 55,808 KType targets are still `Provisional`, leaving zero live-resolvable targets under the documented safe alias contract.
-
-## 2026-08-14 — Production normalization gaps documented
-
-- Added `docs/NORMALIZATION_PRODUCTION_GAPS.md` as a concise handoff of completed normalization assets and remaining production work. It identifies the background worker, resumable checkpoints, incremental reprocessing, deployment ordering, manually triggered GitHub Action, and operational visibility as the remaining implementation, while preserving the 2,138 ambiguous records for restricted/manual review. No pipeline, database, or workflow behavior changed.
