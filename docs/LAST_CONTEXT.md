@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-17 — Detached full VD-AI passenger import
+
+- Verified the authoritative VD-AI PostgreSQL source contains 10,455,988 vehicles and exactly 6,515,471 passenger-eligible rows. The retained-raw V3.2.3 replay checkpointed 14 parts / 350,000 rows (282,746 resolved, 67,088 provisional, 166 review-required, 0 failed), then its incomplete part 15 was removed and restarted safely as macOS launchd job `com.northstar.vdai-full-import`. The detached job runs with PPID 1, resumed part 15 with 25,000 staged rows, and logs to `/tmp/northstar-vdai-full-import.log`.
+
 ## 2026-08-17 — Local datastore reconciliation and full-source restore gate
 
 - Applied the SCRUM-171 migrations locally and reconciled PostgreSQL with Neo4j. The checkpoint ledger proves 6,515,471 passenger rows were processed in 267 parts, but pruning left 738,960 raw rows / 568,469 plates; Neo4j contains 55,808 KTypes, all `Provisional`, with zero TS aliases, while the new decision tables are empty. The VD-AI database and `REMOTE_DATABASE_URL` are unavailable locally; the only file is an older 6,300,739-line snapshot, and available disk is 30 GB. No partial substitute import, KType promotion, or alias write was performed.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-14 — Reviewed TS-to-TecDoc manufacturer mapping
 
 - Added a guarded SCRUM-148 manufacturer index that combines native TecDoc names with unconditional reviewed TS aliases, creates canonical bridges such as TS `Volkswagen` to TecDoc `VW`, uses longest whole-token matching, preserves native catalog identity over cross-canonical rule collisions, retains field-level evidence, rejects conflicting source fields, and never broadens evidence-guarded rules. Across all 568,469 distinct locally retained vehicles it resolved 553,766 manufacturer scopes (97.41%), retained 3,864 conflicts and 10,839 unmatched; on the 20,874 matcher-eligible validation cohort it resolved 15,144 manufacturer scopes, while 16,572 records separately lacked model evidence. Fifty-seven focused matching/persistence/Neo4j tests and Ruff pass. No database mappings, aliases, commits or pushes were made.
-
-## 2026-08-14 — Controlled TS-to-KType safety validation
-
-- Ran the production fuzzy/phonetic/confidence gates as a read-only dry run over retained batch `normalization-local-review-24389-v322-20260813T180554Z` against 55,808 promoted KTypes. Of 24,389 records, 2,366 remained in normalization review, 1,149 were policy-excluded, and 20,874 were matcher-eligible; 228 routed resolved, 222 provisional, 3,071 review, and 17,353 lacked an exact TecDoc manufacturer/model scope. Hard gates blocked 205 year, 22 fuel and 2 model-series conflicts; all decisions had complete evidence and no plate mapped to multiple targets. Sixty focused PostgreSQL/Neo4j/unit tests passed. No aliases were written because all 55,808 KType targets are still `Provisional`, leaving zero live-resolvable targets under the documented safe alias contract.
