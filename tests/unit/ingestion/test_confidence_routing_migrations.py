@@ -39,3 +39,10 @@ def test_migration_contains_routing_and_payload_safety_contracts() -> None:
     assert "match_routing_selected_candidate_check" in create
     assert "selected_candidate_reference IS NOT NULL" in create
     assert "match_routing_source_version_key" in create
+
+    heads = statements["create_match_decision_heads_table"]
+    supersessions = statements["create_match_decision_supersessions_table"]
+    assert "PRIMARY KEY (source_system, source_version, source_entity_key)" in heads
+    assert "decision_id UUID NOT NULL UNIQUE" in heads
+    assert "predecessor_decision_id UUID PRIMARY KEY" in supersessions
+    assert "CHECK (predecessor_decision_id <> successor_decision_id)" in supersessions

@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-17 — SCRUM-171 immutable match decision lifecycle
+
+- Added an explicit dry-run/persist boundary for TS-to-KType match decisions, one current decision head per stable source identity/version, and append-only supersession evidence while retaining deterministic immutable decision rows. Dry runs validate source provenance without writes; persisted retries are idempotent and conflicting supersession histories stop safely. PostgreSQL integration and migration contract tests pass; this layer does not promote KTypes or attach Neo4j aliases.
+
 ## 2026-08-17 — Reviewed technical tail activated
 
 - Merged PR #28 head `d4cd10d`, adding database-backed `reviewed_record_policy` support keyed by stable VIN plus Brand and activating immutable version `ts-review-20260817T073842135705Z` with 30 reviewed manufacturer-conflict, electrification, bodywork, malformed-power, and transmission decisions. The full 25,295-car audit found zero canonical conflicts/regressions; reprocessing as `normalization-remote-passenger-cars-only-v323-20260817` produced 10,483 resolved, 12,704 provisional, 2,108 review-required, and 0 failed. The established SQL delta now contains 684 cumulative definitions/905 overrides; 97 focused tests and Ruff pass. Auditing the 704 non-generic manual tail found no safe bulk rule: 678 have generic fab code `ÖV` and 687 Brand values are singletons; two GMC rows remain candidates for explicit manual approval.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-13 — Local TS-to-KType conservative match audit
 
 - Compared the 22,023 resolved/provisional records from retained-review batch `normalization-local-review-24389-v322-20260813T180554Z` with the 55,808 KTypes in `tecdoc-0326-canonical-full-v2-local`. After excluding 1,149 records restricted by parts-matching policy, an exact manufacturer/year-range/displacement/power/fuel join found 94 cars with 269 technical candidates: 12 unique and 82 ambiguous. Model evidence reduced this to 6 unique model-supported candidates and 72 ambiguous model-supported cars; 20,780 had no exact technical candidate. No production links were written because ambiguity and sparse coverage require a reviewed matching/persistence step.
-
-## 2026-08-13 — Local V3.2.2 retained-review reprocessing
-
-- Reprocessed all 24,389 review-required source records retained from the 6,515,471-car import using active rules `ts-review-20260813T104653142376Z`, without changing the original batch. New batch `normalization-local-review-24389-v322-20260813T180554Z` produced 10,047 resolved, 11,976 provisional, 2,366 review-required, and 0 failed; exact raw and result counts both reconcile to 24,389. Full-dataset reprocessing still requires restoring the pruned resolved/provisional source records.

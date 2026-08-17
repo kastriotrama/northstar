@@ -9,11 +9,15 @@ from psycopg.types.json import Jsonb
 
 from ingestion.confidence_routing import ConfidenceRouter
 from ingestion.confidence_routing_migrations import (
+    MATCH_DECISION_HEAD_TABLE,
+    MATCH_DECISION_SUPERSESSION_TABLE,
     MATCH_ROUTING_TABLE,
     run_confidence_routing_migrations,
 )
 from ingestion.confidence_routing_repository import (
+    DecisionWriteMode,
     fetch_batch_routing_decisions,
+    persist_routing_decision,
     store_routing_decision,
 )
 from ingestion.config import get_ingestion_settings
@@ -144,6 +148,113 @@ def test_routing_writer_rejects_missing_source_record(pg_connection: Connection)
             decision=decision,
         )
     pg_connection.rollback()
+
+
+def test_dry_run_is_write_free_and_persist_supersedes_one_identity_head(
+    pg_connection: Connection,
+) -> None:
+    batch_id = f"scrum171-test-{uuid4()}"
+    try:
+        copy_raw_records(
+            pg_connection,
+            table="staging.transportstyrelsen_raw",
+            source_batch_id=batch_id,
+            expected_source_count=1,
+            records=[{"plate": "ABC123", "manufacturer": "Volvo", "model": "V60"}],
+        )
+        with pg_connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+            source_record_id = int(cursor.fetchone()[0])
+        decision = ConfidenceRouter().route(
+            FuzzyVehicleMatcher(
+                ManufacturerCandidateIndex((VehicleCandidate("KTYPE-1", "Volvo", "V60"),))
+            ).match(VehicleMatchQuery(manufacturer="Volvo", model="V60"))
+        )
+        common = {
+            "source_system": "Transportstyrelsen",
+            "source_version": batch_id,
+            "source_entity_key": "plate:ABC123",
+            "source_batch_id": batch_id,
+            "source_table": "staging.transportstyrelsen_raw",
+            "source_record_id": source_record_id,
+            "decision": decision,
+        }
+
+        dry_run = persist_routing_decision(
+            pg_connection,
+            **common,
+            candidate_catalog_version="tecdoc-v1",
+        )
+        with pg_connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT count(*) FROM {MATCH_ROUTING_TABLE} WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+            assert cursor.fetchone()[0] == 0
+        assert dry_run.mode == DecisionWriteMode.DRY_RUN
+        assert dry_run.persisted is False
+
+        first = persist_routing_decision(
+            pg_connection,
+            **common,
+            candidate_catalog_version="tecdoc-v1",
+            mode=DecisionWriteMode.PERSIST,
+        )
+        retry = persist_routing_decision(
+            pg_connection,
+            **common,
+            candidate_catalog_version="tecdoc-v1",
+            mode=DecisionWriteMode.PERSIST,
+        )
+        second = persist_routing_decision(
+            pg_connection,
+            **common,
+            candidate_catalog_version="tecdoc-v2",
+            mode=DecisionWriteMode.PERSIST,
+            supersession_reason="catalog refresh",
+        )
+        pg_connection.commit()
+
+        assert retry.decision_id == first.decision_id
+        assert retry.superseded_decision_id is None
+        assert second.superseded_decision_id == first.decision_id
+        with pg_connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT decision_id, selected_candidate_reference FROM {MATCH_DECISION_HEAD_TABLE} "
+                "WHERE source_system = %s AND source_version = %s AND source_entity_key = %s",
+                ("Transportstyrelsen", batch_id, "plate:ABC123"),
+            )
+            assert cursor.fetchone() == (second.decision_id, "KTYPE-1")
+            cursor.execute(
+                f"SELECT successor_decision_id, reason FROM {MATCH_DECISION_SUPERSESSION_TABLE} "
+                "WHERE predecessor_decision_id = %s",
+                (first.decision_id,),
+            )
+            assert cursor.fetchone() == (second.decision_id, "catalog refresh")
+    finally:
+        with pg_connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {MATCH_DECISION_HEAD_TABLE} WHERE source_version = %s",
+                (batch_id,),
+            )
+            cursor.execute(
+                f"DELETE FROM {MATCH_DECISION_SUPERSESSION_TABLE} WHERE "
+                "predecessor_decision_id IN "
+                f"(SELECT decision_id FROM {MATCH_ROUTING_TABLE} WHERE source_batch_id = %s)",
+                (batch_id,),
+            )
+            cursor.execute(
+                f"DELETE FROM {MATCH_ROUTING_TABLE} WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+            cursor.execute(
+                "DELETE FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s",
+                (batch_id,),
+            )
+        pg_connection.commit()
 
 
 @pytest.mark.parametrize(
