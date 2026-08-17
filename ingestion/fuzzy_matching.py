@@ -102,6 +102,10 @@ class FuzzyMatchConfig:
     fuel_conflict_penalty: float = 0.15
     engine_match_bonus: float = 0.12
     engine_conflict_penalty: float = 0.25
+    displacement_match_bonus: float = 0.05
+    displacement_conflict_penalty: float = 0.25
+    power_match_bonus: float = 0.05
+    power_conflict_penalty: float = 0.25
     max_candidates: int = 5
 
     def __post_init__(self) -> None:
@@ -131,6 +135,10 @@ class FuzzyMatchConfig:
             self.fuel_conflict_penalty,
             self.engine_match_bonus,
             self.engine_conflict_penalty,
+            self.displacement_match_bonus,
+            self.displacement_conflict_penalty,
+            self.power_match_bonus,
+            self.power_conflict_penalty,
         )
         if any(not 0.0 <= value <= 1.0 for value in effects):
             raise ValueError("context bonuses and penalties must be between 0.0 and 1.0")
@@ -150,6 +158,8 @@ class VehicleCandidate:
     year_to: int | None = None
     fuels: frozenset[str] = field(default_factory=frozenset)
     engine_codes: frozenset[str] = field(default_factory=frozenset)
+    displacement_cc: int | None = None
+    power_kw: int | None = None
 
     def __post_init__(self) -> None:
         if not self.candidate_reference.strip():
@@ -170,6 +180,10 @@ class VehicleCandidate:
             and self.year_to < self.year_from
         ):
             raise ValueError("year_to must not be before year_from")
+        if self.displacement_cc is not None and self.displacement_cc <= 0:
+            raise ValueError("displacement_cc must be positive")
+        if self.power_kw is not None and self.power_kw <= 0:
+            raise ValueError("power_kw must be positive")
 
 
 @dataclass(frozen=True)
@@ -179,6 +193,8 @@ class VehicleMatchQuery:
     year: int | None = None
     fuels: frozenset[str] = field(default_factory=frozenset)
     engine_code: str | None = None
+    displacement_cc: int | None = None
+    power_kw: int | None = None
 
     def __post_init__(self) -> None:
         if not _normalized_text(self.model):
@@ -187,6 +203,10 @@ class VehicleMatchQuery:
             raise ValueError("manufacturer must not be blank")
         if self.year is not None and not 1886 <= self.year <= 2200:
             raise ValueError("year must be between 1886 and 2200")
+        if self.displacement_cc is not None and self.displacement_cc <= 0:
+            raise ValueError("displacement_cc must be positive")
+        if self.power_kw is not None and self.power_kw <= 0:
+            raise ValueError("power_kw must be positive")
 
 
 @dataclass(frozen=True)
@@ -461,6 +481,26 @@ class FuzzyVehicleMatcher:
             else:
                 conflicting_fields.append("engine_code")
                 context_effect -= self._config.engine_conflict_penalty
+
+        if query.displacement_cc is not None:
+            if candidate.displacement_cc is None:
+                missing_fields.append("displacement_cc")
+            elif query.displacement_cc == candidate.displacement_cc:
+                matched_fields.append("displacement_cc")
+                context_effect += self._config.displacement_match_bonus
+            else:
+                conflicting_fields.append("displacement_cc")
+                context_effect -= self._config.displacement_conflict_penalty
+
+        if query.power_kw is not None:
+            if candidate.power_kw is None:
+                missing_fields.append("power_kw")
+            elif query.power_kw == candidate.power_kw:
+                matched_fields.append("power_kw")
+                context_effect += self._config.power_match_bonus
+            else:
+                conflicting_fields.append("power_kw")
+                context_effect -= self._config.power_conflict_penalty
 
         return FuzzyCandidateMatch(
             candidate_reference=candidate.candidate_reference,

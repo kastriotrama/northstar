@@ -22,6 +22,8 @@ def _catalog() -> tuple[VehicleCandidate, ...]:
             year_to=2024,
             fuels=frozenset({"petrol", "electricity"}),
             engine_codes=frozenset({"B4204T"}),
+            displacement_cc=1969,
+            power_kw=140,
         ),
         VehicleCandidate(
             candidate_reference="KTYPE-101",
@@ -95,13 +97,22 @@ def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
             year=2022,
             fuels=frozenset({"petrol", "electricity"}),
             engine_code="b4204t",
+            displacement_cc=1969,
+            power_kw=140,
         )
     )
 
     candidate = result.candidates[0]
     assert candidate.candidate_reference == "KTYPE-100"
     assert candidate.confidence == 1.0
-    assert candidate.matched_fields == ("model", "year", "fuels", "engine_code")
+    assert candidate.matched_fields == (
+        "model",
+        "year",
+        "fuels",
+        "engine_code",
+        "displacement_cc",
+        "power_kw",
+    )
     assert candidate.conflicting_fields == ()
 
 
@@ -120,6 +131,32 @@ def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
     ],
 )
 def test_context_conflicts_prevent_automatic_resolution(
+    query: VehicleMatchQuery,
+    conflicting_field: str,
+) -> None:
+    result = _matcher().match(query)
+
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "context_conflict_requires_review"
+    assert conflicting_field in result.candidates[0].conflicting_fields
+
+
+@pytest.mark.parametrize(
+    ("query", "conflicting_field"),
+    [
+        (
+            VehicleMatchQuery(
+                manufacturer="Volvo", model="XC90", displacement_cc=2000
+            ),
+            "displacement_cc",
+        ),
+        (
+            VehicleMatchQuery(manufacturer="Volvo", model="XC90", power_kw=141),
+            "power_kw",
+        ),
+    ],
+)
+def test_numeric_technical_conflicts_prevent_automatic_resolution(
     query: VehicleMatchQuery,
     conflicting_field: str,
 ) -> None:

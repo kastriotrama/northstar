@@ -30,7 +30,15 @@ class ConfidenceRoutingPolicy:
     margin_weight: float = 0.10
     hard_conflict_fields: frozenset[str] = field(
         default_factory=lambda: frozenset(
-            {"manufacturer", "fuels", "engine_code", "model_series", "year"}
+            {
+                "manufacturer",
+                "fuels",
+                "engine_code",
+                "model_series",
+                "year",
+                "displacement_cc",
+                "power_kw",
+            }
         )
     )
 
