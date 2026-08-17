@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-17 — SCRUM-170 controlled KType promotion
+
+- Added dry-run, controlled-cohort and production graph modes that consume only current resolved SCRUM-171 decision heads. Preflight requires one TecDoc KType target, rejects conflicting or multi-target TS aliases, then atomically removes `Provisional` and attaches a collision-safe evidence alias with the immutable decision ID. Replays are idempotent and a PostgreSQL-to-Neo4j reconciliation query reports missing or divergent assertions. Live Neo4j/PostgreSQL integration tests and Ruff pass.
+
 ## 2026-08-17 — SCRUM-171 immutable match decision lifecycle
 
 - Added an explicit dry-run/persist boundary for TS-to-KType match decisions, one current decision head per stable source identity/version, and append-only supersession evidence while retaining deterministic immutable decision rows. Dry runs validate source provenance without writes; persisted retries are idempotent and conflicting supersession histories stop safely. PostgreSQL integration and migration contract tests pass; this layer does not promote KTypes or attach Neo4j aliases.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-14 — Production normalization gaps documented
 
 - Added `docs/NORMALIZATION_PRODUCTION_GAPS.md` as a concise handoff of completed normalization assets and remaining production work. It identifies the background worker, resumable checkpoints, incremental reprocessing, deployment ordering, manually triggered GitHub Action, and operational visibility as the remaining implementation, while preserving the 2,138 ambiguous records for restricted/manual review. No pipeline, database, or workflow behavior changed.
-
-## 2026-08-13 — Local TS-to-KType conservative match audit
-
-- Compared the 22,023 resolved/provisional records from retained-review batch `normalization-local-review-24389-v322-20260813T180554Z` with the 55,808 KTypes in `tecdoc-0326-canonical-full-v2-local`. After excluding 1,149 records restricted by parts-matching policy, an exact manufacturer/year-range/displacement/power/fuel join found 94 cars with 269 technical candidates: 12 unique and 82 ambiguous. Model evidence reduced this to 6 unique model-supported candidates and 72 ambiguous model-supported cars; 20,780 had no exact technical candidate. No production links were written because ambiguity and sparse coverage require a reviewed matching/persistence step.

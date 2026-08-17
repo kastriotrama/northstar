@@ -294,3 +294,42 @@ def fetch_batch_routing_decisions(
         }
         for row in rows
     )
+
+
+def fetch_promotable_decision_heads(
+    connection: Connection,
+    *,
+    source_system: str,
+    source_version: str,
+    limit: int | None = None,
+) -> tuple[dict[str, Any], ...]:
+    """Read current resolved heads only; provisional/review decisions are never promotable."""
+
+    normalized_source = _required_text(source_system, "source_system")
+    normalized_version = _required_text(source_version, "source_version")
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be positive")
+    query = (
+        f"SELECT h.decision_id, h.source_entity_key, d.selected_candidate_reference, "
+        f"d.confidence FROM {MATCH_DECISION_HEAD_TABLE} h "
+        f"JOIN {MATCH_ROUTING_TABLE} d ON d.decision_id = h.decision_id "
+        "WHERE h.source_system = %s AND h.source_version = %s AND d.route = 'resolved' "
+        "AND d.selected_candidate_reference IS NOT NULL "
+        "ORDER BY h.source_entity_key, h.decision_id"
+    )
+    parameters: list[object] = [normalized_source, normalized_version]
+    if limit is not None:
+        query += " LIMIT %s"
+        parameters.append(limit)
+    with connection.cursor() as cursor:
+        cursor.execute(query, parameters)
+        rows = cursor.fetchall()
+    return tuple(
+        {
+            "decision_id": UUID(str(row[0])),
+            "source_entity_key": str(row[1]),
+            "selected_candidate_reference": str(row[2]),
+            "confidence": float(row[3]),
+        }
+        for row in rows
+    )

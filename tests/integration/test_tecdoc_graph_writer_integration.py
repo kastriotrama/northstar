@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from uuid import uuid4
 
 import pytest
 from neo4j import Driver, GraphDatabase
@@ -11,6 +12,13 @@ from ingestion.tecdoc.graph_writer import (
     ResolvedEngineRelationship,
     promote_canonical_vehicles,
     write_resolved_engine_relationships,
+)
+from ingestion.tecdoc.match_promotion import (
+    MatchPromotion,
+    MatchPromotionConflictError,
+    PromotionMode,
+    promote_and_attach_matches,
+    reconcile_match_promotions,
 )
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
@@ -72,6 +80,91 @@ def test_resolved_engine_relationship_is_idempotent_and_conflict_safe(
             variant_id=variant_id,
         ).single(strict=True)["id"]
     assert target == engine_id
+
+
+def test_persisted_match_promotes_ktype_and_attaches_alias_only_after_preflight(
+    graph_driver: Driver,
+) -> None:
+    variant_id = mint_node_id("VEH")
+    ktype_alias_id = mint_node_id("ALI")
+    decision_id = uuid4()
+    source_assertion_key = f"ktype:{decision_id}"
+    promotion = MatchPromotion(
+        decision_id=decision_id,
+        source_system="Transportstyrelsen",
+        source_version="ts-v1",
+        source_entity_key="plate:ABC123",
+        alias_type="plate",
+        alias_text="ABC123",
+        ktype_reference="12345",
+        confidence=0.96,
+    )
+    with graph_driver.session() as session:
+        session.run(
+            "CREATE (:VehicleVariant:Provisional:TecDocWriterFixture {id:$variant_id}) "
+            "CREATE (a:Alias:TecDocWriterFixture {id:$alias_id, source_system:'tecdoc', "
+            "alias_type:'k_type', alias_text:'12345', assertion_identity:$identity}) "
+            "WITH a MATCH (v:VehicleVariant {id:$variant_id}) CREATE (a)-[:REFERS_TO]->(v)",
+            variant_id=variant_id,
+            alias_id=ktype_alias_id,
+            identity=build_assertion_identity("tecdoc", source_assertion_key),
+        ).consume()
+    try:
+        assert promote_and_attach_matches(graph_driver, (promotion,)) == 1
+        with graph_driver.session() as session:
+            before = session.run(
+                "MATCH (v:VehicleVariant {id:$variant_id}) "
+                "OPTIONAL MATCH (:Alias {source_system:'transportstyrelsen', alias_text:'ABC123'})"
+                "-[:REFERS_TO]->(v) RETURN v:Provisional AS provisional, count(*) - 1 AS aliases",
+                variant_id=variant_id,
+            ).single(strict=True)
+        assert before["provisional"] is True
+        assert before["aliases"] == 0
+
+        assert promote_and_attach_matches(
+            graph_driver, (promotion,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        assert promote_and_attach_matches(
+            graph_driver, (promotion,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        assert reconcile_match_promotions(graph_driver, (promotion,)) == ()
+        with graph_driver.session() as session:
+            after = session.run(
+                "MATCH (a:Alias {source_system:'transportstyrelsen', alias_text:'ABC123'})"
+                "-[:REFERS_TO]->(v:VehicleVariant {id:$variant_id}) "
+                "RETURN v:Provisional AS provisional, a.match_decision_id AS decision, "
+                "count(a) AS aliases",
+                variant_id=variant_id,
+            ).single(strict=True)
+        assert dict(after) == {
+            "provisional": False,
+            "decision": str(decision_id),
+            "aliases": 1,
+        }
+    finally:
+        with graph_driver.session() as session:
+            session.run(
+                "MATCH (v:VehicleVariant {id:$variant_id}) "
+                "OPTIONAL MATCH (a:Alias)-[:REFERS_TO]->(v) DETACH DELETE a, v",
+                variant_id=variant_id,
+            ).consume()
+
+
+def test_match_promotion_rejects_one_alias_targeting_multiple_ktypes() -> None:
+    common = {
+        "source_system": "Transportstyrelsen",
+        "source_version": "ts-v1",
+        "source_entity_key": "plate:ABC123",
+        "alias_type": "plate",
+        "alias_text": "ABC123",
+        "confidence": 0.96,
+    }
+    promotions = (
+        MatchPromotion(decision_id=uuid4(), ktype_reference="1", **common),
+        MatchPromotion(decision_id=uuid4(), ktype_reference="2", **common),
+    )
+    with pytest.raises(MatchPromotionConflictError, match="multiple KTypes"):
+        promote_and_attach_matches(None, promotions)  # type: ignore[arg-type]
 
 
 def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) -> None:
