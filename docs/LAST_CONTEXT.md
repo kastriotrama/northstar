@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-17 — Reviewed technical tail activated
+
+- Added database-backed `reviewed_record_policy` support keyed by stable VIN plus Brand and activated immutable version `ts-review-20260817T073842135705Z` with 30 reviewed manufacturer-conflict, electrification, bodywork, malformed-power, and transmission decisions. The full 25,295-car audit found zero canonical conflicts/regressions; reprocessing as `normalization-remote-passenger-cars-only-v323-20260817` produced 10,483 resolved, 12,704 provisional, 2,108 review-required, and 0 failed. The established SQL delta now contains 684 cumulative definitions/905 overrides; 97 focused tests and Ruff pass. Auditing the 704 non-generic manual tail found no safe bulk rule: 678 have generic fab code `ÖV` and 687 Brand values are singletons; two GMC rows remain candidates for explicit manual approval.
+
 ## 2026-08-14 — Production normalization gaps documented
 
 - Added `docs/NORMALIZATION_PRODUCTION_GAPS.md` as a concise handoff of completed normalization assets and remaining production work. It identifies the background worker, resumable checkpoints, incremental reprocessing, deployment ordering, manually triggered GitHub Action, and operational visibility as the remaining implementation, while preserving the 2,138 ambiguous records for restricted/manual review. No pipeline, database, or workflow behavior changed.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-12 — Verified-v2 guarded manufacturer rules activated
 
 - Implemented executable regex, strict-year, fab-code corroboration, custom-text exclusion, and manufacturer-conflict guards for the reviewed v2 proposal. A 5,529-row dry run identified the expected 2,698 affected rows (2,682 manufacturer resolutions plus 16 TEST quarantines), with four same-canonical BINZ overlaps consolidated to zero overlaps and zero canonical conflicts. Activated immutable version `ts-review-20260812T143204290357Z` with 134 guarded manufacturer definitions and official TS fuel mappings (`19=biodiesel`, `F=flex_fuel`), then reprocessed 25,295 cars: 9,729 resolved, 12,671 provisional, 2,895 review-required, and 0 failed. Real PostgreSQL checks confirm TEST quarantine, strict historic/fab mappings, and Toyota diesel+biodiesel flex-fuel; 106 focused tests and Ruff pass, and the established SQL delta now has 262 cumulative changes/483 overrides.
-
-## 2026-08-12 — Manufacturer-missing review export
-
-- Exported all 5,529 `manufacturer_missing` rows from the active 25,295-car cohort to `northstar_manufacturer_missing_5529_2026-08-12.csv`. The UTF-8 CSV contains 42 analysis columns, including plate/VIN, Brand and model evidence, base manufacturer, vehicle/body/fuel fields, candidates, review reasons, applied rules, and the complete raw JSON. Database count and artifact-tool structure checks both pass.

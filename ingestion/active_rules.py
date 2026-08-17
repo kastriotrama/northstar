@@ -62,6 +62,7 @@ def load_active_rules(
         if override.get("kind") in {
             "manufacturer_match_policy",
             "special_vehicle_policy",
+            "reviewed_record_policy",
         }:
             entities[f"policy:{entity_id}"] = dict(override)
             continue

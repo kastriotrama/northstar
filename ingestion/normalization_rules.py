@@ -2425,6 +2425,49 @@ def _apply_fuel(context: NormalizationContext) -> None:
     _normalize_fuel(context)
 
 
+def _apply_reviewed_record_policies(context: NormalizationContext) -> None:
+    runtime_rules = context.runtime.get("manufacturer_entity_rules", {})
+    if not isinstance(runtime_rules, dict):
+        raise TypeError("manufacturer_entity_rules runtime value is invalid")
+    raw = context.canonical_record
+    for policy_key, policy in sorted(runtime_rules.items()):
+        if not policy_key.startswith("policy:") or policy.get("kind") != "reviewed_record_policy":
+            continue
+        match_fields = policy.get("match_fields")
+        if not isinstance(match_fields, dict) or not match_fields:
+            continue
+        if any(
+            _normalized_entity(raw.get(field_name)) != _normalized_entity(expected)
+            for field_name, expected in match_fields.items()
+            if isinstance(field_name, str) and isinstance(expected, str)
+        ):
+            continue
+        updates = policy.get("normalized_updates")
+        if isinstance(updates, dict):
+            context.normalized.update(updates)
+        remove_fields = policy.get("normalized_remove")
+        if isinstance(remove_fields, list):
+            for field_name in remove_fields:
+                if isinstance(field_name, str):
+                    context.normalized.pop(field_name, None)
+        candidate_remove = policy.get("candidate_remove")
+        if isinstance(candidate_remove, list):
+            for field_name in candidate_remove:
+                if isinstance(field_name, str):
+                    context.candidates.pop(field_name, None)
+        clear_reasons = policy.get("clear_review_reasons")
+        if isinstance(clear_reasons, list):
+            cleared = {reason for reason in clear_reasons if isinstance(reason, str)}
+            context.review_reasons[:] = [
+                reason for reason in context.review_reasons if reason not in cleared
+            ]
+        rule_id = policy.get("rule_id")
+        context.applied_rule_ids.append(
+            rule_id if isinstance(rule_id, str) else policy_key.removeprefix("policy:")
+        )
+        break
+
+
 DEFAULT_PIPELINE = NormalizationPipeline(
     version=PIPELINE_VERSION,
     transformers=(
@@ -2551,6 +2594,13 @@ DEFAULT_PIPELINE = NormalizationPipeline(
                 "type",
             ),
             candidate_confidence_effect=0.1,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.reviewed-record-policy",
+            order=90,
+            default_rule_id="REVIEWED-RECORD-POLICY-V1",
+            handler=_apply_reviewed_record_policies,
+            normalized_confidence_effect=0.1,
         ),
     ),
 )
