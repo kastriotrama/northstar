@@ -134,6 +134,7 @@ def _store_checkpoint_and_prune(
     provisional: int,
     review_required: int,
     failed: int,
+    retain_raw: bool = False,
 ) -> None:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -159,17 +160,18 @@ def _store_checkpoint_and_prune(
             "WHERE source_batch_id = %s AND status NOT IN ('review_required', 'failed')",
             (part.batch_id,),
         )
-        cursor.execute(
-            "DELETE FROM staging.transportstyrelsen_raw AS raw "
-            "WHERE source_batch_id = %s AND NOT EXISTS ("
-            "SELECT 1 FROM core.normalization_results AS result "
-            "WHERE result.source_record_id = raw.id AND result.source_batch_id = %s)",
-            (part.batch_id, part.batch_id),
-        )
+        if not retain_raw:
+            cursor.execute(
+                "DELETE FROM staging.transportstyrelsen_raw AS raw "
+                "WHERE source_batch_id = %s AND NOT EXISTS ("
+                "SELECT 1 FROM core.normalization_results AS result "
+                "WHERE result.source_record_id = raw.id AND result.source_batch_id = %s)",
+                (part.batch_id, part.batch_id),
+            )
     connection.commit()
 
 
-def run(*, prefix: str, batch_size: int) -> None:
+def run(*, prefix: str, batch_size: int, retain_raw: bool = False) -> None:
     if not 1 <= batch_size <= 100_000:
         raise ValueError("batch_size must be between 1 and 100000")
 
@@ -220,6 +222,7 @@ def run(*, prefix: str, batch_size: int) -> None:
                 provisional=summary.provisional,
                 review_required=summary.review_required,
                 failed=summary.failed,
+                retain_raw=retain_raw,
             )
             print(
                 json.dumps(
@@ -247,8 +250,13 @@ def main() -> None:
         default="normalization-remote-passenger-6515471",
     )
     parser.add_argument("--batch-size", type=int, default=25_000)
+    parser.add_argument(
+        "--retain-raw",
+        action="store_true",
+        help="Retain every staged raw passenger row while pruning non-review results.",
+    )
     args = parser.parse_args()
-    run(prefix=args.prefix, batch_size=args.batch_size)
+    run(prefix=args.prefix, batch_size=args.batch_size, retain_raw=args.retain_raw)
 
 
 if __name__ == "__main__":
