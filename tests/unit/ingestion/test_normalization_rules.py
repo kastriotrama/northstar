@@ -1684,3 +1684,42 @@ def test_v322_exact_source_value_rule_coexists_with_existing_lookup_key() -> Non
 
     assert outcome.normalized["manufacturer"] == "Hult"
     assert outcome.normalized["parts_matching_policy"] == "restricted"
+
+
+def test_reviewed_record_policy_applies_only_to_matching_stable_evidence() -> None:
+    rules = {
+        "policy:ROW-TOYOTA-MIRAI": {
+            "kind": "reviewed_record_policy",
+            "rule_id": "ROW-TOYOTA-MIRAI",
+            "match_fields": {"vin": "JTDAABAA70A000267", "brand": "TOYOTA"},
+            "normalized_updates": {
+                "electrification_type": "fuel_cell_electric",
+                "energy_sources": ["hydrogen"],
+            },
+            "clear_review_reasons": ["electrification_fuel_evidence_conflict"],
+        }
+    }
+    matching = normalize_ts_record(
+        {
+            "vin": "JTDAABAA70A000267",
+            "brand": "TOYOTA",
+            "model": "TOYOTA MIRAI",
+            "fuel1": "17",
+        },
+        manufacturer_entity_rules=rules,
+    )
+    other = normalize_ts_record(
+        {
+            "vin": "DIFFERENT",
+            "brand": "TOYOTA",
+            "model": "TOYOTA MIRAI",
+            "fuel1": "17",
+        },
+        manufacturer_entity_rules=rules,
+    )
+
+    assert matching.normalized["electrification_type"] == "fuel_cell_electric"
+    assert "electrification_fuel_evidence_conflict" not in matching.review_reasons
+    assert "ROW-TOYOTA-MIRAI" in matching.applied_rule_ids
+    assert "ROW-TOYOTA-MIRAI" not in other.applied_rule_ids
+    assert other.normalized.get("electrification_type") != "fuel_cell_electric"

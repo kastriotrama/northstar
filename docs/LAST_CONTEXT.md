@@ -2,9 +2,9 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-17 — Fetched latest PR #28 head
+## 2026-08-17 — Reviewed technical tail activated
 
-- Fetched PR #28 head `d4cd10d` (`fix some more cases`), one commit newer than the locally merged `c90c4ce`, without merging it into the working branch. The commit adds support for 30 database-backed, stable-evidence `reviewed_record_policy` decisions covering manufacturer conflicts, electrification, transmission, bodywork and malformed power; advances the active rule version to `ts-review-20260817T073842135705Z`; and reports the validated 25,295-row review count reduced from 2,138 to 2,108 with zero failures. The reviewed delta grows from 654/875 definitions/overrides to 684/905. No push was made.
+- Merged PR #28 head `d4cd10d`, adding database-backed `reviewed_record_policy` support keyed by stable VIN plus Brand and activating immutable version `ts-review-20260817T073842135705Z` with 30 reviewed manufacturer-conflict, electrification, bodywork, malformed-power, and transmission decisions. The full 25,295-car audit found zero canonical conflicts/regressions; reprocessing as `normalization-remote-passenger-cars-only-v323-20260817` produced 10,483 resolved, 12,704 provisional, 2,108 review-required, and 0 failed. The established SQL delta now contains 684 cumulative definitions/905 overrides; 97 focused tests and Ruff pass. Auditing the 704 non-generic manual tail found no safe bulk rule: 678 have generic fab code `ÖV` and 687 Brand values are singletons; two GMC rows remain candidates for explicit manual approval.
 
 ## 2026-08-14 — Started local review frontend
 
