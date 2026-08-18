@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
@@ -12,6 +13,11 @@ from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_delta import export_rule_delta
+from scripts.import_remote_passenger_reviews import (
+    DEFAULT_IMPORT_PREFIX,
+    EXPECTED_PASSENGER_COUNT,
+    run as run_remote_passenger_import,
+)
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 
 logger = logging.getLogger(__name__)
@@ -41,6 +47,15 @@ def build_parser() -> argparse.ArgumentParser:
         "export-rule-delta",
         help="Export immutable reviewed-rule versions as guarded SQL.",
     )
+    remote_parser = subparsers.add_parser(
+        "import-remote-passenger",
+        help="Resume the contract-checked VD-AI passenger import.",
+    )
+    remote_parser.add_argument("--prefix", default=DEFAULT_IMPORT_PREFIX)
+    remote_parser.add_argument("--batch-size", type=int, default=25_000)
+    remote_parser.add_argument("--expected-source-count", type=int, default=EXPECTED_PASSENGER_COUNT)
+    remote_parser.add_argument("--retain-raw", action="store_true")
+    remote_parser.add_argument("--recover-stale-part", action="store_true")
     delta_parser.add_argument(
         "--baseline-version",
         required=True,
@@ -102,6 +117,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "export-rule-delta\ttranslation_rule_versions\t"
             "Export a deterministic guarded SQL rule delta."
         )
+        print(
+            "import-remote-passenger\tVD-AI PostgreSQL\t"
+            "Resume the contract-checked full passenger import."
+        )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
         return 0
@@ -145,6 +164,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         print(json.dumps(asdict(delta_summary), sort_keys=True))
+        return 0
+
+    if args.command == "import-remote-passenger":
+        if not settings.remote_database_url:
+            logger.error(
+                "Remote passenger import stopped safely",
+                extra={"error_code": "RemoteDatabaseUrlMissing"},
+            )
+            return 2
+        os.environ["REMOTE_DATABASE_URL"] = settings.remote_database_url
+        os.environ["DATABASE_URL"] = settings.database_url
+        try:
+            run_remote_passenger_import(
+                prefix=args.prefix,
+                batch_size=args.batch_size,
+                retain_raw=args.retain_raw,
+                expected_source_count=args.expected_source_count,
+                recover_stale=args.recover_stale_part,
+            )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Remote passenger import stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
         return 0
 
     if args.command == "promote-tecdoc-canonical":

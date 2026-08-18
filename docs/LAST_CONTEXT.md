@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-18 — Reproducible full passenger import command
+
+- Added `northstar-ingest import-remote-passenger` with the shared V3.2.3 prefix, exact 6,515,471-row source-count gate, 25,000-row checkpoints, raw retention, and explicit singleton stale-part recovery. Added `REMOTE_DATABASE_URL` configuration, team runbook and focused CLI/recovery tests. This replaces the temporary local runner contract so every developer can resume the same plate-ordered VD-AI import safely.
+
 ## 2026-08-17 — Detached full VD-AI passenger import
 
 - Verified the authoritative VD-AI PostgreSQL source contains 10,455,988 vehicles and exactly 6,515,471 passenger-eligible rows. The retained-raw V3.2.3 replay checkpointed 14 parts / 350,000 rows (282,746 resolved, 67,088 provisional, 166 review-required, 0 failed), then its incomplete part 15 was removed and restarted safely as macOS launchd job `com.northstar.vdai-full-import`. The detached job runs with PPID 1, resumed part 15 with 25,000 staged rows, and logs to `/tmp/northstar-vdai-full-import.log`.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-14 — Full-local model-family evidence audit
 
 - Replayed the 127 accepted `MOD-*` rules (186 source terms) against all 568,469 latest locally retained vehicles after guarded TecDoc manufacturer resolution. Of 553,766 manufacturer-resolved vehicles, 311,011 retain raw model text and 199,408 match a reviewed model-family rule; 10,176 match a TecDoc family label exactly and 171,831 have compatible family-prefix evidence, while 17,401 rule hits remain unlinked. All 182,007 compatible vehicles reach at least one of the 55,808 KTypes through their compatible family: 2,363 have one family-stage KType candidate and 179,644 remain multi-candidate before technical gates. In the retained 24,389 review cohort specifically, 15,527 resolve manufacturer scope, only 3,196 retain raw model text, and reviewed model-family rules add 12 KType-compatible vehicles, all still multi-candidate. Another 111,603 model-bearing vehicles in the full-local set have no reviewed family rule, and 242,755 lack raw model text. Nine Škoda rule scopes still need a reviewed `Škoda` → TecDoc `SKODA` bridge. This was a read-only audit; no aliases or database rows were written.
-
-## 2026-08-14 — Reviewed TS-to-TecDoc manufacturer mapping
-
-- Added a guarded SCRUM-148 manufacturer index that combines native TecDoc names with unconditional reviewed TS aliases, creates canonical bridges such as TS `Volkswagen` to TecDoc `VW`, uses longest whole-token matching, preserves native catalog identity over cross-canonical rule collisions, retains field-level evidence, rejects conflicting source fields, and never broadens evidence-guarded rules. Across all 568,469 distinct locally retained vehicles it resolved 553,766 manufacturer scopes (97.41%), retained 3,864 conflicts and 10,839 unmatched; on the 20,874 matcher-eligible validation cohort it resolved 15,144 manufacturer scopes, while 16,572 records separately lacked model evidence. Fifty-seven focused matching/persistence/Neo4j tests and Ruff pass. No database mappings, aliases, commits or pushes were made.

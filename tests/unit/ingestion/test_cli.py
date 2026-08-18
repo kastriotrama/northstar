@@ -24,6 +24,7 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "migrate-confidence-routing" in output
     assert "import-normalization-bundle" in output
     assert "export-rule-delta" in output
+    assert "import-remote-passenger" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
@@ -89,3 +90,13 @@ def test_rule_delta_export_defaults_to_latest_target() -> None:
     assert args.baseline_version == "rules-v1"
     assert args.target_version is None
     assert str(args.output) == "latest-rules.sql"
+
+
+def test_remote_passenger_import_uses_shared_contract_defaults() -> None:
+    args = build_parser().parse_args(["import-remote-passenger", "--retain-raw"])
+
+    assert args.prefix == "normalization-vdai-passenger-full-v323-20260817"
+    assert args.batch_size == 25_000
+    assert args.expected_source_count == 6_515_471
+    assert args.retain_raw is True
+    assert args.recover_stale_part is False

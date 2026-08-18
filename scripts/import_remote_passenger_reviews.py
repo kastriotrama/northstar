@@ -26,6 +26,8 @@ PASSENGER_FILTER_SQL = """
 """
 
 CHECKPOINT_TABLE = "core.remote_passenger_import_parts"
+DEFAULT_IMPORT_PREFIX = "normalization-vdai-passenger-full-v323-20260817"
+EXPECTED_PASSENGER_COUNT = 6_515_471
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,59 @@ def _fetch_remote_part(
         return [dict(row) for row in cursor.fetchall()]
 
 
+def verify_remote_source_count(remote_url: str, expected_count: int) -> int:
+    """Stop before importing when the shared VD-AI passenger scope differs."""
+
+    if expected_count < 1:
+        raise ValueError("expected_count must be positive")
+    with psycopg.connect(remote_url) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT count(*) FROM public.swedish_vehicles WHERE {PASSENGER_FILTER_SQL}"
+        )
+        row = cursor.fetchone()
+    actual = 0 if row is None else int(row[0])
+    if actual != expected_count:
+        raise RuntimeError(
+            f"remote passenger source count mismatch: expected={expected_count}, actual={actual}"
+        )
+    return actual
+
+
+def recover_stale_part(connection: Connection, prefix: str) -> str | None:
+    """Remove only the uncheckpointed next part when its normalize job is stale."""
+
+    part_number, _ = _resume_position(connection, prefix)
+    batch_id = batch_id_for(prefix, part_number)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT status FROM core.ingest_job_runs "
+            "WHERE job_name = 'normalize' AND batch_id = %s",
+            (batch_id,),
+        )
+        row = cursor.fetchone()
+        if row is None or str(row[0]) != "running":
+            return None
+        cursor.execute(
+            "DELETE FROM core.review_queue WHERE source_batch_id = %s",
+            (batch_id,),
+        )
+        cursor.execute(
+            "DELETE FROM core.normalization_results WHERE source_batch_id = %s",
+            (batch_id,),
+        )
+        cursor.execute(
+            "DELETE FROM core.ingest_job_runs "
+            "WHERE job_name = 'normalize' AND batch_id = %s",
+            (batch_id,),
+        )
+        cursor.execute(
+            "DELETE FROM staging.transportstyrelsen_raw WHERE source_batch_id = %s",
+            (batch_id,),
+        )
+    connection.commit()
+    return batch_id
+
+
 def _stage_part(
     connection: Connection,
     *,
@@ -171,14 +226,26 @@ def _store_checkpoint_and_prune(
     connection.commit()
 
 
-def run(*, prefix: str, batch_size: int, retain_raw: bool = False) -> None:
+def run(
+    *,
+    prefix: str,
+    batch_size: int,
+    retain_raw: bool = False,
+    expected_source_count: int = EXPECTED_PASSENGER_COUNT,
+    recover_stale: bool = False,
+) -> None:
     if not 1 <= batch_size <= 100_000:
         raise ValueError("batch_size must be between 1 and 100000")
 
     remote_url = _required_url("REMOTE_DATABASE_URL")
     local_url = _required_url("DATABASE_URL")
+    verify_remote_source_count(remote_url, expected_source_count)
     with psycopg.connect(local_url) as local:
         _ensure_checkpoint_table(local)
+        if recover_stale:
+            recovered_batch = recover_stale_part(local, prefix)
+            if recovered_batch is not None:
+                print(json.dumps({"recovered_stale_batch": recovered_batch}), flush=True)
         rule_set, manufacturer_rules = load_active_rules(local)
         part_number, after_plate = _resume_position(local, prefix)
 
@@ -247,7 +314,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--prefix",
-        default="normalization-remote-passenger-6515471",
+        default=DEFAULT_IMPORT_PREFIX,
     )
     parser.add_argument("--batch-size", type=int, default=25_000)
     parser.add_argument(
@@ -255,8 +322,24 @@ def main() -> None:
         action="store_true",
         help="Retain every staged raw passenger row while pruning non-review results.",
     )
+    parser.add_argument(
+        "--expected-source-count",
+        type=int,
+        default=EXPECTED_PASSENGER_COUNT,
+    )
+    parser.add_argument(
+        "--recover-stale-part",
+        action="store_true",
+        help="Reset only the next uncheckpointed part when its job is still marked running.",
+    )
     args = parser.parse_args()
-    run(prefix=args.prefix, batch_size=args.batch_size, retain_raw=args.retain_raw)
+    run(
+        prefix=args.prefix,
+        batch_size=args.batch_size,
+        retain_raw=args.retain_raw,
+        expected_source_count=args.expected_source_count,
+        recover_stale=args.recover_stale_part,
+    )
 
 
 if __name__ == "__main__":
