@@ -163,8 +163,8 @@ class TecDocManufacturerIndex:
             if alias not in native_aliases
         )
         by_first_word: dict[str, list[_AliasTarget]] = defaultdict(list)
-        for target in targets:
-            by_first_word[target.alias_words[0]].append(target)
+        for alias_target in targets:
+            by_first_word[alias_target.alias_words[0]].append(alias_target)
         self._by_first_word = {
             first_word: tuple(
                 sorted(

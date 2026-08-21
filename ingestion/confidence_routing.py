@@ -186,7 +186,14 @@ class ConfidenceRouter:
             else 0.5
         )
 
-        raw_margin = 1.0 if second is None else max(0.0, top.confidence - second.confidence)
+        # Separation scores, not confidence: confidence saturates at 1.0, which
+        # collapses the margin between a fully matched candidate and one with a
+        # conflicting technical field (see FuzzyCandidateMatch.separation_score).
+        raw_margin = (
+            1.0
+            if second is None
+            else max(0.0, top.separation_score - second.separation_score)
+        )
         margin_signal = min(1.0, raw_margin / self.policy.minimum_candidate_margin)
         signals = (
             (

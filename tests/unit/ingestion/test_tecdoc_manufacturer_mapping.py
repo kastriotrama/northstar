@@ -83,3 +83,29 @@ def test_substring_does_not_match_catalog_manufacturer() -> None:
     index = TecDocManufacturerIndex(("AC",), {})
 
     assert index.resolve(brand="RACING SPECIAL").status == "unmatched"
+
+
+def test_reviewed_short_name_rule_bridges_canonical_name_to_catalog_name() -> None:
+    """TS canonicalises to "Volkswagen" while the TecDoc catalog registers "VW".
+
+    A reviewed rule stating that the TS brand token "VW" means Volkswagen also
+    bridges the canonical name onto the catalog name, so these rows are scoped
+    and scored instead of being reviewed as global-scope matches. The bridge is
+    reviewed data in the rule set, never a hardcoded equivalence.
+    """
+
+    index = TecDocManufacturerIndex(
+        ("VW", "VOLVO"),
+        {"MFE-BRAND-VW-SHORT-NAME": _rule("VW", "Volkswagen")},
+    )
+
+    for brand in ("Volkswagen", "VOLKSWAGEN, VW", "VW"):
+        decision = index.resolve(brand=brand)
+        assert decision.status == "resolved", brand
+        assert decision.manufacturer == "VW", brand
+
+
+def test_canonical_name_stays_unmatched_without_a_reviewed_bridge_rule() -> None:
+    index = TecDocManufacturerIndex(("VW", "VOLVO"), {})
+
+    assert index.resolve(brand="Volkswagen").status == "unmatched"

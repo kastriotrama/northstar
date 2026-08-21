@@ -9,6 +9,32 @@ from ingestion.fuzzy_matching import (
 )
 
 
+def test_similarity_functions_use_bounded_process_cache() -> None:
+    from ingestion.fuzzy_matching import (
+        _edit_similarity,
+        _normalized_code,
+        _normalized_text,
+        _token_similarity,
+    )
+
+    _edit_similarity.cache_clear()
+    _normalized_code.cache_clear()
+    _normalized_text.cache_clear()
+    _token_similarity.cache_clear()
+    assert _normalized_text("V60 Cross Country") == "V60 CROSS COUNTRY"
+    assert _normalized_text("V60 Cross Country") == "V60 CROSS COUNTRY"
+    assert _normalized_code("B 4204-T") == "B4204T"
+    assert _normalized_code("B 4204-T") == "B4204T"
+    assert _edit_similarity("VOLVO", "VOLVO") == 1.0
+    assert _edit_similarity("VOLVO", "VOLVO") == 1.0
+    assert _token_similarity("V60 CROSS COUNTRY", "V60 CROSS COUNTRY") == 1.0
+    assert _token_similarity("V60 CROSS COUNTRY", "V60 CROSS COUNTRY") == 1.0
+    assert _edit_similarity.cache_info().hits == 1
+    assert _normalized_code.cache_info().hits == 1
+    assert _normalized_text.cache_info().hits == 1
+    assert _token_similarity.cache_info().hits == 1
+
+
 def _catalog() -> tuple[VehicleCandidate, ...]:
     return (
         VehicleCandidate(
@@ -89,6 +115,23 @@ def test_missing_or_unknown_manufacturer_uses_review_only_global_candidates() ->
     ]
 
 
+def test_index_recovers_unique_token_bounded_model_from_brand() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    assert index.recover_model_from_brand("Volvo", "VOLVO S + XC90") == "XC90"
+    assert index.recover_model_from_brand("Volvo", "VOLVO XC900") is None
+    assert index.recover_model_from_brand("Unknown", "VOLVO XC90") is None
+
+
+def test_index_recovers_model_from_alternative_scoped_evidence() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"variant": "XC90 T8", "version": "UNKNOWN"},
+    ) == ("XC90", "variant")
+
+
 def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
     result = _matcher().match(
         VehicleMatchQuery(
@@ -141,17 +184,49 @@ def test_context_conflicts_prevent_automatic_resolution(
     assert conflicting_field in result.candidates[0].conflicting_fields
 
 
+def test_drive_and_bodywork_context_separate_candidates() -> None:
+    awd_suv = VehicleCandidate(
+        "KTYPE-AWD",
+        "Volvo",
+        "XC90",
+        drive_type="awd",
+        bodyworks=frozenset({"suv"}),
+    )
+    fwd_estate = VehicleCandidate(
+        "KTYPE-FWD",
+        "Volvo",
+        "XC90",
+        drive_type="fwd",
+        bodyworks=frozenset({"estate"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((awd_suv, fwd_estate)))
+
+    result = matcher.match(
+        VehicleMatchQuery(
+            manufacturer="Volvo",
+            model="XC90",
+            drive_type="awd",
+            bodywork="suv",
+        )
+    )
+
+    assert result.candidates[0].candidate_reference == "KTYPE-AWD"
+    assert "drive_type" in result.candidates[0].matched_fields
+    assert "bodywork" in result.candidates[0].matched_fields
+    assert result.candidates[0].conflicting_fields == ()
+
+
 @pytest.mark.parametrize(
     ("query", "conflicting_field"),
     [
         (
-            VehicleMatchQuery(
-                manufacturer="Volvo", model="XC90", displacement_cc=2000
-            ),
+            VehicleMatchQuery(manufacturer="Volvo", model="XC90", displacement_cc=2000),
             "displacement_cc",
         ),
         (
-            VehicleMatchQuery(manufacturer="Volvo", model="XC90", power_kw=141),
+            # Beyond the PS/kW rounding tolerance, so a genuine contradiction
+            # rather than measurement noise (the catalog entry is 140 kW).
+            VehicleMatchQuery(manufacturer="Volvo", model="XC90", power_kw=160),
             "power_kw",
         ),
     ],
@@ -314,3 +389,136 @@ def test_duplicate_references_and_invalid_config_are_rejected() -> None:
         FuzzyMatchConfig(edit_weight=0.8, token_weight=0.3)
     with pytest.raises(ValueError, match="between 0.0 and 1.0"):
         FuzzyMatchConfig(engine_conflict_penalty=-0.1)
+
+
+def _sibling_ktypes(
+    *,
+    rival_power_kw: int,
+    rival_bodyworks: frozenset[str] = frozenset({"estate"}),
+) -> tuple[VehicleCandidate, VehicleCandidate]:
+    """Two k-types of one model family, separable only by technical evidence."""
+
+    shared = {
+        "manufacturer": "Volvo",
+        "model": "V70",
+        "year_from": 2008,
+        "year_to": 2016,
+        "fuels": frozenset({"diesel"}),
+        "displacement_cc": 1984,
+        "drive_type": "fwd",
+    }
+    return (
+        VehicleCandidate(
+            candidate_reference="KTYPE-EXACT",
+            power_kw=120,
+            bodyworks=frozenset({"estate"}),
+            **shared,
+        ),
+        VehicleCandidate(
+            candidate_reference="KTYPE-RIVAL",
+            power_kw=rival_power_kw,
+            bodyworks=rival_bodyworks,
+            **shared,
+        ),
+    )
+
+
+_FULL_EVIDENCE_QUERY = VehicleMatchQuery(
+    manufacturer="Volvo",
+    model="V70",
+    year=2012,
+    fuels=frozenset({"diesel"}),
+    displacement_cc=1984,
+    power_kw=120,
+    drive_type="fwd",
+    bodywork="estate",
+)
+
+
+def test_separation_score_is_unclamped_so_saturated_candidates_stay_comparable() -> None:
+    exact, rival = _sibling_ktypes(rival_power_kw=136)
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, rival))).match(
+        _FULL_EVIDENCE_QUERY
+    )
+
+    top, second = result.candidates[0], result.candidates[1]
+    # Both saturate at the reported confidence ceiling...
+    assert top.confidence == second.confidence == 1.0
+    # ...but the separation score still reflects the real evidence gap.
+    assert top.separation_score > second.separation_score
+    assert top.separation_score - second.separation_score >= 0.08
+
+
+def test_fully_matched_candidate_outranks_a_conflicting_sibling_ktype() -> None:
+    exact, rival = _sibling_ktypes(rival_power_kw=136)
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, rival))).match(
+        _FULL_EVIDENCE_QUERY
+    )
+
+    assert result.candidates[0].candidate_reference == "KTYPE-EXACT"
+    assert result.eligible_for_auto_resolution is True
+    assert result.reason == "automatic_candidate_threshold_met"
+
+
+def test_identical_sibling_ktypes_remain_ambiguous() -> None:
+    exact, rival = _sibling_ktypes(rival_power_kw=120)
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, rival))).match(
+        _FULL_EVIDENCE_QUERY
+    )
+
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "candidate_margin_not_met"
+
+
+def test_sibling_separated_only_by_missing_evidence_remains_ambiguous() -> None:
+    exact, rival = _sibling_ktypes(rival_power_kw=120, rival_bodyworks=frozenset())
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, rival))).match(
+        _FULL_EVIDENCE_QUERY
+    )
+
+    # A missing field is weaker evidence than a matched one, but the gap is
+    # below the automatic margin, so the pair stays ambiguous.
+    assert result.eligible_for_auto_resolution is False
+    assert result.reason == "candidate_margin_not_met"
+
+
+def _power_candidates() -> tuple[VehicleCandidate, VehicleCandidate]:
+    shared = {"manufacturer": "Volvo", "model": "V60", "year_from": 2010, "year_to": 2018}
+    return (
+        VehicleCandidate(candidate_reference="KTYPE-EXACT", power_kw=110, **shared),
+        VehicleCandidate(candidate_reference="KTYPE-NEAR", power_kw=112, **shared),
+    )
+
+
+def test_power_within_rounding_tolerance_is_not_a_conflict() -> None:
+    _, near = _power_candidates()
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((near,))).match(
+        VehicleMatchQuery(manufacturer="Volvo", model="V60", power_kw=110)
+    )
+
+    candidate = result.candidates[0]
+    # 2 kW apart is PS/kW rounding, so it must not read as a contradiction...
+    assert "power_kw" not in candidate.conflicting_fields
+    # ...but it is not proof of a match either.
+    assert "power_kw" not in candidate.matched_fields
+    assert "power_kw" in candidate.missing_fields
+
+
+def test_power_beyond_tolerance_remains_a_conflict() -> None:
+    far = VehicleCandidate(
+        candidate_reference="KTYPE-FAR", manufacturer="Volvo", model="V60", power_kw=140
+    )
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((far,))).match(
+        VehicleMatchQuery(manufacturer="Volvo", model="V60", power_kw=110)
+    )
+
+    assert "power_kw" in result.candidates[0].conflicting_fields
+
+
+def test_exact_power_still_outranks_a_within_tolerance_sibling() -> None:
+    exact, near = _power_candidates()
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, near))).match(
+        VehicleMatchQuery(manufacturer="Volvo", model="V60", power_kw=110)
+    )
+
+    assert result.candidates[0].candidate_reference == "KTYPE-EXACT"

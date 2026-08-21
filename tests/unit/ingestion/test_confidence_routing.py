@@ -210,3 +210,44 @@ def test_policy_rejects_invalid_thresholds_and_weights() -> None:
         ConfidenceRoutingPolicy(resolved_threshold=0.6, provisional_threshold=0.7)
     with pytest.raises(ValueError, match="sum to 1.0"):
         ConfidenceRoutingPolicy(text_weight=0.8)
+
+
+def test_saturated_sibling_ktypes_route_on_real_evidence_separation() -> None:
+    """A fully matched k-type must beat a sibling with a conflicting field.
+
+    Both candidates report a saturated confidence of 1.0, so routing has to use
+    the unclamped separation score; otherwise a textbook exact match is sent to
+    review because its conflicting sibling appears tied with it.
+    """
+
+    shared = {
+        "manufacturer": "Volvo",
+        "model": "V70",
+        "year_from": 2008,
+        "year_to": 2016,
+        "fuels": frozenset({"diesel"}),
+        "displacement_cc": 1984,
+        "drive_type": "fwd",
+        "bodyworks": frozenset({"estate"}),
+    }
+    match = _match(
+        VehicleMatchQuery(
+            manufacturer="Volvo",
+            model="V70",
+            year=2012,
+            fuels=frozenset({"diesel"}),
+            displacement_cc=1984,
+            power_kw=120,
+            drive_type="fwd",
+            bodywork="estate",
+        ),
+        VehicleCandidate(candidate_reference="KTYPE-EXACT", power_kw=120, **shared),
+        VehicleCandidate(candidate_reference="KTYPE-RIVAL", power_kw=136, **shared),
+    )
+
+    decision = ConfidenceRouter().route(match)
+
+    assert decision.route == "resolved"
+    assert decision.reason_codes == ("resolved_threshold_met",)
+    assert decision.selected_candidate_reference == "KTYPE-EXACT"
+    assert decision.hard_conflicts == ()

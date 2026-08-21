@@ -9,6 +9,7 @@ from ingestion.datastores import DatastoreClients
 from ingestion.graph_migrations import run_graph_migrations
 from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.ledger_migrations import run_ledger_migrations
+from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.normalization_migrations import run_normalization_migrations
 from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import run_review_queue_migrations
@@ -221,6 +222,36 @@ class MigrateConfidenceRoutingJob:
 
 
 @dataclass(frozen=True)
+class MigrateMatchRunsJob:
+    """Apply durable full-cohort matching run/checkpoint storage."""
+
+    name: str = "migrate-match-runs"
+    description: str = "Apply full TS-to-TecDoc match-run checkpoint migrations."
+    source_name: str = "system"
+
+    def run(
+        self,
+        settings: IngestionSettings,
+        datastores: DatastoreClients,
+        batch_id: str,
+    ) -> int:
+        _ = settings
+        with datastores.postgres.connect() as connection:
+            applied = run_match_run_migrations(connection)
+        logger.info(
+            "Match-run migrations applied",
+            extra={
+                "job_name": self.name,
+                "batch_id": batch_id,
+                "source": self.source_name,
+                "statements_applied": len(applied),
+                "statement_names": list(applied),
+            },
+        )
+        return 0
+
+
+@dataclass(frozen=True)
 class StubIngestionJob:
     name: str
     description: str
@@ -383,6 +414,7 @@ AVAILABLE_JOBS: tuple[IngestionJob, ...] = (
     MigrateReviewQueueJob(),
     MigrateJobBookkeepingJob(),
     MigrateConfidenceRoutingJob(),
+    MigrateMatchRunsJob(),
     StubIngestionJob(
         name="load",
         description="Stub raw source loading command.",

@@ -2,9 +2,29 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-21 — Alternative model evidence and drive/body matching context
+
+- Extended exact-manufacturer, token-bounded, unique-longest TecDoc model recovery from Brand to Variant, Version, model number, type text and EEG type approval evidence. Added canonical TecDoc drive/body fields to KType candidates and TS match queries with conservative context bonuses and review-only conflict penalties; disagreements cannot bypass routing gates or become hard conflicts automatically. Ruff, strict mypy, 57 focused unit tests and diff checks pass. The deterministic 10,000-row remote comparison could not start because workspace approval credits were exhausted; rerun that cohort and PostgreSQL integration validation before any full audit or promotion.
+
+## 2026-08-21 — Dry-run reason profiling and safe Brand model recovery
+
+- Added operation-scoped `core.match_run_reason_counts`, atomic per-checkpoint reason aggregation, and sanitized evaluator reasons without retaining plates, VINs or raw payloads. Added exact-manufacturer, token-bounded, unique-longest TecDoc model recovery from Brand text when TS model is absent. A deterministic 10,000-row dry run produced 38 resolved, 141 provisional, 9,366 review-required, 399 hard conflicts, 56 policy exclusions and 0 failed; 132 models were recovered, yielding 28 resolved, 33 still review-required and 71 explicit technical conflicts rather than unsafe promotion. Ruff, strict mypy, 51 focused tests and the PostgreSQL integration test pass. Next: profile a broader stratified cohort, then add variant/type evidence and drive/body filtering under separately validated gates.
+
+## 2026-08-20 — Full-audit review backlog diagnosis
+
+- Profiled the authoritative 6,515,471-row passenger cohort and restored TecDoc 0326 graph after the completed count-only audit. TS has model on 4,126,500 rows; 2,388,971 lack model, but 2,109,530 of those retain variant/version/model number/type text/type-approval evidence. Core evidence is broadly populated (year 6,515,129; fuel 6,512,991; power 6,181,921; displacement 4,843,011; drive 6,512,991; body code 6,484,230). Only 2,408 manufacturer/model catalog families have one KType, but manufacturer/model plus year range/fuel/displacement/power yields 45,103 unique TecDoc technical signatures. Highest-impact next work is a persisted reason/evidence profiler, safe model recovery from brand/variant/type evidence, hierarchical technical filtering, drive/body integration, and calibrated numeric tolerances; do not promote review/provisional rows before rerun validation.
+
+## 2026-08-20 — Full passenger TS-to-TecDoc dry-run completed
+
+- Completed the version-pinned, write-free audit of all 6,515,471 passenger TS rows against 55,808 TecDoc 0326 KTypes: 8,104 resolved, 80,290 provisional, 6,041,725 review-required, 295,669 hard conflicts, 2,336 normalization reviews, 86,792 policy exclusions, 555 unmatched, and 0 failed. PostgreSQL status is `completed` and terminal accounting equals the source total exactly. Added guarded handling for invalid normalized model text and skipped futile all-catalog scoring for global manufacturer scope in this count-only audit; Ruff, strict mypy, and 39 focused tests pass. No match decisions or Neo4j aliases were persisted; next step is reason/evidence profiling before changing matching policy.
+
 ## 2026-08-18 — Reproducible full passenger import command
 
 - Added `northstar-ingest import-remote-passenger` with the shared V3.2.3 prefix, exact 6,515,471-row source-count gate, 25,000-row checkpoints, raw retention, and explicit singleton stale-part recovery. Added `REMOTE_DATABASE_URL` configuration, team runbook and focused CLI/recovery tests. This replaces the temporary local runner contract so every developer can resume the same plate-ordered VD-AI import safely.
+
+## 2026-08-18 — TS-to-TecDoc validation work breakdown
+
+- Expanded the validation runbook with the SCRUM-171/SCRUM-170 dependency chain and implemented both local and remote write-free runners. The authoritative remote TS source confirms 6,515,471 passenger rows, and the new plate-keyed path normalizes/matches bounded batches while retaining only monotonic checkpoints. A 100-row smoke run stopped before any checkpoint because the live Neo4j database has zero nodes; all local PostgreSQL TecDoc staging tables are also empty and no pinned 0326 source files are present. Restoring the 55,808-KType catalog is now the only blocker; no Jira, decisions, aliases or production data changed.
 
 ## 2026-08-17 — Detached full VD-AI passenger import
 
@@ -21,23 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-17 — SCRUM-171 immutable match decision lifecycle
 
 - Added an explicit dry-run/persist boundary for TS-to-KType match decisions, one current decision head per stable source identity/version, and append-only supersession evidence while retaining deterministic immutable decision rows. Dry runs validate source provenance without writes; persisted retries are idempotent and conflicting supersession histories stop safely. PostgreSQL integration and migration contract tests pass; this layer does not promote KTypes or attach Neo4j aliases.
-
-## 2026-08-17 — Reviewed technical tail activated
-
-- Merged PR #28 head `d4cd10d`, adding database-backed `reviewed_record_policy` support keyed by stable VIN plus Brand and activating immutable version `ts-review-20260817T073842135705Z` with 30 reviewed manufacturer-conflict, electrification, bodywork, malformed-power, and transmission decisions. The full 25,295-car audit found zero canonical conflicts/regressions; reprocessing as `normalization-remote-passenger-cars-only-v323-20260817` produced 10,483 resolved, 12,704 provisional, 2,108 review-required, and 0 failed. The established SQL delta now contains 684 cumulative definitions/905 overrides; 97 focused tests and Ruff pass. Auditing the 704 non-generic manual tail found no safe bulk rule: 678 have generic fab code `ÖV` and 687 Brand values are singletons; two GMC rows remain candidates for explicit manual approval.
-
-## 2026-08-14 — Started local review frontend
-
-- Started the FastAPI-hosted normalization review frontend from the SCRUM-95-98 worktree at `http://127.0.0.1:8000/normalization-review`. Verified the page returns HTTP 200 and `/health` reports PostgreSQL, Redis, Neo4j and Elasticsearch healthy. The Uvicorn process remains running locally; no repository or database changes were made.
-
-## 2026-08-14 — Added TS-to-KType persistence and promotion Jira tasks
-
-- Created SCRUM-171 under SCRUM-83 for immutable, evidence-gated TS-to-TecDoc KType decision persistence with versioning, idempotency, dry-run separation and integration coverage. Created SCRUM-170 for audited KType promotion and safe TS alias attachment with transactional uniqueness, PostgreSQL/Neo4j reconciliation, failure recovery and a controlled cohort; explicitly recorded its dependency on SCRUM-171. Both tasks are To Do and unassigned. No repository, database or graph behavior changed.
-
-## 2026-08-14 — Integrated TS-to-KType technical-gate rerun
-
-- Extended fuzzy KType candidates and TS queries with exact displacement/power evidence and made both numeric conflicts hard confidence-routing gates. Re-ran the retained 24,389 cohort read-only against all 55,808 KTypes using guarded manufacturer aliases plus normalized/raw model candidates: 2,366 normalization-review and 1,149 policy-excluded rows left 20,874 eligible; 5,728 were manufacturer-unmatched, 2 manufacturer-conflicted, 12,161 model-missing, and 2,983 were evaluated. Routing produced 222 resolved, 121 provisional and 2,640 review-required; hard gates retained 126 power, 49 year, 27 displacement, 9 fuel and 7 model-series conflicts. Forty-three focused unit/integration tests, Ruff and diff checks pass. No match decisions, aliases, commits or pushes were made.
-
-## 2026-08-14 — Full-local model-family evidence audit
-
-- Replayed the 127 accepted `MOD-*` rules (186 source terms) against all 568,469 latest locally retained vehicles after guarded TecDoc manufacturer resolution. Of 553,766 manufacturer-resolved vehicles, 311,011 retain raw model text and 199,408 match a reviewed model-family rule; 10,176 match a TecDoc family label exactly and 171,831 have compatible family-prefix evidence, while 17,401 rule hits remain unlinked. All 182,007 compatible vehicles reach at least one of the 55,808 KTypes through their compatible family: 2,363 have one family-stage KType candidate and 179,644 remain multi-candidate before technical gates. In the retained 24,389 review cohort specifically, 15,527 resolve manufacturer scope, only 3,196 retain raw model text, and reviewed model-family rules add 12 KType-compatible vehicles, all still multi-candidate. Another 111,603 model-bearing vehicles in the full-local set have no reviewed family rule, and 242,755 lack raw model text. Nine Škoda rule scopes still need a reviewed `Škoda` → TecDoc `SKODA` bridge. This was a read-only audit; no aliases or database rows were written.

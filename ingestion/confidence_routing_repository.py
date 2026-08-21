@@ -12,10 +12,10 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from ingestion.confidence_routing import ConfidenceRoutingDecision
-from ingestion.confidence_routing_migrations import MATCH_ROUTING_TABLE
 from ingestion.confidence_routing_migrations import (
     MATCH_DECISION_HEAD_TABLE,
     MATCH_DECISION_SUPERSESSION_TABLE,
+    MATCH_ROUTING_TABLE,
 )
 
 ROUTING_NAMESPACE = UUID("8d286d12-6811-43e3-a183-21a9b5cccbcb")
