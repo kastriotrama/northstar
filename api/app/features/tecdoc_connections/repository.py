@@ -11,5 +11,5 @@ class ResolvedConnectionRepository:
         payload = json.loads(self._path.read_text())
         items = payload.get("items")
         if not isinstance(items, list):
-            raise ValueError("resolved showcase items are missing")
+            raise TypeError("resolved showcase items are missing")
         return tuple(dict(item) for item in items if isinstance(item, dict))
