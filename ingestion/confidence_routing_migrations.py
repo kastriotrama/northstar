@@ -5,6 +5,8 @@ from __future__ import annotations
 from psycopg import Connection
 
 MATCH_ROUTING_TABLE = "core.match_routing_decisions"
+MATCH_DECISION_HEAD_TABLE = "core.match_decision_heads"
+MATCH_DECISION_SUPERSESSION_TABLE = "core.match_decision_supersessions"
 
 CONFIDENCE_ROUTING_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -74,6 +76,34 @@ CONFIDENCE_ROUTING_MIGRATIONS: tuple[tuple[str, str], ...] = (
             f"CREATE INDEX IF NOT EXISTS match_routing_source_idx "
             f"ON {MATCH_ROUTING_TABLE} (source_table, source_record_id)"
         ),
+    ),
+    (
+        "create_match_decision_heads_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_DECISION_HEAD_TABLE} (
+            source_system TEXT NOT NULL CHECK (btrim(source_system) <> ''),
+            source_version TEXT NOT NULL CHECK (btrim(source_version) <> ''),
+            source_entity_key TEXT NOT NULL CHECK (btrim(source_entity_key) <> ''),
+            decision_id UUID NOT NULL UNIQUE REFERENCES {MATCH_ROUTING_TABLE}(decision_id),
+            selected_candidate_reference TEXT,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (source_system, source_version, source_entity_key)
+        )
+        """,
+    ),
+    (
+        "create_match_decision_supersessions_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_DECISION_SUPERSESSION_TABLE} (
+            predecessor_decision_id UUID PRIMARY KEY
+                REFERENCES {MATCH_ROUTING_TABLE}(decision_id),
+            successor_decision_id UUID NOT NULL
+                REFERENCES {MATCH_ROUTING_TABLE}(decision_id),
+            reason TEXT NOT NULL CHECK (btrim(reason) <> ''),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            CHECK (predecessor_decision_id <> successor_decision_id)
+        )
+        """,
     ),
 )
 

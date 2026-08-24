@@ -14,6 +14,7 @@ class IngestionSettings(BaseSettings):
         default="postgresql://app:change_me@localhost:5432/app",
         alias="DATABASE_URL",
     )
+    remote_database_url: str | None = Field(default=None, alias="REMOTE_DATABASE_URL")
     neo4j_uri: str = Field(default="bolt://localhost:7687", alias="NEO4J_URI")
     neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
     neo4j_password: str = Field(default="change_me", alias="NEO4J_PASSWORD")

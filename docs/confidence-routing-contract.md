@@ -47,6 +47,16 @@ candidate-catalog version and policy version. The deterministic UUID also
 includes source system and batch. A retry is accepted only when the complete
 payload is identical.
 
+SCRUM-171 adds an explicit `dry_run`/`persist` write boundary. Dry runs validate
+the referenced staging row and calculate the deterministic decision identity but
+write nothing. Persist mode inserts the immutable decision and atomically advances
+`core.match_decision_heads`, whose source-system/version/entity primary key
+enforces one current decision per plate (or other stable source identity). When a
+new catalog or policy produces a new decision, the previous decision remains
+unchanged and an append-only edge in `core.match_decision_supersessions` records
+why it was replaced. This workflow only records evidence and decisions; it never
+promotes a KType or mutates Neo4j aliases.
+
 The persisted payload contains:
 
 - policy version, route and composite confidence;

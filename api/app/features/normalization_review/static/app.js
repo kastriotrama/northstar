@@ -3,6 +3,7 @@ const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: f
 const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
+const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -21,6 +22,7 @@ const elements = {
   guideView: document.querySelector("#guide-view"),
   queueView: document.querySelector("#queue-view"),
   tecdocView: document.querySelector("#tecdoc-view"),
+  connectionsView: document.querySelector("#connections-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -383,15 +385,81 @@ function switchView(view) {
   const showGuide = view === "guide";
   const showQueue = view === "queue";
   const showTecDoc = view === "tecdoc";
-  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc;
+  const showConnections = view === "connections";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
   elements.queueView.hidden = !showQueue;
   elements.tecdocView.hidden = !showTecDoc;
+  elements.connectionsView.hidden = !showConnections;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
   if (showQueue) loadQueue();
   if (showTecDoc && !tecdocState.page) loadTecDoc();
+  if (showConnections && !resolvedConnectionState.page) loadResolvedConnections();
+}
+
+const connectionViews = {
+  vw: { eyebrow: "Variant/version bridge", name: "VW TS record → CAYC engine set", badge: "Validated 10k", badgeClass: "status-validated", path: [["TS evidence", "VW · variant + version", "source"], ["Reviewed fingerprint", "12 training + 11 held-out anchors", "evidence"], ["TecDoc engine set", "CAYC · exactly one engine", "target"], ["KType candidates", "Re-ranked with engine evidence", "target"], ["Matcher route", "Review → resolved", "target"]], gates: [["Exact manufacturer scope", "pass"], ["Repeated fingerprint", "pass"], ["Unique catalog engine", "pass"], ["Year / fuel / power gates", "pass"], ["Candidate margin", "pass"]], title: "Passed the controlled 10k cohort", copy: "For eight held-out VW rows, CAYC agreed with the candidate engine set. The extra evidence separated the leading KType from alternatives and met the resolved route." },
+  hyundai: { eyebrow: "Type-approval bridge", name: "Hyundai TS record → G4FU engine set", badge: "Validated 10k", badgeClass: "status-validated", path: [["TS evidence", "Hyundai · type approval", "source"], ["Reviewed fingerprint", "9 training + 3 held-out anchors", "evidence"], ["TecDoc engine set", "G4FU · exactly one engine", "target"], ["KType candidates", "Re-ranked with engine evidence", "target"], ["Matcher route", "Review → resolved", "target"]], gates: [["Exact manufacturer scope", "pass"], ["Repeated fingerprint", "pass"], ["Unique catalog engine", "pass"], ["Year / fuel / power gates", "pass"], ["Candidate margin", "pass"]], title: "Passed the controlled 10k cohort", copy: "The reviewed type-approval fingerprint supplied G4FU only where the Hyundai catalog scope contained that engine. No contradictory engine appeared in the held-out anchors." },
+};
+
+function renderConnection(key) {
+  const view = connectionViews[key];
+  document.querySelectorAll(".connection-row").forEach((row) => row.classList.toggle("selected", row.dataset.connection === key));
+  document.querySelector("#connection-eyebrow").textContent = view.eyebrow;
+  document.querySelector("#connection-name").textContent = view.name;
+  const badge = document.querySelector("#connection-badge");
+  badge.textContent = view.badge;
+  badge.className = `connection-status ${view.badgeClass}`;
+  document.querySelector("#connection-path").innerHTML = view.path.map(([title, detail, status]) => `<article class="path-${escapeHtml(status)}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  document.querySelector("#connection-gates").innerHTML = view.gates.map(([label, status]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-${escapeHtml(status)}">${escapeHtml(humanize(status))}</strong></div>`).join("");
+  document.querySelector("#connection-decision-title").textContent = view.title;
+  document.querySelector("#connection-decision-copy").textContent = view.copy;
+}
+
+function renderResolvedConnectionRows() {
+  const page = resolvedConnectionState.page;
+  if (!page) return;
+  const rows = document.querySelector("#resolved-connection-rows");
+  rows.innerHTML = page.items.map((item, index) => `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_codes.join(", ") || "Engine facts only")}</strong><span>${escapeHtml(item.power_kw ? `${item.power_kw} kW` : "Power pending")} · ${escapeHtml(item.displacement_cc ? `${item.displacement_cc} cc` : "Displacement pending")}</span></div></td><td><span class="connection-status status-validated">Resolved</span></td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => renderResolvedVehicle(page.items[Number(row.dataset.resolvedIndex)])));
+  const start = page.filtered_total ? page.offset + 1 : 0;
+  const end = Math.min(page.offset + page.items.length, page.filtered_total);
+  document.querySelector("#resolved-page-label").textContent = `${start}–${end} of ${page.filtered_total.toLocaleString()}`;
+  document.querySelector("#resolved-previous").disabled = page.offset === 0;
+  document.querySelector("#resolved-next").disabled = page.offset + page.limit >= page.filtered_total;
+}
+
+function renderResolvedVehicle(item) {
+  resolvedConnectionState.selectedId = item.vehicle_id;
+  document.querySelectorAll("#resolved-connection-rows tr").forEach((row) => row.classList.toggle("selected", resolvedConnectionState.page.items[Number(row.dataset.resolvedIndex)].vehicle_id === item.vehicle_id));
+  document.querySelectorAll(".connection-row").forEach((row) => row.classList.remove("selected"));
+  document.querySelector("#connection-eyebrow").textContent = `${item.vehicle_id} · registration plate`;
+  document.querySelector("#connection-name").textContent = `${item.plate} → KType ${item.ktype}`;
+  const badge = document.querySelector("#connection-badge"); badge.textContent = "Resolved"; badge.className = "connection-status status-validated";
+  const fuel = item.fuels.length ? item.fuels.map(humanize).join(", ") : "Fuel evidence pending";
+  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  const yearRange = [item.tecdoc_year_from || "—", item.tecdoc_year_to || "present"].join("–");
+  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model], ["Production year", item.year || "—", yearRange], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts"], ["Engine", item.ts_engine_code || "No TS engine code", item.engine_codes.join(", ") || "No unique engine allocation"], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—"]];
+  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b>Passed</b></article>`).join("");
+  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["No technical hard conflict", "pass"], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-pass">${escapeHtml(humanize(value))}</strong></div>`).join("");
+  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", "Applied year, fuel, engine, displacement, power, bodywork and drive compatibility."], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
+  document.querySelector("#connection-trace").innerHTML = trace.map(([title, copy], index) => `<li><b>${index + 1}</b><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span></div></li>`).join("");
+  document.querySelector("#connection-decision-title").textContent = `Selected ${item.ktype} as the unique top candidate`;
+  document.querySelector("#connection-decision-copy").textContent = `The candidate was inside the exact manufacturer scope, passed the applicable technical compatibility checks, exceeded the resolved threshold, and retained enough separation from the runner-up. Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
+}
+
+async function loadResolvedConnections() {
+  if (resolvedConnectionState.loading) return;
+  resolvedConnectionState.loading = true;
+  try {
+    const query = encodeURIComponent(resolvedConnectionState.query);
+    resolvedConnectionState.page = await apiRequest(`/v1/normalization-review/connections/resolved?query=${query}&limit=25&offset=${resolvedConnectionState.offset}`);
+    renderResolvedConnectionRows();
+    if (resolvedConnectionState.page.items.length && !resolvedConnectionState.selectedId) renderResolvedVehicle(resolvedConnectionState.page.items[0]);
+  } catch (error) { showToast(`Could not load resolved TS connections. ${error.message}`); }
+  finally { resolvedConnectionState.loading = false; }
 }
 
 async function loadTecDoc() {
@@ -929,6 +997,11 @@ async function approveQueueDecision(event) {
 }
 
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelectorAll(".connection-row").forEach((row) => row.addEventListener("click", () => renderConnection(row.dataset.connection)));
+let resolvedConnectionSearchTimer;
+document.querySelector("#connection-vehicle-search").addEventListener("input", (event) => { clearTimeout(resolvedConnectionSearchTimer); resolvedConnectionSearchTimer = setTimeout(() => { resolvedConnectionState.query = event.target.value.trim(); resolvedConnectionState.offset = 0; loadResolvedConnections(); }, 180); });
+document.querySelector("#resolved-previous").addEventListener("click", () => { resolvedConnectionState.offset = Math.max(0, resolvedConnectionState.offset - 25); loadResolvedConnections(); });
+document.querySelector("#resolved-next").addEventListener("click", () => { resolvedConnectionState.offset += 25; loadResolvedConnections(); });
 document.querySelectorAll(".tecdoc-kind").forEach((tab) => tab.addEventListener("click", () => {
   tecdocState.kind = tab.dataset.tecdocKind;
   tecdocState.offset = 0;

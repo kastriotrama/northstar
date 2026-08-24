@@ -79,6 +79,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: ${NORTHSTAR_CORS_ORIGINS:-http://127.0.0.1:8765}
       HEALTH_CHECK_TIMEOUT_SECONDS: ${NORTHSTAR_HEALTH_CHECK_TIMEOUT_SECONDS:-5}
+      RESOLVED_MATCH_SHOWCASE_PATH: /run/northstar-private/ts-ktype-resolved-showcase-1000.json
+    volumes:
+      - ${NORTHSTAR_PRIVATE_DATA_DIRECTORY:-/opt/northstar-private}:/run/northstar-private:ro
+    group_add:
+      - "0"
     depends_on:
       postgres:
         condition: service_healthy

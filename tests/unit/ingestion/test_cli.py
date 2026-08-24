@@ -22,8 +22,11 @@ def test_list_commands_prints_stub_jobs(capsys: CaptureFixture[str]) -> None:
     assert "migrate-review-queue" in output
     assert "migrate-job-bookkeeping" in output
     assert "migrate-confidence-routing" in output
+    assert "migrate-match-runs" in output
+    assert "match-ts-tecdoc" in output
     assert "import-normalization-bundle" in output
     assert "export-rule-delta" in output
+    assert "import-remote-passenger" in output
 
 
 def test_parser_registers_stub_job_commands() -> None:
@@ -41,6 +44,36 @@ def test_parser_registers_stub_job_commands() -> None:
     assert parsed_transportstyrelsen.batch_id == "transportstyrelsen-batch-1"
     assert parsed_healthcheck.command == "healthcheck"
     assert parsed_healthcheck.batch_id == "healthcheck-1"
+
+
+def test_parser_registers_version_pinned_match_audit() -> None:
+    args = build_parser().parse_args(
+        [
+            "match-ts-tecdoc",
+            "--operation-id",
+            "00000000-0000-4000-8000-000000000001",
+            "--source-version",
+            "ts-2026-08",
+            "--source-batch-prefix",
+            "passenger-part-",
+            "--expected-source-rows",
+            "6515471",
+            "--normalization-rule-version",
+            "ts-review-20260817T073842135705Z",
+            "--candidate-catalog-version",
+            "tecdoc-0326",
+            "--expected-ktype-count",
+            "55808",
+            "--policy-version",
+            "confidence-routing-v1",
+            "--code-revision",
+            "abc123",
+        ]
+    )
+
+    assert args.command == "match-ts-tecdoc"
+    assert args.expected_source_rows == 6_515_471
+    assert args.expected_ktype_count == 55_808
 
 
 def test_commands_fail_safely_or_run_with_batch_id() -> None:
@@ -65,9 +98,7 @@ def test_bundle_import_requires_an_explicit_excel_file() -> None:
     with pytest.raises(SystemExit):
         parser.parse_args(["import-normalization-bundle"])
 
-    args = parser.parse_args(
-        ["import-normalization-bundle", "--file", "snapshot.xlsx"]
-    )
+    args = parser.parse_args(["import-normalization-bundle", "--file", "snapshot.xlsx"])
     assert args.command == "import-normalization-bundle"
     assert str(args.file) == "snapshot.xlsx"
 
@@ -89,3 +120,13 @@ def test_rule_delta_export_defaults_to_latest_target() -> None:
     assert args.baseline_version == "rules-v1"
     assert args.target_version is None
     assert str(args.output) == "latest-rules.sql"
+
+
+def test_remote_passenger_import_uses_shared_contract_defaults() -> None:
+    args = build_parser().parse_args(["import-remote-passenger", "--retain-raw"])
+
+    assert args.prefix == "normalization-vdai-passenger-full-v323-20260817"
+    assert args.batch_size == 25_000
+    assert args.expected_source_count == 6_515_471
+    assert args.retain_raw is True
+    assert args.recover_stale_part is False
