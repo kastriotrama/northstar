@@ -12,6 +12,7 @@ EXPECTED_RELATIONSHIPS = {
     "REFERS_TO",
     "USES_ENGINE",
     "USES_TRANSMISSION",
+    "VARIANT_OF",
 }
 EXPECTED_QUERIES = {
     "conflict_lookup",

@@ -20,6 +20,7 @@ class FakeRepository:
         return 1, [
             {
                 "source_record_id": 42,
+                "source_batch_id": "batch-2026-08",
                 "status": "provisional",
                 "confidence": 0.8,
                 "normalized_payload": {
@@ -37,6 +38,7 @@ class FakeRepository:
                 },
                 "applied_rule_ids": ["MFR-102", "BDY-110"],
                 "review_reasons": [],
+                "source_evidence": {"plate": "ABC123"},
             }
         ]
 
@@ -77,7 +79,8 @@ def test_service_builds_searchable_vehicle_page_from_sanitized_payload() -> None
     assert vehicle.bodywork == "estate"
     assert vehicle.energy_sources == ["petrol", "electricity"]
     assert vehicle.decision_trace == [{"sequence": 1, "field": "manufacturer"}]
-    assert "plate" not in vehicle.model_dump_json()
+    assert vehicle.registration_plate == "ABC123"
+    assert vehicle.source_data_kind == "real"
     assert "vin" not in vehicle.model_dump_json()
 
 

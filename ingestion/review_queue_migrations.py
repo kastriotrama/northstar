@@ -39,6 +39,7 @@ _REVIEW_QUEUE_COLUMN_CONTRACT = (
     ("created_at", "timestamp with time zone", False, "now", None),
     ("updated_at", "timestamp with time zone", False, "now", None),
     ("resolved_at", "timestamp with time zone", True, None, None),
+    ("review_draft", "jsonb", False, "empty_json", None),
 )
 _REVIEW_QUEUE_PRIMARY_KEY = ("id",)
 _REQUIRED_CONSTRAINTS = {
@@ -76,6 +77,10 @@ _REQUIRED_CONSTRAINTS = {
         "c",
         ("CHECK", "jsonb_typeof(resolution)", "'object'"),
     ),
+    "review_queue_review_draft_object": (
+        "c",
+        ("CHECK", "jsonb_typeof(review_draft)", "'object'"),
+    ),
     "review_queue_resolution_state": (
         "c",
         ("CHECK", "resolved_at", "resolved_by", "resolution", "status"),
@@ -87,9 +92,7 @@ _REQUIRED_CONSTRAINTS = {
 }
 _REQUIRED_INDEX_FRAGMENTS = {
     "review_queue_status_created_at_idx": ("(status, created_at, id)",),
-    "review_queue_source_record_idx": (
-        "(source_table, source_record_id)",
-    ),
+    "review_queue_source_record_idx": ("(source_table, source_record_id)",),
 }
 
 
@@ -134,6 +137,7 @@ REVIEW_QUEUE_MIGRATION_STATEMENTS: tuple[ReviewQueueMigrationStatement, ...] = (
             "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
             "updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
             "resolved_at TIMESTAMPTZ, "
+            "review_draft JSONB NOT NULL DEFAULT '{}'::jsonb, "
             "CONSTRAINT review_queue_pkey PRIMARY KEY (id), "
             "CONSTRAINT review_queue_review_id_key UNIQUE (review_id), "
             "CONSTRAINT review_queue_source_system_nonempty "
@@ -153,6 +157,8 @@ REVIEW_QUEUE_MIGRATION_STATEMENTS: tuple[ReviewQueueMigrationStatement, ...] = (
             "CHECK (status IN ('pending', 'in_review', 'resolved', 'rejected')), "
             "CONSTRAINT review_queue_resolution_object "
             "CHECK (jsonb_typeof(resolution) = 'object'), "
+            "CONSTRAINT review_queue_review_draft_object "
+            "CHECK (jsonb_typeof(review_draft) = 'object'), "
             "CONSTRAINT review_queue_resolution_state CHECK ("
             "(status IN ('resolved', 'rejected') "
             "AND resolved_at IS NOT NULL AND btrim(resolved_by) <> '' "
@@ -164,6 +170,19 @@ REVIEW_QUEUE_MIGRATION_STATEMENTS: tuple[ReviewQueueMigrationStatement, ...] = (
             "CONSTRAINT review_queue_timestamp_order "
             "CHECK (updated_at >= created_at)"
             ")"
+        ),
+    ),
+    ReviewQueueMigrationStatement(
+        name="add_review_queue_review_draft",
+        kind="table",
+        sql=(
+            f"ALTER TABLE {REVIEW_QUEUE_TABLE} "
+            "ADD COLUMN IF NOT EXISTS review_draft JSONB NOT NULL DEFAULT '{}'::jsonb; "
+            f"ALTER TABLE {REVIEW_QUEUE_TABLE} "
+            "DROP CONSTRAINT IF EXISTS review_queue_review_draft_object; "
+            f"ALTER TABLE {REVIEW_QUEUE_TABLE} "
+            "ADD CONSTRAINT review_queue_review_draft_object "
+            "CHECK (jsonb_typeof(review_draft) = 'object')"
         ),
     ),
     ReviewQueueMigrationStatement(
@@ -248,12 +267,9 @@ def verify_review_queue_schema_contract(connection: Connection) -> None:
             "WHERE schema_ns.nspname = %s AND table_class.relname = %s",
             (CORE_SCHEMA_NAME, "review_queue"),
         )
-        constraints = {
-            str(row[0]): (str(row[1]), str(row[2])) for row in cursor.fetchall()
-        }
+        constraints = {str(row[0]): (str(row[1]), str(row[2])) for row in cursor.fetchall()}
         cursor.execute(
-            "SELECT indexname, indexdef "
-            "FROM pg_indexes WHERE schemaname = %s AND tablename = %s",
+            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = %s AND tablename = %s",
             (CORE_SCHEMA_NAME, "review_queue"),
         )
         indexes = {str(row[0]): str(row[1]) for row in cursor.fetchall()}

@@ -2,11 +2,14 @@ from types import MappingProxyType
 
 import pytest
 
-from ingestion.normalization_rules import normalize_ts_record
+from ingestion.normalization_rules import normalize_manufacturer_entity, normalize_ts_record
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
     RULE_SET_VERSION_V2,
     RULE_SET_VERSION_V3,
+    RULE_SET_VERSION_V4,
+    RULE_SET_VERSION_V5,
+    RULE_SET_VERSION_V6,
     RuleSetNotFoundError,
     load_translation_rule_set,
 )
@@ -37,23 +40,39 @@ def test_stakeholder_changes_are_captured_without_concept_conflation() -> None:
     assert rules.get("FUEL-010").canonical_value == "rme"
     assert rules.get("FUEL-012").canonical_value == "cng"
     assert rules.get("FUEL-013").canonical_value == "renewable_cng"
-    assert rules.get("FUEL-019").canonical_value == "diesel"
+    assert rules.get("FUEL-019").canonical_value == "biodiesel"
     assert rules.get("BDY-115").canonical_value == "truck"
     assert rules.get("BDY-010").canonical_value == "passenger_van"
     assert rules.get("BDY-110").canonical_value == "estate"
     assert rules.get("BDY-117").canonical_value == "cargo_estate"
+    assert rules.get("DRV-008").canonical_value == "awd"
+    assert rules.get("DRV-001").manufacturers == ("Mercedes-Benz",)
+    assert rules.get("DRV-002").manufacturers == ("BMW",)
+    assert rules.get("DRV-003").manufacturers == ("Audi",)
+    assert rules.get("DRV-004").manufacturers == ("Volkswagen",)
+    assert len([rule for rule in rules.rules if rule.area == "model_family"]) == 127
+    assert rules.get("MOD-003").canonical_value == "XC60"
+    assert rules.get("MOD-024").canonical_value == "Model Y"
 
 
 def test_previous_rule_set_remains_available_for_exact_replay() -> None:
     version_2 = load_translation_rule_set(RULE_SET_VERSION_V2)
     version_3 = load_translation_rule_set(RULE_SET_VERSION_V3)
+    version_4 = load_translation_rule_set(RULE_SET_VERSION_V4)
+    version_5 = load_translation_rule_set(RULE_SET_VERSION_V5)
+    version_6 = load_translation_rule_set(RULE_SET_VERSION_V6)
     current = load_translation_rule_set(REVIEWED_RULE_SET_VERSION)
 
     assert version_2.get("BDY-010").canonical_value == "multi_purpose_vehicle"
     assert version_2.get("BDY-110").canonical_value == "wagon"
     assert version_3.get("BDY-010").canonical_value == "passenger_van"
     assert version_3.get("BDY-110").canonical_value == "wagon"
-    assert current.version == "ts-translation-v4"
+    assert "DRV-008" not in version_4.by_id
+    assert "DRV-008" in version_5.by_id
+    assert "MOD-001" not in version_5.by_id
+    assert "MOD-001" in version_6.by_id
+    assert "MOD-101" not in version_6.by_id
+    assert current.version == "ts-translation-v7"
     assert current.get("BDY-010").canonical_value == "passenger_van"
     assert current.get("BDY-110").canonical_value == "estate"
 
@@ -110,6 +129,96 @@ def test_marketing_rules_require_the_reviewed_manufacturer_scope() -> None:
     assert "TRN-004A" in volvo.applied_rule_ids
     assert "transmission_type" not in bmw.normalized
     assert "transmission_marketing_scope_unresolved" in bmw.review_reasons
+
+
+@pytest.mark.parametrize(
+    ("manufacturer", "model", "rule_id"),
+    [
+        ("Mercedes-Benz", "E 350 4MATIC", "DRV-001"),
+        ("BMW", "X3 xDrive30e", "DRV-002"),
+        ("Audi", "A6 quattro", "DRV-003"),
+        ("Volkswagen", "Passat 4Motion", "DRV-004"),
+    ],
+)
+def test_drive_marketing_rules_are_manufacturer_scoped(
+    manufacturer: str, model: str, rule_id: str
+) -> None:
+    outcome = normalize_ts_record({"manufacturer": manufacturer, "model": model})
+
+    assert outcome.normalized["drive_type"] == "awd"
+    assert rule_id in outcome.applied_rule_ids
+
+
+def test_drive_marketing_term_outside_manufacturer_scope_requires_review() -> None:
+    outcome = normalize_ts_record({"manufacturer": "BMW", "model": "A6 quattro"})
+
+    assert "drive_type" not in outcome.normalized
+    assert "DRV-003" in outcome.candidate_rule_ids
+    assert "drive_marketing_scope_unresolved" in outcome.review_reasons
+
+
+def test_model_family_rule_accepts_prefix_and_keeps_manufacturer_scope() -> None:
+    volkswagen = normalize_ts_record({"manufacturer": "Volkswagen", "model": "PASSAT GTE BUSINESS"})
+    ford = normalize_ts_record({"manufacturer": "Ford", "model": "PASSAT GTE BUSINESS"})
+
+    assert volkswagen.normalized["model_family"] == "Passat"
+    assert "MOD-001" in volkswagen.applied_rule_ids
+    assert "model_family" not in volkswagen.candidates
+    assert ford.candidates["model_family"] == "PASSAT GTE BUSINESS"
+    assert "model_family" not in ford.normalized
+
+
+def test_model_family_rule_uses_complete_token_boundary() -> None:
+    outcome = normalize_ts_record({"manufacturer": "Volvo", "model": "V600"})
+
+    assert outcome.candidates["model_family"] == "V600"
+    assert "model_family" not in outcome.normalized
+
+
+@pytest.mark.parametrize(
+    ("manufacturer", "model", "expected", "rule_id"),
+    [
+        ("Audi", "A3 SPORTBACK", "A3", "MOD-189"),
+        ("Volkswagen", "ID.4 GTX 220 KW", "ID.4", "MOD-158"),
+        ("BMW", "320D XDRIVE", "3 Series", "MOD-197"),
+        ("BMW", "520D XDRIVE", "5 Series", "MOD-198"),
+        ("Mercedes-Benz", "GLC 220 D 4MATIC", "GLC", "MOD-202"),
+        ("Nissan", "LEAF 40KWH", "Leaf", "MOD-175"),
+        ("Škoda", "ENYAQ 80X", "Enyaq", "MOD-134"),
+        ("Hyundai", "I 30 CW", "i30", "MOD-147"),
+        ("Mazda", "MAZDA3", "Mazda3", "MOD-167"),
+    ],
+)
+def test_phase_two_model_rules_separate_family_from_suffix_evidence(
+    manufacturer: str, model: str, expected: str, rule_id: str
+) -> None:
+    source_term = normalize_manufacturer_entity(manufacturer)
+    assert source_term is not None
+    outcome = normalize_ts_record(
+        {"manufacturer": manufacturer, "model": model},
+        manufacturer_entity_rules={
+            f"manufacturer:{source_term}": {
+                "entity_id": f"TEST-{rule_id}",
+                "source_field": "manufacturer",
+                "source_term": source_term,
+                "canonical_name": manufacturer,
+                "entity_role": "vehicle_manufacturer",
+                "base_behavior": "use_entity",
+            }
+        },
+    )
+
+    assert outcome.normalized["model_family"] == expected
+    assert rule_id in outcome.applied_rule_ids
+    assert "model_family" not in outcome.candidates
+
+
+@pytest.mark.parametrize("model", ["SL", "ED"])
+def test_unverified_kia_internal_codes_remain_candidates(model: str) -> None:
+    outcome = normalize_ts_record({"manufacturer": "Kia", "model": model})
+
+    assert outcome.candidates["model_family"] == model
+    assert "model_family" not in outcome.normalized
 
 
 def test_reviewed_bodywork_change_stores_ba_as_truck() -> None:

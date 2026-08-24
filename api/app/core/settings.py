@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    resolved_match_showcase_path: Path = Field(
+        default=Path("outputs/ts-ktype-resolved-showcase-1000.json"),
+        alias="RESOLVED_MATCH_SHOWCASE_PATH",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

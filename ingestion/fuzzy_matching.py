@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Literal
 
 from ingestion.phonetic_matching import PHONETIC_VERSION, has_phonetic_overlap
@@ -22,16 +23,19 @@ _WHITESPACE = re.compile(r"\s+")
 _DIGIT_GROUP = re.compile(r"\d+")
 
 
+@lru_cache(maxsize=250_000)
 def _normalized_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).upper()
     normalized = _NON_ALPHANUMERIC.sub(" ", normalized)
     return _WHITESPACE.sub(" ", normalized).strip()
 
 
+@lru_cache(maxsize=250_000)
 def _normalized_code(value: str) -> str:
     return _NON_ALPHANUMERIC.sub("", unicodedata.normalize("NFKC", value).upper())
 
 
+@lru_cache(maxsize=250_000)
 def _edit_similarity(left: str, right: str) -> float:
     left_compact = left.replace(" ", "")
     right_compact = right.replace(" ", "")
@@ -67,6 +71,7 @@ def _edit_similarity(left: str, right: str) -> float:
     return 1.0 - (distance / max(len(left_compact), len(right_compact)))
 
 
+@lru_cache(maxsize=250_000)
 def _token_similarity(left: str, right: str) -> float:
     left_tokens = frozenset(left.split())
     right_tokens = frozenset(right.split())
@@ -102,6 +107,24 @@ class FuzzyMatchConfig:
     fuel_conflict_penalty: float = 0.15
     engine_match_bonus: float = 0.12
     engine_conflict_penalty: float = 0.25
+    displacement_match_bonus: float = 0.05
+    displacement_conflict_penalty: float = 0.25
+    power_match_bonus: float = 0.05
+    power_conflict_penalty: float = 0.25
+    # TS and TecDoc quote power through different PS/kW roundings, so a gap of
+    # a kilowatt or two is measurement noise rather than a contradiction. Real
+    # variants of one model are frequently 1-2 kW apart too, so a near miss is
+    # treated as unverified evidence: never a match, never a hard conflict.
+    power_tolerance_kw: int = 2
+    # Approximate power is weaker evidence than an exact figure. The gap
+    # between the two must exceed the automatic margin, otherwise an exactly
+    # matching k-type cannot separate itself from a rounded sibling and both
+    # are sent to review as ambiguous.
+    power_tolerance_penalty: float = 0.05
+    drive_match_bonus: float = 0.05
+    drive_conflict_penalty: float = 0.15
+    bodywork_match_bonus: float = 0.05
+    bodywork_conflict_penalty: float = 0.15
     max_candidates: int = 5
 
     def __post_init__(self) -> None:
@@ -131,6 +154,14 @@ class FuzzyMatchConfig:
             self.fuel_conflict_penalty,
             self.engine_match_bonus,
             self.engine_conflict_penalty,
+            self.displacement_match_bonus,
+            self.displacement_conflict_penalty,
+            self.power_match_bonus,
+            self.power_conflict_penalty,
+            self.drive_match_bonus,
+            self.drive_conflict_penalty,
+            self.bodywork_match_bonus,
+            self.bodywork_conflict_penalty,
         )
         if any(not 0.0 <= value <= 1.0 for value in effects):
             raise ValueError("context bonuses and penalties must be between 0.0 and 1.0")
@@ -150,6 +181,10 @@ class VehicleCandidate:
     year_to: int | None = None
     fuels: frozenset[str] = field(default_factory=frozenset)
     engine_codes: frozenset[str] = field(default_factory=frozenset)
+    displacement_cc: int | None = None
+    power_kw: int | None = None
+    drive_type: str | None = None
+    bodyworks: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         if not self.candidate_reference.strip():
@@ -170,6 +205,14 @@ class VehicleCandidate:
             and self.year_to < self.year_from
         ):
             raise ValueError("year_to must not be before year_from")
+        if self.displacement_cc is not None and self.displacement_cc <= 0:
+            raise ValueError("displacement_cc must be positive")
+        if self.power_kw is not None and self.power_kw <= 0:
+            raise ValueError("power_kw must be positive")
+        if self.drive_type is not None and not _normalized_text(self.drive_type):
+            raise ValueError("drive_type must not be blank")
+        if any(not _normalized_text(bodywork) for bodywork in self.bodyworks):
+            raise ValueError("bodyworks must not contain blanks")
 
 
 @dataclass(frozen=True)
@@ -179,6 +222,10 @@ class VehicleMatchQuery:
     year: int | None = None
     fuels: frozenset[str] = field(default_factory=frozenset)
     engine_code: str | None = None
+    displacement_cc: int | None = None
+    power_kw: int | None = None
+    drive_type: str | None = None
+    bodywork: str | None = None
 
     def __post_init__(self) -> None:
         if not _normalized_text(self.model):
@@ -187,6 +234,14 @@ class VehicleMatchQuery:
             raise ValueError("manufacturer must not be blank")
         if self.year is not None and not 1886 <= self.year <= 2200:
             raise ValueError("year must be between 1886 and 2200")
+        if self.displacement_cc is not None and self.displacement_cc <= 0:
+            raise ValueError("displacement_cc must be positive")
+        if self.power_kw is not None and self.power_kw <= 0:
+            raise ValueError("power_kw must be positive")
+        if self.drive_type is not None and not _normalized_text(self.drive_type):
+            raise ValueError("drive_type must not be blank")
+        if self.bodywork is not None and not _normalized_text(self.bodywork):
+            raise ValueError("bodywork must not be blank")
 
 
 @dataclass(frozen=True)
@@ -203,6 +258,19 @@ class FuzzyCandidateMatch:
     missing_fields: tuple[str, ...]
     conflicting_fields: tuple[str, ...]
     phonetic_match: bool
+
+    @property
+    def separation_score(self) -> float:
+        """Unclamped ranking score used to order and separate candidates.
+
+        `confidence` saturates at 1.0, so two candidates whose evidence differs
+        sharply -- an exact model name with every technical field matched versus
+        the same name with a conflicting field -- both report 1.0 and appear
+        indistinguishable. Ranking and margin decisions therefore use this
+        unclamped value; `confidence` remains the bounded score for thresholds
+        and reporting.
+        """
+        return round(self.text_score + self.context_effect, 6)
 
     def to_review_payload(self) -> dict[str, Any]:
         return {
@@ -258,6 +326,7 @@ class ManufacturerCandidateIndex:
     def __init__(self, candidates: Iterable[VehicleCandidate]) -> None:
         by_reference: dict[str, VehicleCandidate] = {}
         by_manufacturer_key: dict[str, dict[str, VehicleCandidate]] = {}
+        model_labels_by_manufacturer_key: dict[str, dict[str, set[str]]] = {}
         for candidate in candidates:
             reference = candidate.candidate_reference.strip()
             if reference in by_reference:
@@ -270,11 +339,62 @@ class ManufacturerCandidateIndex:
             for manufacturer_key in manufacturer_keys:
                 if manufacturer_key:
                     by_manufacturer_key.setdefault(manufacturer_key, {})[reference] = candidate
+                    labels = model_labels_by_manufacturer_key.setdefault(manufacturer_key, {})
+                    for value in (candidate.model, *candidate.model_aliases):
+                        if normalized_model := _normalized_text(value):
+                            labels.setdefault(normalized_model, set()).add(candidate.model)
         self._all = tuple(sorted(by_reference.values(), key=lambda item: item.candidate_reference))
         self._by_manufacturer_key = {
             key: tuple(sorted(values.values(), key=lambda item: item.candidate_reference))
             for key, values in by_manufacturer_key.items()
         }
+        self._model_labels_by_manufacturer_key = {
+            key: tuple(
+                (label, tuple(sorted(canonical_models)))
+                for label, canonical_models in sorted(values.items())
+            )
+            for key, values in model_labels_by_manufacturer_key.items()
+        }
+
+    def recover_model_from_brand(self, manufacturer: str, brand: str) -> str | None:
+        """Return one unique longest catalog model explicitly present in Brand text."""
+
+        recovered = self.recover_model_from_evidence(manufacturer, {"brand": brand})
+        return recovered[0] if recovered is not None else None
+
+    def recover_model_from_evidence(
+        self,
+        manufacturer: str,
+        evidence: Mapping[str, str],
+    ) -> tuple[str, str] | None:
+        """Return one unique longest catalog model and its non-sensitive source field."""
+
+        manufacturer_key = _normalized_text(manufacturer)
+        labels = self._model_labels_by_manufacturer_key.get(manufacturer_key, ())
+        matches = {
+            (len(label.replace(" ", "")), canonical, field_name)
+            for field_name, value in evidence.items()
+            for label, canonical_models in labels
+            if len(label.replace(" ", "")) >= 3 and not label.isdigit()
+            if f" {label} " in f" {_normalized_text(value)} "
+            for canonical in canonical_models
+        }
+        if not matches:
+            return None
+        longest = max(length for length, _, _ in matches)
+        longest_matches = {
+            (canonical, field_name)
+            for length, canonical, field_name in matches
+            if length == longest
+        }
+        canonical_matches = {canonical for canonical, _ in longest_matches}
+        if len(canonical_matches) != 1:
+            return None
+        canonical = next(iter(canonical_matches))
+        source_field = min(
+            field_name for matched, field_name in longest_matches if matched == canonical
+        )
+        return canonical, source_field
 
     def lookup(
         self,
@@ -348,7 +468,10 @@ class FuzzyVehicleMatcher:
                     for candidate in scored
                     if candidate.confidence >= self._config.candidate_threshold
                 ),
-                key=lambda candidate: (-candidate.confidence, candidate.candidate_reference),
+                key=lambda candidate: (
+                    -candidate.separation_score,
+                    candidate.candidate_reference,
+                ),
             )
         )
         ranked = qualifying[: self._config.max_candidates]
@@ -365,7 +488,8 @@ class FuzzyVehicleMatcher:
             return FuzzyMatchResult(scope, ranked, False, "automatic_threshold_not_met")
         if (
             len(qualifying) > 1
-            and top.confidence - qualifying[1].confidence < self._config.automatic_margin
+            and top.separation_score - qualifying[1].separation_score
+            < self._config.automatic_margin
         ):
             return FuzzyMatchResult(scope, ranked, False, "candidate_margin_not_met")
         return FuzzyMatchResult(scope, ranked, True, "automatic_candidate_threshold_met")
@@ -461,6 +585,56 @@ class FuzzyVehicleMatcher:
             else:
                 conflicting_fields.append("engine_code")
                 context_effect -= self._config.engine_conflict_penalty
+
+        if query.displacement_cc is not None:
+            if candidate.displacement_cc is None:
+                missing_fields.append("displacement_cc")
+            elif query.displacement_cc == candidate.displacement_cc:
+                matched_fields.append("displacement_cc")
+                context_effect += self._config.displacement_match_bonus
+            else:
+                conflicting_fields.append("displacement_cc")
+                context_effect -= self._config.displacement_conflict_penalty
+
+        if query.power_kw is not None:
+            if candidate.power_kw is None:
+                missing_fields.append("power_kw")
+            elif query.power_kw == candidate.power_kw:
+                matched_fields.append("power_kw")
+                context_effect += self._config.power_match_bonus
+            elif abs(query.power_kw - candidate.power_kw) <= self._config.power_tolerance_kw:
+                # Within rounding noise: unverified, so neither a match nor a
+                # contradiction. The mild penalty keeps an exactly matching
+                # k-type clear of the automatic margin instead of tying with it.
+                missing_fields.append("power_kw")
+                context_effect -= self._config.power_tolerance_penalty
+            else:
+                conflicting_fields.append("power_kw")
+                context_effect -= self._config.power_conflict_penalty
+
+        query_drive = _normalized_text(query.drive_type) if query.drive_type else ""
+        candidate_drive = _normalized_text(candidate.drive_type) if candidate.drive_type else ""
+        if query_drive:
+            if not candidate_drive:
+                missing_fields.append("drive_type")
+            elif query_drive == candidate_drive:
+                matched_fields.append("drive_type")
+                context_effect += self._config.drive_match_bonus
+            else:
+                conflicting_fields.append("drive_type")
+                context_effect -= self._config.drive_conflict_penalty
+
+        query_bodywork = _normalized_text(query.bodywork) if query.bodywork else ""
+        candidate_bodyworks = _normalized_values(candidate.bodyworks)
+        if query_bodywork:
+            if not candidate_bodyworks:
+                missing_fields.append("bodywork")
+            elif query_bodywork in candidate_bodyworks:
+                matched_fields.append("bodywork")
+                context_effect += self._config.bodywork_match_bonus
+            else:
+                conflicting_fields.append("bodywork")
+                context_effect -= self._config.bodywork_conflict_penalty
 
         return FuzzyCandidateMatch(
             candidate_reference=candidate.candidate_reference,

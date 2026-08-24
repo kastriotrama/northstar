@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
 from api.app.features.normalization_review.router import get_normalization_review_service
@@ -7,6 +9,13 @@ from api.app.features.normalization_review.schemas import (
     NormalizationReviewPage,
     NormalizationReviewVehicle,
     NormalizationStatusSummary,
+)
+from api.app.features.review_queue.router import get_review_queue_service
+from api.app.features.review_queue.schemas import (
+    ReviewQueueItemView,
+    ReviewQueuePage,
+    ReviewTransitionRequest,
+    RuleActivityView,
 )
 from api.app.features.rule_review.router import get_rule_review_service
 from api.app.features.rule_review.schemas import (
@@ -39,6 +48,8 @@ class FakeReviewService:
             items=[
                 NormalizationReviewVehicle(
                     source_record_id=1,
+                    source_batch_id="screen-demo-250",
+                    registration_plate="ABC123",
                     source_brand="VOLVO V60",
                     status="provisional",
                     confidence=0.8,
@@ -134,6 +145,57 @@ class FakeRuleReviewService:
         )
 
 
+class FakeReviewQueueService:
+    def list_items(
+        self, *, status: str | None, batch_id: str | None, limit: int
+    ) -> ReviewQueuePage:
+        item = self._item(status or "pending")
+        return ReviewQueuePage(
+            items=[item],
+            counts={"pending": 1, "in_review": 0, "resolved": 0, "rejected": 0},
+            rule_activity=[
+                RuleActivityView(
+                    rule_id="BDY-110",
+                    rule_kind="translation_rule",
+                    action="draft",
+                    previous_value="estate",
+                    new_value="sedan",
+                    change_note="Stakeholder correction",
+                    changed_at=datetime.now(UTC),
+                )
+            ],
+        )
+
+    def transition(self, item_id: int, request: ReviewTransitionRequest) -> ReviewQueueItemView:
+        item = self._item(request.status)
+        if request.status == "resolved":
+            item.resolution = {
+                "field": request.field,
+                "canonical_value": request.canonical_value,
+                "decision_scope": request.decision_scope,
+                "reason": request.reason,
+            }
+            item.resolved_by = request.reviewer
+        return item
+
+    @staticmethod
+    def _item(status: str) -> ReviewQueueItemView:
+        now = datetime.now(UTC)
+        return ReviewQueueItemView(
+            id=7,
+            review_id="00000000-0000-0000-0000-000000000007",
+            source_batch_id="batch-1",
+            source_record_id=42,
+            reason_code="normalization_review_required",
+            reason_detail="manufacturer_missing",
+            confidence=0.55,
+            status=status,
+            created_at=now,
+            updated_at=now,
+            source_evidence={"brand": "TOYOTA COROLLA", "model": "COROLLA"},
+        )
+
+
 def test_review_api_accepts_vehicle_search_and_filter_parameters(client: TestClient) -> None:
     client.app.dependency_overrides[get_normalization_review_service] = FakeReviewService
     try:
@@ -168,7 +230,7 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="manufacturer-created-at"' in screen.text
     assert 'id="manufacturer-examples-section"' in screen.text
     assert 'id="source-evidence"' in screen.text
-    assert "Brand is an exact reviewed example beneath its Manufacturer entity" in javascript.text
+    assert "Brand exactly matches a reviewed example" in javascript.text
     assert '.normalize("NFD")' in javascript.text
     assert "Manufacturer entities" in screen.text
     assert stylesheet.status_code == 200
@@ -176,6 +238,39 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert javascript.status_code == 200
     assert "/v1/normalization-review/vehicles" in javascript.text
     assert "/v1/normalization-review/rules/reprocess" in javascript.text
+    assert "/v1/normalization-review/tecdoc/vehicles" in javascript.text
+    assert "/v1/normalization-review/tecdoc/entities" in javascript.text
+    assert 'data-rule-id="${escapeHtml(rule)}"' in javascript.text
+    assert "showRuleInVehicle(button.dataset.ruleId)" in javascript.text
+    assert 'id="vehicle-rule-detail"' in screen.text
+    assert 'id="queue-view"' in screen.text
+    assert "/v1/normalization-review/queue" in javascript.text
+    assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text
+
+
+def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
+    client.app.dependency_overrides[get_review_queue_service] = FakeReviewQueueService
+    try:
+        listed = client.get("/v1/normalization-review/queue", params={"status": "pending"})
+        resolved = client.post(
+            "/v1/normalization-review/queue/7/transition",
+            json={
+                "status": "resolved",
+                "reviewer": "Ada",
+                "field": "manufacturer",
+                "canonical_value": "Toyota",
+                "decision_scope": "vehicle_only",
+                "reason": "Reviewed TS Brand and model evidence",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["source_record_id"] == 42
+    assert listed.json()["rule_activity"][0]["rule_id"] == "BDY-110"
+    assert resolved.status_code == 200
+    assert resolved.json()["resolution"]["canonical_value"] == "Toyota"
 
 
 def test_rule_review_api_supports_drafts_activation_and_safe_reprocess(

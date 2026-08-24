@@ -107,7 +107,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -237,7 +237,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -246,7 +246,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -378,7 +378,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -643,7 +643,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -988,7 +988,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -1080,7 +1080,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -1089,7 +1089,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -1098,7 +1098,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -1231,7 +1231,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -1323,7 +1323,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -1332,7 +1332,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -1341,7 +1341,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -1370,13 +1370,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 01 quattro"
         },
         "confidence": 0.8,
@@ -1474,7 +1472,7 @@
           {
             "after": true,
             "before": "Model 01 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -1497,14 +1495,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 01 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -1514,6 +1515,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Volvo Car Corporation",
           "manufacturer": "Volvo",
           "manufacturer_evidence": [
@@ -1527,7 +1529,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-01-drive-marketing",
@@ -1650,7 +1671,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -1843,7 +1864,7 @@
           {
             "after": true,
             "before": "Model 01",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -2006,7 +2027,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -2136,7 +2157,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -2145,7 +2166,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -2277,7 +2298,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -2542,7 +2563,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -2887,7 +2908,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -2979,7 +3000,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -2988,7 +3009,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -2997,7 +3018,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -3130,7 +3151,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -3222,7 +3243,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -3231,7 +3252,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -3240,7 +3261,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -3269,13 +3290,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 02 quattro"
         },
         "confidence": 0.8,
@@ -3373,7 +3392,7 @@
           {
             "after": true,
             "before": "Model 02 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -3396,14 +3415,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 02 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -3413,6 +3435,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Mercedes-Benz AG",
           "manufacturer": "Mercedes-Benz",
           "manufacturer_evidence": [
@@ -3426,7 +3449,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-02-drive-marketing",
@@ -3549,7 +3591,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -3742,7 +3784,7 @@
           {
             "after": true,
             "before": "Model 02",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -3905,7 +3947,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -4035,7 +4077,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -4044,7 +4086,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -4176,7 +4218,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -4441,7 +4483,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -4786,7 +4828,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -4878,7 +4920,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -4887,7 +4929,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -4896,7 +4938,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -5029,7 +5071,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -5121,7 +5163,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -5130,7 +5172,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -5139,7 +5181,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -5168,13 +5210,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 03 quattro"
         },
         "confidence": 0.8,
@@ -5272,7 +5312,7 @@
           {
             "after": true,
             "before": "Model 03 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -5295,14 +5335,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 03 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -5312,6 +5355,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "BMW AG",
           "manufacturer": "BMW",
           "manufacturer_evidence": [
@@ -5325,7 +5369,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-03-drive-marketing",
@@ -5448,7 +5511,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -5641,7 +5704,7 @@
           {
             "after": true,
             "before": "Model 03",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -5804,7 +5867,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -5934,7 +5997,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -5943,7 +6006,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -6075,7 +6138,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -6340,7 +6403,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -6685,7 +6748,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -6777,7 +6840,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -6786,7 +6849,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -6795,7 +6858,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -6928,7 +6991,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -7020,7 +7083,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -7029,7 +7092,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -7038,7 +7101,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -7067,13 +7130,12 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
+          "MFR-102",
+          "DRV-008",
+          "DRV-003"
         ],
-        "candidate_rule_ids": [
-          "DRV-008"
-        ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 04 quattro"
         },
         "confidence": 0.8,
@@ -7171,7 +7233,7 @@
           {
             "after": true,
             "before": "Model 04 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -7194,14 +7256,18 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 04 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
-              "DRV-008"
+              "DRV-008",
+              "DRV-003"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -7211,6 +7277,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Audi AG",
           "manufacturer": "Audi",
           "manufacturer_evidence": [
@@ -7224,7 +7291,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-04-drive-marketing",
@@ -7347,7 +7433,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -7540,7 +7626,7 @@
           {
             "after": true,
             "before": "Model 04",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -7703,7 +7789,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -7833,7 +7919,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -7842,7 +7928,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -7974,7 +8060,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -8239,7 +8325,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -8584,7 +8670,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -8676,7 +8762,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -8685,7 +8771,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -8694,7 +8780,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -8827,7 +8913,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -8919,7 +9005,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -8928,7 +9014,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -8937,7 +9023,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -8966,13 +9052,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 05 quattro"
         },
         "confidence": 0.8,
@@ -9070,7 +9154,7 @@
           {
             "after": true,
             "before": "Model 05 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -9093,14 +9177,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 05 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -9110,6 +9197,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Volkswagen AG",
           "manufacturer": "Volkswagen",
           "manufacturer_evidence": [
@@ -9123,7 +9211,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-05-drive-marketing",
@@ -9246,7 +9353,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -9439,7 +9546,7 @@
           {
             "after": true,
             "before": "Model 05",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -9602,7 +9709,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -9732,7 +9839,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -9741,7 +9848,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -9873,7 +9980,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -10138,7 +10245,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -10483,7 +10590,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -10575,7 +10682,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -10584,7 +10691,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -10593,7 +10700,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -10726,7 +10833,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -10818,7 +10925,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -10827,7 +10934,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -10836,7 +10943,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -10865,13 +10972,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 06 quattro"
         },
         "confidence": 0.8,
@@ -10969,7 +11074,7 @@
           {
             "after": true,
             "before": "Model 06 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -10992,14 +11097,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 06 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -11009,6 +11117,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Iveco SPA",
           "manufacturer": "Iveco",
           "manufacturer_evidence": [
@@ -11022,7 +11131,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-06-drive-marketing",
@@ -11145,7 +11273,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -11338,7 +11466,7 @@
           {
             "after": true,
             "before": "Model 06",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -11501,7 +11629,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -11631,7 +11759,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -11640,7 +11768,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -11772,7 +11900,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -12037,7 +12165,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -12382,7 +12510,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -12474,7 +12602,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -12483,7 +12611,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -12492,7 +12620,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -12625,7 +12753,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -12717,7 +12845,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -12726,7 +12854,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -12735,7 +12863,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -12764,13 +12892,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 07 quattro"
         },
         "confidence": 0.8,
@@ -12868,7 +12994,7 @@
           {
             "after": true,
             "before": "Model 07 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -12891,14 +13017,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 07 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -12908,6 +13037,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Scania CV AB",
           "manufacturer": "Scania",
           "manufacturer_evidence": [
@@ -12921,7 +13051,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-07-drive-marketing",
@@ -13044,7 +13193,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -13237,7 +13386,7 @@
           {
             "after": true,
             "before": "Model 07",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -13400,7 +13549,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -13530,7 +13679,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -13539,7 +13688,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -13671,7 +13820,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -13936,7 +14085,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -14281,7 +14430,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -14373,7 +14522,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -14382,7 +14531,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -14391,7 +14540,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -14524,7 +14673,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -14616,7 +14765,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -14625,7 +14774,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -14634,7 +14783,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -14663,13 +14812,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 08 quattro"
         },
         "confidence": 0.8,
@@ -14767,7 +14914,7 @@
           {
             "after": true,
             "before": "Model 08 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -14790,14 +14937,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 08 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -14807,6 +14957,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Ford Motor Company",
           "manufacturer": "Ford",
           "manufacturer_evidence": [
@@ -14820,7 +14971,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-08-drive-marketing",
@@ -14943,7 +15113,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -15136,7 +15306,7 @@
           {
             "after": true,
             "before": "Model 08",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -15299,7 +15469,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -15429,7 +15599,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -15438,7 +15608,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -15570,7 +15740,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -15835,7 +16005,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -16180,7 +16350,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -16272,7 +16442,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -16281,7 +16451,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -16290,7 +16460,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -16423,7 +16593,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -16515,7 +16685,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -16524,7 +16694,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -16533,7 +16703,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -16562,13 +16732,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 09 quattro"
         },
         "confidence": 0.8,
@@ -16666,7 +16834,7 @@
           {
             "after": true,
             "before": "Model 09 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -16689,14 +16857,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 09 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -16706,6 +16877,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Toyota Motor Corporation",
           "manufacturer": "Toyota",
           "manufacturer_evidence": [
@@ -16719,7 +16891,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-09-drive-marketing",
@@ -16842,7 +17033,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -17035,7 +17226,7 @@
           {
             "after": true,
             "before": "Model 09",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -17198,7 +17389,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -17328,7 +17519,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -17337,7 +17528,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -17469,7 +17660,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -17734,7 +17925,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -18079,7 +18270,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -18171,7 +18362,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -18180,7 +18371,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -18189,7 +18380,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -18322,7 +18513,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -18414,7 +18605,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -18423,7 +18614,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -18432,7 +18623,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -18461,13 +18652,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 10 quattro"
         },
         "confidence": 0.8,
@@ -18565,7 +18754,7 @@
           {
             "after": true,
             "before": "Model 10 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -18588,14 +18777,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 10 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -18605,6 +18797,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Renault SAS",
           "manufacturer": "Renault",
           "manufacturer_evidence": [
@@ -18618,7 +18811,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-10-drive-marketing",
@@ -18741,7 +18953,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -18934,7 +19146,7 @@
           {
             "after": true,
             "before": "Model 10",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -19097,7 +19309,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -19227,7 +19439,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -19236,7 +19448,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -19368,7 +19580,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -19633,7 +19845,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -19978,7 +20190,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -20070,7 +20282,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -20079,7 +20291,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -20088,7 +20300,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -20221,7 +20433,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -20313,7 +20525,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -20322,7 +20534,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -20331,7 +20543,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -20360,13 +20572,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 11 quattro"
         },
         "confidence": 0.8,
@@ -20464,7 +20674,7 @@
           {
             "after": true,
             "before": "Model 11 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -20487,14 +20697,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 11 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -20504,6 +20717,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Peugeot",
           "manufacturer": "Peugeot",
           "manufacturer_evidence": [
@@ -20517,7 +20731,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-11-drive-marketing",
@@ -20640,7 +20873,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -20833,7 +21066,7 @@
           {
             "after": true,
             "before": "Model 11",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -20957,7 +21190,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -21083,7 +21316,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -21092,7 +21325,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -21185,7 +21418,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -21407,7 +21640,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -21709,7 +21942,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -21797,7 +22030,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -21806,7 +22039,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -21815,7 +22048,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -21909,7 +22142,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -21997,7 +22230,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -22006,7 +22239,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -22015,7 +22248,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -22043,12 +22276,11 @@
     {
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
-        "applied_rule_ids": [],
-        "candidate_rule_ids": [
+        "applied_rule_ids": [
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 12 quattro"
         },
         "confidence": 0.55,
@@ -22108,7 +22340,7 @@
           {
             "after": true,
             "before": "Model 12 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -22131,14 +22363,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 12 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 7,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -22147,6 +22382,7 @@
           "alias_types_present": [
             "model_name"
           ],
+          "drive_type": "awd",
           "legal_manufacturer": "Citroën",
           "market": [
             "SE"
@@ -22157,7 +22393,26 @@
         "review_reasons": [
           "manufacturer_unknown"
         ],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "review_required"
       },
       "id": "norm-12-drive-marketing",
@@ -22240,7 +22495,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -22428,7 +22683,7 @@
           {
             "after": true,
             "before": "Model 12",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -22591,7 +22846,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -22721,7 +22976,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -22730,7 +22985,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -22862,7 +23117,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -23127,7 +23382,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -23472,7 +23727,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -23564,7 +23819,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -23573,7 +23828,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -23582,7 +23837,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -23715,7 +23970,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -23807,7 +24062,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -23816,7 +24071,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -23825,7 +24080,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -23854,13 +24109,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 13 quattro"
         },
         "confidence": 0.8,
@@ -23958,7 +24211,7 @@
           {
             "after": true,
             "before": "Model 13 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -23981,14 +24234,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 13 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -23998,6 +24254,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Fiat Auto SPA",
           "manufacturer": "Fiat",
           "manufacturer_evidence": [
@@ -24011,7 +24268,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-13-drive-marketing",
@@ -24134,7 +24410,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -24327,7 +24603,7 @@
           {
             "after": true,
             "before": "Model 13",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -24490,7 +24766,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -24620,7 +24896,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -24629,7 +24905,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -24761,7 +25037,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -25026,7 +25302,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -25371,7 +25647,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -25463,7 +25739,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -25472,7 +25748,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -25481,7 +25757,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -25614,7 +25890,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -25706,7 +25982,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -25715,7 +25991,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -25724,7 +26000,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -25753,13 +26029,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 14 quattro"
         },
         "confidence": 0.8,
@@ -25857,7 +26131,7 @@
           {
             "after": true,
             "before": "Model 14 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -25880,14 +26154,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 14 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -25897,6 +26174,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Opel Automobile GmbH",
           "manufacturer": "Opel",
           "manufacturer_evidence": [
@@ -25910,7 +26188,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-14-drive-marketing",
@@ -26033,7 +26330,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -26226,7 +26523,7 @@
           {
             "after": true,
             "before": "Model 14",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -26389,7 +26686,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -26519,7 +26816,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -26528,7 +26825,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -26660,7 +26957,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -26925,7 +27222,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -27270,7 +27567,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -27362,7 +27659,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -27371,7 +27668,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -27380,7 +27677,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -27513,7 +27810,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -27605,7 +27902,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -27614,7 +27911,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -27623,7 +27920,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -27652,13 +27949,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 15 quattro"
         },
         "confidence": 0.8,
@@ -27756,7 +28051,7 @@
           {
             "after": true,
             "before": "Model 15 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -27779,14 +28074,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 15 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -27796,6 +28094,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Nissan Motor Co Ltd",
           "manufacturer": "Nissan",
           "manufacturer_evidence": [
@@ -27809,7 +28108,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-15-drive-marketing",
@@ -27932,7 +28250,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -28125,7 +28443,7 @@
           {
             "after": true,
             "before": "Model 15",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -28288,7 +28606,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -28418,7 +28736,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -28427,7 +28745,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -28559,7 +28877,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -28824,7 +29142,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -29169,7 +29487,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -29261,7 +29579,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -29270,7 +29588,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -29279,7 +29597,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -29412,7 +29730,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -29504,7 +29822,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -29513,7 +29831,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -29522,7 +29840,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -29551,13 +29869,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 16 quattro"
         },
         "confidence": 0.8,
@@ -29655,7 +29971,7 @@
           {
             "after": true,
             "before": "Model 16 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -29678,14 +29994,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 16 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -29695,6 +30014,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Honda Motor Co Ltd",
           "manufacturer": "Honda",
           "manufacturer_evidence": [
@@ -29708,7 +30028,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-16-drive-marketing",
@@ -29831,7 +30170,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -30024,7 +30363,7 @@
           {
             "after": true,
             "before": "Model 16",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -30187,7 +30526,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -30317,7 +30656,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -30326,7 +30665,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -30458,7 +30797,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -30723,7 +31062,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -31068,7 +31407,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -31160,7 +31499,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -31169,7 +31508,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -31178,7 +31517,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -31311,7 +31650,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -31403,7 +31742,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -31412,7 +31751,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -31421,7 +31760,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -31450,13 +31789,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 17 quattro"
         },
         "confidence": 0.8,
@@ -31554,7 +31891,7 @@
           {
             "after": true,
             "before": "Model 17 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -31577,14 +31914,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 17 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -31594,6 +31934,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "MAN Truck Bus",
           "manufacturer": "MAN",
           "manufacturer_evidence": [
@@ -31607,7 +31948,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-17-drive-marketing",
@@ -31730,7 +32090,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -31923,7 +32283,7 @@
           {
             "after": true,
             "before": "Model 17",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -32086,7 +32446,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -32216,7 +32576,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -32225,7 +32585,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -32357,7 +32717,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -32622,7 +32982,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -32967,7 +33327,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -33059,7 +33419,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -33068,7 +33428,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -33077,7 +33437,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -33210,7 +33570,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -33302,7 +33662,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -33311,7 +33671,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -33320,7 +33680,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -33349,13 +33709,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 18 quattro"
         },
         "confidence": 0.8,
@@ -33453,7 +33811,7 @@
           {
             "after": true,
             "before": "Model 18 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -33476,14 +33834,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 18 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -33493,6 +33854,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "DAF Trucks NV",
           "manufacturer": "DAF",
           "manufacturer_evidence": [
@@ -33506,7 +33868,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-18-drive-marketing",
@@ -33629,7 +34010,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -33822,7 +34203,7 @@
           {
             "after": true,
             "before": "Model 18",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -33985,7 +34366,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -34115,7 +34496,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -34124,7 +34505,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -34256,7 +34637,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -34521,7 +34902,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -34866,7 +35247,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -34958,7 +35339,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -34967,7 +35348,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -34976,7 +35357,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -35109,7 +35490,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -35201,7 +35582,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -35210,7 +35591,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -35219,7 +35600,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -35248,13 +35629,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 19 quattro"
         },
         "confidence": 0.8,
@@ -35352,7 +35731,7 @@
           {
             "after": true,
             "before": "Model 19 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -35375,14 +35754,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 19 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -35392,6 +35774,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Lexus",
           "manufacturer": "Lexus",
           "manufacturer_evidence": [
@@ -35405,7 +35788,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-19-drive-marketing",
@@ -35528,7 +35930,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -35721,7 +36123,7 @@
           {
             "after": true,
             "before": "Model 19",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -35884,7 +36286,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -36014,7 +36416,7 @@
             "canonical_value": "automatic",
             "decision": "accepted",
             "rule_id": "TRN-008",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "gearbox",
             "source_term": "Z",
             "target_field": "transmission_type"
@@ -36023,7 +36425,7 @@
             "canonical_value": "estate",
             "decision": "accepted",
             "rule_id": "BDY-110",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AC",
             "target_field": "bodywork_form"
@@ -36155,7 +36557,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -36420,7 +36822,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -36765,7 +37167,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -36857,7 +37259,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -36866,7 +37268,7 @@
             "canonical_value": "electricity",
             "decision": "accepted",
             "rule_id": "FUEL-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "03",
             "target_field": "energy_sources"
@@ -36875,7 +37277,7 @@
             "canonical_value": "plug_in_hybrid",
             "decision": "accepted",
             "rule_id": "ELEC-003",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "ev_config",
             "source_term": "LADDHYBRID",
             "target_field": "electrification_type"
@@ -37008,7 +37410,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -37100,7 +37502,7 @@
             "canonical_value": "petrol",
             "decision": "accepted",
             "rule_id": "FUEL-001",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel1",
             "source_term": "01",
             "target_field": "energy_sources"
@@ -37109,7 +37511,7 @@
             "canonical_value": "cng",
             "decision": "accepted",
             "rule_id": "FUEL-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel2",
             "source_term": "09",
             "target_field": "energy_sources"
@@ -37118,7 +37520,7 @@
             "canonical_value": "bi_fuel",
             "decision": "accepted",
             "rule_id": "FCOM-B",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "fuel_combo",
             "source_term": "B",
             "target_field": "fuel_combination"
@@ -37147,13 +37549,11 @@
       "description": "Manufacturer-scoped all-wheel-drive marketing candidate",
       "expected": {
         "applied_rule_ids": [
-          "MFR-102"
-        ],
-        "candidate_rule_ids": [
+          "MFR-102",
           "DRV-008"
         ],
+        "candidate_rule_ids": [],
         "candidates": {
-          "drive_type": "awd",
           "model_family": "Model 20 quattro"
         },
         "confidence": 0.8,
@@ -37251,7 +37651,7 @@
           {
             "after": true,
             "before": "Model 20 quattro",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -37274,14 +37674,17 @@
           },
           {
             "after": "awd",
-            "before": "1",
+            "before": {
+              "is_4wd": "1",
+              "model": "Model 20 quattro"
+            },
             "confidence_effect": 0.05,
             "field": "drive_type",
             "rule_ids": [
               "DRV-008"
             ],
             "sequence": 10,
-            "target": "candidate",
+            "target": "normalized",
             "transformer_id": "ts.drive"
           }
         ],
@@ -37291,6 +37694,7 @@
             "model_name"
           ],
           "builder_converter_names": [],
+          "drive_type": "awd",
           "legal_manufacturer": "Porsche AG",
           "manufacturer": "Porsche",
           "manufacturer_evidence": [
@@ -37304,7 +37708,26 @@
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
-        "rule_matches": [],
+        "rule_matches": [
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-008",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "1",
+            "target_field": "drive_type"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "quattro",
+            "target_field": "drive_type"
+          }
+        ],
         "status": "provisional"
       },
       "id": "norm-20-drive-marketing",
@@ -37427,7 +37850,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -37620,7 +38043,7 @@
           {
             "after": true,
             "before": "Model 20",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -37861,7 +38284,7 @@
             "canonical_value": "multi_purpose_vehicle",
             "decision": "accepted",
             "rule_id": "BDY-113",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AF",
             "target_field": "bodywork_form"
@@ -38069,7 +38492,7 @@
             "canonical_value": "truck",
             "decision": "accepted",
             "rule_id": "BDY-115",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "BA",
             "target_field": "bodywork_form"
@@ -38198,7 +38621,7 @@
           {
             "after": true,
             "before": "Transit Cargo Van",
-            "confidence_effect": 0.0,
+            "confidence_effect": 0.1,
             "field": "model_family_candidate",
             "rule_ids": [
               "MODEL-CANDIDATE-V1"
@@ -38292,7 +38715,7 @@
             "canonical_value": "van",
             "decision": "accepted",
             "rule_id": "BDY-009",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "model",
             "source_term": "Cargo Van",
             "target_field": "bodywork_form"
@@ -38320,13 +38743,12 @@
       "expected": {
         "applied_rule_ids": [
           "MFR-102",
+          "MOD-157",
           "BDY-010"
         ],
         "candidate_rule_ids": [],
-        "candidates": {
-          "model_family": "Multivan"
-        },
-        "confidence": 0.8,
+        "candidates": {},
+        "confidence": 0.95,
         "decision_trace": [
           {
             "after": [
@@ -38419,27 +38841,15 @@
             "transformer_id": "ts.manufacturer"
           },
           {
-            "after": true,
+            "after": "Multivan",
             "before": "Multivan",
-            "confidence_effect": 0.0,
-            "field": "model_family_candidate",
+            "confidence_effect": 0.1,
+            "field": "model_family",
             "rule_ids": [
-              "MODEL-CANDIDATE-V1"
+              "MOD-157"
             ],
             "sequence": 8,
             "target": "normalized",
-            "transformer_id": "ts.model-family"
-          },
-          {
-            "after": "Multivan",
-            "before": "Multivan",
-            "confidence_effect": 0.05,
-            "field": "model_family",
-            "rule_ids": [
-              "MODEL-CANDIDATE-V1"
-            ],
-            "sequence": 9,
-            "target": "candidate",
             "transformer_id": "ts.model-family"
           },
           {
@@ -38453,7 +38863,7 @@
             "rule_ids": [
               "BDY-010"
             ],
-            "sequence": 10,
+            "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38468,7 +38878,7 @@
             "rule_ids": [
               "BDY-010"
             ],
-            "sequence": 11,
+            "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38483,7 +38893,7 @@
             "rule_ids": [
               "BDY-010"
             ],
-            "sequence": 12,
+            "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           }
@@ -38506,22 +38916,31 @@
             "SE"
           ],
           "marketing_body_style": "passenger_van",
-          "model_family_candidate": true
+          "model_family": "Multivan"
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
         "rule_matches": [
           {
+            "canonical_value": "Multivan",
+            "decision": "accepted",
+            "rule_id": "MOD-157",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "MULTIVAN",
+            "target_field": "model_family"
+          },
+          {
             "canonical_value": "passenger_van",
             "decision": "accepted",
             "rule_id": "BDY-010",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "model",
             "source_term": "Multivan",
             "target_field": "bodywork_form"
           }
         ],
-        "status": "provisional"
+        "status": "resolved"
       },
       "id": "bodywork-passenger-van",
       "input": {
@@ -38543,14 +38962,13 @@
       "expected": {
         "applied_rule_ids": [
           "MFR-102",
+          "MOD-157",
           "BDY-113",
           "BDY-010"
         ],
         "candidate_rule_ids": [],
-        "candidates": {
-          "model_family": "Multivan"
-        },
-        "confidence": 0.8,
+        "candidates": {},
+        "confidence": 0.95,
         "decision_trace": [
           {
             "after": [
@@ -38643,27 +39061,15 @@
             "transformer_id": "ts.manufacturer"
           },
           {
-            "after": true,
+            "after": "Multivan",
             "before": "Multivan",
-            "confidence_effect": 0.0,
-            "field": "model_family_candidate",
+            "confidence_effect": 0.1,
+            "field": "model_family",
             "rule_ids": [
-              "MODEL-CANDIDATE-V1"
+              "MOD-157"
             ],
             "sequence": 8,
             "target": "normalized",
-            "transformer_id": "ts.model-family"
-          },
-          {
-            "after": "Multivan",
-            "before": "Multivan",
-            "confidence_effect": 0.05,
-            "field": "model_family",
-            "rule_ids": [
-              "MODEL-CANDIDATE-V1"
-            ],
-            "sequence": 9,
-            "target": "candidate",
             "transformer_id": "ts.model-family"
           },
           {
@@ -38679,7 +39085,7 @@
               "BDY-113",
               "BDY-010"
             ],
-            "sequence": 10,
+            "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38696,7 +39102,7 @@
               "BDY-113",
               "BDY-010"
             ],
-            "sequence": 11,
+            "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38713,7 +39119,7 @@
               "BDY-113",
               "BDY-010"
             ],
-            "sequence": 12,
+            "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38730,7 +39136,7 @@
               "BDY-113",
               "BDY-010"
             ],
-            "sequence": 13,
+            "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -38747,7 +39153,7 @@
               "BDY-113",
               "BDY-010"
             ],
-            "sequence": 14,
+            "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           }
@@ -38772,16 +39178,25 @@
             "SE"
           ],
           "marketing_body_style": "passenger_van",
-          "model_family_candidate": true
+          "model_family": "Multivan"
         },
         "pipeline_version": "normalization-pipeline-v5",
         "review_reasons": [],
         "rule_matches": [
           {
+            "canonical_value": "Multivan",
+            "decision": "accepted",
+            "rule_id": "MOD-157",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "MULTIVAN",
+            "target_field": "model_family"
+          },
+          {
             "canonical_value": "multi_purpose_vehicle",
             "decision": "accepted",
             "rule_id": "BDY-113",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "body_code",
             "source_term": "AF",
             "target_field": "bodywork_form"
@@ -38790,13 +39205,13 @@
             "canonical_value": "passenger_van",
             "decision": "accepted",
             "rule_id": "BDY-010",
-            "rule_set_version": "ts-translation-v4",
+            "rule_set_version": "ts-translation-v7",
             "source_field": "model",
             "source_term": "Multivan",
             "target_field": "bodywork_form"
           }
         ],
-        "status": "provisional"
+        "status": "resolved"
       },
       "id": "bodywork-af-passenger-compatible",
       "input": {

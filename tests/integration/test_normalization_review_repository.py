@@ -143,3 +143,65 @@ def test_repository_searches_filters_summarizes_and_builds_facets(
                 (batch_id,),
             )
         review_connection.commit()
+
+
+def test_repository_aggregates_a_multi_part_import_as_one_cohort(
+    review_connection: Connection,
+) -> None:
+    prefix = f"review-cohort-{uuid4()}"
+    part_one = f"{prefix}-part-001"
+    part_two = f"{prefix}-part-002"
+    _insert_result(
+        review_connection,
+        batch_id=part_one,
+        source_record_id=920001,
+        status="resolved",
+        manufacturer="Volvo",
+        model="V60",
+        bodywork="estate",
+        fuels=["petrol"],
+        brand="VOLVO",
+    )
+    _insert_result(
+        review_connection,
+        batch_id=part_two,
+        source_record_id=920002,
+        status="review_required",
+        manufacturer="Ford",
+        model="Focus",
+        bodywork="hatchback",
+        fuels=["diesel"],
+        brand="FORD",
+    )
+    repository = NormalizationReviewRepository(lambda: nullcontext(review_connection))
+    cohort_id = f"{prefix}-all-parts"
+    try:
+        filtered_total, rows = repository.fetch_page(
+            batch_id=cohort_id,
+            filters=NormalizationReviewFilters(),
+        )
+
+        assert filtered_total == 2
+        assert {row["source_batch_id"] for row in rows} == {part_one, part_two}
+        assert repository.fetch_summary(batch_id=cohort_id) == {
+            "resolved": 1,
+            "provisional": 0,
+            "review_required": 1,
+            "failed": 0,
+            "total": 2,
+        }
+        assert repository.fetch_facets(batch_id=cohort_id)["manufacturers"] == [
+            "Ford",
+            "Volvo",
+        ]
+    finally:
+        with review_connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {NORMALIZATION_RESULTS_TABLE} WHERE source_batch_id IN (%s, %s)",
+                (part_one, part_two),
+            )
+            cursor.execute(
+                "DELETE FROM staging.transportstyrelsen_raw WHERE source_batch_id IN (%s, %s)",
+                (part_one, part_two),
+            )
+        review_connection.commit()

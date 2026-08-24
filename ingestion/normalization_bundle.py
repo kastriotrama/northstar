@@ -478,7 +478,10 @@ def _effective_rule_set(bundle: NormalizationBundle) -> TranslationRuleSet:
 def _manufacturer_rules(bundle: NormalizationBundle) -> ManufacturerEntityRules:
     rules: dict[str, dict[str, Any]] = {}
     for entity_id, override in bundle.rule_version.overrides.items():
-        if override.get("kind") == "manufacturer_match_policy":
+        if override.get("kind") in {
+            "manufacturer_match_policy",
+            "special_vehicle_policy",
+        }:
             rules[f"policy:{entity_id}"] = dict(override)
             continue
         if override.get("kind") != "manufacturer_entity":

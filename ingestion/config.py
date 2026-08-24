@@ -14,6 +14,7 @@ class IngestionSettings(BaseSettings):
         default="postgresql://app:change_me@localhost:5432/app",
         alias="DATABASE_URL",
     )
+    remote_database_url: str | None = Field(default=None, alias="REMOTE_DATABASE_URL")
     neo4j_uri: str = Field(default="bolt://localhost:7687", alias="NEO4J_URI")
     neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
     neo4j_password: str = Field(default="change_me", alias="NEO4J_PASSWORD")
@@ -22,6 +23,13 @@ class IngestionSettings(BaseSettings):
 
     ingestion_batch_size: int = Field(default=500, alias="INGESTION_BATCH_SIZE")
     tecdoc_source_path: str | None = Field(default=None, alias="TECDOC_SOURCE_PATH")
+    tecdoc_source_version: str | None = Field(default=None, alias="TECDOC_SOURCE_VERSION")
+    tecdoc_format_version: str | None = Field(default=None, alias="TECDOC_FORMAT_VERSION")
+    tecdoc_license_reference: str | None = Field(
+        default=None, alias="TECDOC_LICENSE_REFERENCE"
+    )
+    tecdoc_source_checksum: str | None = Field(default=None, alias="TECDOC_SOURCE_CHECKSUM")
+    tecdoc_source_schema: str = Field(default="tecdoc_source", alias="TECDOC_SOURCE_SCHEMA")
     transportstyrelsen_source_path: str | None = Field(
         default=None,
         alias="TRANSPORTSTYRELSEN_SOURCE_PATH",

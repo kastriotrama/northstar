@@ -27,6 +27,9 @@ out/
 
 *.log
 
+# Licensed/local source datasets are restored outside Git.
+data/
+
 # Terraform
 **/.terraform/
 *.tfstate
@@ -39,3 +42,5 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+# Restricted stakeholder demo data; provision directly on the deployment host.
+outputs/ts-ktype-resolved-showcase-1000.json

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | `0.1` |
+| Version | `0.2` |
 | Status | Accepted staging schema contract |
 | Owner | NorthStar backend team |
 | Jira story | SCRUM-16 (Story 3.1) |
@@ -80,10 +80,9 @@ This produces `staging.tecdoc_model` with the shared shape from §3. Entity
 names must be lowercase `snake_case` (validated; anything else raises
 `ValueError` rather than reaching SQL).
 
-**Worked example, included in this story:** `staging.tecdoc_manufacturer`
-(statement name `create_staging_tecdoc_manufacturer_table`), proving the
-pattern end-to-end. Epic 5 adds `tecdoc_model`, `tecdoc_engine`, and the
-rest the same way.
+The TecDoc vehicle-tree entities registered for Epic 5 are manufacturer,
+model family, platform, vehicle variant, engine, transmission, bodywork, and
+KType alias. Every one uses the same validated pattern and raw shape.
 
 ## 5. `staging.transportstyrelsen_raw`
 
@@ -168,6 +167,13 @@ Statement names below are a stable contract asserted by the doc contract tests.
 |---|---|---|
 | `create_staging_schema` | schema | `staging` |
 | `create_staging_tecdoc_manufacturer_table` | table | `staging.tecdoc_manufacturer` |
+| `create_staging_tecdoc_model_family_table` | table | `staging.tecdoc_model_family` |
+| `create_staging_tecdoc_platform_table` | table | `staging.tecdoc_platform` |
+| `create_staging_tecdoc_vehicle_variant_table` | table | `staging.tecdoc_vehicle_variant` |
+| `create_staging_tecdoc_engine_table` | table | `staging.tecdoc_engine` |
+| `create_staging_tecdoc_transmission_table` | table | `staging.tecdoc_transmission` |
+| `create_staging_tecdoc_bodywork_table` | table | `staging.tecdoc_bodywork` |
+| `create_staging_tecdoc_ktype_alias_table` | table | `staging.tecdoc_ktype_alias` |
 | `create_staging_transportstyrelsen_raw_table` | table | `staging.transportstyrelsen_raw` |
 
 ## 8. Schema PR review checklist

@@ -59,7 +59,11 @@ def load_active_rules(
     for entity_id, override in overrides.items():
         if not isinstance(override, dict):
             continue
-        if override.get("kind") == "manufacturer_match_policy":
+        if override.get("kind") in {
+            "manufacturer_match_policy",
+            "special_vehicle_policy",
+            "reviewed_record_policy",
+        }:
             entities[f"policy:{entity_id}"] = dict(override)
             continue
         if override.get("kind") != "manufacturer_entity":

@@ -39,6 +39,7 @@ _CODE_FIELDS = frozenset(
         "gearbox",
         "is_4wd",
         "vehicle_type",
+        "text_code",
     }
 )
 _TEXT_FIELDS = (

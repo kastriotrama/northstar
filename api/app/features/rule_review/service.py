@@ -199,7 +199,10 @@ class RuleReviewService:
             return {}
         rules: dict[str, dict[str, Any]] = {}
         for entity_id, override in active["overrides"].items():
-            if override.get("kind") == "manufacturer_match_policy":
+            if override.get("kind") in {
+                "manufacturer_match_policy",
+                "special_vehicle_policy",
+            }:
                 rules[f"policy:{entity_id}"] = dict(override)
                 continue
             if override.get("kind") != "manufacturer_entity":

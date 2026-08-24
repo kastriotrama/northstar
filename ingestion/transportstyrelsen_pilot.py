@@ -47,6 +47,10 @@ _FIELDS: dict[str, tuple[int, int]] = {
     "fuel_combo": (614, 615),
     "is_4wd": (681, 682),
     "ev_config": (1823, 1845),
+    # The supplied 2023 fixed-width export carries a short TS text-code
+    # description in its inspection tail. It does not expose the corresponding
+    # literal T-code, so retain the description as evidence without guessing it.
+    "text_code_description": (2001, 2013),
 }
 _INTEGER_FIELDS = frozenset({"model_year", "vehicle_year", "ccm", "kw"})
 
@@ -65,6 +69,9 @@ def parse_vehicle_line(line: str) -> dict[str, Any]:
             record[field_name] = int(value)
         else:
             record[field_name] = value
+    description = record.pop("text_code_description", None)
+    if isinstance(description, str):
+        record["text_code_descriptions"] = [description]
     return record
 
 

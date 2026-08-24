@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=10" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=15" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,6 +17,9 @@
         <nav class="view-tabs" aria-label="Normalization workspace">
           <button class="view-tab active" type="button" data-view="vehicles">Vehicles</button>
           <button class="view-tab" type="button" data-view="rules">Rules</button>
+          <button class="view-tab" type="button" data-view="queue">Review queue</button>
+          <button class="view-tab" type="button" data-view="tecdoc">TecDoc</button>
+          <button class="view-tab" type="button" data-view="connections">TS connections</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
@@ -107,6 +110,7 @@
               <div>
                 <span class="eyebrow" id="inspector-record">Source record</span>
                 <h1 id="inspector-name">Vehicle</h1>
+                <div id="inspector-identity" class="identity-line"></div>
                 <p id="inspector-status-explanation" class="status-explanation"></p>
               </div>
               <span id="inspector-status" class="status-badge"></span>
@@ -127,6 +131,14 @@
               <h2>Normalized vehicle</h2>
               <p class="section-hint">Accepted canonical values produced by the normalizer.</p>
               <dl id="normalized-fields" class="field-list"></dl>
+            </section>
+
+            <section class="inspector-section special-vehicle-section" id="special-vehicle-section" hidden>
+              <h2>Official TS safety classification</h2>
+              <p class="section-hint">Registry codes are preserved as evidence. NorthStar uses them to prevent unsafe spare-parts matching.</p>
+              <div id="special-vehicle-summary" class="special-vehicle-summary"></div>
+              <div id="text-code-list" class="text-code-list"></div>
+              <p class="official-code-links">Official definitions: <a href="https://www.transportstyrelsen.se/sv/vagtrafik/fordon/fordonsregler/koder-for-fordonsuppgifter/Textkod/" target="_blank" rel="noreferrer">Text codes</a> · <a href="https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/fordonsregler/Koder-for-fordonsuppgifter/Karosserikoder/Fordon-for-sarskilda-andamal/" target="_blank" rel="noreferrer">Special-purpose codes</a></p>
             </section>
 
             <section class="inspector-section" id="review-section">
@@ -152,10 +164,80 @@
             <section class="inspector-section" id="provenance-section">
               <h2>Rule provenance</h2>
               <div id="rule-list" class="rule-list"></div>
+              <div id="vehicle-rule-detail" class="vehicle-rule-detail" hidden></div>
             </section>
           </div>
         </aside>
       </main>
+      </div>
+
+      <div id="tecdoc-view" hidden>
+        <section class="tecdoc-summary">
+          <div><span class="eyebrow">TecDoc canonical promotion</span><h1>KTypes ready for inspection</h1><p>Search promoted passenger vehicles and inspect every value used to create the provisional graph record.</p><p class="tecdoc-coverage-line"><strong id="tecdoc-linked">—</strong> engine-linked · <strong id="tecdoc-facts-only">—</strong> using KType facts only</p></div>
+          <dl>
+            <div><dt>Promoted KTypes</dt><dd id="tecdoc-promoted">—</dd></div>
+            <div><dt>Manufacturers</dt><dd id="tecdoc-manufacturers">—</dd></div>
+            <div><dt>Model families</dt><dd id="tecdoc-models">—</dd></div>
+            <div><dt>Engines</dt><dd id="tecdoc-engines">—</dd></div>
+          </dl>
+        </section>
+        <main class="tecdoc-workspace">
+          <section class="tecdoc-results">
+            <nav class="tecdoc-kind-tabs" aria-label="TecDoc data type">
+              <button class="tecdoc-kind active" data-tecdoc-kind="vehicle" type="button">Vehicles</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="manufacturer" type="button">Manufacturers</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="model_family" type="button">Model families</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="engine" type="button">Engines</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="fuel" type="button">Fuels</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="drive" type="button">Drive</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="bodywork" type="button">Bodywork</button>
+              <button class="tecdoc-kind" data-tecdoc-kind="transmission" type="button">Transmissions</button>
+            </nav>
+            <div class="toolbar">
+              <label class="search-field"><span class="sr-only">Search promoted TecDoc vehicles</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m14.2 13 4 4-1.2 1.2-4-4a7 7 0 1 1 1.2-1.2ZM8.5 14.3a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z"/></svg><input id="tecdoc-search" type="search" placeholder="Search KType, manufacturer, model, engine or fuel…" /></label>
+            </div>
+            <div class="result-meta"><span id="tecdoc-result-count">Loading promoted KTypes…</span><span>Click a row to inspect its canonical evidence</span></div>
+            <div class="table-wrap"><table class="tecdoc-table"><thead><tr><th>KType vehicle</th><th>Manufacturer</th><th>Engine</th><th>Fuel</th><th>Status</th></tr></thead><tbody id="tecdoc-rows"></tbody></table><div id="tecdoc-empty" class="empty-state" hidden><strong>No promoted KTypes found</strong><p>Run a safe canonical promotion or change the search.</p></div></div>
+            <footer class="pagination"><button id="tecdoc-previous" type="button">Previous</button><span id="tecdoc-page">Page 1</span><button id="tecdoc-next" type="button">Next</button></footer>
+          </section>
+          <aside class="tecdoc-inspector">
+            <div id="tecdoc-inspector-empty" class="inspector-empty"><span class="inspector-glyph">↗</span><strong>Select a KType</strong><p>See canonical facts, source rows and the exact safety gates.</p></div>
+            <div id="tecdoc-inspector-content" hidden>
+              <header class="tecdoc-inspector-head"><div><span class="eyebrow">TecDoc KType</span><h2 id="tecdoc-detail-name">—</h2><p id="tecdoc-detail-subtitle">—</p></div><span class="status-badge status-provisional">Provisional</span></header>
+              <section><h3>Canonical vehicle</h3><dl id="tecdoc-canonical" class="field-list"></dl></section>
+              <section><h3>Graph connections</h3><div id="tecdoc-graph" class="tecdoc-graph"></div></section>
+              <section><h3>Promotion checks</h3><div id="tecdoc-gates" class="promotion-gates"></div></section>
+              <section><h3>Source lineage</h3><dl id="tecdoc-source-keys" class="source-key-list"></dl><div id="tecdoc-source-rows" class="source-row-list"></div></section>
+              <section class="platform-wait"><h3>Hierarchy status</h3><strong>Model family connected · Platform optional</strong><p>The vehicle is connected directly to its ModelFamily and Manufacturer. A BUILT_ON → Platform relationship is added only when reliable platform evidence is available.</p></section>
+            </div>
+            <div id="tecdoc-entity-inspector" hidden></div>
+          </aside>
+        </main>
+      </div>
+
+      <div id="connections-view" hidden>
+        <section class="connection-summary">
+          <div class="connection-title"><span class="eyebrow">Resolved TS → TecDoc connections</span><h1>1,000 vehicles with selected KTypes.</h1><p>Restricted local meeting view with registration plates. VIN and raw source records remain hidden.</p></div>
+          <dl><div><dt>Vehicles shown</dt><dd>1,000</dd></div><div><dt>Match route</dt><dd>Resolved</dd></div><div><dt>KType coverage</dt><dd>100%</dd></div><div><dt>Graph aliases</dt><dd>0</dd></div></dl>
+        </section>
+        <main class="connection-workspace">
+          <section class="connection-list">
+            <section class="resolved-showcase">
+              <div class="resolved-showcase-head"><div><span class="eyebrow">Connected vehicle data</span><h2>Registration plate → KType</h2></div><label class="connection-search"><span class="sr-only">Search resolved vehicles</span><input id="connection-vehicle-search" type="search" placeholder="Search plate, manufacturer, model, KType or engine…" /></label></div>
+              <div class="resolved-privacy sensitive-data-note">Restricted source data · registration plates visible · do not share screenshots externally</div>
+              <div class="resolved-table-wrap"><table class="resolved-table"><thead><tr><th>Plate / TS vehicle</th><th>TecDoc match</th><th>Technical evidence</th><th>Status</th></tr></thead><tbody id="resolved-connection-rows"></tbody></table></div>
+              <footer class="resolved-pagination"><button id="resolved-previous" type="button">Previous</button><span id="resolved-page-label">Loading vehicles…</span><button id="resolved-next" type="button">Next</button></footer>
+            </section>
+          </section>
+          <aside class="connection-inspector">
+            <div class="connection-inspector-head"><span class="eyebrow" id="connection-eyebrow">Select a vehicle</span><h2 id="connection-name">TS vehicle → TecDoc KType</h2><span id="connection-badge" class="connection-status status-validated">Resolved</span></div>
+            <div id="connection-path" class="connection-path"></div>
+            <section><h3>TS evidence vs TecDoc candidate</h3><div id="connection-comparison" class="connection-comparison"></div></section>
+            <section><h3>Selection gates</h3><div id="connection-gates" class="connection-gates"></div></section>
+            <section><h3>Decision trace</h3><ol id="connection-trace" class="connection-trace"></ol></section>
+            <section class="connection-decision"><h3>Why this KType was selected</h3><strong id="connection-decision-title">Choose a row to inspect its connection</strong><p id="connection-decision-copy">The selected vehicle will show its plate, normalized TS evidence and matched TecDoc KType.</p></section>
+          </aside>
+        </main>
       </div>
 
       <div id="rules-view" hidden>
@@ -257,6 +339,40 @@
         </main>
       </div>
 
+      <div id="queue-view" hidden>
+        <section class="queue-hero">
+          <div><span class="eyebrow">Human decisions</span><h1>Review queue</h1><p>Claim unresolved vehicles, record a correction, and preserve the original TS evidence.</p></div>
+          <dl class="queue-counts"><div><dt>Pending</dt><dd id="queue-pending">—</dd></div><div><dt>In review</dt><dd id="queue-in-review">—</dd></div><div><dt>Resolved</dt><dd id="queue-resolved">—</dd></div><div><dt>Rejected</dt><dd id="queue-rejected">—</dd></div></dl>
+        </section>
+        <main class="queue-workspace">
+          <section class="queue-results">
+            <div class="toolbar"><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
+            <div class="result-meta"><span id="queue-result-count">Loading queue…</span><span>Newest activity first</span></div>
+            <div class="table-wrap"><table class="queue-table"><thead><tr><th>Vehicle evidence</th><th>Reason</th><th>Confidence</th><th>Queue state</th></tr></thead><tbody id="queue-rows"></tbody></table><div id="queue-empty" class="empty-state" hidden><strong>No review items in this view</strong><p>Review-required imports are added automatically.</p></div></div>
+            <section class="rule-change-history"><div><span class="eyebrow">Pending governance work</span><h2>Current rule drafts</h2><p class="section-hint">Only unactivated drafts from the Rules workspace and vehicle reviews are shown here.</p></div><div id="queue-rule-changes" class="rule-change-list"><p>No rule drafts recorded yet.</p></div></section>
+          </section>
+          <aside class="queue-editor">
+            <div id="queue-editor-empty" class="inspector-empty"><span class="inspector-glyph">✓</span><strong>Select a queue item</strong><p>Review the source evidence and record an auditable decision.</p></div>
+            <form id="queue-review-form" hidden>
+              <header class="editor-head"><div><span class="eyebrow" id="queue-item-state">Pending</span><h2 id="queue-item-title">Review item</h2></div><span id="queue-item-confidence" class="status-badge">—</span></header>
+              <section class="editor-section readonly-evidence"><h3>Immutable TS evidence</h3><dl id="queue-source-evidence"></dl></section>
+              <section class="editor-section readonly-evidence"><h3>Current normalization</h3><dl id="queue-current-result"></dl><p id="queue-reason-detail" class="section-hint"></p></section>
+              <section id="queue-resolution-summary" class="editor-section readonly-evidence" hidden><h3>Recorded decision</h3><dl id="queue-resolution-values"></dl></section>
+              <section id="queue-decision-fields" class="editor-section editor-fields">
+                <h3>Reviewed correction</h3>
+                <label><span>Reviewer</span><input id="queue-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Field to correct</span><select id="queue-field"><option value="manufacturer">Manufacturer</option><option value="model_family">Model family</option><option value="bodywork_form">Bodywork</option><option value="energy_sources">Fuel / electrification</option><option value="transmission_type">Transmission</option></select></label>
+                <label><span>Canonical value</span><input id="queue-canonical-value" type="text" maxlength="200" required placeholder="Reviewed value" /></label>
+                <label><span>Decision scope</span><select id="queue-decision-scope"><option value="vehicle_only">This vehicle only</option><option value="manufacturer_entity">Manufacturer entity draft</option><option value="translation_rule">Translation rule draft</option></select></label>
+                <label id="queue-rule-reference-label" hidden><span>Existing rule/entity ID</span><input id="queue-rule-reference" type="text" maxlength="160" placeholder="For example MFE-… or BDY-110" /></label>
+                <label><span>Review reason</span><textarea id="queue-decision-reason" minlength="5" maxlength="1000" required placeholder="Explain the evidence behind this decision"></textarea></label>
+              </section>
+              <footer id="queue-actions" class="editor-actions"><button id="start-review" class="text-button" type="button">Start review</button><button id="save-review-draft" class="text-button" type="button">Save review draft</button><button class="primary-button" type="submit">Approve decision</button><button id="reject-review" class="text-button danger" type="button">Reject</button></footer>
+            </form>
+          </aside>
+        </main>
+      </div>
+
       <div id="guide-view" hidden>
         <main class="guide-page">
           <header class="guide-head">
@@ -290,6 +406,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=10" defer></script>
+    <script src="/normalization-review/assets/app.js?v=23" defer></script>
   </body>
 </html>

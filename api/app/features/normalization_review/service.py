@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Protocol
 
 from api.app.features.normalization_review.schemas import (
@@ -62,13 +63,25 @@ class NormalizationReviewService:
         candidates = dict(payload.get("candidates") or {})
         energy_sources = normalized.get("energy_sources")
         production_year = normalized.get("production_year") or normalized.get("model_year")
+        source_evidence = row.get("source_evidence") or {}
+        registration_plate = source_evidence.get("plate")
+        synthetic_plate = isinstance(registration_plate, str) and (
+            registration_plate.startswith("TEST-")
+            or re.fullmatch(r"T\d{5}", registration_plate) is not None
+        )
         return NormalizationReviewVehicle(
             source_record_id=int(row["source_record_id"]),
+            source_batch_id=str(row["source_batch_id"]),
+            registration_plate=(
+                str(registration_plate) if registration_plate not in (None, "") else None
+            ),
+            source_data_kind="synthetic" if synthetic_plate else "real",
             source_brand=row.get("source_brand"),
-            source_evidence=row.get("source_evidence") or {},
+            source_evidence=source_evidence,
             status=row["status"],
             confidence=float(row["confidence"]),
             manufacturer=normalized.get("manufacturer") or candidates.get("manufacturer"),
+            manufacturer_group=normalized.get("manufacturer_group"),
             model_family=normalized.get("model_family") or candidates.get("model_family"),
             bodywork=normalized.get("bodywork_form"),
             transmission=normalized.get("transmission_type"),
@@ -77,6 +90,9 @@ class NormalizationReviewService:
             ),
             engine_code=normalized.get("engine_code"),
             production_year=int(production_year) if isinstance(production_year, int) else None,
+            text_codes=list(normalized.get("text_codes") or []),
+            special_vehicle_flags=list(normalized.get("special_vehicle_flags") or []),
+            parts_matching_policy=normalized.get("parts_matching_policy"),
             review_reasons=list(row["review_reasons"]),
             applied_rule_ids=list(row["applied_rule_ids"]),
             candidate_rule_ids=list(payload.get("candidate_rule_ids") or []),

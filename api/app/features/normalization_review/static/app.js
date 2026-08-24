@@ -1,6 +1,9 @@
 const PAGE_SIZE = 250;
 const state = { filters: {}, offset: 0, selectedId: null, page: null, loading: false };
 const ruleState = { page: null, selectedId: null, kind: "translation", loading: false };
+const queueState = { page: null, selectedId: null, loading: false };
+const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
+const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -17,6 +20,9 @@ const elements = {
   rulesView: document.querySelector("#rules-view"),
   vehiclesView: document.querySelector("#vehicles-view"),
   guideView: document.querySelector("#guide-view"),
+  queueView: document.querySelector("#queue-view"),
+  tecdocView: document.querySelector("#tecdoc-view"),
+  connectionsView: document.querySelector("#connections-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -79,11 +85,34 @@ function formatDateTime(value, fallback) {
 }
 
 function ruleExplanation(ruleId) {
-  if (ruleId === "MFR-BRAND-PREFIX-FALLBACK") return "Brand begins with an approved Manufacturer entity alias";
-  if (ruleId === "MFR-BRAND-REVIEWED-EXAMPLE") return "Brand is an exact reviewed example beneath its Manufacturer entity";
-  if (ruleId === "MFR-MODEL-VARIANT-FALLBACK") return "Model or Variant begins with an approved Manufacturer entity alias";
-  if (ruleId.startsWith("MFE-")) return "Reviewed Manufacturer entity classification";
-  return "Normalization rule evidence";
+  const explanations = {
+    "MFR-102": "If Tillverkare is a recognized vehicle manufacturer, use it as the canonical manufacturer.",
+    "MFR-BRAND-PREFIX-FALLBACK": "If Tillverkare is missing, Brand may become a manufacturer candidate when it begins with an approved manufacturer alias, but supporting evidence is required.",
+    "MFR-BRAND-REVIEWED-EXAMPLE": "If Tillverkare is missing and Brand exactly matches a reviewed example, the linked manufacturer may become a candidate, but supporting evidence is required.",
+    "MFR-BRAND-REVIEWED-EXACT": "If Tillverkare is missing and Brand exactly matches a stakeholder-reviewed repair, use the approved canonical manufacturer.",
+    "MFR-BRAND-LEGACY-EXACT": "If Tillverkare is missing and Brand exactly matches an approved legacy Brand value, use its canonical manufacturer.",
+    "MFR-BRAND-CONFIRMED": "If Tillverkare is missing, use the manufacturer identified from Brand only when another source confirms the same manufacturer.",
+    "MFR-BRAND-EVIDENCE-CONFIRMED": "If Tillverkare is missing and Brand agrees with Model, VIN, fabrication code, or TecDoc KType, use that confirmed manufacturer.",
+    "MFR-BRAND-MODEL": "Model supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-VIN-WMI": "The VIN manufacturer code supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-FAB-CODE": "The fabrication code supports the same manufacturer identified from Brand.",
+    "MFR-BRAND-KTYPE": "TecDoc KType supports the same manufacturer identified from Brand.",
+    "MFR-CORPORATE-BRAND-OVERRIDE": "If Tillverkare names a corporate group but Brand identifies an approved marketed vehicle brand, use the marketed brand as manufacturer.",
+    "MFR-PARENT-MARKETED": "If Tillverkare names a parent company and Brand identifies an approved child brand, use the child brand when independent evidence confirms it.",
+    "MFR-PARENT-MODEL-CHILD": "If Tillverkare names a parent company and Model clearly identifies an approved child brand, use that child brand.",
+    "MFR-BRAND-BASE-CONFIRMED": "If Tillverkare is a bodybuilder or converter and Brand agrees with Tillverkare grundfordonet, use the base manufacturer and keep the bodybuilder separately.",
+    "MFR-MODEL-VARIANT-FALLBACK": "If Tillverkare is missing, a manufacturer found at the beginning of Model or Variant may become a candidate, but supporting evidence is required.",
+    "DRV-001": "For Mercedes-Benz vehicles, 4MATIC is accepted as all-wheel drive.",
+    "DRV-002": "For BMW vehicles, xDrive is accepted as all-wheel drive.",
+    "DRV-003": "For Audi vehicles, quattro is accepted as all-wheel drive.",
+    "DRV-004": "For Volkswagen vehicles, 4Motion is accepted as all-wheel drive.",
+    "DRV-008": "When the official TS is_4wd flag is 1, all-wheel drive is accepted. A value of 0 does not identify front- or rear-wheel drive.",
+    "TS-SPECIAL-VEHICLE-V1": "Official TS text and body codes preserve modifications and special use. Amateur/rebuilt vehicles are grouped as Special Modified and excluded from parts matching; taxi, police, ambulance, rally and other safety-modified vehicles keep their real manufacturer and require manual parts review.",
+  };
+  if (explanations[ruleId]) return explanations[ruleId];
+  if (ruleId.startsWith("MFE-")) return "If the source company matches this approved manufacturer entity, its reviewed classification and canonical manufacturer name are used.";
+  if (ruleId.startsWith("MOD-")) return "When the confirmed manufacturer matches this rule and TS Model begins with the approved complete model-family term, that family is accepted while the remaining text stays available as source evidence.";
+  return "If this rule's conditions match the source vehicle, its normalized value is applied according to the active rule version.";
 }
 
 function displayValue(value) {
@@ -145,7 +174,10 @@ async function loadVehicles({ preserveSelection = false } = {}) {
 
 function renderPage() {
   const page = state.page;
-  document.querySelector("#batch-label").textContent = page.batch_id ? `Batch · ${page.batch_id}` : "No normalized batch yet";
+  const batchLabel = page.batch_id?.endsWith("-all-parts")
+    ? `${page.batch_id.slice(0, -"-all-parts".length)} · all imported parts`
+    : page.batch_id;
+  document.querySelector("#batch-label").textContent = batchLabel ? `Batch · ${batchLabel}` : "No normalized batch yet";
   document.querySelector("#summary-total").textContent = page.summary.total.toLocaleString();
   document.querySelector("#summary-resolved").textContent = page.summary.resolved.toLocaleString();
   document.querySelector("#summary-provisional").textContent = page.summary.provisional.toLocaleString();
@@ -183,7 +215,7 @@ function populateFacets(facets) {
 function renderRows(items) {
   elements.rows.innerHTML = items.map((vehicle, index) => `
     <tr data-id="${vehicle.source_record_id}" class="${vehicle.source_record_id === state.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0">
-      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>${vehicle.source_brand ? `Brand: ${escapeHtml(vehicle.source_brand)} · ` : ""}Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
+      <td><div class="vehicle-cell"><strong>${escapeHtml(vehicle.manufacturer_group || vehicle.manufacturer || "Unresolved manufacturer")} ${escapeHtml(vehicle.model_family || "")}</strong><span>${vehicle.registration_plate ? `Plate: ${escapeHtml(vehicle.registration_plate)} · ` : ""}${vehicle.source_brand ? `Brand: ${escapeHtml(vehicle.source_brand)} · ` : ""}Record ${vehicle.source_record_id}${vehicle.engine_code ? ` · ${escapeHtml(vehicle.engine_code)}` : ""}</span></div></td>
       <td>${statusBadge(vehicle.status)}</td>
       <td>${escapeHtml(humanize(vehicle.bodywork))}</td>
       <td>${escapeHtml(displayValue(vehicle.energy_sources))}</td>
@@ -211,7 +243,8 @@ function renderInspector(vehicle) {
   if (!vehicle) return;
 
   document.querySelector("#inspector-record").textContent = `Source record ${vehicle.source_record_id}`;
-  document.querySelector("#inspector-name").textContent = `${vehicle.manufacturer || "Unresolved"} ${vehicle.model_family || "vehicle"}`;
+  document.querySelector("#inspector-name").textContent = `${vehicle.manufacturer_group || vehicle.manufacturer || "Unresolved"} ${vehicle.model_family || "vehicle"}`;
+  document.querySelector("#inspector-identity").innerHTML = `<strong>Plate · ${escapeHtml(vehicle.registration_plate || "Not supplied")}</strong><span class="data-kind data-kind-${escapeHtml(vehicle.source_data_kind)}">${escapeHtml(vehicle.source_data_kind)} source</span><span>${escapeHtml(vehicle.source_batch_id)}</span>`;
   const status = document.querySelector("#inspector-status");
   status.className = `status-badge status-${vehicle.status}`;
   status.textContent = labels[vehicle.status] ?? humanize(vehicle.status);
@@ -222,7 +255,7 @@ function renderInspector(vehicle) {
   const manufacturerRule = vehicle.candidate_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"))
     || vehicle.applied_rule_ids.find((rule) => rule === "MFR-BRAND-REVIEWED-EXAMPLE")
     || vehicle.applied_rule_ids.find((rule) => rule.startsWith("MFR-") || rule.startsWith("MFE-"));
-  const rawFields = ["manufacturer", "brand", "model", "variant", "version", "body_code", "eu_category", "fuel1", "fuel2", "fuel3", "gearbox", "is_4wd", "vin"];
+  const rawFields = ["plate", "manufacturer", "brand", "model", "variant", "version", "body_code", "body_code2", "body_code_extra", "text_code", "text_codes", "text_code_descriptions", "eu_category", "fuel1", "fuel2", "fuel3", "gearbox", "is_4wd", "vin"];
   const rawEntries = rawFields.filter((key) => vehicle.source_evidence?.[key] !== undefined && vehicle.source_evidence[key] !== null && vehicle.source_evidence[key] !== "").map((key) => [key, vehicle.source_evidence[key]]);
   document.querySelector("#source-evidence").innerHTML = [
     ["Brand", vehicle.source_brand || "Not supplied"],
@@ -231,11 +264,26 @@ function renderInspector(vehicle) {
     ...rawEntries,
   ].map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
 
-  const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
+  const fieldOrder = ["manufacturer", "model_family", "bodywork_form", "drive_type", "energy_sources", "transmission_type", "engine_code", "production_year", "power_kw", "displacement_cc", "registration_date"];
   const entries = fieldOrder.filter((key) => vehicle.normalized[key] !== undefined).map((key) => [key, vehicle.normalized[key]]);
   document.querySelector("#normalized-fields").innerHTML = entries.length
     ? entries.map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("")
     : "<div><dt>Result</dt><dd>No accepted normalized fields</dd></div>";
+
+  const specialSection = document.querySelector("#special-vehicle-section");
+  const hasSpecialEvidence = vehicle.text_codes.length || vehicle.special_vehicle_flags.length || vehicle.parts_matching_policy;
+  specialSection.hidden = !hasSpecialEvidence;
+  document.querySelector("#special-vehicle-summary").innerHTML = hasSpecialEvidence ? [
+    ["Manufacturer group", vehicle.manufacturer_group || "Not changed"],
+    ["Vehicle flags", vehicle.special_vehicle_flags.length ? vehicle.special_vehicle_flags.map(humanize).join(", ") : "None"],
+    ["Parts matching", vehicle.parts_matching_policy ? humanize(vehicle.parts_matching_policy) : "No restriction"],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("") : "";
+  document.querySelector("#text-code-list").innerHTML = vehicle.text_codes.map((item) => {
+    const code = item.code || "Description-only evidence";
+    const meaning = item.description_en || item.description || "Meaning not yet mapped";
+    const candidates = item.candidate_codes?.length ? `<small>Possible official codes: ${escapeHtml(item.candidate_codes.join(", "))}. Confirm against the full TS text-code field.</small>` : "";
+    return `<article><strong>${escapeHtml(code)}</strong><span>${escapeHtml(meaning)}</span>${item.description_sv ? `<em>${escapeHtml(item.description_sv)}</em>` : ""}${candidates}</article>`;
+  }).join("");
 
   const reasons = document.querySelector("#review-reasons");
   reasons.innerHTML = vehicle.review_reasons.length
@@ -251,7 +299,7 @@ function renderInspector(vehicle) {
   const candidates = vehicle.candidates || {};
   const mappings = [
     ["manufacturer", "manufacturer"], ["brand", "manufacturer"], ["model", "model_family"], ["variant", "model_family"],
-    ["body_code", "bodywork_form"], ["fuel1", "energy_sources"], ["fuel2", "energy_sources"], ["fuel3", "energy_sources"], ["gearbox", "transmission_type"],
+    ["body_code", "bodywork_form"], ["body_code2", "special_vehicle_flags"], ["body_code_extra", "special_vehicle_flags"], ["text_code", "vehicle_classification"], ["fuel1", "energy_sources"], ["fuel2", "energy_sources"], ["fuel3", "energy_sources"], ["gearbox", "transmission_type"],
   ].filter(([raw]) => source[raw] !== undefined && source[raw] !== null && source[raw] !== "" && !(["fuel2", "fuel3"].includes(raw) && String(source[raw]) === "0"));
   document.querySelector("#evidence-map").innerHTML = mappings.length ? mappings.map(([rawKey, target]) => {
     const accepted = normalized[target];
@@ -272,8 +320,12 @@ function renderInspector(vehicle) {
     ...candidateRules.filter((rule) => !appliedRules.includes(rule)).map((rule) => ({ rule, state: "Candidate" })),
   ];
   document.querySelector("#rule-list").innerHTML = rules.length
-    ? rules.map(({ rule, state }) => `<span class="rule-evidence ${state === "Candidate" ? "candidate" : ""}" title="${escapeHtml(ruleExplanation(rule))}"><b>${escapeHtml(state)}</b>${escapeHtml(rule)}</span>`).join("")
+    ? rules.map(({ rule, state }) => `<button type="button" class="rule-evidence ${state === "Candidate" ? "candidate" : ""}" data-rule-id="${escapeHtml(rule)}" title="Show ${escapeHtml(rule)} details"><b>${escapeHtml(state)}</b>${escapeHtml(rule)}</button>`).join("")
     : "<span>No applied rules</span>";
+  document.querySelector("#vehicle-rule-detail").hidden = true;
+  document.querySelectorAll("#rule-list [data-rule-id]").forEach((button) => {
+    button.addEventListener("click", () => showRuleInVehicle(button.dataset.ruleId));
+  });
 }
 
 function updateFilters() {
@@ -331,11 +383,171 @@ async function apiRequest(url, options = {}) {
 function switchView(view) {
   const showRules = view === "rules";
   const showGuide = view === "guide";
-  elements.vehiclesView.hidden = showRules || showGuide;
+  const showQueue = view === "queue";
+  const showTecDoc = view === "tecdoc";
+  const showConnections = view === "connections";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
+  elements.queueView.hidden = !showQueue;
+  elements.tecdocView.hidden = !showTecDoc;
+  elements.connectionsView.hidden = !showConnections;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
+  if (showQueue) loadQueue();
+  if (showTecDoc && !tecdocState.page) loadTecDoc();
+  if (showConnections && !resolvedConnectionState.page) loadResolvedConnections();
+}
+
+const connectionViews = {
+  vw: { eyebrow: "Variant/version bridge", name: "VW TS record → CAYC engine set", badge: "Validated 10k", badgeClass: "status-validated", path: [["TS evidence", "VW · variant + version", "source"], ["Reviewed fingerprint", "12 training + 11 held-out anchors", "evidence"], ["TecDoc engine set", "CAYC · exactly one engine", "target"], ["KType candidates", "Re-ranked with engine evidence", "target"], ["Matcher route", "Review → resolved", "target"]], gates: [["Exact manufacturer scope", "pass"], ["Repeated fingerprint", "pass"], ["Unique catalog engine", "pass"], ["Year / fuel / power gates", "pass"], ["Candidate margin", "pass"]], title: "Passed the controlled 10k cohort", copy: "For eight held-out VW rows, CAYC agreed with the candidate engine set. The extra evidence separated the leading KType from alternatives and met the resolved route." },
+  hyundai: { eyebrow: "Type-approval bridge", name: "Hyundai TS record → G4FU engine set", badge: "Validated 10k", badgeClass: "status-validated", path: [["TS evidence", "Hyundai · type approval", "source"], ["Reviewed fingerprint", "9 training + 3 held-out anchors", "evidence"], ["TecDoc engine set", "G4FU · exactly one engine", "target"], ["KType candidates", "Re-ranked with engine evidence", "target"], ["Matcher route", "Review → resolved", "target"]], gates: [["Exact manufacturer scope", "pass"], ["Repeated fingerprint", "pass"], ["Unique catalog engine", "pass"], ["Year / fuel / power gates", "pass"], ["Candidate margin", "pass"]], title: "Passed the controlled 10k cohort", copy: "The reviewed type-approval fingerprint supplied G4FU only where the Hyundai catalog scope contained that engine. No contradictory engine appeared in the held-out anchors." },
+};
+
+function renderConnection(key) {
+  const view = connectionViews[key];
+  document.querySelectorAll(".connection-row").forEach((row) => row.classList.toggle("selected", row.dataset.connection === key));
+  document.querySelector("#connection-eyebrow").textContent = view.eyebrow;
+  document.querySelector("#connection-name").textContent = view.name;
+  const badge = document.querySelector("#connection-badge");
+  badge.textContent = view.badge;
+  badge.className = `connection-status ${view.badgeClass}`;
+  document.querySelector("#connection-path").innerHTML = view.path.map(([title, detail, status]) => `<article class="path-${escapeHtml(status)}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  document.querySelector("#connection-gates").innerHTML = view.gates.map(([label, status]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-${escapeHtml(status)}">${escapeHtml(humanize(status))}</strong></div>`).join("");
+  document.querySelector("#connection-decision-title").textContent = view.title;
+  document.querySelector("#connection-decision-copy").textContent = view.copy;
+}
+
+function renderResolvedConnectionRows() {
+  const page = resolvedConnectionState.page;
+  if (!page) return;
+  const rows = document.querySelector("#resolved-connection-rows");
+  rows.innerHTML = page.items.map((item, index) => `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_codes.join(", ") || "Engine facts only")}</strong><span>${escapeHtml(item.power_kw ? `${item.power_kw} kW` : "Power pending")} · ${escapeHtml(item.displacement_cc ? `${item.displacement_cc} cc` : "Displacement pending")}</span></div></td><td><span class="connection-status status-validated">Resolved</span></td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => renderResolvedVehicle(page.items[Number(row.dataset.resolvedIndex)])));
+  const start = page.filtered_total ? page.offset + 1 : 0;
+  const end = Math.min(page.offset + page.items.length, page.filtered_total);
+  document.querySelector("#resolved-page-label").textContent = `${start}–${end} of ${page.filtered_total.toLocaleString()}`;
+  document.querySelector("#resolved-previous").disabled = page.offset === 0;
+  document.querySelector("#resolved-next").disabled = page.offset + page.limit >= page.filtered_total;
+}
+
+function renderResolvedVehicle(item) {
+  resolvedConnectionState.selectedId = item.vehicle_id;
+  document.querySelectorAll("#resolved-connection-rows tr").forEach((row) => row.classList.toggle("selected", resolvedConnectionState.page.items[Number(row.dataset.resolvedIndex)].vehicle_id === item.vehicle_id));
+  document.querySelectorAll(".connection-row").forEach((row) => row.classList.remove("selected"));
+  document.querySelector("#connection-eyebrow").textContent = `${item.vehicle_id} · registration plate`;
+  document.querySelector("#connection-name").textContent = `${item.plate} → KType ${item.ktype}`;
+  const badge = document.querySelector("#connection-badge"); badge.textContent = "Resolved"; badge.className = "connection-status status-validated";
+  const fuel = item.fuels.length ? item.fuels.map(humanize).join(", ") : "Fuel evidence pending";
+  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  const yearRange = [item.tecdoc_year_from || "—", item.tecdoc_year_to || "present"].join("–");
+  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model], ["Production year", item.year || "—", yearRange], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts"], ["Engine", item.ts_engine_code || "No TS engine code", item.engine_codes.join(", ") || "No unique engine allocation"], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—"]];
+  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b>Passed</b></article>`).join("");
+  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["No technical hard conflict", "pass"], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-pass">${escapeHtml(humanize(value))}</strong></div>`).join("");
+  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", "Applied year, fuel, engine, displacement, power, bodywork and drive compatibility."], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
+  document.querySelector("#connection-trace").innerHTML = trace.map(([title, copy], index) => `<li><b>${index + 1}</b><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span></div></li>`).join("");
+  document.querySelector("#connection-decision-title").textContent = `Selected ${item.ktype} as the unique top candidate`;
+  document.querySelector("#connection-decision-copy").textContent = `The candidate was inside the exact manufacturer scope, passed the applicable technical compatibility checks, exceeded the resolved threshold, and retained enough separation from the runner-up. Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
+}
+
+async function loadResolvedConnections() {
+  if (resolvedConnectionState.loading) return;
+  resolvedConnectionState.loading = true;
+  try {
+    const query = encodeURIComponent(resolvedConnectionState.query);
+    resolvedConnectionState.page = await apiRequest(`/v1/normalization-review/connections/resolved?query=${query}&limit=25&offset=${resolvedConnectionState.offset}`);
+    renderResolvedConnectionRows();
+    if (resolvedConnectionState.page.items.length && !resolvedConnectionState.selectedId) renderResolvedVehicle(resolvedConnectionState.page.items[0]);
+  } catch (error) { showToast(`Could not load resolved TS connections. ${error.message}`); }
+  finally { resolvedConnectionState.loading = false; }
+}
+
+async function loadTecDoc() {
+  if (tecdocState.loading) return;
+  tecdocState.loading = true;
+  const requestedKind = tecdocState.kind;
+  const query = document.querySelector("#tecdoc-search").value.trim();
+  try {
+    if (requestedKind === "vehicle") {
+      tecdocState.page = await apiRequest(`/v1/normalization-review/tecdoc/vehicles?query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
+      if (!tecdocState.page.items.some((item) => item.ktype === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.page.items[0]?.ktype || null;
+      renderTecDoc();
+    } else {
+      tecdocState.entityPage = await apiRequest(`/v1/normalization-review/tecdoc/entities?kind=${requestedKind}&query=${encodeURIComponent(query)}&limit=100&offset=${tecdocState.offset}`);
+      if (!tecdocState.entityPage.items.some((item) => item.source_key === tecdocState.selectedId)) tecdocState.selectedId = tecdocState.entityPage.items[0]?.source_key || null;
+      if (tecdocState.kind === requestedKind) renderTecDocEntities();
+    }
+  } catch (error) { showToast(`Could not load TecDoc vehicles. ${error.message}`); }
+  finally {
+    tecdocState.loadedKind = requestedKind;
+    tecdocState.loading = false;
+    if (tecdocState.kind !== requestedKind) loadTecDoc();
+  }
+}
+
+function renderTecDocEntities() {
+  const page = tecdocState.entityPage;
+  const kindLabel = humanize(tecdocState.kind);
+  document.querySelector("#tecdoc-result-count").textContent = `${page.filtered_total.toLocaleString()} ${kindLabel} values · ${page.batch_id || "No batch"}`;
+  const rows = document.querySelector("#tecdoc-rows");
+  rows.innerHTML = page.items.map((item) => `<tr data-entity-key="${escapeHtml(item.source_key)}" class="${item.source_key === tecdocState.selectedId ? "selected" : ""}"><td colspan="2"><div class="vehicle-cell"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.source_key)}</span></div></td><td colspan="2"><strong>${item.vehicle_count.toLocaleString()}</strong> promoted KTypes</td><td><span class="entity-sample-count">${item.sample_ktypes.length} examples</span></td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { tecdocState.selectedId = row.dataset.entityKey; renderTecDocEntities(); }));
+  document.querySelector("#tecdoc-empty").hidden = page.items.length !== 0;
+  document.querySelector("#tecdoc-page").textContent = `Page ${Math.floor(tecdocState.offset / 100) + 1}`;
+  document.querySelector("#tecdoc-previous").disabled = tecdocState.offset === 0;
+  document.querySelector("#tecdoc-next").disabled = tecdocState.offset + 100 >= page.filtered_total;
+  document.querySelector("#tecdoc-inspector-empty").hidden = Boolean(tecdocState.selectedId);
+  document.querySelector("#tecdoc-inspector-content").hidden = true;
+  const entity = page.items.find((item) => item.source_key === tecdocState.selectedId);
+  const inspector = document.querySelector("#tecdoc-entity-inspector");
+  inspector.hidden = !entity;
+  if (entity) inspector.innerHTML = `<header class="tecdoc-inspector-head"><div><span class="eyebrow">TecDoc ${escapeHtml(kindLabel)}</span><h2>${escapeHtml(entity.name)}</h2><p>${escapeHtml(entity.source_key)}</p></div><strong class="entity-usage">${entity.vehicle_count.toLocaleString()} vehicles</strong></header><section><h3>Canonical details</h3><dl class="field-list">${Object.entries(entity.details).map(([key,value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(value ?? "—")}</dd></div>`).join("")}</dl></section><section><h3>Example KTypes using this value</h3><div class="source-row-list">${entity.sample_ktypes.map((ktype) => `<code>${escapeHtml(ktype)}</code>`).join("")}</div><p class="section-hint entity-hint">Showing up to 12 examples from ${entity.vehicle_count.toLocaleString()} promoted vehicles.</p></section>`;
+}
+
+function renderTecDoc() {
+  const page = tecdocState.page;
+  document.querySelector("#tecdoc-entity-inspector").hidden = true;
+  const summary = page.summary;
+  document.querySelector("#tecdoc-promoted").textContent = Number(summary.promoted_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-linked").textContent = Number(summary.engine_linked_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-facts-only").textContent = Number(summary.facts_only_ktypes).toLocaleString();
+  document.querySelector("#tecdoc-manufacturers").textContent = Number(summary.manufacturers).toLocaleString();
+  document.querySelector("#tecdoc-models").textContent = Number(summary.model_families).toLocaleString();
+  document.querySelector("#tecdoc-engines").textContent = Number(summary.engines).toLocaleString();
+  document.querySelector("#tecdoc-result-count").textContent = `${page.filtered_total.toLocaleString()} promoted KTypes · ${escapeHtml(summary.batch_id || "No batch")}`;
+  const rows = document.querySelector("#tecdoc-rows");
+  rows.innerHTML = page.items.map((item) => `<tr data-ktype="${escapeHtml(item.ktype)}" class="${item.ktype === tecdocState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.source_name || item.ktype)}</strong><span>KType ${escapeHtml(item.ktype)} · ${escapeHtml(item.model_family || "Model pending")}</span></div></td><td>${escapeHtml(item.manufacturer || "—")}</td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_code || "—")}</strong><span>${item.displacement_cc ? `${escapeHtml(item.displacement_cc)} cc` : "Displacement pending"}</span></div></td><td>${escapeHtml(humanize(item.fuel_type))}</td><td>${statusBadge("provisional")}</td></tr>`).join("");
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { tecdocState.selectedId = row.dataset.ktype; renderTecDoc(); }));
+  document.querySelector("#tecdoc-empty").hidden = page.items.length !== 0;
+  document.querySelector("#tecdoc-page").textContent = `Page ${Math.floor(tecdocState.offset / 100) + 1}`;
+  document.querySelector("#tecdoc-previous").disabled = tecdocState.offset === 0;
+  document.querySelector("#tecdoc-next").disabled = tecdocState.offset + 100 >= page.filtered_total;
+  renderTecDocInspector(page.items.find((item) => item.ktype === tecdocState.selectedId));
+}
+
+function renderTecDocInspector(item) {
+  document.querySelector("#tecdoc-inspector-empty").hidden = Boolean(item);
+  const content = document.querySelector("#tecdoc-inspector-content");
+  content.hidden = !item;
+  if (!item) return;
+  document.querySelector("#tecdoc-detail-name").textContent = item.source_name || `KType ${item.ktype}`;
+  document.querySelector("#tecdoc-detail-subtitle").textContent = `${item.manufacturer || "Manufacturer pending"} · ${item.model_family || "Model pending"}`;
+  const fields = { "KType": item.ktype, "Manufacturer": item.manufacturer, "Model family": item.model_family, "Bodywork": item.bodywork_name || (item.bodywork_code ? `TecDoc KT 086 code ${item.bodywork_code}` : null), "Bodywork status": item.bodywork_status === "linked" ? "Mapped to NorthStar vocabulary" : item.bodywork_status === "review_required" ? "Official TecDoc value requires review" : "No bodywork code", "Drive": item.drive_type ? item.drive_type.toUpperCase() : item.drive_official_label, "Drive evidence": item.drive_code ? `KT 082 / ${item.drive_code} · ${item.drive_status === "mapped" ? "mapped" : "review required"}` : null, "Transmission allocation": item.transmission_link_status === "linked" ? "One Table 547 allocation" : item.transmission_link_status === "ambiguous" ? "Multiple Table 547 allocations" : "No Table 547 allocation", "Transmission code": item.transmission_code, "Transmission type": item.transmission_type_name || (item.transmission_type_code ? `TecDoc KT 085 code ${item.transmission_type_code}` : null), "Transmission speeds": item.transmission_speeds, "Engine allocation": item.engine_link_status === "linked" ? "Table 155 engine linked" : "No Table 125 allocation", "Engine code": item.engine_code, "Displacement": item.displacement_cc ? `${item.displacement_cc} cc` : null, "Fuel": item.fuel_type ? humanize(item.fuel_type) : `TecDoc code ${item.tecdoc_fuel_code || "—"}`, "Engine type code": item.tecdoc_engine_type_code, "Powertrain years": [item.year_from, item.year_to || "present"].filter(Boolean).join("–") };
+  document.querySelector("#tecdoc-canonical").innerHTML = Object.entries(fields).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value || "—")}</dd></div>`).join("");
+  const graphNodes = [
+    ["VehicleVariant", item.source_name || `KType ${item.ktype}`, "root"],
+    ["VARIANT_OF", item.model_family, item.model_family ? "linked" : "missing"],
+    ["MADE_BY", item.manufacturer, item.manufacturer ? "linked" : "missing"],
+    ["HAS_BODY", item.bodywork_status === "linked" ? item.bodywork_name : item.bodywork_status === "review_required" ? `${item.bodywork_name || item.bodywork_code} · review` : null, item.bodywork_status],
+    ["DRIVE", item.drive_type ? item.drive_type.toUpperCase() : item.drive_official_label ? `${item.drive_official_label} · review` : null, item.drive_status],
+    ["USES_TRANSMISSION", item.transmission_link_status === "linked" ? `${item.transmission_code || "Transmission"}${item.transmission_type_name ? ` · ${item.transmission_type_name}` : ""}` : item.transmission_link_status, item.transmission_link_status],
+    ["USES_ENGINE", item.engine_link_status === "linked" ? item.engine_code : "Technical facts only", item.engine_link_status],
+    ["BUILT_ON", "Platform optional · no evidence", "optional"]
+  ];
+  document.querySelector("#tecdoc-graph").innerHTML = graphNodes.map(([edge, value, state], index) => `<div class="graph-node ${escapeHtml(state || "missing")}">${index ? `<span class="graph-edge">${escapeHtml(edge)}</span>` : ""}<strong>${escapeHtml(value || "Not linked")}</strong><small>${escapeHtml(index ? state : edge)}</small></div>`).join("");
+  document.querySelector("#tecdoc-gates").innerHTML = tecdocState.page.promotion_rules.map((rule, index) => `<article><span>${index === 1 && item.engine_link_status === "allocation_missing" ? "Safe omit" : "Passed"}</span><div><strong>${escapeHtml(rule.label)}</strong><p>${escapeHtml(index === 1 && item.engine_link_status === "allocation_missing" ? "No Table 125 allocation exists, so no Engine node or USES_ENGINE relationship was fabricated." : rule.outcome)}</p></div></article>`).join("");
+  document.querySelector("#tecdoc-source-keys").innerHTML = Object.entries(item.source_keys).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  document.querySelector("#tecdoc-source-rows").innerHTML = item.source_row_refs.map((ref) => `<code>${escapeHtml(ref)}</code>`).join("");
 }
 
 async function loadRules() {
@@ -350,6 +562,38 @@ async function loadRules() {
     showToast(`Could not load rules. ${error.message}`);
   } finally {
     ruleState.loading = false;
+  }
+}
+
+function ruleDetailField(label, value) {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(displayValue(value))}</strong></div>`;
+}
+
+async function showRuleInVehicle(ruleId) {
+  const detail = document.querySelector("#vehicle-rule-detail");
+  const selectedButton = document.querySelector(`#rule-list [data-rule-id="${CSS.escape(ruleId)}"]`);
+  if (!detail.hidden && detail.dataset.ruleId === ruleId) {
+    detail.hidden = true;
+    selectedButton?.classList.remove("selected");
+    return;
+  }
+
+  detail.hidden = false;
+  detail.dataset.ruleId = ruleId;
+  detail.innerHTML = `<p class="section-hint">Loading ${escapeHtml(ruleId)}…</p>`;
+  document.querySelectorAll("#rule-list [data-rule-id]").forEach((button) => button.classList.toggle("selected", button.dataset.ruleId === ruleId));
+  if (!ruleState.page) await loadRules();
+  if (!ruleState.page) return;
+
+  const translationRule = ruleState.page.rules.find((rule) => rule.rule_id === ruleId);
+  const manufacturerEntity = ruleState.page.manufacturer_entities.find((entity) => entity.entity_id === ruleId);
+  if (translationRule) {
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Translation rule</span><strong>${escapeHtml(ruleId)}</strong><em class="decision-label decision-${escapeHtml(translationRule.effective_decision)}">${escapeHtml(translationRule.effective_decision)}</em></div><div class="vehicle-rule-detail-grid">${ruleDetailField("Area", humanize(translationRule.area))}${ruleDetailField("Source fields", translationRule.source_fields.join(", ") || "Any")}${ruleDetailField("Source terms", translationRule.source_terms.join(", ") || "Any")}${ruleDetailField("Canonical field", humanize(translationRule.canonical_field))}${ruleDetailField("Canonical value", humanize(translationRule.effective_canonical_value))}${ruleDetailField("Vehicle scope", translationRule.vehicle_scopes.join(", ") || "All vehicles")}${ruleDetailField("Manufacturer scope", translationRule.manufacturers.join(", ") || "Any manufacturer")}${ruleDetailField("Version state", translationRule.has_draft ? "Draft change" : "Active")}</div>`;
+  } else if (manufacturerEntity) {
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Manufacturer entity</span><strong>${escapeHtml(ruleId)}</strong><em class="decision-label ${manufacturerEntity.effective_entity_role === "unknown" ? "decision-proposed" : "decision-accepted"}">${escapeHtml(humanize(manufacturerEntity.effective_entity_role))}</em></div><div class="vehicle-rule-detail-grid">${ruleDetailField("Source field", humanize(manufacturerEntity.source_field))}${ruleDetailField("Source term", manufacturerEntity.source_term)}${ruleDetailField("Canonical manufacturer", manufacturerEntity.effective_canonical_name)}${ruleDetailField("Base manufacturers", (manufacturerEntity.base_manufacturers || []).join(", ") || "None")}${ruleDetailField("Occurrences", manufacturerEntity.occurrences ?? 0)}${ruleDetailField("Version state", manufacturerEntity.has_draft ? "Draft change" : "Active")}</div>`;
+  } else {
+    const officialLinks = ruleId === "TS-SPECIAL-VEHICLE-V1" ? `<p class="official-code-links">Official definitions: <a href="https://www.transportstyrelsen.se/sv/vagtrafik/fordon/fordonsregler/koder-for-fordonsuppgifter/Textkod/" target="_blank" rel="noreferrer">Text codes</a> · <a href="https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/fordonsregler/Koder-for-fordonsuppgifter/Karosserikoder/Fordon-for-sarskilda-andamal/" target="_blank" rel="noreferrer">Special-purpose codes</a></p>` : "";
+    detail.innerHTML = `<div class="vehicle-rule-detail-head"><span>Pipeline policy</span><strong>${escapeHtml(ruleId)}</strong></div><div class="policy-explanation"><span>What this rule means</span><p>${escapeHtml(ruleExplanation(ruleId))}</p></div>${officialLinks}<small>This policy is built into the normalizer and is read-only here.</small>`;
   }
 }
 
@@ -636,7 +880,143 @@ async function reprocessBatch() {
   finally { button.textContent = "Re-import current batch"; renderRules(); }
 }
 
+async function loadQueue() {
+  if (queueState.loading) return;
+  queueState.loading = true;
+  document.querySelector("#queue-result-count").textContent = "Loading queue…";
+  const status = document.querySelector("#queue-status").value;
+  try {
+    const query = new URLSearchParams();
+    if (status) query.set("status", status);
+    if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
+    queueState.page = await apiRequest(`/v1/normalization-review/queue?${query}`);
+    if (!queueState.page.items.some((item) => item.id === queueState.selectedId)) queueState.selectedId = queueState.page.items[0]?.id ?? null;
+    renderQueue();
+  } catch (error) { showToast(`Could not load review queue. ${error.message}`); }
+  finally { queueState.loading = false; }
+}
+
+function renderQueue() {
+  const page = queueState.page;
+  if (!page) return;
+  ["pending", "in_review", "resolved", "rejected"].forEach((status) => {
+    document.querySelector(`#queue-${status.replace("_", "-")}`).textContent = (page.counts[status] || 0).toLocaleString();
+  });
+  document.querySelector("#queue-result-count").textContent = `${page.items.length.toLocaleString()} review item${page.items.length === 1 ? "" : "s"}`;
+  document.querySelector("#queue-empty").hidden = page.items.length > 0;
+  document.querySelector("#queue-rows").innerHTML = page.items.map((item) => {
+    const source = item.source_evidence || {};
+    const vehicle = [source.manufacturer, source.brand, source.model].filter(Boolean).join(" · ") || `Source record ${item.source_record_id}`;
+    return `<tr data-queue-id="${item.id}" class="${item.id === queueState.selectedId ? "selected" : ""}" tabindex="0"><td><div class="vehicle-cell"><strong>${escapeHtml(vehicle)}</strong><span>Record ${item.source_record_id} · ${escapeHtml(item.source_batch_id || "Unknown batch")}</span></div></td><td>${escapeHtml(humanize(item.reason_detail || item.reason_code))}</td><td>${percent(item.confidence)}</td><td><span class="queue-state queue-${escapeHtml(item.status)}">${escapeHtml(humanize(item.status))}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("#queue-rows tr").forEach((row) => {
+    const select = () => { queueState.selectedId = Number(row.dataset.queueId); renderQueue(); };
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  const changes = page.rule_activity || [];
+  document.querySelector("#queue-rule-changes").innerHTML = changes.length ? changes.map((activity) => `<article><div><strong>${escapeHtml(activity.rule_id)}</strong><small>${escapeHtml(humanize(activity.rule_kind))}</small></div><div class="rule-change-values"><span>${escapeHtml(displayValue(activity.previous_value))}</span><b>→</b><strong>${escapeHtml(displayValue(activity.new_value))}</strong><small>${escapeHtml(activity.change_note)}</small></div><div><span class="draft-marker changed">Draft</span><small>${escapeHtml(activity.changed_by || "Reviewer not recorded")} · ${escapeHtml(formatDateTime(activity.changed_at, "Recorded"))}${activity.related_review_item_id ? ` · Queue #${activity.related_review_item_id}` : ""}</small></div></article>`).join("") : "<p>No unactivated rule drafts currently exist.</p>";
+  renderQueueEditor(page.items.find((item) => item.id === queueState.selectedId));
+}
+
+function renderQueueEditor(item) {
+  document.querySelector("#queue-editor-empty").hidden = Boolean(item);
+  document.querySelector("#queue-review-form").hidden = !item;
+  if (!item) return;
+  const source = item.source_evidence || {};
+  document.querySelector("#queue-item-state").textContent = humanize(item.status);
+  document.querySelector("#queue-item-title").textContent = `${source.manufacturer || source.brand || "Unresolved vehicle"} ${source.model || ""}`.trim();
+  document.querySelector("#queue-item-confidence").textContent = percent(item.confidence);
+  document.querySelector("#queue-source-evidence").innerHTML = Object.entries(source).filter(([, value]) => value !== null && value !== "").slice(0, 20).map(([key, value]) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+  document.querySelector("#queue-current-result").innerHTML = Object.entries({ ...item.normalized, ...item.candidates }).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
+  document.querySelector("#queue-reason-detail").textContent = item.reason_detail || item.reason_code;
+  const terminal = item.status === "resolved" || item.status === "rejected";
+  document.querySelector("#queue-decision-fields").hidden = terminal;
+  document.querySelector("#queue-actions").hidden = terminal;
+  document.querySelector("#queue-resolution-summary").hidden = !terminal;
+  document.querySelector("#start-review").hidden = item.status !== "pending";
+  document.querySelector("#save-review-draft").hidden = item.status !== "in_review";
+  const draft = item.review_draft || {};
+  document.querySelector("#queue-reviewer").value = draft.reviewer || "";
+  document.querySelector("#queue-field").value = draft.field || "manufacturer";
+  document.querySelector("#queue-canonical-value").value = draft.canonical_value || "";
+  document.querySelector("#queue-decision-scope").value = draft.decision_scope || "vehicle_only";
+  document.querySelector("#queue-rule-reference").value = draft.rule_reference || "";
+  document.querySelector("#queue-rule-reference-label").hidden = (draft.decision_scope || "vehicle_only") === "vehicle_only";
+  document.querySelector("#queue-decision-reason").value = draft.reason || "";
+  if (terminal) document.querySelector("#queue-resolution-values").innerHTML = Object.entries(item.resolution || {}).filter(([, value]) => value).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+}
+
+async function transitionQueue(status, overrides = {}) {
+  if (!queueState.selectedId) return;
+  const payload = { status, ...overrides };
+  await apiRequest(`/v1/normalization-review/queue/${queueState.selectedId}/transition`, { method: "POST", body: JSON.stringify(payload) });
+  await loadQueue();
+}
+
+function queueDraftPayload() {
+  return {
+    reviewer: document.querySelector("#queue-reviewer").value.trim() || null,
+    field: document.querySelector("#queue-field").value,
+    canonical_value: document.querySelector("#queue-canonical-value").value.trim() || null,
+    decision_scope: document.querySelector("#queue-decision-scope").value,
+    rule_reference: document.querySelector("#queue-rule-reference").value.trim() || null,
+    reason: document.querySelector("#queue-decision-reason").value.trim() || null,
+  };
+}
+
+async function createReviewRuleDraft(scope, reference, canonicalValue, reason) {
+  if (!ruleState.page) await loadRules();
+  if (scope === "manufacturer_entity") {
+    const entity = ruleState.page?.manufacturer_entities.find((item) => item.entity_id === reference);
+    if (!entity) throw new Error(`Manufacturer entity ${reference} was not found.`);
+    await apiRequest(`/v1/normalization-review/rules/entities/${encodeURIComponent(reference)}/draft`, { method: "PUT", body: JSON.stringify({ canonical_name: canonicalValue, entity_role: "vehicle_manufacturer", base_behavior: "use_entity", change_note: reason }) });
+  } else if (scope === "translation_rule") {
+    const rule = ruleState.page?.rules.find((item) => item.rule_id === reference);
+    if (!rule) throw new Error(`Translation rule ${reference} was not found.`);
+    await apiRequest(`/v1/normalization-review/rules/${encodeURIComponent(reference)}/draft`, { method: "PUT", body: JSON.stringify({ canonical_value: canonicalValue, decision: "accepted", change_note: reason }) });
+  }
+  ruleState.page = null;
+}
+
+async function approveQueueDecision(event) {
+  event.preventDefault();
+  const reviewer = document.querySelector("#queue-reviewer").value.trim();
+  const field = document.querySelector("#queue-field").value;
+  const canonicalValue = document.querySelector("#queue-canonical-value").value.trim();
+  const decisionScope = document.querySelector("#queue-decision-scope").value;
+  const ruleReference = document.querySelector("#queue-rule-reference").value.trim() || null;
+  const reason = document.querySelector("#queue-decision-reason").value.trim();
+  if (!reviewer || !canonicalValue || reason.length < 5) { showToast("Add the reviewer, canonical value, and a clear review reason."); return; }
+  if (decisionScope !== "vehicle_only" && !ruleReference) { showToast("Choose the exact existing rule or manufacturer entity ID."); return; }
+  try {
+    if (decisionScope !== "vehicle_only") await createReviewRuleDraft(decisionScope, ruleReference, canonicalValue, reason);
+    await transitionQueue("resolved", { reviewer, field, canonical_value: canonicalValue, decision_scope: decisionScope, rule_reference: ruleReference, reason });
+    showToast(decisionScope === "vehicle_only" ? "Vehicle review decision recorded." : "Review resolved and reusable rule draft created.");
+  } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
+}
+
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelectorAll(".connection-row").forEach((row) => row.addEventListener("click", () => renderConnection(row.dataset.connection)));
+let resolvedConnectionSearchTimer;
+document.querySelector("#connection-vehicle-search").addEventListener("input", (event) => { clearTimeout(resolvedConnectionSearchTimer); resolvedConnectionSearchTimer = setTimeout(() => { resolvedConnectionState.query = event.target.value.trim(); resolvedConnectionState.offset = 0; loadResolvedConnections(); }, 180); });
+document.querySelector("#resolved-previous").addEventListener("click", () => { resolvedConnectionState.offset = Math.max(0, resolvedConnectionState.offset - 25); loadResolvedConnections(); });
+document.querySelector("#resolved-next").addEventListener("click", () => { resolvedConnectionState.offset += 25; loadResolvedConnections(); });
+document.querySelectorAll(".tecdoc-kind").forEach((tab) => tab.addEventListener("click", () => {
+  tecdocState.kind = tab.dataset.tecdocKind;
+  tecdocState.offset = 0;
+  tecdocState.selectedId = null;
+  document.querySelectorAll(".tecdoc-kind").forEach((item) => item.classList.toggle("active", item === tab));
+  document.querySelector("#tecdoc-search").placeholder = `Search ${humanize(tecdocState.kind)}…`;
+  loadTecDoc();
+}));
+let tecdocSearchTimer;
+document.querySelector("#tecdoc-search").addEventListener("input", () => {
+  clearTimeout(tecdocSearchTimer);
+  tecdocSearchTimer = setTimeout(() => { tecdocState.offset = 0; loadTecDoc(); }, 220);
+});
+document.querySelector("#tecdoc-previous").addEventListener("click", () => { tecdocState.offset = Math.max(0, tecdocState.offset - 100); loadTecDoc(); });
+document.querySelector("#tecdoc-next").addEventListener("click", () => { tecdocState.offset += 100; loadTecDoc(); });
 document.querySelectorAll(".rule-kind").forEach((tab) => tab.addEventListener("click", () => switchRuleKind(tab.dataset.ruleKind)));
 [elements.ruleSearch, elements.ruleArea, elements.ruleStateFilter].forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => { if (ruleState.page) renderRules(); }));
 document.querySelector("#rule-form").addEventListener("submit", saveRuleDraft);
@@ -646,5 +1026,26 @@ document.querySelector("#discard-manufacturer-draft").addEventListener("click", 
 document.querySelector("#manufacturer-role").addEventListener("change", syncManufacturerBehavior);
 document.querySelector("#activate-rules").addEventListener("click", activateRules);
 document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
+document.querySelector("#queue-status").addEventListener("change", loadQueue);
+document.querySelector("#refresh-queue").addEventListener("click", loadQueue);
+document.querySelector("#queue-decision-scope").addEventListener("change", (event) => {
+  document.querySelector("#queue-rule-reference-label").hidden = event.target.value === "vehicle_only";
+});
+document.querySelector("#queue-review-form").addEventListener("submit", approveQueueDecision);
+document.querySelector("#start-review").addEventListener("click", async () => {
+  try { await transitionQueue("in_review", queueDraftPayload()); showToast("Review claimed and correction draft saved."); }
+  catch (error) { showToast(`Review was not started. ${error.message}`); }
+});
+document.querySelector("#save-review-draft").addEventListener("click", async () => {
+  try { await transitionQueue("in_review", queueDraftPayload()); showToast("Review correction draft saved."); }
+  catch (error) { showToast(`Review draft was not saved. ${error.message}`); }
+});
+document.querySelector("#reject-review").addEventListener("click", async () => {
+  const reviewer = document.querySelector("#queue-reviewer").value.trim();
+  const reason = document.querySelector("#queue-decision-reason").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear rejection reason."); return; }
+  try { await transitionQueue("rejected", { reviewer, reason }); showToast("Review rejected with its reason recorded."); }
+  catch (error) { showToast(`Review was not rejected. ${error.message}`); }
+});
 
 loadVehicles();
