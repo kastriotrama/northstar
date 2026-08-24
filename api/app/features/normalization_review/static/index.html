@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=13" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=15" />
   </head>
   <body>
     <div class="app-shell">
@@ -19,6 +19,7 @@
           <button class="view-tab" type="button" data-view="rules">Rules</button>
           <button class="view-tab" type="button" data-view="queue">Review queue</button>
           <button class="view-tab" type="button" data-view="tecdoc">TecDoc</button>
+          <button class="view-tab" type="button" data-view="connections">TS connections</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
@@ -214,6 +215,31 @@
         </main>
       </div>
 
+      <div id="connections-view" hidden>
+        <section class="connection-summary">
+          <div class="connection-title"><span class="eyebrow">Resolved TS → TecDoc connections</span><h1>1,000 vehicles with selected KTypes.</h1><p>Restricted local meeting view with registration plates. VIN and raw source records remain hidden.</p></div>
+          <dl><div><dt>Vehicles shown</dt><dd>1,000</dd></div><div><dt>Match route</dt><dd>Resolved</dd></div><div><dt>KType coverage</dt><dd>100%</dd></div><div><dt>Graph aliases</dt><dd>0</dd></div></dl>
+        </section>
+        <main class="connection-workspace">
+          <section class="connection-list">
+            <section class="resolved-showcase">
+              <div class="resolved-showcase-head"><div><span class="eyebrow">Connected vehicle data</span><h2>Registration plate → KType</h2></div><label class="connection-search"><span class="sr-only">Search resolved vehicles</span><input id="connection-vehicle-search" type="search" placeholder="Search plate, manufacturer, model, KType or engine…" /></label></div>
+              <div class="resolved-privacy sensitive-data-note">Restricted source data · registration plates visible · do not share screenshots externally</div>
+              <div class="resolved-table-wrap"><table class="resolved-table"><thead><tr><th>Plate / TS vehicle</th><th>TecDoc match</th><th>Technical evidence</th><th>Status</th></tr></thead><tbody id="resolved-connection-rows"></tbody></table></div>
+              <footer class="resolved-pagination"><button id="resolved-previous" type="button">Previous</button><span id="resolved-page-label">Loading vehicles…</span><button id="resolved-next" type="button">Next</button></footer>
+            </section>
+          </section>
+          <aside class="connection-inspector">
+            <div class="connection-inspector-head"><span class="eyebrow" id="connection-eyebrow">Select a vehicle</span><h2 id="connection-name">TS vehicle → TecDoc KType</h2><span id="connection-badge" class="connection-status status-validated">Resolved</span></div>
+            <div id="connection-path" class="connection-path"></div>
+            <section><h3>TS evidence vs TecDoc candidate</h3><div id="connection-comparison" class="connection-comparison"></div></section>
+            <section><h3>Selection gates</h3><div id="connection-gates" class="connection-gates"></div></section>
+            <section><h3>Decision trace</h3><ol id="connection-trace" class="connection-trace"></ol></section>
+            <section class="connection-decision"><h3>Why this KType was selected</h3><strong id="connection-decision-title">Choose a row to inspect its connection</strong><p id="connection-decision-copy">The selected vehicle will show its plate, normalized TS evidence and matched TecDoc KType.</p></section>
+          </aside>
+        </main>
+      </div>
+
       <div id="rules-view" hidden>
         <section class="rule-hero">
           <div>
@@ -380,6 +406,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=21" defer></script>
+    <script src="/normalization-review/assets/app.js?v=23" defer></script>
   </body>
 </html>

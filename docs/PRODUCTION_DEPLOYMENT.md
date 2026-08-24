@@ -14,6 +14,8 @@ the API and ingestion images, and recreates only the `northstar` Compose project
 - persistent data: named Docker volumes prefixed by the Compose project;
 - secrets: `/opt/northstar/.env.production` and
   `/opt/northstar/infra/production/htpasswd`, never Git.
+- restricted showcase data: `/opt/northstar-private/ts-ktype-resolved-showcase-1000.json`,
+  mounted read-only into the API and never stored in Git.
 
 VD-AI continues to own port 80 and the host `vehicle_db`. NorthStar does not
 connect to, migrate, or modify that database.
@@ -28,6 +30,9 @@ connect to, migrate, or modify that database.
    unprivileged nginx worker can read the bind mount. The clear-text password
    must not be stored in the repository or this file.
 4. Run `./infra/production/deploy.sh`.
+   The script fails closed unless the restricted showcase file exists and is
+   readable at `NORTHSTAR_PRIVATE_DATA_DIRECTORY` (default
+   `/opt/northstar-private`).
 5. Import a reviewed portable bundle with the tools profile, for example:
 
    ```sh
