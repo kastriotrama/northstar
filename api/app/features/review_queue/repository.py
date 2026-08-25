@@ -39,8 +39,26 @@ class ReviewQueueRepository:
         predicate = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         parameters = (*values, limit)
         with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"""
+            if batch_id and batch_id.startswith("margin-calibration-"):
+                cursor.execute(
+                    f"""
+                    SELECT q.id, q.review_id, q.source_batch_id, q.source_record_id,
+                           q.reason_code, q.reason_detail, q.target_entity_type,
+                           q.candidate_matches, q.confidence, q.status, q.resolution,
+                           q.resolved_by, q.created_at, q.updated_at, q.resolved_at,
+                           NULL::jsonb, NULL::jsonb, ARRAY[]::text[], q.review_draft
+                    FROM {REVIEW_QUEUE_TABLE} q
+                    {predicate}
+                    ORDER BY CASE q.status
+                               WHEN 'in_review' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+                             q.updated_at DESC, q.id DESC
+                    LIMIT %s
+                    """,
+                    parameters,
+                )
+            else:
+                cursor.execute(
+                    f"""
                 SELECT q.id, q.review_id, q.source_batch_id, q.source_record_id,
                        q.reason_code, q.reason_detail, q.target_entity_type,
                        q.candidate_matches,
@@ -64,8 +82,8 @@ class ReviewQueueRepository:
                          q.updated_at DESC, q.id DESC
                 LIMIT %s
                 """,
-                parameters,
-            )
+                    parameters,
+                )
             rows = cursor.fetchall()
         return [self._row(row) for row in rows]
 
@@ -151,6 +169,12 @@ class ReviewQueueRepository:
             item = transition_review_item(
                 connection, item_id, status, resolved_by=reviewer, resolution=resolution
             )
+            if (
+                resolution is not None
+                and resolution.get("verdict") is not None
+                and item.reason_code != "match_margin_calibration"
+            ):
+                raise ValueError("calibration verdicts are only valid for calibration items")
             if review_draft is not None or status in {"resolved", "rejected"}:
                 with connection.cursor() as cursor:
                     cursor.execute(

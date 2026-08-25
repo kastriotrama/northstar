@@ -346,7 +346,7 @@
         </section>
         <main class="queue-workspace">
           <section class="queue-results">
-            <div class="toolbar"><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
+            <div class="toolbar"><label class="compact-filter"><span>Batch</span><input id="queue-batch" type="text" maxlength="200" placeholder="Current normalized batch" /></label><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
             <div class="result-meta"><span id="queue-result-count">Loading queue…</span><span>Newest activity first</span></div>
             <div class="table-wrap"><table class="queue-table"><thead><tr><th>Vehicle evidence</th><th>Reason</th><th>Confidence</th><th>Queue state</th></tr></thead><tbody id="queue-rows"></tbody></table><div id="queue-empty" class="empty-state" hidden><strong>No review items in this view</strong><p>Review-required imports are added automatically.</p></div></div>
             <section class="rule-change-history"><div><span class="eyebrow">Pending governance work</span><h2>Current rule drafts</h2><p class="section-hint">Only unactivated drafts from the Rules workspace and vehicle reviews are shown here.</p></div><div id="queue-rule-changes" class="rule-change-list"><p>No rule drafts recorded yet.</p></div></section>
@@ -367,7 +367,14 @@
                 <label id="queue-rule-reference-label" hidden><span>Existing rule/entity ID</span><input id="queue-rule-reference" type="text" maxlength="160" placeholder="For example MFE-… or BDY-110" /></label>
                 <label><span>Review reason</span><textarea id="queue-decision-reason" minlength="5" maxlength="1000" required placeholder="Explain the evidence behind this decision"></textarea></label>
               </section>
+              <section id="queue-calibration-fields" class="editor-section editor-fields" hidden>
+                <h3>KType calibration verdict</h3>
+                <p class="section-hint">Accept only when the top candidate is the correct KType. Reject when it is wrong; use unsure when the evidence is insufficient.</p>
+                <label><span>Reviewer</span><input id="queue-calibration-reviewer" type="text" maxlength="120" placeholder="Your name" /></label>
+                <label><span>Evidence note</span><textarea id="queue-calibration-reason" minlength="5" maxlength="1000" placeholder="Explain why the top candidate is correct, wrong, or uncertain"></textarea></label>
+              </section>
               <footer id="queue-actions" class="editor-actions"><button id="start-review" class="text-button" type="button">Start review</button><button id="save-review-draft" class="text-button" type="button">Save review draft</button><button class="primary-button" type="submit">Approve decision</button><button id="reject-review" class="text-button danger" type="button">Reject</button></footer>
+              <footer id="queue-calibration-actions" class="editor-actions" hidden><button class="primary-button calibration-verdict" data-verdict="accept" type="button">Accept top candidate</button><button class="text-button danger calibration-verdict" data-verdict="reject" type="button">Reject top candidate</button><button class="text-button calibration-verdict" data-verdict="unsure" type="button">Unsure</button></footer>
             </form>
           </aside>
         </main>

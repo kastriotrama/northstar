@@ -45,9 +45,14 @@ class ReviewQueueService:
                 )
             ],
             counts=self._repository.fetch_counts(batch_id=batch_id),
-            rule_activity=[
-                RuleActivityView(**activity) for activity in self._repository.fetch_rule_activity()
-            ],
+            rule_activity=(
+                []
+                if batch_id and batch_id.startswith("margin-calibration-")
+                else [
+                    RuleActivityView(**activity)
+                    for activity in self._repository.fetch_rule_activity()
+                ]
+            ),
         )
 
     def transition(self, item_id: int, request: ReviewTransitionRequest) -> ReviewQueueItemView:
@@ -66,14 +71,20 @@ class ReviewQueueService:
             }
         if request.status in {"resolved", "rejected"}:
             reviewer = request.reviewer.strip() if request.reviewer else None
-            resolution = {
-                "decision": "accepted" if request.status == "resolved" else "rejected",
-                "field": request.field,
-                "canonical_value": request.canonical_value,
-                "decision_scope": request.decision_scope,
-                "rule_reference": request.rule_reference,
-                "reason": request.reason.strip() if request.reason else None,
-            }
+            if request.verdict is not None:
+                resolution = {
+                    "verdict": request.verdict,
+                    "reason": request.reason.strip() if request.reason else None,
+                }
+            else:
+                resolution = {
+                    "decision": "accepted" if request.status == "resolved" else "rejected",
+                    "field": request.field,
+                    "canonical_value": request.canonical_value,
+                    "decision_scope": request.decision_scope,
+                    "rule_reference": request.rule_reference,
+                    "reason": request.reason.strip() if request.reason else None,
+                }
         self._repository.transition(
             item_id,
             request.status,

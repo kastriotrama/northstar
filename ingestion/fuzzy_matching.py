@@ -320,6 +320,16 @@ class FuzzyMatchResult:
         return tuple(payloads)
 
 
+_MODEL_EVIDENCE_FIELD_PRIORITY = (
+    "eeg_type_approval",
+    "model_no",
+    "version",
+    "variant",
+    "type_text",
+    "brand",
+)
+
+
 class ManufacturerCandidateIndex:
     """Immutable candidate index with conservative manufacturer fallback."""
 
@@ -392,7 +402,8 @@ class ManufacturerCandidateIndex:
             return None
         canonical = next(iter(canonical_matches))
         source_field = min(
-            field_name for matched, field_name in longest_matches if matched == canonical
+            (field_name for matched, field_name in longest_matches if matched == canonical),
+            key=_MODEL_EVIDENCE_FIELD_PRIORITY.index,
         )
         return canonical, source_field
 

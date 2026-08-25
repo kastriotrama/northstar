@@ -132,6 +132,23 @@ def test_index_recovers_model_from_alternative_scoped_evidence() -> None:
     ) == ("XC90", "variant")
 
 
+def test_recovery_attribution_prefers_specific_evidence_over_brand_on_tie() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90", "variant": "XC90 T8"},
+    ) == ("XC90", "variant")
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90", "eeg_type_approval": "XC90"},
+    ) == ("XC90", "eeg_type_approval")
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90"},
+    ) == ("XC90", "brand")
+
+
 def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
     result = _matcher().match(
         VehicleMatchQuery(

@@ -287,6 +287,13 @@ class ConfidenceRouter:
                 "ROUTE-REVIEW-HARD-CONFLICT-V1",
                 "One or more hard conflicts override the statistical score.",
             )
+        if match_result.reason == "context_conflict_requires_review":
+            return (
+                "review_required",
+                ("non_hard_context_conflict",),
+                "ROUTE-REVIEW-CONTEXT-CONFLICT-V1",
+                "A non-hard context conflict remains review-only regardless of score.",
+            )
         if match_result.scope != "exact_manufacturer":
             return (
                 "review_required",

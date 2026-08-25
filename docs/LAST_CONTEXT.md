@@ -2,6 +2,22 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-25 — Margin-calibration verdicts applied
+
+- Applied the approved 200-case `margin-calibration-20260824` verdict JSON to local `core.review_queue` as terminal resolved calibration verdicts: 103 accept, 67 reject, 30 unsure, 0 pending, and 0 unlabelled. Ran `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-20260824.json`; no threshold met the 95% precision lower-bound plus minimum effective sample gate. The clean high-margin region needs more labels before changing matching policy; no confidence route, promotion policy, match decisions, or aliases were changed.
+
+## 2026-08-25 — Margin-calibration review workflow ready
+
+- Added a scoped review-queue workflow for the 200 `margin-calibration-20260824` cases: direct batch filtering, sanitized TS evidence, top/runner-up KType evidence, and auditable `accept`/`reject`/`unsure` verdicts matching the threshold fitter contract. Added a durable `(source_batch_id, status, updated_at, id)` queue index and a calibration fast path; applied the idempotent migration locally. The live port-8001 API returns all 200 pending cases, 9 focused tests, Ruff, strict mypy and diff checks pass, and no human verdicts or matching decisions were invented.
+
+## 2026-08-25 — Non-hard context routing gate corrected
+
+- Ran the pending deterministic cohort and found that matcher-level drive/body conflicts could still resolve because the confidence router gated only hard-conflict fields. Added an explicit `context_conflict_requires_review` router gate and sanitized per-field soft-conflict reasons. The accepted fresh 10,000-row run (`13a3fbd0-06c8-430e-88a7-10d76fa5e3af`) produced 709 resolved, 79 provisional, 7,405 review-required, 1,751 hard conflicts, 56 policy exclusions and 0 failed; 1,543 stayed review-only through the new gate, with 2,605 bodywork and 48 drive top-candidate conflicts. All 471 unit tests, Ruff, strict mypy and diff checks pass. The existing 200-item margin-calibration adjudication remains the next step; no decisions or aliases were persisted.
+
+## 2026-08-24 — TS-to-TecDoc matching continuation handoff
+
+- Added `docs/TS_TECDOC_MATCHING_HANDOFF_2026-08-24.md` with the completed 6,515,471-row audit, implemented reason/model/drive/body work, validation evidence, exact pending 10,000-row cohort command and queries, acceptance gates, remaining work, safety boundaries, and relevant files. Current branch/HEAD are recorded; `docs/PHASE_1_PLAN.md` remains unrelated untracked user work and must not be staged implicitly.
+
 ## 2026-08-21 — Alternative model evidence and drive/body matching context
 
 - Extended exact-manufacturer, token-bounded, unique-longest TecDoc model recovery from Brand to Variant, Version, model number, type text and EEG type approval evidence. Added canonical TecDoc drive/body fields to KType candidates and TS match queries with conservative context bonuses and review-only conflict penalties; disagreements cannot bypass routing gates or become hard conflicts automatically. Ruff, strict mypy, 57 focused unit tests and diff checks pass. The deterministic 10,000-row remote comparison could not start because workspace approval credits were exhausted; rerun that cohort and PostgreSQL integration validation before any full audit or promotion.
@@ -25,19 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-18 — TS-to-TecDoc validation work breakdown
 
 - Expanded the validation runbook with the SCRUM-171/SCRUM-170 dependency chain and implemented both local and remote write-free runners. The authoritative remote TS source confirms 6,515,471 passenger rows, and the new plate-keyed path normalizes/matches bounded batches while retaining only monotonic checkpoints. A 100-row smoke run stopped before any checkpoint because the live Neo4j database has zero nodes; all local PostgreSQL TecDoc staging tables are also empty and no pinned 0326 source files are present. Restoring the 55,808-KType catalog is now the only blocker; no Jira, decisions, aliases or production data changed.
-
-## 2026-08-17 — Detached full VD-AI passenger import
-
-- Verified the authoritative VD-AI PostgreSQL source contains 10,455,988 vehicles and exactly 6,515,471 passenger-eligible rows. The retained-raw V3.2.3 replay checkpointed 14 parts / 350,000 rows (282,746 resolved, 67,088 provisional, 166 review-required, 0 failed), then its incomplete part 15 was removed and restarted safely as macOS launchd job `com.northstar.vdai-full-import`. The detached job runs with PPID 1, resumed part 15 with 25,000 staged rows, and logs to `/tmp/northstar-vdai-full-import.log`.
-
-## 2026-08-17 — Local datastore reconciliation and full-source restore gate
-
-- Applied the SCRUM-171 migrations locally and reconciled PostgreSQL with Neo4j. The checkpoint ledger proves 6,515,471 passenger rows were processed in 267 parts, but pruning left 738,960 raw rows / 568,469 plates; Neo4j contains 55,808 KTypes, all `Provisional`, with zero TS aliases, while the new decision tables are empty. The VD-AI database and `REMOTE_DATABASE_URL` are unavailable locally; the only file is an older 6,300,739-line snapshot, and available disk is 30 GB. No partial substitute import, KType promotion, or alias write was performed.
-
-## 2026-08-17 — SCRUM-170 controlled KType promotion
-
-- Added dry-run, controlled-cohort and production graph modes that consume only current resolved SCRUM-171 decision heads. Preflight requires one TecDoc KType target, rejects conflicting or multi-target TS aliases, then atomically removes `Provisional` and attaches a collision-safe evidence alias with the immutable decision ID. Replays are idempotent and a PostgreSQL-to-Neo4j reconciliation query reports missing or divergent assertions. Live Neo4j/PostgreSQL integration tests and Ruff pass.
-
-## 2026-08-17 — SCRUM-171 immutable match decision lifecycle
-
-- Added an explicit dry-run/persist boundary for TS-to-KType match decisions, one current decision head per stable source identity/version, and append-only supersession evidence while retaining deterministic immutable decision rows. Dry runs validate source provenance without writes; persisted retries are idempotent and conflicting supersession histories stop safely. PostgreSQL integration and migration contract tests pass; this layer does not promote KTypes or attach Neo4j aliases.

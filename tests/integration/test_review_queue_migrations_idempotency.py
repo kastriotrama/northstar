@@ -215,6 +215,7 @@ def test_database_rejects_invalid_status_and_candidate_shape(
         "ALTER TABLE core.review_queue ALTER COLUMN status DROP DEFAULT",
         "ALTER TABLE core.review_queue DROP CONSTRAINT review_queue_status_values",
         "DROP INDEX core.review_queue_status_created_at_idx",
+        "DROP INDEX core.review_queue_source_batch_status_idx",
     ],
 )
 def test_schema_verifier_rejects_contract_drift(

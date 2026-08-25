@@ -888,7 +888,9 @@ async function loadQueue() {
   try {
     const query = new URLSearchParams();
     if (status) query.set("status", status);
-    if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
+    const requestedBatch = document.querySelector("#queue-batch").value.trim();
+    if (requestedBatch) query.set("batch_id", requestedBatch);
+    else if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
     queueState.page = await apiRequest(`/v1/normalization-review/queue?${query}`);
     if (!queueState.page.items.some((item) => item.id === queueState.selectedId)) queueState.selectedId = queueState.page.items[0]?.id ?? null;
     renderQueue();
@@ -923,16 +925,23 @@ function renderQueueEditor(item) {
   document.querySelector("#queue-editor-empty").hidden = Boolean(item);
   document.querySelector("#queue-review-form").hidden = !item;
   if (!item) return;
-  const source = item.source_evidence || {};
+  let calibration = null;
+  if (item.reason_code === "match_margin_calibration") {
+    try { calibration = JSON.parse(item.reason_detail); } catch (_) { calibration = {}; }
+  }
+  const source = calibration?.source_evidence || item.source_evidence || {};
   document.querySelector("#queue-item-state").textContent = humanize(item.status);
   document.querySelector("#queue-item-title").textContent = `${source.manufacturer || source.brand || "Unresolved vehicle"} ${source.model || ""}`.trim();
   document.querySelector("#queue-item-confidence").textContent = percent(item.confidence);
   document.querySelector("#queue-source-evidence").innerHTML = Object.entries(source).filter(([, value]) => value !== null && value !== "").slice(0, 20).map(([key, value]) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
-  document.querySelector("#queue-current-result").innerHTML = Object.entries({ ...item.normalized, ...item.candidates }).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
-  document.querySelector("#queue-reason-detail").textContent = item.reason_detail || item.reason_code;
+  const candidateEvidence = calibration ? { margin_band: calibration.band, separation_margin: calibration.separation_margin, match_scope: calibration.match_scope, candidates: item.candidate_matches } : { ...item.normalized, ...item.candidates };
+  document.querySelector("#queue-current-result").innerHTML = Object.entries(candidateEvidence).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
+  document.querySelector("#queue-reason-detail").textContent = calibration?.question || item.reason_detail || item.reason_code;
   const terminal = item.status === "resolved" || item.status === "rejected";
-  document.querySelector("#queue-decision-fields").hidden = terminal;
-  document.querySelector("#queue-actions").hidden = terminal;
+  document.querySelector("#queue-decision-fields").hidden = terminal || Boolean(calibration);
+  document.querySelector("#queue-calibration-fields").hidden = terminal || !calibration;
+  document.querySelector("#queue-actions").hidden = terminal || Boolean(calibration);
+  document.querySelector("#queue-calibration-actions").hidden = terminal || !calibration;
   document.querySelector("#queue-resolution-summary").hidden = !terminal;
   document.querySelector("#start-review").hidden = item.status !== "pending";
   document.querySelector("#save-review-draft").hidden = item.status !== "in_review";
@@ -945,6 +954,16 @@ function renderQueueEditor(item) {
   document.querySelector("#queue-rule-reference-label").hidden = (draft.decision_scope || "vehicle_only") === "vehicle_only";
   document.querySelector("#queue-decision-reason").value = draft.reason || "";
   if (terminal) document.querySelector("#queue-resolution-values").innerHTML = Object.entries(item.resolution || {}).filter(([, value]) => value).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+}
+
+async function recordCalibrationVerdict(verdict) {
+  const reviewer = document.querySelector("#queue-calibration-reviewer").value.trim();
+  const reason = document.querySelector("#queue-calibration-reason").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a short evidence note."); return; }
+  try {
+    await transitionQueue("resolved", { reviewer, verdict, reason });
+    showToast(`Calibration verdict ${verdict} recorded.`);
+  } catch (error) { showToast(`Calibration verdict was not saved. ${error.message}`); }
 }
 
 async function transitionQueue(status, overrides = {}) {
@@ -1027,7 +1046,9 @@ document.querySelector("#manufacturer-role").addEventListener("change", syncManu
 document.querySelector("#activate-rules").addEventListener("click", activateRules);
 document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
 document.querySelector("#queue-status").addEventListener("change", loadQueue);
+document.querySelector("#queue-batch").addEventListener("change", loadQueue);
 document.querySelector("#refresh-queue").addEventListener("click", loadQueue);
+document.querySelectorAll(".calibration-verdict").forEach((button) => button.addEventListener("click", () => recordCalibrationVerdict(button.dataset.verdict)));
 document.querySelector("#queue-decision-scope").addEventListener("change", (event) => {
   document.querySelector("#queue-rule-reference-label").hidden = event.target.value === "vehicle_only";
 });
@@ -1048,4 +1069,8 @@ document.querySelector("#reject-review").addEventListener("click", async () => {
   catch (error) { showToast(`Review was not rejected. ${error.message}`); }
 });
 
-loadVehicles();
+const initialParams = new URLSearchParams(window.location.search);
+const initialBatch = initialParams.get("batch_id");
+if (initialBatch) document.querySelector("#queue-batch").value = initialBatch;
+if (initialParams.get("view") === "queue") switchView("queue");
+else loadVehicles();

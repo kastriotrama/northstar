@@ -327,6 +327,12 @@ class TecDocDryRunEvaluator:
             match_reasons.add(f"{recovery_reason}:{terminal}")
         match_reasons.update(f"route:{reason}" for reason in decision.reason_codes)
         match_reasons.update(f"conflict:{field}" for field in decision.hard_conflicts)
+        if match_result.candidates:
+            match_reasons.update(
+                f"context_conflict:{field}"
+                for field in match_result.candidates[0].conflicting_fields
+                if field not in decision.hard_conflicts
+            )
         evaluation = MatchEvaluation(terminal, tuple(sorted(match_reasons)))
         self._cache[cache_key] = evaluation
         return evaluation

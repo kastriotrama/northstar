@@ -57,15 +57,18 @@ class ReviewTransitionRequest(BaseModel):
     decision_scope: DecisionScope | None = None
     rule_reference: str | None = Field(default=None, max_length=160)
     reason: str | None = Field(default=None, max_length=1000)
+    verdict: Literal["accept", "reject", "unsure"] | None = None
 
     @model_validator(mode="after")
     def validate_terminal_decision(self) -> "ReviewTransitionRequest":
+        if self.verdict is not None and self.status != "resolved":
+            raise ValueError("a calibration verdict must resolve the review item")
         if self.status in {"resolved", "rejected"}:
             if not self.reviewer or not self.reviewer.strip():
                 raise ValueError("reviewer is required")
             if not self.reason or len(self.reason.strip()) < 5:
                 raise ValueError("a review reason of at least 5 characters is required")
-        if self.status == "resolved":
+        if self.status == "resolved" and self.verdict is None:
             if not self.field or not self.canonical_value or not self.decision_scope:
                 raise ValueError("field, canonical_value, and decision_scope are required")
             if self.decision_scope != "vehicle_only" and not self.rule_reference:

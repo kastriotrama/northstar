@@ -135,6 +135,30 @@ def test_evaluator_recovers_missing_model_from_variant_tokens() -> None:
     assert "model_recovered_from_variant" in evaluation.reason_codes
 
 
+def test_evaluator_profiles_non_hard_bodywork_conflict() -> None:
+    evaluator = TecDocDryRunEvaluator(
+        (VehicleCandidate("1", "Volvo", "V70", bodyworks=frozenset({"estate"})),)
+    )
+
+    evaluation = evaluator.evaluate(
+        MatchSourceRecord(
+            1,
+            {
+                "normalization_status": "provisional",
+                "normalized": {
+                    "manufacturer": "Volvo",
+                    "model_family": "V70",
+                    "bodywork_form": "suv",
+                },
+            },
+        )
+    )
+
+    assert evaluation.terminal == "review_required"
+    assert "context_conflict:bodywork" in evaluation.reason_codes
+    assert "route:non_hard_context_conflict" in evaluation.reason_codes
+
+
 def test_tecdoc_model_aliases_strip_chassis_code_and_generation_numeral() -> None:
     from ingestion.tecdoc.match_run_adapters import tecdoc_model_aliases
 

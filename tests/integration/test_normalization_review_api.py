@@ -169,12 +169,16 @@ class FakeReviewQueueService:
     def transition(self, item_id: int, request: ReviewTransitionRequest) -> ReviewQueueItemView:
         item = self._item(request.status)
         if request.status == "resolved":
-            item.resolution = {
-                "field": request.field,
-                "canonical_value": request.canonical_value,
-                "decision_scope": request.decision_scope,
-                "reason": request.reason,
-            }
+            item.resolution = (
+                {"verdict": request.verdict, "reason": request.reason}
+                if request.verdict
+                else {
+                    "field": request.field,
+                    "canonical_value": request.canonical_value,
+                    "decision_scope": request.decision_scope,
+                    "reason": request.reason,
+                }
+            )
             item.resolved_by = request.reviewer
         return item
 
@@ -271,6 +275,25 @@ def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
     assert listed.json()["rule_activity"][0]["rule_id"] == "BDY-110"
     assert resolved.status_code == 200
     assert resolved.json()["resolution"]["canonical_value"] == "Toyota"
+
+
+def test_review_queue_api_records_margin_calibration_verdict(client: TestClient) -> None:
+    client.app.dependency_overrides[get_review_queue_service] = FakeReviewQueueService
+    try:
+        response = client.post(
+            "/v1/normalization-review/queue/7/transition",
+            json={
+                "status": "resolved",
+                "reviewer": "Ada",
+                "verdict": "unsure",
+                "reason": "Evidence does not distinguish the candidates",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["resolution"]["verdict"] == "unsure"
 
 
 def test_rule_review_api_supports_drafts_activation_and_safe_reprocess(
