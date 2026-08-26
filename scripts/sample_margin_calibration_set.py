@@ -101,6 +101,11 @@ def _band_label(margin: float) -> str | None:
     return None
 
 
+def _band_bounds(label: str) -> tuple[float, float]:
+    low, high = label.split("-", maxsplit=1)
+    return float(low), float(high)
+
+
 def _seek_keys(count: int, rng: random.Random) -> tuple[str, ...]:
     """Random three-letter keys spread across the observed plate space."""
 
@@ -248,10 +253,20 @@ def collect_items(
 
 
 def select_stratified(
-    items: list[CalibrationItem], per_band: int, rng: random.Random
+    items: list[CalibrationItem],
+    per_band: int,
+    rng: random.Random,
+    *,
+    min_margin: float = 0.0,
+    max_margin: float = 1.0,
 ) -> list[CalibrationItem]:
     by_band: dict[str, list[CalibrationItem]] = defaultdict(list)
     for item in items:
+        band_low, band_high = _band_bounds(item.band)
+        if band_high <= min_margin or band_low >= max_margin:
+            continue
+        if item.separation_margin < min_margin or item.separation_margin >= max_margin:
+            continue
         by_band[item.band].append(item)
     selected: list[CalibrationItem] = []
     for low, high in MARGIN_BANDS:
@@ -275,6 +290,18 @@ def main() -> None:
     parser.add_argument("--seek-keys", type=int, default=6000)
     parser.add_argument("--seed", type=int, default=20260824)
     parser.add_argument(
+        "--min-margin",
+        type=float,
+        default=0.0,
+        help="Only select competitive pairs whose separation margin is at least this value.",
+    )
+    parser.add_argument(
+        "--max-margin",
+        type=float,
+        default=1.0,
+        help="Only select competitive pairs whose separation margin is below this value.",
+    )
+    parser.add_argument(
         "--weights-out",
         help=(
             "Write the per-band population histogram of competitive pairs here. "
@@ -288,6 +315,8 @@ def main() -> None:
         help="Write the sampled items to core.review_queue. Omitted means dry run.",
     )
     args = parser.parse_args()
+    if not 0.0 <= args.min_margin < args.max_margin <= 1.0:
+        raise ValueError("--min-margin and --max-margin must satisfy 0.0 <= min < max <= 1.0")
 
     rng = random.Random(args.seed)
 
@@ -324,7 +353,13 @@ def main() -> None:
             bridge=bridge,
             config=config,
         )
-        selected = select_stratified(items, args.per_band, rng)
+        selected = select_stratified(
+            items,
+            args.per_band,
+            rng,
+            min_margin=args.min_margin,
+            max_margin=args.max_margin,
+        )
 
         band_counts = {
             f"{low:.2f}-{high:.2f}": sum(
@@ -344,6 +379,8 @@ def main() -> None:
             "selected": len(selected),
             "per_band_selected": band_counts,
             "per_band_population": population_counts,
+            "min_margin": args.min_margin,
+            "max_margin": args.max_margin,
             "committed": bool(args.commit),
         }
 
@@ -356,6 +393,8 @@ def main() -> None:
                         "seek_keys": args.seek_keys,
                         "sampled_rows": len(rows),
                         "competitive_pairs": len(items),
+                        "min_margin": args.min_margin,
+                        "max_margin": args.max_margin,
                         "per_band_population": population_counts,
                         "per_band_selected": band_counts,
                         "pins": {

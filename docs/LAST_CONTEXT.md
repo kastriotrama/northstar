@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-26 — High-margin calibration batch sampled
+
+- Added `--min-margin`/`--max-margin` support to `scripts/sample_margin_calibration_set.py` and fixed the boundary case so rounded `0.25-0.30` items cannot leak into a `0.30+` high-margin sample. Created local review batch `margin-calibration-high-20260826` with 200 pending items: 100 from `0.30-0.40` and 100 from `0.40-1.00`, using the same pinned TS/TecDoc/rule versions. Exported the compact review file to `outputs/margin-calibration-high-20260826-review-list.json`; focused tests and Ruff pass. Next step: adjudicate those 200, then rerun `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-high-20260826.json`.
+
 ## 2026-08-25 — Margin-calibration verdicts applied
 
 - Applied the approved 200-case `margin-calibration-20260824` verdict JSON to local `core.review_queue` as terminal resolved calibration verdicts: 103 accept, 67 reject, 30 unsure, 0 pending, and 0 unlabelled. Ran `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-20260824.json`; no threshold met the 95% precision lower-bound plus minimum effective sample gate. The clean high-margin region needs more labels before changing matching policy; no confidence route, promotion policy, match decisions, or aliases were changed.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-18 — Reproducible full passenger import command
 
 - Added `northstar-ingest import-remote-passenger` with the shared V3.2.3 prefix, exact 6,515,471-row source-count gate, 25,000-row checkpoints, raw retention, and explicit singleton stale-part recovery. Added `REMOTE_DATABASE_URL` configuration, team runbook and focused CLI/recovery tests. This replaces the temporary local runner contract so every developer can resume the same plate-ordered VD-AI import safely.
-
-## 2026-08-18 — TS-to-TecDoc validation work breakdown
-
-- Expanded the validation runbook with the SCRUM-171/SCRUM-170 dependency chain and implemented both local and remote write-free runners. The authoritative remote TS source confirms 6,515,471 passenger rows, and the new plate-keyed path normalizes/matches bounded batches while retaining only monotonic checkpoints. A 100-row smoke run stopped before any checkpoint because the live Neo4j database has zero nodes; all local PostgreSQL TecDoc staging tables are also empty and no pinned 0326 source files are present. Restoring the 55,808-KType catalog is now the only blocker; no Jira, decisions, aliases or production data changed.

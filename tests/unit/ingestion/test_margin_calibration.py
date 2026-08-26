@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from ingestion.margin_calibration import (
@@ -10,6 +12,7 @@ from ingestion.margin_calibration import (
     sweep_thresholds,
     wilson_lower_bound,
 )
+from scripts.sample_margin_calibration_set import select_stratified
 
 
 def _pair(margin: float, verdict: str, *, band: str = "0.10-0.15", weight: float = 1.0):
@@ -115,3 +118,20 @@ def test_sweep_rejects_unsupported_confidence_and_empty_input() -> None:
         sweep_thresholds((_pair(0.1, ACCEPT),), confidence=0.80)
     with pytest.raises(ValueError):
         choose_threshold((), target_precision=1.0)
+
+
+def test_high_margin_sampling_filter_keeps_only_target_boundary() -> None:
+    rng = __import__("random").Random(7)
+    items = [
+        SimpleNamespace(band="0.25-0.30", separation_margin=0.29),
+        SimpleNamespace(band="0.25-0.30", separation_margin=0.30),
+        SimpleNamespace(band="0.30-0.40", separation_margin=0.30),
+        SimpleNamespace(band="0.30-0.40", separation_margin=0.35),
+        SimpleNamespace(band="0.40-1.00", separation_margin=0.60),
+    ]
+
+    selected = select_stratified(  # type: ignore[arg-type]
+        items, per_band=25, rng=rng, min_margin=0.30, max_margin=1.0
+    )
+
+    assert [item.separation_margin for item in selected] == [0.3, 0.35, 0.6]
