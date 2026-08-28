@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import asdict
 
 import psycopg
@@ -34,13 +35,13 @@ VERDICT_KEY = "verdict"
 
 
 def load_verdicts(
-    connection: psycopg.Connection, *, batch_label: str
+    connection: psycopg.Connection, *, batch_label: str, expected_pins: Mapping[str, object]
 ) -> tuple[list[tuple[float, str, str]], int]:
     """Return (margin, band, verdict) triples plus a count of unlabelled items."""
 
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT reason_detail, status, resolution FROM core.review_queue "
+            "SELECT reason_code, reason_detail, status, resolution FROM core.review_queue "
             "WHERE source_batch_id = %s ORDER BY source_record_id",
             (batch_label,),
         )
@@ -48,7 +49,15 @@ def load_verdicts(
 
     verdicts: list[tuple[float, str, str]] = []
     unlabelled = 0
-    for reason_detail, status, resolution in rows:
+    for reason_code, reason_detail, status, resolution in rows:
+        if reason_code != "match_margin_calibration":
+            raise ValueError("calibration batch contains a non-calibration review item")
+        detail = json.loads(reason_detail)
+        pins = detail.get("pins") if isinstance(detail, dict) else None
+        if not isinstance(pins, dict) or any(
+            pins.get(key) != value for key, value in expected_pins.items()
+        ):
+            raise ValueError("calibration item pins differ from the weights manifest")
         if status != "resolved" or not isinstance(resolution, dict):
             unlabelled += 1
             continue
@@ -56,7 +65,6 @@ def load_verdicts(
         if verdict not in VERDICTS:
             unlabelled += 1
             continue
-        detail = json.loads(reason_detail)
         verdicts.append(
             (float(detail["separation_margin"]), str(detail["band"]), verdict)
         )
@@ -79,13 +87,27 @@ def main() -> None:
 
     with open(args.band_weights, encoding="utf-8") as handle:
         weights_payload = json.load(handle)
+    if weights_payload.get("batch_label") != args.batch_label:
+        raise ValueError("weights manifest batch label differs from --batch-label")
+    pins = weights_payload.get("pins")
+    required_pins = ("source_version", "normalization_rule_version", "candidate_catalog_version")
+    if not isinstance(pins, dict) or any(
+        not isinstance(pins.get(key), str) or not pins[key].strip() for key in required_pins
+    ):
+        raise ValueError("weights manifest must contain immutable source, rule and catalog pins")
+    seed = weights_payload.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError("weights manifest must contain the sampling seed")  # noqa: TRY004
+    expected_pins = {**pins, "seed": seed}
     band_population = {
         band: int(count)
         for band, count in weights_payload["per_band_population"].items()
     }
 
     with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
-        verdicts, unlabelled = load_verdicts(connection, batch_label=args.batch_label)
+        verdicts, unlabelled = load_verdicts(
+            connection, batch_label=args.batch_label, expected_pins=expected_pins
+        )
 
     labelled_per_band: dict[str, int] = {}
     for _, band, verdict in verdicts:

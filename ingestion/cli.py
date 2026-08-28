@@ -21,11 +21,15 @@ from ingestion.tecdoc.match_run_adapters import (
     TecDocDryRunEvaluator,
     fetch_normalized_ts_page,
     load_ktype_catalog,
+    load_postgres_ktype_catalog,
 )
+from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
+from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
     link_variants_to_fuel_concepts,
+    load_fuel_alignment,
     promote_vocabulary_alignments,
 )
 from ingestion.vocabulary_migrations import run_vocabulary_migrations
@@ -124,6 +128,12 @@ def build_parser() -> argparse.ArgumentParser:
     match_parser.add_argument("--expected-source-rows", type=int, required=True)
     match_parser.add_argument("--normalization-rule-version", required=True)
     match_parser.add_argument("--candidate-catalog-version", required=True)
+    match_parser.add_argument(
+        "--candidate-source",
+        choices=("neo4j", "postgres"),
+        default="neo4j",
+        help="Load the pinned KType catalog from Neo4j or a PostgreSQL batch ID.",
+    )
     match_parser.add_argument("--expected-ktype-count", type=int, required=True)
     match_parser.add_argument("--policy-version", required=True)
     match_parser.add_argument(
@@ -137,6 +147,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     match_parser.add_argument("--code-revision", required=True)
     match_parser.add_argument("--page-size", type=int, default=25_000)
+    match_parser.add_argument(
+        "--source-mode",
+        choices=("normalized", "raw"),
+        default="normalized",
+        help="Read pinned saved normalization results or normalize retained raw rows.",
+    )
+    match_parser.add_argument(
+        "--max-batches",
+        type=int,
+        default=None,
+        help="Stop cleanly after this many new batches for controlled validation.",
+    )
     delta_parser.add_argument(
         "--target-version",
         default=None,
@@ -332,8 +354,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
                 run_match_run_migrations(connection)
-                _, manufacturer_rules = load_active_rules(connection)
-                catalog = load_ktype_catalog(driver)
+                rule_set, manufacturer_rules = load_active_rules(connection)
+                catalog = (
+                    load_postgres_ktype_catalog(
+                        connection,
+                        batch_id=args.candidate_catalog_version,
+                    )
+                    if args.candidate_source == "postgres"
+                    else load_ktype_catalog(driver)
+                )
                 if len(catalog) != args.expected_ktype_count:
                     raise ValueError(
                         "TecDoc KType count mismatch: "
@@ -346,24 +375,47 @@ def main(argv: Sequence[str] | None = None) -> int:
                     source_batch_prefix=args.source_batch_prefix,
                     expected_source_rows=args.expected_source_rows,
                     normalization_rule_version=args.normalization_rule_version,
-                    candidate_catalog_version=args.candidate_catalog_version,
+                    candidate_catalog_version=(
+                        f"{args.candidate_source}:{args.candidate_catalog_version}"
+                    ),
                     policy_version=args.policy_version,
                     code_revision=args.code_revision,
                     alignment_version=args.alignment_version,
                 )
-                counts = run_dry_match_audit(
-                    connection,
-                    pins=pins,
-                    page_size=args.page_size,
-                    fetch_page=lambda after_id, limit: fetch_normalized_ts_page(
-                        connection,
-                        source_batch_prefix=pins.source_batch_prefix,
-                        normalization_rule_version=pins.normalization_rule_version,
-                        after_source_record_id=after_id,
-                        limit=limit,
+                evaluator = TecDocDryRunEvaluator(
+                    catalog,
+                    manufacturer_rules,
+                    ReviewedModelAliasIndex(rule_set),
+                    fuel_alignment=load_fuel_alignment(
+                        connection, alignment_version=args.alignment_version
                     ),
-                    evaluate_record=TecDocDryRunEvaluator(catalog, manufacturer_rules),
                 )
+                if args.source_mode == "raw":
+                    counts = run_local_raw_dry_match_audit(
+                        connection,
+                        pins=pins,
+                        rule_set=rule_set,
+                        manufacturer_rules=manufacturer_rules,
+                        evaluator=evaluator,
+                        batch_size=args.page_size,
+                        max_batches=args.max_batches,
+                    )
+                else:
+                    if args.max_batches is not None:
+                        raise ValueError("max_batches is supported only for raw source mode")
+                    counts = run_dry_match_audit(
+                        connection,
+                        pins=pins,
+                        page_size=args.page_size,
+                        fetch_page=lambda after_id, limit: fetch_normalized_ts_page(
+                            connection,
+                            source_batch_prefix=pins.source_batch_prefix,
+                            normalization_rule_version=pins.normalization_rule_version,
+                            after_source_record_id=after_id,
+                            limit=limit,
+                        ),
+                        evaluate_record=evaluator,
+                    )
         except Exception as error:  # noqa: BLE001
             logger.error(
                 "TS-to-TecDoc dry-run audit stopped safely",

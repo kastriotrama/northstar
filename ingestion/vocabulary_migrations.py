@@ -46,6 +46,11 @@ VOCABULARY_MIGRATIONS: tuple[tuple[str, str], ...] = (
         """,
     ),
     (
+        "add_vocabulary_version_seal",
+        (f"ALTER TABLE {VOCABULARY_ALIGNMENT_VERSION_TABLE} "
+         "ADD COLUMN IF NOT EXISTS sealed BOOLEAN NOT NULL DEFAULT TRUE"),
+    ),
+    (
         "create_vocabulary_alignments_table",
         f"""
         CREATE TABLE IF NOT EXISTS {VOCABULARY_ALIGNMENT_TABLE} (
@@ -108,6 +113,62 @@ VOCABULARY_MIGRATIONS: tuple[tuple[str, str], ...] = (
         BEFORE UPDATE OR DELETE ON {VOCABULARY_ALIGNMENT_TABLE}
         FOR EACH ROW EXECUTE FUNCTION core.reject_vocabulary_alignment_mutation()
         """,
+    ),
+    (
+        "create_vocabulary_alignment_seal_function",
+        f"""
+        CREATE OR REPLACE FUNCTION core.guard_vocabulary_alignment_seal()
+        RETURNS TRIGGER AS $$
+        DECLARE is_sealed BOOLEAN;
+        BEGIN
+            SELECT sealed INTO is_sealed FROM {VOCABULARY_ALIGNMENT_VERSION_TABLE}
+                WHERE alignment_version = NEW.alignment_version FOR SHARE;
+            IF is_sealed IS DISTINCT FROM FALSE THEN
+                RAISE EXCEPTION 'cannot add rows to an activated vocabulary version';
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql
+        """,
+    ),
+    (
+        "create_vocabulary_alignment_insert_guard",
+        f"""
+        CREATE OR REPLACE TRIGGER vocabulary_alignment_insert_guard
+        BEFORE INSERT ON {VOCABULARY_ALIGNMENT_TABLE}
+        FOR EACH ROW EXECUTE FUNCTION core.guard_vocabulary_alignment_seal()
+        """,
+    ),
+    (
+        "create_vocabulary_version_guard_function",
+        """
+        CREATE OR REPLACE FUNCTION core.guard_vocabulary_version()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF TG_OP = 'UPDATE' AND OLD.sealed = FALSE AND NEW.sealed = TRUE
+               AND (to_jsonb(OLD) - 'sealed') = (to_jsonb(NEW) - 'sealed') THEN
+                RETURN NEW;
+            END IF;
+            RAISE EXCEPTION 'vocabulary versions are immutable except for initial sealing';
+        END;
+        $$ LANGUAGE plpgsql
+        """,
+    ),
+    (
+        "create_vocabulary_version_guard",
+        f"""
+        CREATE OR REPLACE TRIGGER vocabulary_version_guard
+        BEFORE UPDATE OR DELETE ON {VOCABULARY_ALIGNMENT_VERSION_TABLE}
+        FOR EACH ROW EXECUTE FUNCTION core.guard_vocabulary_version()
+        """,
+    ),
+    *tuple(
+        (
+            f"block_{table.split('.')[-1]}_truncate",
+            (f"CREATE OR REPLACE TRIGGER vocabulary_no_truncate BEFORE TRUNCATE ON {table} "
+             "FOR EACH STATEMENT EXECUTE FUNCTION core.reject_vocabulary_alignment_mutation()"),
+        )
+        for table in (VOCABULARY_ALIGNMENT_TABLE, VOCABULARY_ALIGNMENT_VERSION_TABLE)
     ),
 )
 

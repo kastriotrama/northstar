@@ -429,3 +429,5 @@ td { padding: 8px 13px; overflow: hidden; color: #354542; font-size: 11px; text-
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 .tecdoc-graph{display:grid;gap:8px}.graph-node{position:relative;border:1px solid #d9e0e8;border-radius:10px;padding:10px 12px;background:#fff}.graph-node:not(:first-child){margin-left:18px}.graph-node:not(:first-child):before{content:"";position:absolute;left:-19px;top:50%;width:18px;border-top:1px solid #9aa9b8}.graph-node strong,.graph-node small{display:block}.graph-node small{color:#667788;margin-top:2px}.graph-edge{display:block;color:#42617b;font-size:11px;font-weight:700;letter-spacing:.04em}.graph-node.review_required,.graph-node.ambiguous{border-color:#e4b45f;background:#fff9ed}.graph-node.allocation_missing,.graph-node.optional,.graph-node.code_missing{border-style:dashed;background:#f7f9fb}.graph-node.linked,.graph-node.mapped{border-color:#76b394;background:#f3fbf7}
+.connection-comparison .comparison-warning { color: #9a6415; }
+.connection-comparison .comparison-blocked { color: var(--red); }

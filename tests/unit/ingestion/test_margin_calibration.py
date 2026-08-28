@@ -1,4 +1,9 @@
+import json
+import random
+import sys
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -12,7 +17,8 @@ from ingestion.margin_calibration import (
     sweep_thresholds,
     wilson_lower_bound,
 )
-from scripts.sample_margin_calibration_set import select_stratified
+from scripts import fit_margin_threshold
+from scripts.sample_margin_calibration_set import PLATE_LETTERS, _seek_keys, select_stratified
 
 
 def _pair(margin: float, verdict: str, *, band: str = "0.10-0.15", weight: float = 1.0):
@@ -135,3 +141,105 @@ def test_high_margin_sampling_filter_keeps_only_target_boundary() -> None:
     )
 
     assert [item.separation_margin for item in selected] == [0.3, 0.35, 0.6]
+
+
+def test_seek_keys_sample_the_whole_prefix_space_reproducibly() -> None:
+    keys = _seek_keys(100, random.Random(20260824))
+    assert keys == _seek_keys(100, random.Random(20260824))
+    assert len(keys) == len(set(keys)) == 100
+    assert keys == tuple(sorted(keys))
+    # The previous sort-then-truncate implementation excluded the upper half.
+    midpoint = PLATE_LETTERS[len(PLATE_LETTERS) // 2]
+    assert 30 <= sum(key[0] >= midpoint for key in keys) <= 70
+
+
+def test_seek_keys_exhaust_the_prefix_space_without_duplicate_seeks() -> None:
+    capacity = len(PLATE_LETTERS) ** 3
+    assert len(_seek_keys(capacity + 1, random.Random(7))) == capacity
+    with pytest.raises(ValueError, match="positive"):
+        _seek_keys(0, random.Random(7))
+
+
+def test_fitter_rejects_weights_from_another_batch_before_database_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    weights = tmp_path / "weights.json"
+    weights.write_text(json.dumps({"batch_label": "another-batch", "per_band_population": {}}))
+    monkeypatch.setattr(sys, "argv", [
+        "fit-margin", "--batch-label", "expected-batch", "--band-weights", str(weights)
+    ])
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    connect = MagicMock(side_effect=AssertionError("must validate before connecting"))
+    monkeypatch.setattr(fit_margin_threshold.psycopg, "connect", connect)
+    with pytest.raises(ValueError, match="batch"):
+        fit_margin_threshold.main()
+    connect.assert_not_called()
+
+
+@pytest.mark.parametrize("changed_pin", ["source_version", "candidate_catalog_version", "seed"])
+def test_fitter_rejects_verdicts_from_different_pinned_inputs(changed_pin: str) -> None:
+    pins = {
+        "source_version": "source-v1",
+        "normalization_rule_version": "rules-v1",
+        "candidate_catalog_version": "catalog-v1",
+        "seed": 7,
+    }
+    mismatched = {**pins, changed_pin: "different"}
+    connection = MagicMock()
+    connection.cursor.return_value.__enter__.return_value.fetchall.return_value = [
+        ("match_margin_calibration", json.dumps({
+            "pins": mismatched, "separation_margin": 0.4, "band": "0.40-1.00"
+        }), "resolved", {"verdict": "accept"})
+    ]
+    with pytest.raises(ValueError, match="pins"):
+        fit_margin_threshold.load_verdicts(
+            connection, batch_label="batch", expected_pins=pins
+        )
+
+
+def test_fitter_preserves_valid_labels_and_counts_pending_reviews() -> None:
+    pins = {"source_version": "source-v1", "seed": 7}
+    detail = json.dumps({"pins": pins, "separation_margin": 0.4, "band": "0.40-1.00"})
+    connection = MagicMock()
+    connection.cursor.return_value.__enter__.return_value.fetchall.return_value = [
+        ("match_margin_calibration", detail, "resolved", {"verdict": "accept"}),
+        ("match_margin_calibration", detail, "resolved", {"verdict": "unsure"}),
+        ("match_margin_calibration", detail, "pending", None),
+    ]
+    verdicts, pending = fit_margin_threshold.load_verdicts(
+        connection, batch_label="batch", expected_pins=pins
+    )
+    assert verdicts == [(0.4, "0.40-1.00", "accept"), (0.4, "0.40-1.00", "unsure")]
+    assert pending == 1
+
+
+def test_fitter_rejects_non_calibration_rows() -> None:
+    connection = MagicMock()
+    connection.cursor.return_value.__enter__.return_value.fetchall.return_value = [
+        ("manufacturer_missing", "{}", "resolved", {"verdict": "accept"})
+    ]
+    with pytest.raises(ValueError, match="non-calibration"):
+        fit_margin_threshold.load_verdicts(connection, batch_label="batch", expected_pins={})
+
+
+@pytest.mark.parametrize("invalid", ["pins", "seed"])
+def test_fitter_requires_reproducible_manifest_before_database_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: str
+) -> None:
+    payload = {
+        "batch_label": "batch", "seed": 7,
+        "pins": {"source_version": "source", "normalization_rule_version": "rules",
+                 "candidate_catalog_version": "catalog"},
+    }
+    del payload[invalid]
+    weights = tmp_path / "weights.json"
+    weights.write_text(json.dumps(payload))
+    monkeypatch.setattr(sys, "argv", [
+        "fit-margin", "--batch-label", "batch", "--band-weights", str(weights)
+    ])
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    connect = MagicMock(side_effect=AssertionError("must validate before connecting"))
+    monkeypatch.setattr(fit_margin_threshold.psycopg, "connect", connect)
+    with pytest.raises(ValueError, match=invalid):
+        fit_margin_threshold.main()
+    connect.assert_not_called()

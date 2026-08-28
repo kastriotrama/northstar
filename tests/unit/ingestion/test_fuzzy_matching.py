@@ -564,3 +564,41 @@ def test_exact_power_still_outranks_a_within_tolerance_sibling() -> None:
     )
 
     assert result.candidates[0].candidate_reference == "KTYPE-EXACT"
+
+
+def test_reviewed_fuel_vocabulary_equivalents_match_exactly() -> None:
+    for ts_fuel, tecdoc_fuel in (("electricity", "electric"), ("methane", "cng")):
+        candidate = VehicleCandidate(
+            "KTYPE-1", "Volvo", "XC40", fuels=frozenset({tecdoc_fuel})
+        )
+        result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,))).match(
+            VehicleMatchQuery(
+                manufacturer="Volvo", model="XC40", fuels=frozenset({ts_fuel})
+            )
+        )
+
+        assert "fuels" in result.candidates[0].matched_fields
+        assert "fuels" not in result.candidates[0].conflicting_fields
+
+
+def test_hybrid_category_requires_both_underlying_ts_carriers() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-1", "Volvo", "XC60", fuels=frozenset({"hybrid_petrol"})
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    compatible = matcher.match(
+        VehicleMatchQuery(
+            manufacturer="Volvo",
+            model="XC60",
+            fuels=frozenset({"petrol", "electricity"}),
+        )
+    ).candidates[0]
+    incomplete = matcher.match(
+        VehicleMatchQuery(
+            manufacturer="Volvo", model="XC60", fuels=frozenset({"electricity"})
+        )
+    ).candidates[0]
+
+    assert "fuels" in compatible.matched_fields
+    assert "fuels" in incomplete.conflicting_fields

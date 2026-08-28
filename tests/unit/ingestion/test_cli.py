@@ -62,18 +62,27 @@ def test_parser_registers_version_pinned_match_audit() -> None:
             "ts-review-20260817T073842135705Z",
             "--candidate-catalog-version",
             "tecdoc-0326",
+            "--candidate-source",
+            "postgres",
             "--expected-ktype-count",
             "55808",
             "--policy-version",
             "confidence-routing-v1",
             "--code-revision",
             "abc123",
+            "--source-mode",
+            "raw",
+            "--max-batches",
+            "2",
         ]
     )
 
     assert args.command == "match-ts-tecdoc"
     assert args.expected_source_rows == 6_515_471
     assert args.expected_ktype_count == 55_808
+    assert args.candidate_source == "postgres"
+    assert args.source_mode == "raw"
+    assert args.max_batches == 2
 
 
 def test_commands_fail_safely_or_run_with_batch_id() -> None:

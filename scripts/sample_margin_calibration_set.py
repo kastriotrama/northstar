@@ -21,6 +21,7 @@ import os
 import random
 from collections import defaultdict
 from dataclasses import dataclass
+from itertools import product
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -67,6 +68,7 @@ MARGIN_BANDS: tuple[tuple[float, float], ...] = (
 )
 
 PLATE_LETTERS = "ABCDEFGHJKLMNOPRSTUWXYZ"
+SAMPLER_VERSION = "uniform-plate-prefixes-v2"
 
 
 @dataclass(frozen=True)
@@ -109,10 +111,12 @@ def _band_bounds(label: str) -> tuple[float, float]:
 def _seek_keys(count: int, rng: random.Random) -> tuple[str, ...]:
     """Random three-letter keys spread across the observed plate space."""
 
-    keys = {
-        "".join(rng.choice(PLATE_LETTERS) for _ in range(3)) for _ in range(count * 2)
-    }
-    return tuple(sorted(keys))[:count]
+    if count <= 0:
+        raise ValueError("seek-key count must be positive")
+    population = tuple("".join(letters) for letters in product(PLATE_LETTERS, repeat=3))
+    # Select before sorting: truncating sorted random draws systematically
+    # excludes the end of the registry and biases calibration weights.
+    return tuple(sorted(rng.sample(population, min(count, len(population)))))
 
 
 def _fetch_scattered_rows(
@@ -374,6 +378,7 @@ def main() -> None:
             for low, high in MARGIN_BANDS
         }
         summary = {
+            "sampler_version": SAMPLER_VERSION,
             "sampled_rows": len(rows),
             "competitive_pairs": len(items),
             "selected": len(selected),
@@ -398,6 +403,7 @@ def main() -> None:
                         "per_band_population": population_counts,
                         "per_band_selected": band_counts,
                         "pins": {
+                            "sampler_version": SAMPLER_VERSION,
                             "source_version": args.source_version,
                             "normalization_rule_version": args.normalization_rule_version,
                             "candidate_catalog_version": args.candidate_catalog_version,
@@ -435,6 +441,7 @@ def main() -> None:
                             "match_scope": item.scope,
                             "source_evidence": item.source_evidence,
                             "pins": {
+                                "sampler_version": SAMPLER_VERSION,
                                 "source_version": args.source_version,
                                 "normalization_rule_version": args.normalization_rule_version,
                                 "candidate_catalog_version": args.candidate_catalog_version,

@@ -34,7 +34,10 @@ from neo4j import Driver, ManagedTransaction
 from psycopg import Connection
 
 from ingestion.fuzzy_matching import VehicleCandidate
-from ingestion.vocabulary_migrations import VOCABULARY_ALIGNMENT_TABLE
+from ingestion.vocabulary_migrations import (
+    VOCABULARY_ALIGNMENT_TABLE,
+    VOCABULARY_ALIGNMENT_VERSION_TABLE,
+)
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
 
@@ -102,6 +105,13 @@ def fetch_approved_alignments(
 
     with connection.cursor() as cursor:
         cursor.execute(
+            f"SELECT sealed FROM {VOCABULARY_ALIGNMENT_VERSION_TABLE} "
+            "WHERE alignment_version = %s", (alignment_version,),
+        )
+        version = cursor.fetchone()
+        if version is None or version[0] is not True:
+            raise ValueError("vocabulary alignment version is unknown or not activated")
+        cursor.execute(
             "SELECT alignment_version, vocabulary, source_system, source_term, "
             f"canonical_term, relation, support FROM {VOCABULARY_ALIGNMENT_TABLE} "
             "WHERE alignment_version = %s AND vocabulary = %s "
@@ -124,6 +134,60 @@ def fetch_approved_alignments(
             support=None if r[6] is None else int(r[6]),
         )
         for r in rows
+    )
+
+
+@dataclass(frozen=True)
+class FuelAlignment:
+    """Source-scoped comparison rules, never a normalization rewrite."""
+
+    version: str
+    ts_equivalences: Mapping[str, str]
+    tecdoc_equivalences: Mapping[str, str]
+    compatible_pairs: frozenset[tuple[str, str]]
+
+
+def load_fuel_alignment(
+    connection: Connection, *, alignment_version: str
+) -> FuelAlignment | None:
+    """Fail closed on unknown/unsupported pinned sets; legacy applies no new rules."""
+
+    if alignment_version == "unpinned-legacy":
+        return None
+    rows = fetch_approved_alignments(
+        connection, alignment_version=alignment_version, vocabulary="fuel"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT DISTINCT vocabulary FROM {VOCABULARY_ALIGNMENT_TABLE} "
+            "WHERE alignment_version = %s", (alignment_version,),
+        )
+        if {str(row[0]) for row in cursor.fetchall()} != {"fuel"}:
+            raise ValueError("this matcher supports only fuel alignment sets")
+    maps: dict[str, dict[str, str]] = {"transportstyrelsen": {}, "tecdoc": {}}
+    for row in rows:
+        if row.source_system not in maps:
+            raise ValueError("unsupported alignment source")
+        if row.relation != "equivalent":
+            continue
+        mapping = maps[row.source_system]
+        if row.source_term in mapping and mapping[row.source_term] != row.canonical_term:
+            raise ValueError("ambiguous vocabulary equivalence")
+        mapping[row.source_term] = row.canonical_term
+    for mapping in maps.values():
+        if set(mapping) & set(mapping.values()):
+            raise ValueError("vocabulary equivalences must be flat")
+    pairs = set()
+    for row in rows:
+        if row.relation == "compatible":
+            if row.source_system != "transportstyrelsen":
+                raise ValueError("only directional TS compatibility is supported")
+            pairs.add((
+                maps["transportstyrelsen"].get(row.source_term, row.source_term),
+                maps["tecdoc"].get(row.canonical_term, row.canonical_term),
+            ))
+    return FuelAlignment(
+        alignment_version, maps["transportstyrelsen"], maps["tecdoc"], frozenset(pairs)
     )
 
 

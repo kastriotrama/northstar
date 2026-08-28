@@ -301,6 +301,13 @@ class ConfidenceRouter:
                 "ROUTE-REVIEW-MANUFACTURER-SCOPE-V1",
                 "Only an exact manufacturer scope may pass automatic routing.",
             )
+        if "model_partial" in match_result.candidates[0].matched_fields:
+            return (
+                "review_required",
+                ("partial_model_requires_review",),
+                "ROUTE-REVIEW-PARTIAL-MODEL-V1",
+                "A partial family label is discovery evidence, not an accepted KType identity.",
+            )
         if match_result.candidates[0].phonetic_match:
             return (
                 "review_required",

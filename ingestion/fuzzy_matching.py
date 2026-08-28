@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Literal
 
+from ingestion.context_comparison import ContextComparisonPolicy
 from ingestion.phonetic_matching import PHONETIC_VERSION, has_phonetic_overlap
 
 MatchScope = Literal[
@@ -88,6 +89,32 @@ def _normalized_values(values: Iterable[str]) -> frozenset[str]:
     return frozenset(normalized for value in values if (normalized := _normalized_text(value)))
 
 
+_FUEL_EQUIVALENTS = {"ELECTRIC": "ELECTRICITY", "METHANE": "CNG"}
+
+
+def _normalized_fuels(values: Iterable[str]) -> frozenset[str]:
+    return frozenset(
+        _FUEL_EQUIVALENTS.get(normalized, normalized)
+        for value in values
+        if (normalized := _normalized_text(value))
+    )
+
+
+def _fuel_evidence_matches(
+    query_fuels: frozenset[str], candidate_fuels: frozenset[str]
+) -> bool:
+    if query_fuels & candidate_fuels:
+        return True
+    hybrid_requirements = {
+        "HYBRID PETROL": frozenset({"PETROL", "ELECTRICITY"}),
+        "HYBRID DIESEL": frozenset({"DIESEL", "ELECTRICITY"}),
+    }
+    return any(
+        hybrid in candidate_fuels and required.issubset(query_fuels)
+        for hybrid, required in hybrid_requirements.items()
+    )
+
+
 @dataclass(frozen=True)
 class FuzzyMatchConfig:
     """Injected Stage 2a thresholds and scoring weights."""
@@ -125,13 +152,9 @@ class FuzzyMatchConfig:
     drive_conflict_penalty: float = 0.15
     bodywork_match_bonus: float = 0.05
     bodywork_conflict_penalty: float = 0.15
-    # Applied to the bodywork bonus and penalty only when the plausible
-    # candidates actually differ in bodywork. TecDoc decorates the estate of a
-    # family as a separate model ("PASSAT B7 Variant"), and the bare
-    # Transportstyrelsen name scores higher against the undecorated sibling, so
-    # the ordinary 0.20 swing cannot overcome the text advantage. Weighting it
-    # lets the one field that truly separates the siblings decide between them.
-    bodywork_discriminating_weight: float = 2.0
+    # Keep the existing weight until stronger weighting is independently
+    # calibrated. Merely differing body styles does not justify a new policy.
+    bodywork_discriminating_weight: float = 1.0
     max_candidates: int = 5
 
     def __post_init__(self) -> None:
@@ -233,6 +256,7 @@ class VehicleMatchQuery:
     power_kw: int | None = None
     drive_type: str | None = None
     bodywork: str | None = None
+    source_context: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if not _normalized_text(self.model):
@@ -265,6 +289,8 @@ class FuzzyCandidateMatch:
     missing_fields: tuple[str, ...]
     conflicting_fields: tuple[str, ...]
     phonetic_match: bool
+    context_rule_ids: tuple[str, ...] = ()
+    context_policy_digest: str | None = None
 
     @property
     def separation_score(self) -> float:
@@ -295,6 +321,10 @@ class FuzzyCandidateMatch:
                 "conflicting_fields": list(self.conflicting_fields),
                 "phonetic_match": self.phonetic_match,
                 "phonetic_version": PHONETIC_VERSION if self.phonetic_match else None,
+                **({
+                    "context_rule_ids": list(self.context_rule_ids),
+                    "context_policy_digest": self.context_policy_digest,
+                } if self.context_rule_ids else {}),
             },
         }
 
@@ -327,6 +357,8 @@ class FuzzyMatchResult:
         return tuple(payloads)
 
 
+MODEL_RECOVERY_VERSION = "shared-family-query-recovery-v2-saab-hyphenated"
+
 _MODEL_EVIDENCE_FIELD_PRIORITY = (
     # The registry's own model field is the most direct statement of the model,
     # so it outranks fields that merely happen to contain the name.
@@ -338,6 +370,24 @@ _MODEL_EVIDENCE_FIELD_PRIORITY = (
     "type_text",
     "brand",
 )
+
+
+def _eligible_recovery_label(
+    manufacturer: str, label: str, canonicals: tuple[str, ...], field_name: str, value: str,
+) -> bool:
+    if len(label.replace(" ", "")) >= 3 and not label.isdigit() or re.fullmatch(r"[A-Z][0-9]", label):
+        return True
+    # The generic minimum-length guard intentionally excludes numbers. Saab's
+    # explicit 9-3/9-5 names are a narrow exception, not permission to recover
+    # models from decimal displacements, approval numbers or arbitrary aliases.
+    if manufacturer != "SAAB" or label not in {"9 3", "9 5"} or field_name not in {"brand", "model"}:
+        return False
+    if not canonicals or not all(
+        _normalized_text(canonical) == label or _normalized_text(canonical).startswith(f"{label} ")
+        for canonical in canonicals
+    ):
+        return False
+    return re.search(rf"(?<!\w)9\s*[-‐‑–]\s*{label[-1]}(?!\w)", value) is not None
 
 
 def _evidence_field_rank(field_name: str) -> tuple[int, str]:
@@ -404,11 +454,15 @@ class ManufacturerCandidateIndex:
 
         manufacturer_key = _normalized_text(manufacturer)
         labels = self._model_labels_by_manufacturer_key.get(manufacturer_key, ())
+        # Explicit model text must not lose to a longer label in another field.
+        # An unrecognized explicit model is not permission to substitute a brand.
+        if evidence.get("model", "").strip():
+            evidence = {"model": evidence["model"]}
         matches = {
             (len(label.replace(" ", "")), canonical, field_name)
             for field_name, value in evidence.items()
             for label, canonical_models in labels
-            if len(label.replace(" ", "")) >= 3 and not label.isdigit()
+            if _eligible_recovery_label(manufacturer_key, label, canonical_models, field_name, value)
             if f" {label} " in f" {_normalized_text(value)} "
             for canonical in canonical_models
         }
@@ -422,7 +476,31 @@ class ManufacturerCandidateIndex:
         }
         canonical_matches = {canonical for canonical, _ in longest_matches}
         if len(canonical_matches) != 1:
-            return None
+            # A named family may span multiple catalog generations. Recover
+            # the shared explicit label as a query, never choose a generation.
+            # A trim alias shared by unrelated families is not family evidence.
+            family_labels = {
+                (label, field_name)
+                for field_name, value in evidence.items()
+                for label, canonicals in labels
+                if len(label.replace(" ", "")) == longest
+                and _eligible_recovery_label(manufacturer_key, label, canonicals, field_name, value)
+                and f" {label} " in f" {_normalized_text(value)} "
+                and canonicals
+                and set(canonicals) == canonical_matches
+                and all(
+                    _normalized_text(canonical) == label
+                    or _normalized_text(canonical).startswith(f"{label} ")
+                    for canonical in canonicals
+                )
+            }
+            if len({label for label, _ in family_labels}) != 1:
+                return None
+            label = next(iter(family_labels))[0]
+            return label, min(
+                (field for matched, field in family_labels if matched == label),
+                key=_evidence_field_rank,
+            )
         canonical = next(iter(canonical_matches))
         source_field = min(
             (field_name for matched, field_name in longest_matches if matched == canonical),
@@ -478,6 +556,33 @@ class ManufacturerCandidateIndex:
         return self._all, "global"
 
 
+@lru_cache(maxsize=100_000)
+def _best_model_label(
+    query_model: str, model: str, aliases: tuple[str, ...],
+    edit_weight: float, token_weight: float, candidate_threshold: float,
+) -> tuple[float, str]:
+    """Reuse text-only work across KTypes; never cache technical evidence or decisions."""
+    labels = tuple(sorted({
+        normalized for value in (model, *aliases)
+        if (normalized := _normalized_text(value))
+    }))
+    query_tokens = frozenset(query_model.split())
+    label_scores = []
+    for label in labels:
+        edit_score = _edit_similarity(query_model, label)
+        token_score = _token_similarity(query_model, label)
+        if len(query_model.split()) == len(label.split()) == 1:
+            text_score = edit_score
+        else:
+            text_score = edit_score * edit_weight + token_score * token_weight
+        if query_tokens and query_tokens < frozenset(label.split()):
+            text_score = max(text_score, candidate_threshold)
+        label_scores.append((_bounded_score(text_score), label))
+    return max(
+        label_scores, key=lambda item: (item[0], -len(item[1].split()), -len(item[1]), item[1])
+    )
+
+
 class FuzzyVehicleMatcher:
     """Rank candidates without mutating or accepting canonical identity."""
 
@@ -485,9 +590,18 @@ class FuzzyVehicleMatcher:
         self,
         index: ManufacturerCandidateIndex,
         config: FuzzyMatchConfig | None = None,
+        *,
+        fuel_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
+        context_policy: ContextComparisonPolicy | None = None,
     ) -> None:
         self._index = index
         self._config = config or FuzzyMatchConfig()
+        self._context_policy = context_policy or ContextComparisonPolicy()
+        self._fuel_compatible_pairs = frozenset(
+            (next(iter(_normalized_fuels((left,)))), next(iter(_normalized_fuels((right,)))))
+            for left, right in fuel_compatible_pairs
+            if _normalized_fuels((left,)) and _normalized_fuels((right,))
+        )
 
     def match(self, query: VehicleMatchQuery) -> FuzzyMatchResult:
         candidates, scope = self._index.lookup(
@@ -508,11 +622,16 @@ class FuzzyVehicleMatcher:
             for candidate, match in zip(candidates, baseline, strict=True)
             if match.confidence >= self._config.candidate_threshold
         ]
+        # Unit weight produces identical scores in both passes. Avoid repeated
+        # scoring without changing bodywork conflicts or their normal penalty.
+        needs_bodywork_rescore = bool(
+            query.bodywork and self._config.bodywork_discriminating_weight != 1.0
+        )
         distinct_bodyworks = {
             body
             for candidate, _ in plausible
             for body in _normalized_values(candidate.bodyworks)
-        }
+        } if needs_bodywork_rescore else set()
         # Judged over the plausible candidates rather than the whole
         # manufacturer: every marque offers several body styles, so a
         # manufacturer-wide test would always say "discriminating" and would
@@ -524,7 +643,7 @@ class FuzzyVehicleMatcher:
                 self._score(query, candidate, bodywork_discriminates=True)
                 for candidate, _ in plausible
             ]
-            if bodywork_discriminates and query.bodywork
+            if bodywork_discriminates and needs_bodywork_rescore
             else [match for _, match in plausible]
         )
         qualifying = tuple(
@@ -550,6 +669,8 @@ class FuzzyVehicleMatcher:
             return FuzzyMatchResult(scope, ranked, False, "manufacturer_scope_requires_review")
         if top.phonetic_match:
             return FuzzyMatchResult(scope, ranked, False, "phonetic_candidate_requires_review")
+        if "model_partial" in top.matched_fields:
+            return FuzzyMatchResult(scope, ranked, False, "partial_model_requires_review")
         if top.confidence < self._config.automatic_threshold:
             return FuzzyMatchResult(scope, ranked, False, "automatic_threshold_not_met")
         if (
@@ -568,52 +689,20 @@ class FuzzyVehicleMatcher:
         bodywork_discriminates: bool = True,
     ) -> FuzzyCandidateMatch:
         query_model = _normalized_text(query.model)
-        labels = tuple(
-            sorted(
-                {
-                    normalized
-                    for value in (candidate.model, *candidate.model_aliases)
-                    if (normalized := _normalized_text(value))
-                }
-            )
-        )
         query_tokens = frozenset(query_model.split())
-        label_scores = []
-        for label in labels:
-            edit_score = _edit_similarity(query_model, label)
-            token_score = _token_similarity(query_model, label)
-            if len(query_model.split()) == len(label.split()) == 1:
-                text_score = edit_score
-            else:
-                text_score = (
-                    edit_score * self._config.edit_weight + token_score * self._config.token_weight
-                )
-            # TecDoc names a family more specifically than Transportstyrelsen
-            # does: "Golf" is catalogued as "GOLF VI" and "GOLF VI Variant".
-            # Similarity scoring reads the extra qualifier as dissimilarity, so
-            # the undecorated sibling wins on text and the qualified one -- the
-            # only candidate the body evidence actually supports -- is pushed
-            # down the ranking. A query whose tokens are all present in the
-            # label is not less similar, it is less specific, so text stops
-            # separating the siblings and the technical evidence decides which
-            # variant of the family this is.
-            # Strict subset only: the label must carry every query token and add
-            # more. An equal token set in a different order is reordered text,
-            # not a less specific query, and keeps its similarity score.
-            if query_tokens and query_tokens < frozenset(label.split()):
-                text_score = 1.0
-            label_scores.append((_bounded_score(text_score), label))
-        # Equal scores prefer the cleanest label. Treating a less specific query
-        # as fully consistent lets a decorated name tie with its own stripped
-        # alias, and a lexicographic tie-break would then report the decorated
-        # form -- whose chassis digits ("V70 III (135)") read as a series
-        # mismatch against a query that only said "V70".
-        text_score, matched_label = max(
-            label_scores, key=lambda item: (item[0], -len(item[1].split()), -len(item[1]), item[1])
+        # Cache keys include labels and scoring policy, not candidate IDs:
+        # changed catalogs/configurations cannot reuse an incompatible score.
+        text_score, matched_label = _best_model_label(
+            query_model, candidate.model, candidate.model_aliases,
+            self._config.edit_weight, self._config.token_weight,
+            self._config.candidate_threshold,
         )
 
         context_effect = 0.0
         matched_fields: list[str] = ["model"]
+
+        if query_tokens < frozenset(matched_label.split()):
+            matched_fields.append("model_partial")
         missing_fields: list[str] = []
         conflicting_fields: list[str] = []
         phonetic_match = False
@@ -633,7 +722,15 @@ class FuzzyVehicleMatcher:
             context_effect += self._config.phonetic_match_bonus
 
         query_series = tuple(_DIGIT_GROUP.findall(query_model))
-        candidate_series = tuple(_DIGIT_GROUP.findall(matched_label))
+        # Strip only a source-marked, trailing TecDoc chassis/variant suffix.
+        # Never remove commercial series digits (C 43 versus C 63).
+        original_label = next(
+            (value for value in (candidate.model, *candidate.model_aliases)
+             if _normalized_text(value) == matched_label),
+            matched_label,
+        )
+        series_label = re.sub(r"\s+\(\d{3}\.\d{3}\)\s*$", "", original_label)
+        candidate_series = tuple(_DIGIT_GROUP.findall(_normalized_text(series_label)))
         if query_series and candidate_series and query_series != candidate_series:
             conflicting_fields.append("model_series")
             context_effect -= self._config.model_series_conflict_penalty
@@ -650,14 +747,19 @@ class FuzzyVehicleMatcher:
                 conflicting_fields.append("year")
                 context_effect -= self._config.year_conflict_penalty
 
-        query_fuels = _normalized_values(query.fuels)
-        candidate_fuels = _normalized_values(candidate.fuels)
+        query_fuels = _normalized_fuels(query.fuels)
+        candidate_fuels = _normalized_fuels(candidate.fuels)
         if query_fuels:
             if not candidate_fuels:
                 missing_fields.append("fuels")
-            elif query_fuels & candidate_fuels:
+            elif _fuel_evidence_matches(query_fuels, candidate_fuels):
                 matched_fields.append("fuels")
                 context_effect += self._config.fuel_match_bonus
+            elif any(
+                (left, right) in self._fuel_compatible_pairs
+                for left in query_fuels for right in candidate_fuels
+            ):
+                missing_fields.append("fuels_compatible_not_confirmed")
             else:
                 conflicting_fields.append("fuels")
                 context_effect -= self._config.fuel_conflict_penalty
@@ -704,12 +806,20 @@ class FuzzyVehicleMatcher:
 
         query_drive = _normalized_text(query.drive_type) if query.drive_type else ""
         candidate_drive = _normalized_text(candidate.drive_type) if candidate.drive_type else ""
-        if query_drive:
-            if not candidate_drive:
+        drive_comparison = self._context_policy.compare(
+            field="drive_type", source_value=query_drive,
+            candidate_values=frozenset({candidate_drive}) if candidate_drive else frozenset(),
+            manufacturer=candidate.manufacturer, model=candidate.model,
+            source_evidence=query.source_context,
+        )
+        if query_drive or drive_comparison.rule_ids:
+            if drive_comparison.state == "unknown":
                 missing_fields.append("drive_type")
-            elif query_drive == candidate_drive:
+            elif drive_comparison.state == "equivalent":
                 matched_fields.append("drive_type")
                 context_effect += self._config.drive_match_bonus
+            elif drive_comparison.state == "compatible":
+                missing_fields.append("drive_type_compatible_not_confirmed")
             else:
                 conflicting_fields.append("drive_type")
                 context_effect -= self._config.drive_conflict_penalty
@@ -725,12 +835,19 @@ class FuzzyVehicleMatcher:
         # gets. When they share one body it decides nothing and keeps its
         # ordinary weight.
         weight = self._config.bodywork_discriminating_weight if bodywork_discriminates else 1.0
-        if query_bodywork:
-            if not candidate_bodyworks:
+        body_comparison = self._context_policy.compare(
+            field="bodywork", source_value=query_bodywork, candidate_values=candidate_bodyworks,
+            manufacturer=candidate.manufacturer, model=candidate.model,
+            source_evidence=query.source_context,
+        )
+        if query_bodywork or body_comparison.rule_ids:
+            if body_comparison.state == "unknown":
                 missing_fields.append("bodywork")
-            elif query_bodywork in candidate_bodyworks:
+            elif body_comparison.state == "equivalent":
                 matched_fields.append("bodywork")
                 context_effect += self._config.bodywork_match_bonus * weight
+            elif body_comparison.state == "compatible":
+                missing_fields.append("bodywork_compatible_not_confirmed")
             else:
                 conflicting_fields.append("bodywork")
                 context_effect -= self._config.bodywork_conflict_penalty * weight
@@ -748,4 +865,11 @@ class FuzzyVehicleMatcher:
             missing_fields=tuple(missing_fields),
             conflicting_fields=tuple(conflicting_fields),
             phonetic_match=phonetic_match,
+            context_rule_ids=tuple(sorted(set(
+                drive_comparison.rule_ids + body_comparison.rule_ids
+            ))),
+            context_policy_digest=(
+                self._context_policy.content_digest
+                if drive_comparison.rule_ids or body_comparison.rule_ids else None
+            ),
         )

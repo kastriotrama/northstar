@@ -34,7 +34,9 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-PIPELINE_VERSION = "normalization-pipeline-v5"
+# Fuel comparison tokens change persisted output; do not reuse the old
+# normalization identity when the same source/rule version is reprocessed.
+PIPELINE_VERSION = "normalization-pipeline-v6"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2451,6 +2453,7 @@ def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
     """
 
     carriers = context.normalized.get("energy_sources")
+    context.normalized.pop("fuel_match_tokens", None)
     if not isinstance(carriers, list) or not carriers:
         return
     tokens = list(carriers)
@@ -2506,6 +2509,9 @@ def _apply_reviewed_record_policies(context: NormalizationContext) -> None:
         context.applied_rule_ids.append(
             rule_id if isinstance(rule_id, str) else policy_key.removeprefix("policy:")
         )
+        # Reviewed corrections can replace/remove carriers after the fuel step.
+        # Never leave comparison tokens contradicting the corrected evidence.
+        _derive_fuel_match_tokens(context)
         break
 
 

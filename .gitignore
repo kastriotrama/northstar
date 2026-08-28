@@ -44,3 +44,5 @@ override.tf.json
 *_override.tf.json
 # Restricted stakeholder demo data; provision directly on the deployment host.
 outputs/ts-ktype-resolved-showcase-1000.json
+# Local matcher evidence can contain plates and must not enter Git.
+outputs/scrum101-*.json

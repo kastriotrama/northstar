@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterator
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from ingestion.review_queue_migrations import (
     run_review_queue_migrations,
     verify_review_queue_schema_contract,
 )
+from scripts.fit_margin_threshold import load_verdicts
 
 TEST_SOURCE = "scrum18-integration-test"
 
@@ -55,6 +57,40 @@ def test_migrations_run_twice_and_apply_all_statements(
 
     assert first == second
     assert len(first) == len(REVIEW_QUEUE_MIGRATION_STATEMENTS)
+
+
+def test_calibration_fitter_reads_only_version_matched_review_evidence(
+    pg_connection: Connection,
+) -> None:
+    batch = f"margin-calibration-integration-{uuid4()}"
+    pins = {"source_version": "source-v1", "normalization_rule_version": "rules-v1",
+            "candidate_catalog_version": "catalog-v1", "seed": 7}
+    item_id = enqueue_review_item(
+        pg_connection,
+        review_id=uuid4(),
+        source_system=TEST_SOURCE,
+        source_batch_id=batch,
+        source_table="staging.transportstyrelsen_raw",
+        source_record_id=42,
+        reason_code="match_margin_calibration",
+        reason_detail=json.dumps({"pins": pins, "separation_margin": 0.4,
+                                  "band": "0.40-1.00"}),
+        target_entity_type="vehicle",
+        confidence=0.95,
+    )
+    transition_review_item(
+        pg_connection, item_id, "resolved", resolved_by="synthetic-test-reviewer",
+        resolution={"verdict": "accept", "reason": "Synthetic integration fixture"},
+    )
+    pg_connection.commit()
+    assert load_verdicts(pg_connection, batch_label=batch, expected_pins=pins) == (
+        [(0.4, "0.40-1.00", "accept")], 0
+    )
+    with pytest.raises(ValueError, match="pins"):
+        load_verdicts(
+            pg_connection, batch_label=batch,
+            expected_pins={**pins, "candidate_catalog_version": "catalog-v2"},
+        )
 
 
 def test_queue_round_trip_status_worklist_and_resolution(

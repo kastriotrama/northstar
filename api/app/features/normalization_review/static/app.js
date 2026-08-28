@@ -418,11 +418,29 @@ function renderConnection(key) {
   document.querySelector("#connection-decision-copy").textContent = view.copy;
 }
 
+function enginePresentation(item) {
+  const compatible = item.tecdoc_compatible_engine_codes || item.engine_codes || [];
+  const joined = compatible.join(", ");
+  const presentations = {
+    source_exact: { primary: item.selected_engine_code || item.ts_engine_code, detail: "Exact TS code in the TecDoc engine set", verdict: "Matched", tone: "pass", note: `TS engine ${item.ts_engine_code} was available before ranking and exactly matched the selected KType allocation.` },
+    uniquely_supported: { primary: item.selected_engine_code || "Uniquely supported engine", detail: "Reviewed independent evidence", verdict: "Supported", tone: "pass", note: "Reviewed independent evidence uniquely selected one compatible TecDoc engine." },
+    ambiguous: { primary: `${compatible.length} compatible TecDoc engines`, detail: joined || "No unique engine can be asserted", verdict: "Ambiguous", tone: "warning", note: `KType ${item.ktype} has multiple compatible TecDoc engines. No vehicle-specific engine was selected.` },
+    tecdoc_only: { primary: "TecDoc engine allocation", detail: joined || "Catalog assertion unavailable", verdict: "Inherited", tone: "warning", note: `${joined || "The engine"} was inherited after KType ${item.ktype} was selected; TS did not supply an engine code.` },
+    contradicted: { primary: "Engine evidence conflicts", detail: `TS ${item.ts_engine_code || "—"} · TecDoc ${joined || "—"}`, verdict: "Conflict", tone: "blocked", note: "The TS engine evidence does not occur in the selected KType engine set and must remain reviewable." },
+    unavailable: { primary: "Engine unavailable", detail: "Neither TS nor the selected KType provides an engine code", verdict: "Missing", tone: "warning", note: "No engine assertion is available for this vehicle." },
+  };
+  return presentations[item.engine_selection_status] || presentations.unavailable;
+}
+
 function renderResolvedConnectionRows() {
   const page = resolvedConnectionState.page;
   if (!page) return;
   const rows = document.querySelector("#resolved-connection-rows");
-  rows.innerHTML = page.items.map((item, index) => `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_codes.join(", ") || "Engine facts only")}</strong><span>${escapeHtml(item.power_kw ? `${item.power_kw} kW` : "Power pending")} · ${escapeHtml(item.displacement_cc ? `${item.displacement_cc} cc` : "Displacement pending")}</span></div></td><td><span class="connection-status status-validated">Resolved</span></td></tr>`).join("");
+  rows.innerHTML = page.items.map((item, index) => {
+    const engine = enginePresentation(item);
+    const validation = item.match_validation_status === "rerun_required" ? ["Rerun required", "status-blocked"] : ["Current resolved", "status-validated"];
+    return `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(engine.primary)}</strong><span>${escapeHtml(engine.detail)}</span></div></td><td><span class="connection-status ${validation[1]}">${validation[0]}</span></td></tr>`;
+  }).join("");
   rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => renderResolvedVehicle(page.items[Number(row.dataset.resolvedIndex)])));
   const start = page.filtered_total ? page.offset + 1 : 0;
   const end = Math.min(page.offset + page.items.length, page.filtered_total);
@@ -437,17 +455,23 @@ function renderResolvedVehicle(item) {
   document.querySelectorAll(".connection-row").forEach((row) => row.classList.remove("selected"));
   document.querySelector("#connection-eyebrow").textContent = `${item.vehicle_id} · registration plate`;
   document.querySelector("#connection-name").textContent = `${item.plate} → KType ${item.ktype}`;
-  const badge = document.querySelector("#connection-badge"); badge.textContent = "Resolved"; badge.className = "connection-status status-validated";
+  const requiresRerun = item.match_validation_status === "rerun_required";
+  const badge = document.querySelector("#connection-badge"); badge.textContent = requiresRerun ? "Rerun required" : "Current resolved"; badge.className = `connection-status ${requiresRerun ? "status-blocked" : "status-validated"}`;
   const fuel = item.fuels.length ? item.fuels.map(humanize).join(", ") : "Fuel evidence pending";
-  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  const engine = enginePresentation(item);
+  const enginePathLabel = item.engine_used_for_ktype_selection ? "Engine evidence used during ranking" : "TecDoc assertion inherited after selection";
+  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"], [enginePathLabel, engine.note, engine.tone === "blocked" ? "blocked" : "evidence"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
   const yearRange = [item.tecdoc_year_from || "—", item.tecdoc_year_to || "present"].join("–");
-  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model], ["Production year", item.year || "—", yearRange], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts"], ["Engine", item.ts_engine_code || "No TS engine code", item.engine_codes.join(", ") || "No unique engine allocation"], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—"]];
-  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b>Passed</b></article>`).join("");
-  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["No technical hard conflict", "pass"], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-pass">${escapeHtml(humanize(value))}</strong></div>`).join("");
-  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", "Applied year, fuel, engine, displacement, power, bodywork and drive compatibility."], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
+  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer, "Passed", "pass"], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model, "Passed", "pass"], ["Production year", item.year || "—", yearRange, "Passed", "pass"], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts", "Passed", "pass"], ["Engine", item.ts_engine_code || "No TS engine code", (item.tecdoc_compatible_engine_codes || []).join(", ") || "No TecDoc engine allocation", engine.verdict, engine.tone], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—", "Passed", "pass"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—", "Passed", "pass"]];
+  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc, verdict, tone]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b class="comparison-${escapeHtml(tone)}">${escapeHtml(verdict)}</b></article>`).join("");
+  const validationGate = requiresRerun ? "blocked" : "pass";
+  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["Current context-conflict gate", validationGate], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-${escapeHtml(value)}">${escapeHtml(humanize(value))}</strong></div>`).join("");
+  const engineFilterTrace = item.engine_used_for_ktype_selection ? `Engine ${item.ts_engine_code} was compared with every candidate engine set.` : "Engine code was not used because TS supplied no vehicle-specific engine evidence.";
+  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", `Applied year, fuel, displacement, power, bodywork and drive compatibility. ${engineFilterTrace}`], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Inherit", engine.note], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
   document.querySelector("#connection-trace").innerHTML = trace.map(([title, copy], index) => `<li><b>${index + 1}</b><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span></div></li>`).join("");
-  document.querySelector("#connection-decision-title").textContent = `Selected ${item.ktype} as the unique top candidate`;
-  document.querySelector("#connection-decision-copy").textContent = `The candidate was inside the exact manufacturer scope, passed the applicable technical compatibility checks, exceeded the resolved threshold, and retained enough separation from the runner-up. Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
+  document.querySelector("#connection-decision-title").textContent = requiresRerun ? `Stored selection ${item.ktype} requires rerun` : `Selected ${item.ktype} as the unique top candidate`;
+  const validationCopy = requiresRerun ? `The stored decision predates the current context-conflict gate and is not currently validated. Retained reasons: ${item.match_validation_reasons.map(humanize).join(" · ")}.` : "The decision passes the currently integrated routing gates.";
+  document.querySelector("#connection-decision-copy").textContent = `${validationCopy} Engine status: ${humanize(item.engine_selection_status)}. ${engine.note} Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
 }
 
 async function loadResolvedConnections() {
@@ -456,6 +480,8 @@ async function loadResolvedConnections() {
   try {
     const query = encodeURIComponent(resolvedConnectionState.query);
     resolvedConnectionState.page = await apiRequest(`/v1/normalization-review/connections/resolved?query=${query}&limit=25&offset=${resolvedConnectionState.offset}`);
+    document.querySelector("#connections-current-resolved").textContent = resolvedConnectionState.page.current_resolved_total.toLocaleString();
+    document.querySelector("#connections-rerun-required").textContent = resolvedConnectionState.page.rerun_required_total.toLocaleString();
     renderResolvedConnectionRows();
     if (resolvedConnectionState.page.items.length && !resolvedConnectionState.selectedId) renderResolvedVehicle(resolvedConnectionState.page.items[0]);
   } catch (error) { showToast(`Could not load resolved TS connections. ${error.message}`); }

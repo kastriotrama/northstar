@@ -105,33 +105,44 @@ def apply_vocabulary_seed(
     with connection.cursor() as cursor:
         cursor.execute(
             f"INSERT INTO {VOCABULARY_ALIGNMENT_VERSION_TABLE} "
-            "(alignment_version, activation_note, activated_by) VALUES (%s, %s, %s) "
+            "(alignment_version, activation_note, activated_by, sealed) "
+            "VALUES (%s, %s, %s, FALSE) "
             "ON CONFLICT (alignment_version) DO NOTHING",
             (alignment_version, note, activated_by),
         )
         created_version = cursor.rowcount == 1
+        cursor.execute(
+            f"SELECT sealed FROM {VOCABULARY_ALIGNMENT_VERSION_TABLE} "
+            "WHERE alignment_version = %s FOR UPDATE", (alignment_version,),
+        )
+        version_row = cursor.fetchone()
+        if version_row is None:
+            raise ValueError("vocabulary version disappeared during activation")
+        sealed = bool(version_row[0])
 
         cursor.execute(
-            "SELECT vocabulary, source_system, source_term, canonical_term, relation, support "
+            "SELECT vocabulary, source_system, source_term, canonical_term, relation, "
+            "support, evidence_note "
             f"FROM {VOCABULARY_ALIGNMENT_TABLE} WHERE alignment_version = %s",
             (alignment_version,),
         )
         existing = {
-            (str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]), r[5])
+            (str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]), r[5], r[6])
             for r in cursor.fetchall()
         }
         expected = {
-            (r.vocabulary, r.source_system, r.source_term, r.canonical_term, r.relation, r.support)
+            (r.vocabulary, r.source_system, r.source_term, r.canonical_term,
+             r.relation, r.support, r.evidence_note)
             for r in rows
         }
-        if existing and existing != expected:
+        if (existing or sealed) and existing != expected:
             raise ValueError(
                 f"alignment version {alignment_version!r} already exists with "
                 "different rows; activate a new version instead"
             )
 
         inserted = 0
-        for row in rows:
+        for row in (() if sealed else rows):
             cursor.execute(
                 f"INSERT INTO {VOCABULARY_ALIGNMENT_TABLE} "
                 "(alignment_version, vocabulary, source_system, source_term, "
@@ -151,6 +162,11 @@ def apply_vocabulary_seed(
                 ),
             )
             inserted += cursor.rowcount
+        if not sealed:
+            cursor.execute(
+                f"UPDATE {VOCABULARY_ALIGNMENT_VERSION_TABLE} SET sealed = TRUE "
+                "WHERE alignment_version = %s", (alignment_version,),
+            )
     connection.commit()
     return {
         "alignment_version_created": int(created_version),

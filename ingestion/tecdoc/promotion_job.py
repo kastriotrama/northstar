@@ -15,12 +15,14 @@ from ingestion.tecdoc.canonical_promotion import (
 )
 from ingestion.tecdoc.dat_extraction import extract_dat_hierarchy
 from ingestion.tecdoc.graph_writer import promote_canonical_vehicles
+from ingestion.tecdoc.hierarchy_persistence import persist_engine_relationship_candidates
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.reference_data import (
     canonical_bodywork_by_kt086,
     canonical_drive_by_kt082,
     canonical_engine_fuels,
     canonical_vehicle_fuels,
+    load_key_table_labels,
     official_bodywork_labels,
     official_drive_type_labels,
     official_transmission_type_labels,
@@ -80,11 +82,17 @@ def run_full_canonical_promotion(
         source_checksum=source_checksum,
         source_row_count=len(records),
     )
+    engine_fuel_labels = load_key_table_labels(reference_directory, key_table_id="088")
+    persist_engine_relationship_candidates(
+        connection, batch_id=batch_id, records=records,
+        engine_fuel_labels=engine_fuel_labels,
+    )
     prepared = prepare_canonical_promotions(
         connection,
         batch_id=batch_id,
         records=records,
-        engine_fuels=canonical_engine_fuels(reference_directory),
+        engine_fuels=canonical_engine_fuels(reference_directory, labels=engine_fuel_labels),
+        engine_fuel_labels=engine_fuel_labels,
         vehicle_fuels=canonical_vehicle_fuels(reference_directory),
         bodywork_labels=official_bodywork_labels(reference_directory),
         bodywork_canonical=canonical_bodywork_by_kt086(),

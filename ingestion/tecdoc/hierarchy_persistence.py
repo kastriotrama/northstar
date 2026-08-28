@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 
 from psycopg import Connection
 
 from ingestion.tecdoc.dat_extraction import TecDocHierarchyRecord
 from ingestion.tecdoc.models import CanonicalCandidate
+from ingestion.tecdoc.reference_data import engine_fuel_evidence
 from ingestion.tecdoc.repository import (
     count_relationship_candidates,
     get_or_mint_node_id,
@@ -30,6 +31,7 @@ def persist_engine_relationship_candidates(
     *,
     batch_id: str,
     records: Iterable[TecDocHierarchyRecord],
+    engine_fuel_labels: Mapping[str, str] | None = None,
 ) -> RelationshipPersistenceSummary:
     """Persist one candidate per distinct KType/engine without graph promotion."""
 
@@ -59,7 +61,16 @@ def persist_engine_relationship_candidates(
                     from_node_id=variant_id,
                     to_source_key=engine_key,
                     to_node_id=engine_id,
-                    attributes={"power_kw": record.power_kw},
+                    attributes={
+                        "power_kw": record.power_kw,
+                        "engine_code": engine.engine_code,
+                        "engine_fuel_code": engine.fuel_type_code,
+                        "engine_fuel_evidence": engine_fuel_evidence(
+                            engine.fuel_type_code, engine_fuel_labels or {},
+                        ).as_attributes(),
+                        "displacement_cc_from": engine.displacement_cc_from,
+                        "displacement_cc_to": engine.displacement_cc_to,
+                    },
                     evidence={
                         "ktype_source_row_refs": list(record.source_row_refs),
                         "engine_source_row_ref": engine.engine_source_row_ref,

@@ -31,6 +31,47 @@ def pg_connection() -> Iterator[Connection]:
     connection.close()
 
 
+def test_mixed_engine_fuel_survives_postgres_without_scalar_promotion(
+    pg_connection: Connection,
+) -> None:
+    from dataclasses import replace
+
+    from tests.unit.ingestion.test_tecdoc_fuel_evidence import mixed_record
+
+    run_tecdoc_migrations(pg_connection)
+    batch_id = f"tecdoc-mixed-fuel-{uuid4()}"
+    record = replace(mixed_record(), ktype_id=f"mixed-{uuid4()}")
+    register_batch(
+        pg_connection, batch_id=batch_id, source_version="synthetic", format_version="2.70",
+        license_reference=None, source_path="/synthetic/mixed-fuel", source_checksum="f" * 64,
+        source_row_count=1,
+    )
+    args = {"batch_id": batch_id, "records": (record,), "engine_fuel_labels": {"026": "Petrol/Alcohol"}}
+    first = persist_engine_relationship_candidates(pg_connection, **args)
+    second = persist_engine_relationship_candidates(pg_connection, **args)
+    assert first.relationships_written == 1 and second.relationships_written == 0
+    prepared = prepare_canonical_promotions(
+        pg_connection, **args, engine_fuels={"026": "petrol"}, vehicle_fuels={"001": "petrol"},
+        complete_source=True, retain_candidate_only=True,
+    )
+    assert not prepared.promotions
+    assert prepared.skipped_by_reason == {"fuel_unresolved": 1}
+    with pg_connection.cursor() as cursor:
+        cursor.execute("SELECT attributes FROM core.tecdoc_candidate_relationships WHERE batch_id=%s", (batch_id,))
+        attrs = cursor.fetchone()[0]
+        assert attrs["engine_fuel_evidence"]["official_label"] == "Petrol/Alcohol"
+        assert attrs["engine_fuel_evidence"]["scalar_fuel_type"] is None
+        assert attrs["engine_fuel_evidence"]["components"] == ["petrol", "alcohol_unspecified"]
+        cursor.execute(
+            "SELECT attributes FROM core.tecdoc_canonical_candidates WHERE batch_id=%s AND entity_type='vehicle_variant'",
+            (batch_id,),
+        )
+        candidate = cursor.fetchone()[0]
+        assert candidate["promotion_status"] == "candidate_only"
+        assert candidate["vehicle_fuel_type"] == "petrol"
+        assert candidate["engine_fuel_evidence"][0]["fuel"] == attrs["engine_fuel_evidence"]
+
+
 def test_tecdoc_batch_is_traceable_and_repeatable(pg_connection: Connection) -> None:
     run_ledger_migrations(pg_connection)
     run_tecdoc_migrations(pg_connection)
@@ -146,14 +187,15 @@ def test_multiple_engines_persist_as_candidates_without_graph_flattening(
     assert second.relationships_written == 0
     with pg_connection.cursor() as cursor:
         cursor.execute(
-            "SELECT to_source_key, evidence->>'engine_source_row_ref' "
+            "SELECT to_source_key, evidence->>'engine_source_row_ref', "
+            "attributes->>'engine_code' "
             "FROM core.tecdoc_candidate_relationships WHERE batch_id=%s "
             "ORDER BY to_source_key",
             (batch_id,),
         )
         assert cursor.fetchall() == [
-            ("engine:00001", "155:1"),
-            ("engine:00002", "155:2"),
+            ("engine:00001", "155:1", "D4204T14"),
+            ("engine:00002", "155:2", "B4204T35"),
         ]
 
 
@@ -238,6 +280,7 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
         batch_id=batch_id,
         records=records,
         engine_fuels={"001": "petrol"},
+        vehicle_fuels={"001": "lpg"},
         complete_source=True,
     )
     second = prepare_canonical_promotions(
@@ -245,6 +288,7 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
         batch_id=batch_id,
         records=records,
         engine_fuels={"001": "petrol"},
+        vehicle_fuels={"001": "lpg"},
         complete_source=True,
     )
 
@@ -272,6 +316,8 @@ def test_only_complete_unambiguous_ktype_prepares_canonical_nodes(
     assert attributes["model_family_source_key"] == "model:00050"
     assert attributes["hierarchy_link_status"] == "model_family_linked_platform_optional"
     assert attributes["engine_source_key"] == "engine:00003"
+    assert attributes["fuel_type"] == "petrol"
+    assert attributes["vehicle_fuel_type"] == "lpg"
 
     class ExistingConnection:
         def __enter__(self):
