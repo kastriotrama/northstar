@@ -125,6 +125,13 @@ class FuzzyMatchConfig:
     drive_conflict_penalty: float = 0.15
     bodywork_match_bonus: float = 0.05
     bodywork_conflict_penalty: float = 0.15
+    # Applied to the bodywork bonus and penalty only when the plausible
+    # candidates actually differ in bodywork. TecDoc decorates the estate of a
+    # family as a separate model ("PASSAT B7 Variant"), and the bare
+    # Transportstyrelsen name scores higher against the undecorated sibling, so
+    # the ordinary 0.20 swing cannot overcome the text advantage. Weighting it
+    # lets the one field that truly separates the siblings decide between them.
+    bodywork_discriminating_weight: float = 2.0
     max_candidates: int = 5
 
     def __post_init__(self) -> None:
@@ -321,6 +328,9 @@ class FuzzyMatchResult:
 
 
 _MODEL_EVIDENCE_FIELD_PRIORITY = (
+    # The registry's own model field is the most direct statement of the model,
+    # so it outranks fields that merely happen to contain the name.
+    "model",
     "eeg_type_approval",
     "model_no",
     "version",
@@ -328,6 +338,19 @@ _MODEL_EVIDENCE_FIELD_PRIORITY = (
     "type_text",
     "brand",
 )
+
+
+def _evidence_field_rank(field_name: str) -> tuple[int, str]:
+    """Rank an evidence field by specificity, most specific first.
+
+    Fields outside the known order sort last but stay deterministic, so a
+    caller passing an unlisted field never breaks recovery.
+    """
+
+    try:
+        return (_MODEL_EVIDENCE_FIELD_PRIORITY.index(field_name), field_name)
+    except ValueError:
+        return (len(_MODEL_EVIDENCE_FIELD_PRIORITY), field_name)
 
 
 class ManufacturerCandidateIndex:
@@ -403,7 +426,7 @@ class ManufacturerCandidateIndex:
         canonical = next(iter(canonical_matches))
         source_field = min(
             (field_name for matched, field_name in longest_matches if matched == canonical),
-            key=_MODEL_EVIDENCE_FIELD_PRIORITY.index,
+            key=_evidence_field_rank,
         )
         return canonical, source_field
 
@@ -471,7 +494,39 @@ class FuzzyVehicleMatcher:
             query.manufacturer,
             similarity_threshold=self._config.manufacturer_scope_threshold,
         )
-        scored = [self._score(query, candidate) for candidate in candidates]
+        # Score once with bodywork held neutral to find which candidates are
+        # plausible at all, then decide whether bodywork discriminates among
+        # exactly those. Judging discriminating power over the whole
+        # manufacturer would always say "yes" -- every marque has several body
+        # styles -- and would miss that one model family offers only one.
+        baseline = [
+            self._score(query, candidate, bodywork_discriminates=False)
+            for candidate in candidates
+        ]
+        plausible = [
+            (candidate, match)
+            for candidate, match in zip(candidates, baseline, strict=True)
+            if match.confidence >= self._config.candidate_threshold
+        ]
+        distinct_bodyworks = {
+            body
+            for candidate, _ in plausible
+            for body in _normalized_values(candidate.bodyworks)
+        }
+        # Judged over the plausible candidates rather than the whole
+        # manufacturer: every marque offers several body styles, so a
+        # manufacturer-wide test would always say "discriminating" and would
+        # miss that one model family offers only one.
+        bodywork_discriminates = len(distinct_bodyworks) > 1
+
+        scored = (
+            [
+                self._score(query, candidate, bodywork_discriminates=True)
+                for candidate, _ in plausible
+            ]
+            if bodywork_discriminates and query.bodywork
+            else [match for _, match in plausible]
+        )
         qualifying = tuple(
             sorted(
                 (
@@ -509,6 +564,8 @@ class FuzzyVehicleMatcher:
         self,
         query: VehicleMatchQuery,
         candidate: VehicleCandidate,
+        *,
+        bodywork_discriminates: bool = True,
     ) -> FuzzyCandidateMatch:
         query_model = _normalized_text(query.model)
         labels = tuple(
@@ -520,6 +577,7 @@ class FuzzyVehicleMatcher:
                 }
             )
         )
+        query_tokens = frozenset(query_model.split())
         label_scores = []
         for label in labels:
             edit_score = _edit_similarity(query_model, label)
@@ -530,8 +588,29 @@ class FuzzyVehicleMatcher:
                 text_score = (
                     edit_score * self._config.edit_weight + token_score * self._config.token_weight
                 )
+            # TecDoc names a family more specifically than Transportstyrelsen
+            # does: "Golf" is catalogued as "GOLF VI" and "GOLF VI Variant".
+            # Similarity scoring reads the extra qualifier as dissimilarity, so
+            # the undecorated sibling wins on text and the qualified one -- the
+            # only candidate the body evidence actually supports -- is pushed
+            # down the ranking. A query whose tokens are all present in the
+            # label is not less similar, it is less specific, so text stops
+            # separating the siblings and the technical evidence decides which
+            # variant of the family this is.
+            # Strict subset only: the label must carry every query token and add
+            # more. An equal token set in a different order is reordered text,
+            # not a less specific query, and keeps its similarity score.
+            if query_tokens and query_tokens < frozenset(label.split()):
+                text_score = 1.0
             label_scores.append((_bounded_score(text_score), label))
-        text_score, matched_label = max(label_scores, key=lambda item: (item[0], item[1]))
+        # Equal scores prefer the cleanest label. Treating a less specific query
+        # as fully consistent lets a decorated name tie with its own stripped
+        # alias, and a lexicographic tie-break would then report the decorated
+        # form -- whose chassis digits ("V70 III (135)") read as a series
+        # mismatch against a query that only said "V70".
+        text_score, matched_label = max(
+            label_scores, key=lambda item: (item[0], -len(item[1].split()), -len(item[1]), item[1])
+        )
 
         context_effect = 0.0
         matched_fields: list[str] = ["model"]
@@ -637,15 +716,24 @@ class FuzzyVehicleMatcher:
 
         query_bodywork = _normalized_text(query.bodywork) if query.bodywork else ""
         candidate_bodyworks = _normalized_values(candidate.bodyworks)
+        # A bodywork conflict is always recorded, whatever the candidate set
+        # looks like: suppressing it would let a disagreeing candidate resolve.
+        # Only the ranking weight varies. When the surviving candidates differ
+        # in bodywork the field is the discriminator between siblings -- a
+        # PASSAT B7 and a PASSAT B7 Variant are separated by nothing else -- so
+        # it must be able to outrank the better text score the undecorated name
+        # gets. When they share one body it decides nothing and keeps its
+        # ordinary weight.
+        weight = self._config.bodywork_discriminating_weight if bodywork_discriminates else 1.0
         if query_bodywork:
             if not candidate_bodyworks:
                 missing_fields.append("bodywork")
             elif query_bodywork in candidate_bodyworks:
                 matched_fields.append("bodywork")
-                context_effect += self._config.bodywork_match_bonus
+                context_effect += self._config.bodywork_match_bonus * weight
             else:
                 conflicting_fields.append("bodywork")
-                context_effect -= self._config.bodywork_conflict_penalty
+                context_effect -= self._config.bodywork_conflict_penalty * weight
 
         return FuzzyCandidateMatch(
             candidate_reference=candidate.candidate_reference,

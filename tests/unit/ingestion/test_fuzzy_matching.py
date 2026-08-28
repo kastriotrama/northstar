@@ -149,6 +149,31 @@ def test_recovery_attribution_prefers_specific_evidence_over_brand_on_tie() -> N
     ) == ("XC90", "brand")
 
 
+def test_recovery_tolerates_an_evidence_field_outside_the_known_order() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    # An unlisted field must still recover rather than raising.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"trade_name": "VOLVO XC90"},
+    ) == ("XC90", "trade_name")
+    # Known fields still outrank unlisted ones on a tie.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"trade_name": "XC90", "variant": "XC90"},
+    ) == ("XC90", "variant")
+
+
+def test_registry_model_text_outranks_incidental_evidence_fields() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    # The model column states the model; brand merely happens to contain it.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"model": "XC90", "brand": "VOLVO XC90"},
+    ) == ("XC90", "model")
+
+
 def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
     result = _matcher().match(
         VehicleMatchQuery(
