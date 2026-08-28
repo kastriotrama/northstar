@@ -1319,6 +1319,34 @@ def test_hybrid_and_dual_fuel_keep_each_underlying_fuel() -> None:
     assert bi_fuel.normalized["fuel_combination"] == "bi_fuel"
 
 
+def test_fuel_match_tokens_add_the_tecdoc_hybrid_token_without_touching_carriers() -> None:
+    plug_in_hybrid = normalize_ts_record(
+        {"manufacturer": "Volvo", "fuel1": "01", "fuel2": "03", "ev_config": "Laddhybrid"}
+    )
+    diesel_hybrid = normalize_ts_record(
+        {"manufacturer": "Volvo", "fuel1": "02", "fuel2": "03", "ev_config": "Laddhybrid"}
+    )
+    battery_electric = normalize_ts_record({"manufacturer": "Volvo", "fuel1": "03"})
+    petrol_only = normalize_ts_record({"manufacturer": "Volvo", "fuel1": "01"})
+
+    # The carrier list keeps its documented meaning: hybrid_petrol is a
+    # classification, not something a car runs on.
+    assert plug_in_hybrid.normalized["energy_sources"] == ["petrol", "electricity"]
+    assert plug_in_hybrid.normalized["fuel_match_tokens"] == [
+        "petrol",
+        "electricity",
+        "hybrid_petrol",
+    ]
+    assert diesel_hybrid.normalized["fuel_match_tokens"] == [
+        "diesel",
+        "electricity",
+        "hybrid_diesel",
+    ]
+    # Electricity alone is not a hybrid, and a pure combustion car gains nothing.
+    assert battery_electric.normalized["fuel_match_tokens"] == ["electricity"]
+    assert petrol_only.normalized["fuel_match_tokens"] == ["petrol"]
+
+
 def test_all_three_ts_fuel_fields_are_retained() -> None:
     outcome = normalize_ts_record(
         {

@@ -1049,6 +1049,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 01"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -1061,6 +1084,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Volvo Car Corporation",
           "manufacturer": "Volvo",
@@ -1292,6 +1320,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 01"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -1305,6 +1355,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Volvo Car Corporation",
           "manufacturer": "Volvo",
           "manufacturer_evidence": [
@@ -2969,6 +3023,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 02"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -2981,6 +3058,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Mercedes-Benz AG",
           "manufacturer": "Mercedes-Benz",
@@ -3212,6 +3294,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 02"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -3225,6 +3329,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Mercedes-Benz AG",
           "manufacturer": "Mercedes-Benz",
           "manufacturer_evidence": [
@@ -4889,6 +4997,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 03"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -4901,6 +5032,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "BMW AG",
           "manufacturer": "BMW",
@@ -5132,6 +5268,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 03"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -5145,6 +5303,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "BMW AG",
           "manufacturer": "BMW",
           "manufacturer_evidence": [
@@ -6809,6 +6971,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 04"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -6821,6 +7006,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Audi AG",
           "manufacturer": "Audi",
@@ -7052,6 +7242,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 04"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -7065,6 +7277,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Audi AG",
           "manufacturer": "Audi",
           "manufacturer_evidence": [
@@ -8731,6 +8947,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 05"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -8743,6 +8982,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Volkswagen AG",
           "manufacturer": "Volkswagen",
@@ -8974,6 +9218,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 05"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -8987,6 +9253,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Volkswagen AG",
           "manufacturer": "Volkswagen",
           "manufacturer_evidence": [
@@ -10651,6 +10921,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 06"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -10663,6 +10956,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Iveco SPA",
           "manufacturer": "Iveco",
@@ -10894,6 +11192,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 06"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -10907,6 +11227,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Iveco SPA",
           "manufacturer": "Iveco",
           "manufacturer_evidence": [
@@ -12571,6 +12895,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 07"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -12583,6 +12930,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Scania CV AB",
           "manufacturer": "Scania",
@@ -12814,6 +13166,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 07"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -12827,6 +13201,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Scania CV AB",
           "manufacturer": "Scania",
           "manufacturer_evidence": [
@@ -14491,6 +14869,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 08"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -14503,6 +14904,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Ford Motor Company",
           "manufacturer": "Ford",
@@ -14734,6 +15140,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 08"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -14747,6 +15175,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Ford Motor Company",
           "manufacturer": "Ford",
           "manufacturer_evidence": [
@@ -16411,6 +16843,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 09"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -16423,6 +16878,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Toyota Motor Corporation",
           "manufacturer": "Toyota",
@@ -16654,6 +17114,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 09"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -16667,6 +17149,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Toyota Motor Corporation",
           "manufacturer": "Toyota",
           "manufacturer_evidence": [
@@ -18331,6 +18817,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 10"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -18343,6 +18852,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Renault SAS",
           "manufacturer": "Renault",
@@ -18574,6 +19088,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 10"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -18587,6 +19123,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Renault SAS",
           "manufacturer": "Renault",
           "manufacturer_evidence": [
@@ -20251,6 +20791,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 11"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -20263,6 +20826,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Peugeot",
           "manufacturer": "Peugeot",
@@ -20494,6 +21062,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 11"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -20507,6 +21097,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Peugeot",
           "manufacturer": "Peugeot",
           "manufacturer_evidence": [
@@ -22003,6 +22597,29 @@
             "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 12"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -22014,6 +22631,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Citroën",
           "market": [
@@ -22203,6 +22825,28 @@
             "sequence": 8,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 12"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 9,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -22215,6 +22859,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Citroën",
           "market": [
             "SE"
@@ -23788,6 +24436,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 13"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -23800,6 +24471,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Fiat Auto SPA",
           "manufacturer": "Fiat",
@@ -24031,6 +24707,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 13"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -24044,6 +24742,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Fiat Auto SPA",
           "manufacturer": "Fiat",
           "manufacturer_evidence": [
@@ -25708,6 +26410,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 14"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -25720,6 +26445,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Opel Automobile GmbH",
           "manufacturer": "Opel",
@@ -25951,6 +26681,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 14"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -25964,6 +26716,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Opel Automobile GmbH",
           "manufacturer": "Opel",
           "manufacturer_evidence": [
@@ -27628,6 +28384,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 15"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -27640,6 +28419,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Nissan Motor Co Ltd",
           "manufacturer": "Nissan",
@@ -27871,6 +28655,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 15"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -27884,6 +28690,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Nissan Motor Co Ltd",
           "manufacturer": "Nissan",
           "manufacturer_evidence": [
@@ -29548,6 +30358,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 16"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -29560,6 +30393,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Honda Motor Co Ltd",
           "manufacturer": "Honda",
@@ -29791,6 +30629,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 16"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -29804,6 +30664,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Honda Motor Co Ltd",
           "manufacturer": "Honda",
           "manufacturer_evidence": [
@@ -31468,6 +32332,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 17"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -31480,6 +32367,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "MAN Truck Bus",
           "manufacturer": "MAN",
@@ -31711,6 +32603,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 17"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -31724,6 +32638,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "MAN Truck Bus",
           "manufacturer": "MAN",
           "manufacturer_evidence": [
@@ -33388,6 +34306,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 18"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -33400,6 +34341,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "DAF Trucks NV",
           "manufacturer": "DAF",
@@ -33631,6 +34577,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 18"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -33644,6 +34612,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "DAF Trucks NV",
           "manufacturer": "DAF",
           "manufacturer_evidence": [
@@ -35308,6 +36280,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 19"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -35320,6 +36315,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Lexus",
           "manufacturer": "Lexus",
@@ -35551,6 +36551,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 19"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -35564,6 +36586,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Lexus",
           "manufacturer": "Lexus",
           "manufacturer_evidence": [
@@ -37228,6 +38254,29 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "01",
+              "fuel2": "03",
+              "model": "Model 20"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-003",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -37240,6 +38289,11 @@
           "energy_sources": [
             "petrol",
             "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "electricity",
+            "hybrid_petrol"
           ],
           "legal_manufacturer": "Porsche AG",
           "manufacturer": "Porsche",
@@ -37471,6 +38525,28 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "cng"
+            ],
+            "before": {
+              "fuel1": "01",
+              "fuel2": "09",
+              "fuel_combo": "B",
+              "model": "Model 20"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-009",
+              "FCOM-B"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
           }
         ],
         "kind": "normalization",
@@ -37484,6 +38560,10 @@
             "cng"
           ],
           "fuel_combination": "bi_fuel",
+          "fuel_match_tokens": [
+            "petrol",
+            "cng"
+          ],
           "legal_manufacturer": "Porsche AG",
           "manufacturer": "Porsche",
           "manufacturer_evidence": [

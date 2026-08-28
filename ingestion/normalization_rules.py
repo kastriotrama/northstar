@@ -2425,8 +2425,45 @@ def _apply_drive(context: NormalizationContext) -> None:
     _normalize_drive(context)
 
 
+_HYBRID_COMBINATION_TOKENS: tuple[tuple[str, str], ...] = (
+    ("petrol", "hybrid_petrol"),
+    ("diesel", "hybrid_diesel"),
+)
+
+
+def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
+    """Publish the fuel tokens a TecDoc KType can be compared against.
+
+    Transportstyrelsen records a hybrid as its separate carriers -- electricity
+    plus petrol -- while TecDoc names the combination with a single token,
+    hybrid_petrol. Matching intersects the two fuel sets, so without the
+    combined token no hybrid can ever intersect a hybrid KType, and every one
+    of them conflicts on fuel instead.
+
+    The combined token is published separately rather than appended to
+    `energy_sources`, because a hybrid does not run on "hybrid_petrol": that is
+    a classification, not an energy carrier. `energy_sources` stays exactly what
+    it claims to be -- the carriers the registry recorded -- and this field
+    carries the comparison vocabulary.
+
+    Component carriers are kept alongside the combined token so a hybrid can
+    still match a KType catalogued under the combustion fuel alone.
+    """
+
+    carriers = context.normalized.get("energy_sources")
+    if not isinstance(carriers, list) or not carriers:
+        return
+    tokens = list(carriers)
+    if "electricity" in carriers:
+        for carrier, combined in _HYBRID_COMBINATION_TOKENS:
+            if carrier in carriers and combined not in tokens:
+                tokens.append(combined)
+    context.normalized["fuel_match_tokens"] = tokens
+
+
 def _apply_fuel(context: NormalizationContext) -> None:
     _normalize_fuel(context)
+    _derive_fuel_match_tokens(context)
 
 
 def _apply_reviewed_record_policies(context: NormalizationContext) -> None:
