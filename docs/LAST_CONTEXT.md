@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-28 — PR #32 published
+
+- Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
+
 ## 2026-08-28 — Independent approval evidence and mixed-fuel gate
 
 - Added read-only RDW exact approval/variant/version/revision evidence joins for the 143 Golf proposals: 66 AU, 59 AUV, 16 CD and 2 CDV rows; all independently join to Golf and body code AC, but this does not identify a TecDoc KType or justify a blanket Golf Variant rule. Reviewed TÜV evidence showing AUV is shared by Golf R Variant and Golf Sportsvan. Added a full 72,570-KType source audit: 2,332 active engine relationships use official KT088 `Petrol/Alcohol` (026); all 11 candidate-only targets are present, nine have unique source displacement, and mixed fuel remains non-promotable. Implemented immutable `EngineFuelEvidence`, PostgreSQL relationship/candidate persistence, scalar-fuel guard, and regression/integration coverage. 727 unit tests, Ruff, strict mypy and diff checks pass. No commit, push, catalog rebuild, decision persistence, alias activation, Neo4j mutation or Jira status change. See `docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md`.
