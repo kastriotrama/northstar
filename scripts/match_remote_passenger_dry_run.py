@@ -34,6 +34,15 @@ def main() -> None:
     parser.add_argument("--candidate-catalog-version", required=True)
     parser.add_argument("--expected-ktype-count", type=int, required=True)
     parser.add_argument("--policy-version", required=True)
+    parser.add_argument(
+        "--alignment-version",
+        default="unpinned-legacy",
+        help=(
+            "Vocabulary alignment set governing how TS and TecDoc terms are "
+            "compared. Defaults to the pre-alignment sentinel so prior runs "
+            "stay reproducible; pass a real version once alignments are used."
+        ),
+    )
     parser.add_argument("--code-revision", required=True)
     parser.add_argument("--batch-size", type=int, default=25_000)
     parser.add_argument("--max-batches", type=int, default=None)
@@ -65,6 +74,7 @@ def main() -> None:
             candidate_catalog_version=args.candidate_catalog_version,
             policy_version=args.policy_version,
             code_revision=args.code_revision,
+            alignment_version=args.alignment_version,
         )
         counts = run_remote_dry_match_audit(
             local,

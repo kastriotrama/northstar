@@ -17,6 +17,29 @@ def test_pins_require_all_versions_and_positive_source_count() -> None:
         MatchRunPins(uuid4(), "TS", "v1", "batch", 0, "rules", "catalog", "policy", "sha")
 
 
+def test_alignment_version_is_a_validated_keyword_only_pin() -> None:
+    # Keyword-only, so a tenth positional argument still binds to mode and can
+    # never be silently swallowed by the newer pin.
+    positional = MatchRunPins(
+        uuid4(), "TS", "v1", "batch", 10, "rules", "catalog", "policy", "sha",
+        MatchRunMode.PERSIST,
+    )
+    assert positional.mode is MatchRunMode.PERSIST
+    assert positional.alignment_version == "unpinned-legacy"
+
+    pinned = MatchRunPins(
+        uuid4(), "TS", "v1", "batch", 10, "rules", "catalog", "policy", "sha",
+        alignment_version="align-v1",
+    )
+    assert pinned.alignment_version == "align-v1"
+
+    with pytest.raises(ValueError, match="pinned text"):
+        MatchRunPins(
+            uuid4(), "TS", "v1", "batch", 10, "rules", "catalog", "policy", "sha",
+            alignment_version="  ",
+        )
+
+
 def test_counts_are_balanced_by_construction() -> None:
     counts = MatchRunCounts(resolved=3, provisional=2, normalization_review=1)
     assert counts.processed == 6

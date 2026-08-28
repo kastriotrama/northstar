@@ -23,6 +23,13 @@ from ingestion.tecdoc.match_run_adapters import (
     load_ktype_catalog,
 )
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
+from ingestion.vocabulary_alignment import (
+    fetch_approved_alignments,
+    link_variants_to_fuel_concepts,
+    promote_vocabulary_alignments,
+)
+from ingestion.vocabulary_migrations import run_vocabulary_migrations
+from ingestion.vocabulary_seed import INITIAL_FUEL_ALIGNMENT_VERSION, apply_vocabulary_seed
 from scripts.import_remote_passenger_reviews import (
     DEFAULT_IMPORT_PREFIX,
     EXPECTED_PASSENGER_COUNT,
@@ -87,6 +94,26 @@ def build_parser() -> argparse.ArgumentParser:
     promotion_parser.add_argument("--source-checksum", required=True)
     promotion_parser.add_argument("--chunk-size", type=int, default=500)
 
+    vocabulary_parser = subparsers.add_parser(
+        "promote-vocabulary-alignments",
+        help=(
+            "Activate a reviewed vocabulary alignment set and materialise it "
+            "in the graph. Writes nothing without --commit."
+        ),
+    )
+    vocabulary_parser.add_argument(
+        "--alignment-version", default=INITIAL_FUEL_ALIGNMENT_VERSION
+    )
+    vocabulary_parser.add_argument("--vocabulary", default="fuel")
+    vocabulary_parser.add_argument(
+        "--activated-by", required=True, help="Actor accountable for the activation."
+    )
+    vocabulary_parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="Apply the seed and write the graph. Omitted means dry run.",
+    )
+
     match_parser = subparsers.add_parser(
         "match-ts-tecdoc",
         help="Run a version-pinned, write-free TS-to-TecDoc matching audit.",
@@ -99,6 +126,15 @@ def build_parser() -> argparse.ArgumentParser:
     match_parser.add_argument("--candidate-catalog-version", required=True)
     match_parser.add_argument("--expected-ktype-count", type=int, required=True)
     match_parser.add_argument("--policy-version", required=True)
+    match_parser.add_argument(
+        "--alignment-version",
+        default="unpinned-legacy",
+        help=(
+            "Vocabulary alignment set governing how TS and TecDoc terms are "
+            "compared. Defaults to the pre-alignment sentinel so existing runs "
+            "stay reproducible; pass a real version once alignments are used."
+        ),
+    )
     match_parser.add_argument("--code-revision", required=True)
     match_parser.add_argument("--page-size", type=int, default=25_000)
     delta_parser.add_argument(
@@ -248,6 +284,49 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(asdict(summary), sort_keys=True))
         return 0
 
+    if args.command == "promote-vocabulary-alignments":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
+                run_vocabulary_migrations(connection)
+                seeded = (
+                    apply_vocabulary_seed(
+                        connection,
+                        alignment_version=args.alignment_version,
+                        activated_by=args.activated_by,
+                    )
+                    if args.commit
+                    else {"dry_run": 1}
+                )
+                alignments = fetch_approved_alignments(
+                    connection,
+                    alignment_version=args.alignment_version,
+                    vocabulary=args.vocabulary,
+                )
+                written = promote_vocabulary_alignments(
+                    driver, alignments, dry_run=not args.commit
+                )
+                linked = link_variants_to_fuel_concepts(driver, dry_run=not args.commit)
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vocabulary alignment promotion stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "alignment_version": args.alignment_version,
+                    "committed": bool(args.commit),
+                    "seed": seeded,
+                    "graph": written,
+                    "variants_linked": linked,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
     if args.command == "match-ts-tecdoc":
         datastores = DatastoreClients.from_settings(settings)
         try:
@@ -270,6 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     candidate_catalog_version=args.candidate_catalog_version,
                     policy_version=args.policy_version,
                     code_revision=args.code_revision,
+                    alignment_version=args.alignment_version,
                 )
                 counts = run_dry_match_audit(
                     connection,

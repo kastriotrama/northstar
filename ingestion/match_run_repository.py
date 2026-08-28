@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from uuid import UUID
 
@@ -32,6 +32,11 @@ class MatchRunPins:
     candidate_catalog_version: str
     policy_version: str
     code_revision: str
+    # Vocabulary alignment governs how two canonical vocabularies are compared,
+    # so it changes results without changing normalized output. It is pinned
+    # separately for exactly that reason. Keyword-only: a pin silently taking a
+    # neighbouring positional argument is precisely the failure this guards.
+    alignment_version: str = field(default="unpinned-legacy", kw_only=True)
     mode: MatchRunMode = MatchRunMode.DRY_RUN
 
     def __post_init__(self) -> None:
@@ -43,6 +48,7 @@ class MatchRunPins:
             self.candidate_catalog_version,
             self.policy_version,
             self.code_revision,
+            self.alignment_version,
         )
         if any(not value.strip() for value in text):
             raise ValueError("match-run pinned text values must not be empty")
@@ -99,8 +105,8 @@ def claim_match_run(connection: Connection, pins: MatchRunPins) -> MatchRunProgr
         cursor.execute(
             f"INSERT INTO {MATCH_RUNS_TABLE} (operation_id, source_system, source_version, "
             "source_batch_prefix, expected_source_rows, normalization_rule_version, "
-            "candidate_catalog_version, policy_version, code_revision, mode) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "candidate_catalog_version, policy_version, alignment_version, code_revision, mode) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (operation_id) DO NOTHING",
             (
                 pins.operation_id,
@@ -111,6 +117,7 @@ def claim_match_run(connection: Connection, pins: MatchRunPins) -> MatchRunProgr
                 pins.normalization_rule_version.strip(),
                 pins.candidate_catalog_version.strip(),
                 pins.policy_version.strip(),
+                pins.alignment_version.strip(),
                 pins.code_revision.strip(),
                 pins.mode.value,
             ),
@@ -119,7 +126,7 @@ def claim_match_run(connection: Connection, pins: MatchRunPins) -> MatchRunProgr
         cursor.execute(
             f"SELECT source_system, source_version, source_batch_prefix, "
             "expected_source_rows, normalization_rule_version, candidate_catalog_version, "
-            "policy_version, code_revision, mode, status, last_batch_number, "
+            "policy_version, alignment_version, code_revision, mode, status, last_batch_number, "
             f"last_source_record_id, last_source_cursor, resolved, provisional, review_required, unmatched, "
             f"hard_conflict, normalization_review, policy_excluded, failed "
             f"FROM {MATCH_RUNS_TABLE} WHERE operation_id = %s FOR UPDATE",
@@ -131,7 +138,7 @@ def claim_match_run(connection: Connection, pins: MatchRunPins) -> MatchRunProgr
     actual = (
         tuple(str(value) for value in row[:3])
         + (int(row[3]),)
-        + tuple(str(value) for value in row[4:9])
+        + tuple(str(value) for value in row[4:10])
     )
     expected = (
         pins.source_system.strip(),
@@ -141,15 +148,16 @@ def claim_match_run(connection: Connection, pins: MatchRunPins) -> MatchRunProgr
         pins.normalization_rule_version.strip(),
         pins.candidate_catalog_version.strip(),
         pins.policy_version.strip(),
+        pins.alignment_version.strip(),
         pins.code_revision.strip(),
         pins.mode.value,
     )
     if actual != expected:
         raise ValueError("operation_id already exists with different pinned inputs")
-    if str(row[9]) != "running":
-        raise ValueError(f"cannot resume match run with status {row[9]}")
-    counts = MatchRunCounts(*map(int, row[13:21]))
-    return MatchRunProgress(pins, int(row[10]), int(row[11]), str(row[12]), counts, created)
+    if str(row[10]) != "running":
+        raise ValueError(f"cannot resume match run with status {row[10]}")
+    counts = MatchRunCounts(*map(int, row[14:22]))
+    return MatchRunProgress(pins, int(row[11]), int(row[12]), str(row[13]), counts, created)
 
 
 def append_match_checkpoint(

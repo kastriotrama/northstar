@@ -64,6 +64,18 @@ MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
         )
         """,
     ),
+    # Added after the first audits ran. Existing rows predate the pin and are
+    # marked explicitly rather than back-dated to a version they never used,
+    # so a historical run can never be mistaken for an aligned one.
+    (
+        "add_match_runs_alignment_version",
+        f"""
+        ALTER TABLE {MATCH_RUNS_TABLE}
+        ADD COLUMN IF NOT EXISTS alignment_version TEXT NOT NULL
+            DEFAULT 'unpinned-legacy'
+            CHECK (btrim(alignment_version) <> '')
+        """,
+    ),
     (
         "create_match_run_checkpoints_table",
         f"""
