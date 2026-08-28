@@ -228,6 +228,11 @@ class TecDocDryRunEvaluator:
         model_evidence = {
             field_name: str(value)
             for field_name in (
+                # The registry's own model text is consulted first. Normalization
+                # only sets model_family when a reviewed rule covers the term, so
+                # a car registered as "DUSTER" or "GRAND C-MAX" reaches matching
+                # with the model named plainly in the row and nothing reading it.
+                "model",
                 "brand",
                 "variant",
                 "version",
@@ -237,28 +242,13 @@ class TecDocDryRunEvaluator:
             )
             if (value := source_evidence.get(field_name))
         }
-        if not model and model_evidence:
-            recovered = self._index.recover_model_from_evidence(
-                str(manufacturer), model_evidence
-            )
-            if recovered is not None:
-                model, source_field = recovered
-                recovery_reason = f"model_recovered_from_{source_field}"
-        if not model:
-            return MatchEvaluation("review_required", ("model_evidence_missing",))
-        energy = normalized.get("energy_sources")
-        fuels = (
-            frozenset(str(value) for value in energy) if isinstance(energy, list) else frozenset()
-        )
-        year = _integer(normalized.get("production_year"))
-        engine_code = _text(normalized.get("engine_code"))
-        displacement_cc = _integer(normalized.get("displacement_cc"))
-        power_kw = _integer(normalized.get("power_kw"))
-        drive_type = _text(normalized.get("drive_type"))
-        bodywork = _text(normalized.get("bodywork_form"))
         # Map TS manufacturer spelling onto its TecDoc catalog name before
         # scoping. Only an unambiguous resolution is used; conflicts and
         # unmatched evidence keep the original text and the existing behaviour.
+        # This must precede model recovery: recovery looks up the catalog's
+        # models by manufacturer, so running it on the unbridged spelling finds
+        # no labels at all for any manufacturer whose registry name differs from
+        # the catalog's, and silently recovers nothing.
         scope_decision = self._manufacturer_scope.resolve(
             manufacturer=manufacturer,
             brand=source_evidence.get("brand"),
@@ -268,6 +258,28 @@ class TecDocDryRunEvaluator:
             if scope_decision.status == "resolved" and scope_decision.manufacturer
             else str(manufacturer)
         )
+        if not model and model_evidence:
+            recovered = self._index.recover_model_from_evidence(
+                scope_manufacturer, model_evidence
+            )
+            if recovered is not None:
+                model, source_field = recovered
+                recovery_reason = f"model_recovered_from_{source_field}"
+        if not model:
+            return MatchEvaluation("review_required", ("model_evidence_missing",))
+        # Prefer the comparison vocabulary: it carries the combined hybrid
+        # token TecDoc uses, which the raw carrier list cannot express. Older
+        # normalization payloads predate the field and fall back to carriers.
+        energy = normalized.get("fuel_match_tokens") or normalized.get("energy_sources")
+        fuels = (
+            frozenset(str(value) for value in energy) if isinstance(energy, list) else frozenset()
+        )
+        year = _integer(normalized.get("production_year"))
+        engine_code = _text(normalized.get("engine_code"))
+        displacement_cc = _integer(normalized.get("displacement_cc"))
+        power_kw = _integer(normalized.get("power_kw"))
+        drive_type = _text(normalized.get("drive_type"))
+        bodywork = _text(normalized.get("bodywork_form"))
         cache_key = (
             scope_manufacturer,
             str(model),

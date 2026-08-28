@@ -37,7 +37,15 @@ from ingestion.tecdoc.manufacturer_mapping import TecDocManufacturerIndex
 from ingestion.tecdoc.match_run_adapters import load_ktype_catalog
 
 LOCAL_RAW_TABLE = "staging.transportstyrelsen_raw"
-EVIDENCE_FIELDS = ("brand", "variant", "version", "model_no", "type_text", "eeg_type_approval")
+EVIDENCE_FIELDS = (
+    "model",
+    "brand",
+    "variant",
+    "version",
+    "model_no",
+    "type_text",
+    "eeg_type_approval",
+)
 
 
 def resolve_database_url(database_name: str | None) -> str:
@@ -169,7 +177,8 @@ def describe(
             "normalized": normalized,
         }
 
-    energy = normalized.get("energy_sources")
+    # Comparison vocabulary first: it carries the combined hybrid token.
+    energy = normalized.get("fuel_match_tokens") or normalized.get("energy_sources")
     fuels = (
         frozenset(str(value) for value in energy)
         if isinstance(energy, list)
