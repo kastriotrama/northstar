@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-30 — PR #32 CI recovery and Jira acceptance audit
+
+- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant. Validation against isolated PostgreSQL databases and healthy local services passed on the branch and a synthetic merge with current `origin/develop`: compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests. Audited SCRUM-164–175 without changing Jira: SCRUM-172–174 are ready for PR review; SCRUM-175, 170 and 171 still require independent or controlled execution; SCRUM-164–169 retain material production or product gaps. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No push, workflow trigger, Jira mutation, rule activation, match-decision persistence, alias attachment or Neo4j write occurred.
+
 ## 2026-08-28 — PR #32 published
 
 - Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
@@ -37,11 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-26 — High-margin calibration batch sampled
 
 - Added `--min-margin`/`--max-margin` support to `scripts/sample_margin_calibration_set.py` and fixed the boundary case so rounded `0.25-0.30` items cannot leak into a `0.30+` high-margin sample. Created local review batch `margin-calibration-high-20260826` with 200 pending items: 100 from `0.30-0.40` and 100 from `0.40-1.00`, using the same pinned TS/TecDoc/rule versions. Exported the compact review file to `outputs/margin-calibration-high-20260826-review-list.json`; focused tests and Ruff pass. Next step: adjudicate those 200, then rerun `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-high-20260826.json`.
-
-## 2026-08-25 — Margin-calibration verdicts applied
-
-- Applied the approved 200-case `margin-calibration-20260824` verdict JSON to local `core.review_queue` as terminal resolved calibration verdicts: 103 accept, 67 reject, 30 unsure, 0 pending, and 0 unlabelled. Ran `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-20260824.json`; no threshold met the 95% precision lower-bound plus minimum effective sample gate. The clean high-margin region needs more labels before changing matching policy; no confidence route, promotion policy, match decisions, or aliases were changed.
-
-## 2026-08-25 — Margin-calibration review workflow ready
-
-- Added a scoped review-queue workflow for the 200 `margin-calibration-20260824` cases: direct batch filtering, sanitized TS evidence, top/runner-up KType evidence, and auditable `accept`/`reject`/`unsure` verdicts matching the threshold fitter contract. Added a durable `(source_batch_id, status, updated_at, id)` queue index and a calibration fast path; applied the idempotent migration locally. The live port-8001 API returns all 200 pending cases, 9 focused tests, Ruff, strict mypy and diff checks pass, and no human verdicts or matching decisions were invented.
