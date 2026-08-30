@@ -9,6 +9,10 @@ from uuid import UUID, uuid4
 
 from ingestion.active_rules import load_active_rules
 from ingestion.config import get_ingestion_settings
+from ingestion.context_comparison import (
+    ContextComparisonPolicy,
+    reviewed_context_policy,
+)
 from ingestion.datastores import DatastoreClients
 from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
@@ -144,6 +148,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     match_parser.add_argument("--expected-ktype-count", type=int, required=True)
     match_parser.add_argument("--policy-version", required=True)
+    match_parser.add_argument(
+        "--context-policy",
+        type=Path,
+        help="Approved source-context policy manifest to activate for this run.",
+    )
+    match_parser.add_argument(
+        "--context-policy-version",
+        help="Exact approved context-policy version expected in the manifest.",
+    )
+    match_parser.add_argument(
+        "--context-policy-sha256",
+        help="SHA-256 pin of the approved context-policy manifest.",
+    )
     match_parser.add_argument(
         "--alignment-version",
         default="unpinned-legacy",
@@ -374,6 +391,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "match-ts-tecdoc":
+        context_pin_args = (
+            args.context_policy,
+            args.context_policy_version,
+            args.context_policy_sha256,
+        )
+        if any(context_pin_args) and not all(context_pin_args):
+            logger.error(
+                "Context policy activation requires manifest, version and SHA-256",
+                extra={"error_code": "ContextPolicyPinsIncomplete"},
+            )
+            return 2
+        context_policy = ContextComparisonPolicy()
+        if args.context_policy is not None:
+            try:
+                context_policy = reviewed_context_policy(
+                    json.loads(args.context_policy.read_text()),
+                    expected_version=args.context_policy_version,
+                    expected_digest=args.context_policy_sha256,
+                )
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
+                logger.error(
+                    "Context policy activation stopped safely",
+                    extra={"error_code": type(error).__name__},
+                )
+                return 2
         datastores = DatastoreClients.from_settings(settings)
         try:
             with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
@@ -402,7 +444,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     candidate_catalog_version=(
                         f"{args.candidate_source}:{args.candidate_catalog_version}"
                     ),
-                    policy_version=args.policy_version,
+                    policy_version=(
+                        f"{args.policy_version}|context="
+                        f"{context_policy.version}@{context_policy.content_digest}"
+                        if args.context_policy is not None
+                        else args.policy_version
+                    ),
                     code_revision=args.code_revision,
                     alignment_version=args.alignment_version,
                 )
@@ -413,6 +460,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     fuel_alignment=load_fuel_alignment(
                         connection, alignment_version=args.alignment_version
                     ),
+                    context_policy=context_policy,
                 )
                 if args.source_mode == "raw":
                     counts = run_local_raw_dry_match_audit(

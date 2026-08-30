@@ -15,6 +15,11 @@ The matching code treats partial approval prefixes, variant/version prefixes and
 
 ## Volvo proposal review
 
+Update 2026-08-30: the product owner explicitly approved activation of the 47
+scoped compatibility proposals. Their reviewed successor is
+`ingestion/reviewed_context_policies/volvo_bodywork_reviewed_v1_20260830.json`;
+the original packet below remains immutable historical proposal evidence.
+
 The existing 47 Volvo proposals remain `proposed` and unreviewed. The RDW/official evidence check preserves the following distinction:
 
 - Manufacturer material describes XC40 and XC60 as SUVs, which is useful model-level context.

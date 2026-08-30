@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 from dataclasses import replace
 
 import pytest
@@ -118,6 +119,12 @@ def test_policy_hash_changes_when_reviewed_content_changes():
     ).content_digest
 
 
+def test_policy_scope_index_does_not_change_content_hash() -> None:
+    policy = ContextComparisonPolicy(rules=(rule(),))
+
+    assert policy.content_digest == ContextComparisonPolicy(rules=(rule(),)).content_digest
+
+
 def test_manifest_requires_approval_version_and_exact_content_pin():
     payload = {"version": "test-v1", "status": "approved", "rules": []}
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
@@ -157,3 +164,42 @@ def test_raw_drive_constraint_cannot_override_exact_conflicting_drive_fact():
     ),))
     assert policy.compare(field="drive_type", source_value="awd", candidate_values=frozenset({"fwd"}),
                           manufacturer="Test", model="Model", source_evidence=(("is_4wd", "0"),)).state == "conflicting"
+
+
+def test_approved_volvo_policy_is_exactly_scoped_and_compatibility_only() -> None:
+    path = (
+        Path(__file__).parents[3]
+        / "ingestion/reviewed_context_policies/volvo_bodywork_reviewed_v1_20260830.json"
+    )
+    payload = json.loads(path.read_text())
+    checksum = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    policy = reviewed_context_policy(
+        payload,
+        expected_version="volvo-bodywork-reviewed-v1-20260830",
+        expected_digest=checksum,
+    )
+
+    assert len(policy.rules) == 47
+    assert {rule.model for rule in policy.rules} == {"XC40 (536)", "XC60 II (246)"}
+    assert all(
+        dict(rule.source_conditions).keys() == {"body_code", "eeg_type_approval"}
+        for rule in policy.rules
+    )
+    rule = policy.rules[0]
+    evidence = tuple(rule.source_conditions)
+    assert policy.compare(
+        field="bodywork",
+        source_value="estate",
+        candidate_values=frozenset({"suv"}),
+        manufacturer="VOLVO",
+        model=rule.model,
+        source_evidence=evidence,
+    ).state == "compatible"
+    assert policy.compare(
+        field="bodywork",
+        source_value="estate",
+        candidate_values=frozenset({"suv"}),
+        manufacturer="VOLVO",
+        model=rule.model,
+        source_evidence=(("body_code", "AC"), ("eeg_type_approval", "different")),
+    ).state == "conflicting"

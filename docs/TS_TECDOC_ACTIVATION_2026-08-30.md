@@ -19,15 +19,27 @@ decisions, attach aliases, or mutate Neo4j.
 
 ## Model/bodywork activation decision
 
-- Volvo: **0 of 47** proposals activated. They are scoped bodywork
-  compatibility proposals, not model mappings, and every item still has
-  `requires_domain_review` evidence status.
+- Volvo: **47 of 47** scoped bodywork compatibility proposals were explicitly
+  approved by the product owner on 2026-08-30 and activated locally as
+  `volvo-bodywork-reviewed-v1-20260830`. These are not model mappings. They make
+  TS `AC`/estate compatible but non-confirming with TecDoc SUV only for Volvo
+  XC40/XC60 II and the exact listed type approval. They add no score and do not
+  clear power, year, engine, fuel or drive conflicts.
 - Golf: **0 new mapping rules** activated. The 143 independent RDW observations
   support the broad Golf family only. The existing normalized source model
   already generates that family query; the evidence does not identify a unique
   TecDoc KType or Variant and therefore must not add score.
 - Frozen holdout: remains unscored until the final reviewed policy and acceptance
   criteria are immutable.
+
+The committed reviewed manifest is
+`ingestion/reviewed_context_policies/volvo_bodywork_reviewed_v1_20260830.json`.
+Its canonical manifest SHA-256 is
+`4acdee26fb88c639fa29cae914e7d24bc067b963e0be65a4718a5036d2ea522a`;
+the parsed policy content digest recorded by runs is
+`079d4b4381bcc8050c17bb99b7f9cae0b36492c091f27311ff13724933209d14`.
+The integrated matching command now requires manifest, version and SHA pins
+together and folds the parsed policy version/digest into its immutable run pin.
 
 ## Local catalog activation
 
@@ -88,3 +100,41 @@ Private local evidence:
 
 - `outputs/scrum101-multifuel-complete-20k-20260830.json`
 - `outputs/scrum101-multifuel-catalog-comparison-20k-20260830.json`
+
+## Volvo policy A/B result
+
+The same v6 catalog and same 20,000 source rows were replayed with only the
+reviewed Volvo policy changed:
+
+| Terminal | v6 policy disabled | Volvo policy active | Delta |
+| --- | ---: | ---: | ---: |
+| Resolved | 2,346 | 2,492 | +146 |
+| Provisional | 1,883 | 1,990 | +107 |
+| Review required | 14,068 | 13,815 | -253 |
+| Hard conflict | 1,590 | 1,590 | 0 |
+| Policy excluded | 112 | 112 | 0 |
+| Normalization review | 1 | 1 | 0 |
+
+All 253 changed rows moved from review required: 146 to resolved and 107 to
+provisional. Every changed row satisfies one of the exact reviewed runtime
+scopes, no selected KType changed, and no hard conflict was cleared. The
+original packet contained 403 scoped rows; runtime evaluation found five
+additional XC60 T8 siblings with the same approved body code and type approval,
+for 408 scoped rows total. Of these, 155 correctly remain unchanged, including
+the retained technical conflicts.
+
+The activated-policy run took 1,260.5 seconds locally. A same-code disabled
+1,000-row control took 98.0 seconds versus 117.0 seconds active, approximately
+19% overhead on that sequential local slice. The scope index prevents a full
+rule scan per candidate; further matcher performance work remains advisable
+before 6.5M execution.
+
+Private local evidence:
+
+- `outputs/scrum101-volvo-bodywork-activated-20k-20260830.json`
+- `outputs/scrum101-volvo-disabled-performance-control-1k-20260830.json`
+
+The Volvo rules are locally active and validated. The broader v6 catalog hold
+remains: the earlier 160 resolved→review and 22 identity changes caused by the
+mixed-fuel catalog still require adjudication before the frozen holdout,
+decision persistence, alias attachment, Neo4j promotion or production rollout.

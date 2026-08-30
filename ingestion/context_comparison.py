@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 ComparisonState = Literal["equivalent", "compatible", "unknown", "conflicting"]
@@ -58,16 +58,39 @@ class ReviewedContextRule:
 class ContextComparisonPolicy:
     version: str = CONTEXT_COMPARISON_VERSION
     rules: tuple[ReviewedContextRule, ...] = ()
+    _rules_by_scope: Mapping[
+        tuple[ContextField, str, str, str], tuple[ReviewedContextRule, ...]
+    ] = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not self.version.strip():
             raise ValueError("context policy must be versioned")
         if len({rule.rule_id for rule in self.rules}) != len(self.rules):
             raise ValueError("duplicate context rule ID")
+        indexed: dict[
+            tuple[ContextField, str, str, str], list[ReviewedContextRule]
+        ] = {}
+        for rule in self.rules:
+            scope = (
+                rule.field,
+                _key(rule.source_value),
+                _key(rule.manufacturer),
+                _key(rule.model),
+            )
+            indexed.setdefault(scope, []).append(rule)
+        object.__setattr__(
+            self,
+            "_rules_by_scope",
+            {scope: tuple(rows) for scope, rows in indexed.items()},
+        )
 
     @property
     def content_digest(self) -> str:
-        return hashlib.sha256(json.dumps(asdict(self), sort_keys=True).encode()).hexdigest()
+        payload = {
+            "version": self.version,
+            "rules": [asdict(rule) for rule in self.rules],
+        }
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
     def compare(
         self, *, field: ContextField, source_value: str | None,
@@ -80,12 +103,16 @@ class ContextComparisonPolicy:
         if source and source in target:
             return ContextComparison("equivalent")
         evidence = dict(source_evidence)
-        applicable = tuple(rule for rule in self.rules if (
-            rule.field == field and _key(rule.source_value) == source
-            and _key(rule.manufacturer) == _key(manufacturer)
-            and _key(rule.model) == _key(model)
-            and all(evidence.get(key) == value for key, value in rule.source_conditions)
-        ))
+        scoped = self._rules_by_scope.get(
+            (field, source, _key(manufacturer), _key(model)), ()
+        )
+        applicable = tuple(
+            rule
+            for rule in scoped
+            if all(
+                evidence.get(key) == value for key, value in rule.source_conditions
+            )
+        )
         if applicable:
             allowed = {frozenset(_key(value) for value in rule.allowed_values) for rule in applicable}
             if len(allowed) != 1:
