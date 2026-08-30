@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-31 — Persisted-decision replay and safe alias retirement
+
+- Replayed all 9,122 current TS decision heads against the v6 complete catalog, active normalization rules and approved Volvo context policy: 4,472 remain resolved on the same KType, 4,533 become review-required, 116 provisional and one a hard year conflict; all 356 KType identity changes are non-resolved. Reconciled 1,000 graph aliases: 467 fresh, 518 now review-required and 15 provisional; 35/105 promoted variants have only stale support, while 4,005 resolved decisions remain unpromoted. Added privacy-safe read-only audit tools and immutable, idempotent alias retirement that preserves historical targets and restores `:Provisional` after the last active assertion. Focused unit/integration tests, Ruff and strict mypy pass. No existing decision, alias, graph edge, push or production state changed. See `docs/SCRUM_170_171_SUPERSESSION_AUDIT_2026-08-31.md`.
+
 ## 2026-08-30 — Reviewed Volvo bodywork rules activated locally
 
 - Treated the user's instruction as product-owner approval for all 47 exact Volvo XC40/XC60 II AC/estate→SUV compatibility proposals; Golf still gets no invented KType/scoring rule. Added committed reviewed manifest `volvo-bodywork-reviewed-v1-20260830` and wired manifest/version/SHA pins into the integrated matcher and immutable policy pin. Indexed context rules by exact scope. Same v6 20k: resolved 2,346→2,492, provisional 1,883→1,990, review 14,068→13,815, hard conflicts unchanged at 1,590; all 253 changes are exactly in runtime rule scope, all move from review, and zero selected KTypes change. Five additional XC60 siblings share an exact approved scope beyond the 403 proposal rows. Active 1k performance was 117s vs 98s disabled locally. Frozen holdout, ledger, aliases, Neo4j, push and production remain untouched; broader mixed-fuel catalog adjudication still blocks rollout. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`.
@@ -43,7 +47,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-28 — Coverage-first matcher plan
 
 - Rechecked current code, 20k artifacts and Jira contracts; no implementation or Jira mutations. Missing-model (7,905) and bodywork-associated review population (5,053) are disjoint and cover 83.5% of reviews; 1,290 separate provisional records pass resolved scoring but fail candidate-only graph eligibility. Added `docs/TS_TECDOC_COVERAGE_PLAN_2026-08-28.md`: ranked cohort diagnostics, source-aware compatibility, scoped model recovery, distinguishing evidence, independent validation, then ledger/graph delivery. Counts recomputed from artifact; no guaranteed uplift or full-fleet extrapolation. Next implement the focused repair package after authorization.
-
-## 2026-08-28 — SCRUM-101 matcher work reuse
-
-- Removed redundant unit-weight bodywork rescoring and added bounded, policy/catalog-keyed model-label comparison caching; technical evidence and decisions are not cached by the new helper. Read-only 24-case and 1,000-row comparisons produced identical complete evaluations. Initial 1k timing 64.400s→53.109s (17.5% less; sequential local benchmark, not full-scale guarantee); no acceptance coverage gain claimed. 598 unit tests, Ruff, strict mypy and diff checks pass. See `docs/SCRUM_101_MATCHER_WORK_REUSE_2026-08-28.md`. No push, rule activation, DB or graph writes; next requires evidence-backed recovery and scoped bodywork review.
