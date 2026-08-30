@@ -50,6 +50,7 @@ RETURN alias.alias_text AS ktype,
        variant.power_kw AS power_kw,
        variant.drive_type AS drive_type,
        collect(DISTINCT engine.engine_code) AS engine_codes,
+       collect(DISTINCT engine.fuel_components) AS engine_fuel_components,
        collect(DISTINCT body.canonical_name) AS bodyworks
 ORDER BY ktype
 """
@@ -181,6 +182,7 @@ def load_ktype_catalog(driver: Driver) -> tuple[VehicleCandidate, ...]:
             year_from=_integer(row["year_from"]),
             year_to=_integer(row["year_to"]),
             fuels=frozenset({str(row["fuel_type"])}) if row["fuel_type"] else frozenset(),
+            fuel_components=_flatten_strings(row["engine_fuel_components"]),
             engine_codes=frozenset(str(value) for value in row["engine_codes"] if value),
             displacement_cc=_integer(row["displacement_cc"]),
             power_kw=_integer(row["power_kw"]),
@@ -207,19 +209,22 @@ def load_postgres_ktype_catalog(
         cursor.execute(_POSTGRES_CATALOG_QUERY, (batch_id,))
         rows = tuple(cursor.fetchall())
         cursor.execute(
-            "SELECT from_source_key, array_agg(DISTINCT attributes->>'engine_code') "
+            "SELECT from_source_key, attributes->>'engine_code' AS engine_code, "
+            "attributes->'engine_fuel_evidence'->'components' AS fuel_components "
             "FROM core.tecdoc_candidate_relationships "
             "WHERE batch_id=%s AND relationship_type='USES_ENGINE' "
-            "AND status='candidate' AND attributes->>'engine_code' IS NOT NULL "
-            "GROUP BY from_source_key",
+            "AND status='candidate'",
             (batch_id,),
         )
-        relationship_engine_codes = {
-            str(row["from_source_key"]).removeprefix("variant:"): frozenset(
-                str(value) for value in row["array_agg"] if value
+        relationship_engine_codes: dict[str, set[str]] = {}
+        relationship_fuel_components: dict[str, set[str]] = {}
+        for row in cursor.fetchall():
+            ktype = str(row["from_source_key"]).removeprefix("variant:")
+            if engine_code := _text(row["engine_code"]):
+                relationship_engine_codes.setdefault(ktype, set()).add(engine_code)
+            relationship_fuel_components.setdefault(ktype, set()).update(
+                _flatten_strings(row["fuel_components"])
             )
-            for row in cursor.fetchall()
-        }
     drive_by_code = canonical_drive_by_kt082()
     bodywork_by_code = canonical_bodywork_by_kt086()
     candidates = tuple(
@@ -238,8 +243,11 @@ def load_postgres_ktype_catalog(
             year_from=_integer(row["year_from"]),
             year_to=_integer(row["year_to"]),
             fuels=frozenset({str(row["fuel_type"])}) if row["fuel_type"] else frozenset(),
+            fuel_components=frozenset(
+                relationship_fuel_components.get(str(row["ktype"]), set())
+            ),
             engine_codes=(
-                relationship_engine_codes.get(str(row["ktype"]), frozenset())
+                frozenset(relationship_engine_codes.get(str(row["ktype"]), set()))
                 | (
                     frozenset({str(row["engine_code"])})
                     if row["engine_code"]
@@ -614,6 +622,20 @@ class TecDocDryRunEvaluator:
 
 def _mapping(value: object) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _flatten_strings(value: object) -> frozenset[str]:
+    """Flatten JSON/Neo4j component arrays without coercing unknown objects."""
+
+    if isinstance(value, str):
+        return frozenset({value}) if value.strip() else frozenset()
+    if isinstance(value, list | tuple | set | frozenset):
+        return frozenset(
+            item
+            for nested in value
+            for item in _flatten_strings(nested)
+        )
+    return frozenset()
 
 
 def _integer(value: object) -> int | None:

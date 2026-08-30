@@ -207,6 +207,10 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
         bodywork_name="sedan",
         bodywork_official_label="Saloon",
         transmission_type_name="Fully Automatic",
+        fuel_components=("diesel",),
+        engine_fuel_code="002",
+        engine_fuel_label="Diesel",
+        fuel_representation="single",
     )
     try:
         assert promote_canonical_vehicles(graph_driver, (promotion,)) == 1
@@ -223,7 +227,10 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
                 "f.id AS family, m.id AS manufacturer, t.id AS transmission, "
                 "t.speeds AS speeds, t.transmission_type_name AS transmission_type, "
                 "b.id AS bodywork, b.tecdoc_body_type_code AS body_code, "
-                "b.canonical_name AS body_name",
+                "b.canonical_name AS body_name, "
+                "v.fuel_components AS variant_fuels, "
+                "e.fuel_components AS engine_fuels, "
+                "e.tecdoc_engine_fuel_code AS engine_fuel_code",
                 alias_id=alias_id,
                 family_id=family_id,
             ).single(strict=True)
@@ -245,6 +252,9 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
             "bodywork": bodywork_id,
             "body_code": "027",
             "body_name": "sedan",
+            "variant_fuels": ["diesel"],
+            "engine_fuels": ["diesel"],
+            "engine_fuel_code": "002",
         }
         assert model_family_links == 1
     finally:

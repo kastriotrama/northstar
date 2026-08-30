@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from scripts.validate_local_matcher_cohort import compare_reports, digest, write_private_json
+from scripts.validate_local_matcher_cohort import (
+    compare_catalog_activation_reports,
+    compare_reports,
+    digest,
+    write_private_json,
+)
 
 
 def report() -> dict:
@@ -53,3 +58,47 @@ def test_truncated_report_is_rejected() -> None:
     before["records"] = []
     with pytest.raises(ValueError, match="incomplete cohort accounting"):
         compare_reports(before, report())
+
+
+def test_catalog_activation_comparison_allows_only_catalog_pin_to_change() -> None:
+    before = report()
+    before.update(
+        catalog_version="v5",
+        source_prefix="source-",
+        rule_version="rules-v1",
+        context_policy_version="context-v1",
+        source_model_policy_version="models-v1",
+    )
+    after = deepcopy(before)
+    after["catalog_version"] = "v6"
+    after["catalog_digest"] = "new-catalog"
+    after["records"][0] = {
+        **after["records"][0],
+        "terminal": "resolved",
+        "top_candidate_reference": "42",
+    }
+    after["counts"] = {"resolved": 1}
+
+    comparison = compare_catalog_activation_reports(before, after)
+
+    assert comparison["transitions"] == {"review_required->resolved": 1}
+    assert comparison["changed_record_count"] == 1
+    assert comparison["selected_identity_change_count"] == 1
+
+
+def test_catalog_activation_comparison_rejects_source_change() -> None:
+    before = report()
+    before.update(
+        catalog_version="v5",
+        source_prefix="source-",
+        rule_version="rules-v1",
+        context_policy_version="context-v1",
+        source_model_policy_version="models-v1",
+    )
+    after = deepcopy(before)
+    after["catalog_version"] = "v6"
+    after["catalog_digest"] = "new-catalog"
+    after["source_digest"] = "changed-source"
+
+    with pytest.raises(ValueError, match="source_digest"):
+        compare_catalog_activation_reports(before, after)

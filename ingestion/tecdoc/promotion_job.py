@@ -59,7 +59,7 @@ def promote_graph_in_chunks(
 
 def run_full_canonical_promotion(
     connection: Connection,
-    driver: Driver,
+    driver: Driver | None,
     *,
     source_directory: Path,
     reference_directory: Path,
@@ -69,7 +69,10 @@ def run_full_canonical_promotion(
     source_checksum: str,
     license_reference: str | None = None,
     chunk_size: int = 500,
+    write_graph: bool = True,
 ) -> FullPromotionSummary:
+    if write_graph and driver is None:
+        raise ValueError("driver is required when write_graph is enabled")
     records = tuple(extract_dat_hierarchy(source_directory))
     run_tecdoc_migrations(connection)
     register_batch(
@@ -100,10 +103,14 @@ def run_full_canonical_promotion(
         drive_canonical=canonical_drive_by_kt082(),
         transmission_type_labels=official_transmission_type_labels(reference_directory),
         complete_source=True,
+        retain_candidate_only=True,
     )
-    graph_rows, graph_chunks = promote_graph_in_chunks(
-        driver, prepared.promotions, chunk_size=chunk_size
-    )
+    graph_rows, graph_chunks = (0, 0)
+    if write_graph:
+        assert driver is not None
+        graph_rows, graph_chunks = promote_graph_in_chunks(
+            driver, prepared.promotions, chunk_size=chunk_size
+        )
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT count(*) FROM core.tecdoc_canonical_candidates WHERE batch_id=%s",

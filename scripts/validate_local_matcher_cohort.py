@@ -54,6 +54,74 @@ def compare_reports(before: dict[str, Any], after: dict[str, Any]) -> dict[str, 
     }
 
 
+def compare_catalog_activation_reports(
+    before: dict[str, Any], after: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare the same frozen cohort across an intentional catalog revision."""
+
+    for report in (before, after):
+        if len(report["records"]) != report["count"] or sum(
+            report["counts"].values()
+        ) != report["count"]:
+            raise ValueError("incomplete cohort accounting")
+        if len({row["row_key"] for row in report["records"]}) != report["count"]:
+            raise ValueError("duplicate cohort records")
+    for pin in (
+        "source_digest",
+        "rules_digest",
+        "count",
+        "alignment_version",
+        "source_prefix",
+        "rule_version",
+        "context_policy_version",
+        "source_model_policy_version",
+    ):
+        if before.get(pin) != after.get(pin):
+            raise ValueError(f"catalog activation inputs differ: {pin}")
+    before_by_key = {row["row_key"]: row for row in before["records"]}
+    after_by_key = {row["row_key"]: row for row in after["records"]}
+    if before_by_key.keys() != after_by_key.keys():
+        raise ValueError("catalog activation cohort keys differ")
+    transitions: Counter[str] = Counter()
+    changed: list[dict[str, Any]] = []
+    selected_identity_changes = 0
+    for row_key, old in before_by_key.items():
+        new = after_by_key[row_key]
+        transitions[f'{old["terminal"]}->{new["terminal"]}'] += 1
+        identity_changed = (
+            old["top_candidate_reference"] != new["top_candidate_reference"]
+        )
+        selected_identity_changes += identity_changed
+        if old["terminal"] != new["terminal"] or identity_changed:
+            changed.append(
+                {
+                    "row_key": row_key,
+                    "identity_changed": identity_changed,
+                    "before": old,
+                    "after": new,
+                }
+            )
+    return {
+        "count": before["count"],
+        "before_catalog_version": before["catalog_version"],
+        "after_catalog_version": after["catalog_version"],
+        "before_catalog_digest": before["catalog_digest"],
+        "after_catalog_digest": after["catalog_digest"],
+        "before_counts": before["counts"],
+        "after_counts": after["counts"],
+        "transitions": dict(sorted(transitions.items())),
+        "changed_record_count": len(changed),
+        "selected_identity_change_count": selected_identity_changes,
+        "changed_records": changed,
+        "before_reason_counts": before["reason_counts"],
+        "after_reason_counts": after["reason_counts"],
+        "independently_adjudicated": False,
+        "source_digest": before["source_digest"],
+        "rules_digest": before["rules_digest"],
+        "alignment_version": before["alignment_version"],
+    }
+
+
 def write_private_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Never overwrite existing evidence, even when a caller reuses a filename.

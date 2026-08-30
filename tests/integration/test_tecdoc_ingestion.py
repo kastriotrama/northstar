@@ -15,6 +15,7 @@ from ingestion.tecdoc.dat_extraction import (
     TecDocHierarchyRecord,
 )
 from ingestion.tecdoc.hierarchy_persistence import persist_engine_relationship_candidates
+from ingestion.tecdoc.match_run_adapters import load_postgres_ktype_catalog
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.models import TecDocVehicleRow
 from ingestion.tecdoc.repository import register_batch
@@ -31,7 +32,7 @@ def pg_connection() -> Iterator[Connection]:
     connection.close()
 
 
-def test_mixed_engine_fuel_survives_postgres_without_scalar_promotion(
+def test_mixed_engine_fuel_promotes_components_and_loads_without_scalar_guess(
     pg_connection: Connection,
 ) -> None:
     from dataclasses import replace
@@ -54,8 +55,15 @@ def test_mixed_engine_fuel_survives_postgres_without_scalar_promotion(
         pg_connection, **args, engine_fuels={"026": "petrol"}, vehicle_fuels={"001": "petrol"},
         complete_source=True, retain_candidate_only=True,
     )
-    assert not prepared.promotions
-    assert prepared.skipped_by_reason == {"fuel_unresolved": 1}
+    assert len(prepared.promotions) == 1
+    assert prepared.skipped_by_reason == {}
+    assert prepared.promotions[0].fuel_type is None
+    assert prepared.promotions[0].fuel_components == ("petrol", "alcohol_unspecified")
+    catalog = load_postgres_ktype_catalog(pg_connection, batch_id=batch_id)
+    assert len(catalog) == 1
+    assert catalog[0].candidate_type == "TecDocKType"
+    assert catalog[0].fuel_components == frozenset({"petrol", "alcohol_unspecified"})
+    assert catalog[0].engine_codes == frozenset({"B207E"})
     with pg_connection.cursor() as cursor:
         cursor.execute("SELECT attributes FROM core.tecdoc_candidate_relationships WHERE batch_id=%s", (batch_id,))
         attrs = cursor.fetchone()[0]
@@ -67,9 +75,12 @@ def test_mixed_engine_fuel_survives_postgres_without_scalar_promotion(
             (batch_id,),
         )
         candidate = cursor.fetchone()[0]
-        assert candidate["promotion_status"] == "candidate_only"
+        assert "promotion_status" not in candidate
         assert candidate["vehicle_fuel_type"] == "petrol"
-        assert candidate["engine_fuel_evidence"][0]["fuel"] == attrs["engine_fuel_evidence"]
+        assert candidate["fuel_type"] is None
+        assert candidate["fuel_components"] == ["petrol", "alcohol_unspecified"]
+        assert candidate["tecdoc_engine_fuel_code"] == "026"
+        assert candidate["tecdoc_engine_fuel_label"] == "Petrol/Alcohol"
 
 
 def test_tecdoc_batch_is_traceable_and_repeatable(pg_connection: Connection) -> None:

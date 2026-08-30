@@ -69,7 +69,7 @@ def test_octane_slash_is_not_mistaken_for_mixed_fuel() -> None:
 
 
 @pytest.mark.parametrize("fuel_mapping", [{}, {"026": "petrol"}, {"026": "ethanol"}])
-def test_mixed_fuel_candidate_is_retained_but_never_promoted(
+def test_mixed_fuel_promotes_as_components_without_accepting_a_scalar_guess(
     monkeypatch: pytest.MonkeyPatch, fuel_mapping: dict[str, str],
 ) -> None:
     connection = MagicMock()
@@ -81,15 +81,23 @@ def test_mixed_fuel_candidate_is_retained_but_never_promoted(
         engine_fuels=fuel_mapping, engine_fuel_labels={"026": "Petrol/Alcohol"},
         vehicle_fuels={"001": "petrol"}, complete_source=True, retain_candidate_only=True,
     )
-    assert not summary.promotions
-    assert summary.skipped_by_reason == {"fuel_unresolved": 1}
+    assert len(summary.promotions) == 1
+    assert summary.skipped_by_reason == {}
+    promotion = summary.promotions[0]
+    assert promotion.fuel_type is None
+    assert promotion.fuel_components == ("petrol", "alcohol_unspecified")
+    assert promotion.engine_fuel_code == "026"
+    assert promotion.engine_fuel_label == "Petrol/Alcohol"
+    assert promotion.fuel_representation == "mixed"
     variant = next(row["candidate"] for row in written if row["candidate"].entity_type == "vehicle_variant")
     assert variant.attributes["vehicle_fuel_type"] == "petrol"
-    assert variant.attributes["promotion_status"] == "candidate_only"
-    assert "engine_source_key" not in variant.attributes
-    evidence = variant.attributes["engine_fuel_evidence"][0]
-    assert evidence["engine_source_row_ref"] == "155:synthetic"
-    assert evidence["fuel"]["components"] == ["petrol", "alcohol_unspecified"]
+    assert variant.attributes["fuel_type"] is None
+    assert variant.attributes["fuel_components"] == ["petrol", "alcohol_unspecified"]
+    assert variant.attributes["tecdoc_engine_fuel_code"] == "026"
+    assert variant.attributes["tecdoc_engine_fuel_label"] == "Petrol/Alcohol"
+    assert variant.attributes["fuel_representation"] == "mixed"
+    assert "promotion_status" not in variant.attributes
+    assert variant.attributes["engine_source_key"] == "engine:18081"
 
 
 def test_ambiguous_engines_keep_separate_fuel_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -140,4 +148,65 @@ def test_full_job_passes_official_fuel_evidence_to_both_persistence_paths(
     assert relationships.call_args.kwargs["engine_fuel_labels"] == labels
     assert preparation.call_args.kwargs["engine_fuel_labels"] == labels
     assert preparation.call_args.kwargs["engine_fuels"] == {"005": "diesel"}
+    assert preparation.call_args.kwargs["retain_candidate_only"] is True
     assert graph.call_args.args[1] == ()
+
+
+def test_full_job_can_rebuild_candidate_catalog_without_graph_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = (mixed_record(),)
+    monkeypatch.setattr(promotion_job, "extract_dat_hierarchy", lambda *_: records)
+    for name in ("run_tecdoc_migrations", "register_batch", "complete_batch"):
+        monkeypatch.setattr(promotion_job, name, MagicMock())
+    for name in (
+        "canonical_engine_fuels",
+        "canonical_vehicle_fuels",
+        "official_bodywork_labels",
+        "official_drive_type_labels",
+        "official_transmission_type_labels",
+    ):
+        monkeypatch.setattr(promotion_job, name, lambda *args, **kwargs: {})
+    monkeypatch.setattr(promotion_job, "load_key_table_labels", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        promotion_job, "persist_engine_relationship_candidates", MagicMock()
+    )
+    monkeypatch.setattr(
+        promotion_job,
+        "prepare_canonical_promotions",
+        MagicMock(return_value=PromotionPreparationSummary((), {}, 1)),
+    )
+    graph = MagicMock()
+    monkeypatch.setattr(promotion_job, "promote_graph_in_chunks", graph)
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.fetchone.return_value = (1,)
+
+    summary = promotion_job.run_full_canonical_promotion(
+        conn,
+        None,
+        source_directory=Path("unused"),
+        reference_directory=Path("unused"),
+        batch_id="catalog-only",
+        source_version="0326",
+        format_version="2.70",
+        source_checksum="x",
+        write_graph=False,
+    )
+
+    assert summary.graph_rows_written == 0
+    assert summary.graph_chunks == 0
+    graph.assert_not_called()
+
+
+def test_full_job_requires_driver_when_graph_write_is_enabled() -> None:
+    with pytest.raises(ValueError, match="driver is required"):
+        promotion_job.run_full_canonical_promotion(
+            MagicMock(),
+            None,
+            source_directory=Path("unused"),
+            reference_directory=Path("unused"),
+            batch_id="missing-driver",
+            source_version="0326",
+            format_version="2.70",
+            source_checksum="x",
+        )

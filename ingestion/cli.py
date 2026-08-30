@@ -97,6 +97,14 @@ def build_parser() -> argparse.ArgumentParser:
     promotion_parser.add_argument("--format-version", default="2.70")
     promotion_parser.add_argument("--source-checksum", required=True)
     promotion_parser.add_argument("--chunk-size", type=int, default=500)
+    promotion_parser.add_argument(
+        "--candidate-catalog-only",
+        action="store_true",
+        help=(
+            "Build and reconcile the immutable PostgreSQL candidate catalog "
+            "without writing canonical vehicles to Neo4j."
+        ),
+    )
 
     vocabulary_parser = subparsers.add_parser(
         "promote-vocabulary-alignments",
@@ -284,19 +292,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "promote-tecdoc-canonical":
         datastores = DatastoreClients.from_settings(settings)
         try:
-            with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
-                summary = run_full_canonical_promotion(
-                    connection,
-                    driver,
-                    source_directory=args.source_path,
-                    reference_directory=args.reference_path,
-                    batch_id=args.batch_id,
-                    source_version=args.source_version,
-                    format_version=args.format_version,
-                    source_checksum=args.source_checksum,
-                    license_reference=settings.tecdoc_license_reference,
-                    chunk_size=args.chunk_size,
-                )
+            with datastores.postgres.connect() as connection:
+                if args.candidate_catalog_only:
+                    summary = run_full_canonical_promotion(
+                        connection,
+                        None,
+                        source_directory=args.source_path,
+                        reference_directory=args.reference_path,
+                        batch_id=args.batch_id,
+                        source_version=args.source_version,
+                        format_version=args.format_version,
+                        source_checksum=args.source_checksum,
+                        license_reference=settings.tecdoc_license_reference,
+                        chunk_size=args.chunk_size,
+                        write_graph=False,
+                    )
+                else:
+                    with datastores.neo4j.driver() as driver:
+                        summary = run_full_canonical_promotion(
+                            connection,
+                            driver,
+                            source_directory=args.source_path,
+                            reference_directory=args.reference_path,
+                            batch_id=args.batch_id,
+                            source_version=args.source_version,
+                            format_version=args.format_version,
+                            source_checksum=args.source_checksum,
+                            license_reference=settings.tecdoc_license_reference,
+                            chunk_size=args.chunk_size,
+                        )
         except Exception as error:  # noqa: BLE001
             logger.error(
                 "TecDoc canonical promotion stopped safely",

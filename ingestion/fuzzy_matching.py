@@ -210,6 +210,7 @@ class VehicleCandidate:
     year_from: int | None = None
     year_to: int | None = None
     fuels: frozenset[str] = field(default_factory=frozenset)
+    fuel_components: frozenset[str] = field(default_factory=frozenset)
     engine_codes: frozenset[str] = field(default_factory=frozenset)
     displacement_cc: int | None = None
     power_kw: int | None = None
@@ -241,6 +242,8 @@ class VehicleCandidate:
             raise ValueError("power_kw must be positive")
         if self.drive_type is not None and not _normalized_text(self.drive_type):
             raise ValueError("drive_type must not be blank")
+        if any(not _normalized_text(fuel) for fuel in self.fuel_components):
+            raise ValueError("fuel_components must not contain blanks")
         if any(not _normalized_text(bodywork) for bodywork in self.bodyworks):
             raise ValueError("bodyworks must not contain blanks")
 
@@ -749,8 +752,9 @@ class FuzzyVehicleMatcher:
 
         query_fuels = _normalized_fuels(query.fuels)
         candidate_fuels = _normalized_fuels(candidate.fuels)
+        candidate_fuel_components = _normalized_fuels(candidate.fuel_components)
         if query_fuels:
-            if not candidate_fuels:
+            if not candidate_fuels and not candidate_fuel_components:
                 missing_fields.append("fuels")
             elif _fuel_evidence_matches(query_fuels, candidate_fuels):
                 matched_fields.append("fuels")
@@ -759,6 +763,14 @@ class FuzzyVehicleMatcher:
                 (left, right) in self._fuel_compatible_pairs
                 for left in query_fuels for right in candidate_fuels
             ):
+                missing_fields.append("fuels_compatible_not_confirmed")
+            elif _fuel_evidence_matches(query_fuels, candidate_fuel_components) or any(
+                (left, right) in self._fuel_compatible_pairs
+                for left in query_fuels for right in candidate_fuel_components
+            ):
+                # Engine fuel components describe a possible capability set.
+                # Containment avoids a false conflict but is not an exact
+                # vehicle-fuel observation and therefore adds no score.
                 missing_fields.append("fuels_compatible_not_confirmed")
             else:
                 conflicting_fields.append("fuels")

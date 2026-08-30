@@ -2,6 +2,7 @@ from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import (
     TecDocDryRunEvaluator,
+    _flatten_strings,
     _integer,
     postgres_tecdoc_model_aliases,
     reviewed_candidate_context,
@@ -216,6 +217,13 @@ def test_postgres_catalog_numeric_text_is_not_discarded() -> None:
     assert _integer(2020) == 2020
     assert _integer("") is None
     assert _integer("not-a-number") is None
+
+
+def test_catalog_fuel_components_flatten_nested_graph_and_json_arrays() -> None:
+    assert _flatten_strings([["petrol", "alcohol_unspecified"], None, ["petrol"]]) == frozenset(
+        {"petrol", "alcohol_unspecified"}
+    )
+    assert _flatten_strings({"unknown": "object"}) == frozenset()
 
 
 def test_evaluator_uses_reviewed_alias_without_degrading_base_route() -> None:

@@ -85,6 +85,25 @@ def test_parser_registers_version_pinned_match_audit() -> None:
     assert args.max_batches == 2
 
 
+def test_canonical_promotion_parser_supports_postgres_only_catalog_rebuild() -> None:
+    args = build_parser().parse_args(
+        [
+            "promote-tecdoc-canonical",
+            "--batch-id",
+            "tecdoc-0326-catalog-v6",
+            "--source-path",
+            "/licensed/source",
+            "--reference-path",
+            "/licensed/reference",
+            "--source-checksum",
+            "abc123",
+            "--candidate-catalog-only",
+        ]
+    )
+
+    assert args.candidate_catalog_only is True
+
+
 def test_commands_fail_safely_or_run_with_batch_id() -> None:
     # TecDoc is now a real job and refuses to run without version/license evidence.
     assert main(["tecdoc", "--batch-id", "tecdoc-batch-1"]) == 2

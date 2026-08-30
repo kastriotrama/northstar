@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-30 — Controlled mixed-fuel/engine-set activation held at 20k gate
+
+- Implemented set-valued TecDoc mixed-fuel persistence/scoring and full KType engine-set loading, plus a PostgreSQL-only complete-catalog rebuild mode. Rebuilt immutable local v6 catalog: 72,570 KTypes, 57,613 graph-safe, 14,957 candidate-only, 1,805 mixed-fuel promotions, zero Neo4j writes. Volvo activated 0/47 unreviewed bodywork proposals; Golf activated zero redundant/unsupported scoring rules. Same pinned 20k: resolved 2,284→2,346, provisional 2,218→1,883, review 13,788→14,068, hard conflicts 1,597→1,590; 532 changed rows, 22 identity changes, 160 resolved→review. Activation is held before the unscored holdout pending independent review. Ruff, targeted mypy, compilation, focused PostgreSQL/Neo4j integrations and 813 effective tests pass; one unrelated broad-mypy baseline error remains in `scripts/generate_golden_corpus.py`. Added evidence comments to SCRUM-170/173/174/175 without status changes. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`. No push, decision persistence, alias attachment or graph mutation.
+
 ## 2026-08-30 — PR #32 green and Jira acceptance audit
 
 - Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
@@ -37,7 +41,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-28 — SCRUM-101 integration and same-record validation
 
 - Combined latest developer head `23a2ca2`, local matcher/provenance safeguards and separate calibration fixes in `NorthStar-SCRUM-101-integrated` on `feature/SCRUM-101-integrated-matcher-validation`. Fixed partial-name acceptance, raw-model precedence, narrow chassis suffix comparison, fuel alignment consumption/sealing and reviewed-fuel token refresh; versioned normalization output as v6. Same-input 20k comparison: resolved 1,515→1,510; provisional 1,506→1,551; review 15,668→15,519; hard conflicts 1,198→1,307. Prepared 24 private changed-resolved cases for domain review (4 gained, 9 lost, 11 changed KType); no correctness uplift claimed. 609 tests, 205 golden cases, Ruff and strict mypy pass. See integrated `docs/SCRUM_101_INTEGRATION_2026-08-28.md`. No commit, push, source DB mutation, rule activation or graph write; next adjudicate changes and address remaining evidence gaps before full scale.
-
-## 2026-08-26 — High-margin calibration batch sampled
-
-- Added `--min-margin`/`--max-margin` support to `scripts/sample_margin_calibration_set.py` and fixed the boundary case so rounded `0.25-0.30` items cannot leak into a `0.30+` high-margin sample. Created local review batch `margin-calibration-high-20260826` with 200 pending items: 100 from `0.30-0.40` and 100 from `0.40-1.00`, using the same pinned TS/TecDoc/rule versions. Exported the compact review file to `outputs/margin-calibration-high-20260826-review-list.json`; focused tests and Ruff pass. Next step: adjudicate those 200, then rerun `scripts/fit_margin_threshold.py` with `data/margin-calibration/band-weights-high-20260826.json`.

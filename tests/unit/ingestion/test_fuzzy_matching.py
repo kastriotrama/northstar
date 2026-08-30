@@ -92,6 +92,56 @@ def test_recognized_manufacturer_alias_uses_exact_scope() -> None:
     assert result.candidates[0].candidate_reference == "KTYPE-100"
 
 
+def test_mixed_fuel_components_are_compatible_without_confirming_a_match() -> None:
+    candidate = VehicleCandidate(
+        "mixed", "Saab", "9-3", fuel_components=frozenset({"petrol", "alcohol_unspecified"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    score = matcher._score(
+        VehicleMatchQuery("9-3", manufacturer="Saab", fuels=frozenset({"petrol"})),
+        candidate,
+    )
+
+    assert "fuels_compatible_not_confirmed" in score.missing_fields
+    assert "fuels" not in score.matched_fields
+    assert "fuels" not in score.conflicting_fields
+
+
+def test_mixed_fuel_components_reject_a_disjoint_observed_fuel() -> None:
+    candidate = VehicleCandidate(
+        "mixed", "Saab", "9-3", fuel_components=frozenset({"petrol", "alcohol_unspecified"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    score = matcher._score(
+        VehicleMatchQuery("9-3", manufacturer="Saab", fuels=frozenset({"diesel"})),
+        candidate,
+    )
+
+    assert "fuels" in score.conflicting_fields
+
+
+def test_engine_code_is_compared_to_the_full_candidate_engine_set() -> None:
+    candidate = VehicleCandidate(
+        "multi-engine", "Opel", "Insignia", engine_codes=frozenset({"A19DTR", "Z19DTR"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    matched = matcher._score(
+        VehicleMatchQuery("Insignia", manufacturer="Opel", engine_code="Z 19 DTR"),
+        candidate,
+    )
+    conflict = matcher._score(
+        VehicleMatchQuery("Insignia", manufacturer="Opel", engine_code="B20DTH"),
+        candidate,
+    )
+
+    assert "engine_code" in matched.matched_fields
+    assert "engine_code" not in matched.conflicting_fields
+    assert "engine_code" in conflict.conflicting_fields
+
+
 def test_noisy_manufacturer_is_scoped_but_never_auto_resolved() -> None:
     result = _matcher().match(VehicleMatchQuery(manufacturer="Volov", model="XC90"))
 
