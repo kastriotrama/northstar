@@ -14,6 +14,7 @@ from psycopg.conninfo import conninfo_to_dict
 
 from ingestion.active_rules import load_active_rules
 from ingestion.config import IngestionSettings
+from ingestion.context_comparison import ContextComparisonPolicy, reviewed_context_policy
 from ingestion.fuzzy_matching import FuzzyMatchResult, VehicleMatchQuery
 from ingestion.normalization_rules import normalize_ts_record
 from ingestion.tecdoc.match_run_adapters import TecDocDryRunEvaluator, load_postgres_ktype_catalog
@@ -63,17 +64,46 @@ def capture_evaluation(
     return {"evaluation": asdict(outcome), "attempts": attempts}
 
 
+def load_context_policy_for_report(
+    report: dict[str, Any], *, manifest: Path | None, version: str | None,
+    sha256: str | None,
+) -> ContextComparisonPolicy:
+    """Load exactly the reviewed context policy used by a completed report."""
+    policy_args = (manifest, version, sha256)
+    if any(policy_args) and not all(policy_args):
+        raise ValueError("context rules require an explicit manifest, version and checksum")
+    if report.get("activated_context_rule_count", 0) and not all(policy_args):
+        raise ValueError("activated context report requires its reviewed policy manifest and pins")
+    if manifest is None:
+        policy = ContextComparisonPolicy()
+    else:
+        assert version is not None and sha256 is not None
+        policy = reviewed_context_policy(
+            json.loads(manifest.read_text()), expected_version=version, expected_digest=sha256
+        )
+    if policy.version != report.get("context_policy_version", "context-comparison-v1"):
+        raise ValueError("context policy version differs from completed cohort")
+    if policy.content_digest != report.get("context_policy_digest", policy.content_digest):
+        raise ValueError("context policy digest differs from completed cohort")
+    return policy
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--env-file", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--context-policy", type=Path)
+    parser.add_argument("--context-policy-version")
+    parser.add_argument("--context-policy-sha256")
     args = parser.parse_args()
     report = json.loads(args.report.read_text())
-    if (report.get("activated_context_rule_count") != 0
-            or report.get("activated_source_model_rule_count", 0) != 0
-            or report["alignment_version"] != "unpinned-legacy"):
-        raise ValueError("this evidence replay supports the no-new-rules cohort only")
+    if report["alignment_version"] != "unpinned-legacy":
+        raise ValueError("evidence replay requires the unpinned legacy alignment")
+    context_policy = load_context_policy_for_report(
+        report, manifest=args.context_policy, version=args.context_policy_version,
+        sha256=args.context_policy_sha256,
+    )
     code_root = Path(report["code_root"])
     if Path(__file__).resolve().parents[1] != code_root.resolve():
         raise ValueError("run evidence replay from the completed cohort's code root")
@@ -95,7 +125,8 @@ def main() -> None:
             raise ValueError("source/catalog differs from completed cohort")
         if digest([asdict(rules), manufacturers]) != report["rules_digest"]:
             raise ValueError("rules differ from completed cohort")
-    evaluator = TecDocDryRunEvaluator(catalog, manufacturers, ReviewedModelAliasIndex(rules))
+    evaluator = TecDocDryRunEvaluator(catalog, manufacturers, ReviewedModelAliasIndex(rules),
+                                      context_policy=context_policy)
     by_reference = {candidate.candidate_reference: candidate for candidate in catalog}
     items = []
     for source_id, raw in rows:
@@ -104,8 +135,8 @@ def main() -> None:
             continue
         captured = capture_evaluation(evaluator, raw, source_id=source_id,
                                       rules=rules, manufacturers=manufacturers)
-        expected = dict(targets[row_key]["after"])
-        expected.pop("row_key")
+        expected = {key: value for key, value in targets[row_key]["after"].items()
+                    if key not in {"row_key", "identity_changed"}}
         # JSON reports encode tuples as lists.
         if json.loads(json.dumps(captured["evaluation"])) != expected:
             raise ValueError("changed-case replay diverged from completed cohort")

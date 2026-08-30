@@ -101,6 +101,16 @@ Private local evidence:
 - `outputs/scrum101-multifuel-complete-20k-20260830.json`
 - `outputs/scrum101-multifuel-catalog-comparison-20k-20260830.json`
 
+The 146 Volvo review→resolved gains were replayed with the exact active policy
+and captured in the private pending-review packet
+`outputs/scrum101-volvo-bodywork-activated-review-packet-20260830.json`.
+Its companion audit is
+`outputs/scrum101-volvo-bodywork-activated-review-audit-20260830.json`:
+all 146 cases remained exact-scope gains, observed four or five technical
+fields, passed the no-conflict checks, and have no assigned human verdict.
+The packet contains real plates and must stay local/restricted; it is evidence,
+not a decision ledger or graph input.
+
 ## Volvo policy A/B result
 
 The same v6 catalog and same 20,000 source rows were replayed with only the

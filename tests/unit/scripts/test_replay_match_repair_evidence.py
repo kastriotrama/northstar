@@ -1,9 +1,14 @@
+from pathlib import Path
+
+import pytest
+
 from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.tecdoc.match_run_adapters import TecDocDryRunEvaluator
 from ingestion.translation_dictionaries import REVIEWED_RULE_SET_VERSION, load_translation_rule_set
 from scripts.replay_match_repair_evidence import (
     capture_evaluation,
     changed_accepted_records,
+    load_context_policy_for_report,
     review_source_evidence,
 )
 
@@ -35,3 +40,21 @@ def test_evidence_replay_emits_actual_candidates_and_clears_old_decision_cache()
     assert first == second
     assert first["attempts"]
     assert first["attempts"][0]["candidates"][0]["candidate_reference"] == "1"
+
+
+def test_activated_report_requires_and_verifies_reviewed_context_manifest():
+    root = Path(__file__).resolve().parents[3]
+    manifest = root / "ingestion/reviewed_context_policies/volvo_bodywork_reviewed_v1_20260830.json"
+    report = {
+        "activated_context_rule_count": 47,
+        "context_policy_version": "volvo-bodywork-reviewed-v1-20260830",
+        "context_policy_digest": "079d4b4381bcc8050c17bb99b7f9cae0b36492c091f27311ff13724933209d14",
+    }
+    with pytest.raises(ValueError, match="requires its reviewed policy manifest"):
+        load_context_policy_for_report(report, manifest=None, version=None, sha256=None)
+    policy = load_context_policy_for_report(
+        report, manifest=manifest, version="volvo-bodywork-reviewed-v1-20260830",
+        sha256="4acdee26fb88c639fa29cae914e7d24bc067b963e0be65a4718a5036d2ea522a",
+    )
+    assert policy.version == report["context_policy_version"]
+    assert len(policy.rules) == 47
