@@ -23,7 +23,12 @@
       "decision": "reject_v6_candidate_change_and_hard_conflict",
       "expected_count": 4,
       "rationale": "TS HNSU, petrol, 1199 cc and 96 kW support the 3008 II/HNS candidate, while the v6 top is a 3008 III HPY hybrid at 100 kW.",
-      "required_outcome": "Remain unresolved; restore the prior leading hypothesis and add technical-signature discrimination before any future acceptance."
+      "required_outcome": "Remain unresolved; restore the prior leading hypothesis and add technical-signature discrimination before any future acceptance.",
+      "repair_policy_version": "peugeot-3008-hns-reviewed-v1-20260831",
+      "repair_rule_ids": [
+        "SRC-MODEL-PEUGEOT-3008-HNSU-0534-25-V1",
+        "SRC-MODEL-PEUGEOT-3008-HNSU-0534-26-V1"
+      ]
     },
     {
       "group_id": "reject-mini-f56-electric-to-petrol-hard-conflict",
@@ -36,7 +41,7 @@
   "limitations": [
     "The product-owner decision approves conservative routing treatment, not external vehicle ground truth.",
     "No KType identity, engine identity, alias, score increase, or graph promotion is approved.",
-    "The other 504 changed cases in the packet remain outside this reviewed scope.",
-    "The complete v6 mixed-fuel policy remains unapproved until the remaining changed cohorts are reviewed."
+    "The separate mixed-fuel-v6-remaining-changes-v1-20260831 manifest covers the other 504 changed cases.",
+    "A combined candidate policy still requires its pinned active controls and frozen holdout to pass."
   ]
 }

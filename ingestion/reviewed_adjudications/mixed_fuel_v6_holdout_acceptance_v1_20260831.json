@@ -1,0 +1,41 @@
+{
+  "version": "mixed-fuel-v6-holdout-acceptance-v1-20260831",
+  "status": "approved_before_unblinding",
+  "reviewed_by": "product-owner-chat-approval-2026-08-31",
+  "holdout_file": "scrum101-source-only-holdout-50k-window-20260828.json",
+  "holdout_sha256": "810d34619e8ecd644fcf9349559039afc2fac7a44ba20e7cfd723f7e406c748b",
+  "expected_records": 11629,
+  "expected_groups": 11107,
+  "v5_catalog_version": "tecdoc-0326-all-active-candidates-v5-fuel-local",
+  "v5_catalog_digest": "67226ade1b02bc7dc08759f5546eb5ed6036e0efe6f97374124cf9ac15b6ee20",
+  "v6_catalog_version": "tecdoc-0326-all-active-candidates-v6-multifuel-complete-local",
+  "v6_catalog_digest": "f81b1f66afd00d1566704d356945e4d1f4b73cc9d93b74d7a8b31b66bbe49179",
+  "rule_version": "ts-engine-fingerprint-heldout-v1-disabled-20260824",
+  "rules_digest": "b3a261666bbcb0ffdbb74fa1f9ca5dbbb30f4daf50fe0a0425a35e975de60508",
+  "context_policy_file": "volvo_bodywork_reviewed_v1_20260830.json",
+  "context_policy_version": "volvo-bodywork-reviewed-v1-20260830",
+  "context_policy_payload_sha256": "4acdee26fb88c639fa29cae914e7d24bc067b963e0be65a4718a5036d2ea522a",
+  "context_policy_digest": "079d4b4381bcc8050c17bb99b7f9cae0b36492c091f27311ff13724933209d14",
+  "source_model_policy_file": "peugeot_3008_hns_reviewed_v1_20260831.json",
+  "source_model_policy_version": "peugeot-3008-hns-reviewed-v1-20260831",
+  "source_model_policy_payload_sha256": "af2aa26a514f889e8079688fd4b904c41c2dbc6689c47b469c51660c76fe19ae",
+  "source_model_policy_digest": "2f86bb7428611fa773672986dd94b9e4f1875c5aa8d1da745e5d645897b66862",
+  "expected_code_digest": "933e5ebe68e2874e8a89355d0efe61ae9fc3906ccba3faf05755286a49183453",
+  "criteria": {
+    "require_complete_accounting": true,
+    "maximum_new_hard_conflicts": 0,
+    "maximum_changed_resolved_identities": 0,
+    "maximum_unsafe_resolution_gains": 0,
+    "maximum_resolved_conflict_reasons": 0,
+    "allow_conservative_downgrades": true,
+    "allow_unresolved_candidate_changes": true
+  },
+  "definitions": {
+    "unsafe_resolution_gain": "A v6 resolved result whose v5 terminal was not provisional or whose KType changed.",
+    "changed_resolved_identity": "A v6 resolved result selecting a different KType from v5.",
+    "new_hard_conflict": "A v6 hard-conflict result whose v5 terminal was not hard-conflict.",
+    "resolved_conflict_reason": "A v6 resolved result retaining a conflict:* or context_conflict:* reason."
+  },
+  "failure_policy": "Reject this candidate policy. Do not tune it against this holdout; revise using development evidence and freeze a new untouched holdout.",
+  "runtime_activation": false
+}
