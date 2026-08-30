@@ -29,8 +29,12 @@ def audit_packet(packet: dict[str, Any]) -> dict[str, Any]:
             kind = "lost_resolution"
         elif before["terminal"] == after["terminal"] == "resolved" and before["top_candidate_reference"] != after["top_candidate_reference"]:
             kind = "changed_resolved_ktype"
+        elif before["top_candidate_reference"] != after["top_candidate_reference"]:
+            kind = "changed_unresolved_identity"
+        elif before["terminal"] != after["terminal"]:
+            kind = "changed_terminal"
         else:
-            raise ValueError("packet contains a case outside changed-resolution scope")
+            raise ValueError("packet contains an unchanged case")
         if item["evaluation"]["terminal"] != after["terminal"] or item["evaluation"]["top_candidate_reference"] != after["top_candidate_reference"]:
             raise ValueError("evaluation differs from reported change")
         changes[kind] += 1

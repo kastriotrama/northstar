@@ -55,3 +55,14 @@ def test_loss_remains_explicit_and_high_priority():
     result = audit_packet(data)
     assert result["changes"] == {"lost_resolution": 1}
     assert result["cases"][0]["priority"] == "high"
+
+
+def test_audit_keeps_unresolved_identity_and_terminal_changes_in_review_scope():
+    data = packet()
+    row = data["items"][0]
+    row["change"]["before"] = {"terminal": "review_required", "top_candidate_reference": "1"}
+    row["change"]["after"] = {"terminal": "hard_conflict", "top_candidate_reference": "2"}
+    row["evaluation"] = row["change"]["after"]
+    result = audit_packet(data)
+    assert result["changes"] == {"changed_unresolved_identity": 1}
+    assert result["cases"][0]["priority"] == "high"

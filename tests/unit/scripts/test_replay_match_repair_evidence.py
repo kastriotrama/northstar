@@ -29,6 +29,9 @@ def test_changed_accepted_selection_keeps_gains_losses_and_changed_identities():
         change("identity", "resolved", "resolved"), change("review", "review_required", "provisional"),
     ]}}
     assert set(changed_accepted_records(report)) == {"gain", "loss", "identity"}
+    assert set(changed_accepted_records(report, include_non_resolved=True)) == {
+        "gain", "loss", "identity", "review"
+    }
 
 
 def test_evidence_replay_emits_actual_candidates_and_clears_old_decision_cache():

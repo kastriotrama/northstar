@@ -111,6 +111,26 @@ fields, passed the no-conflict checks, and have no assigned human verdict.
 The packet contains real plates and must stay local/restricted; it is evidence,
 not a decision ledger or graph input.
 
+## Current-code mixed-fuel adjudication replay
+
+To remove stale-report risk, the v5 control and v6 disabled control were
+replayed again with the current matcher code digest
+`fe252a5b5972959e06ba10aa54a3a4a09b1ce8ffb39af7d7627c2d7a149fbb6b`.
+The fresh controls reproduce the documented counts exactly (v5: 2,284
+resolved / 2,218 provisional / 13,788 review-required / 1,597 hard conflict;
+v6: 2,346 / 1,883 / 14,068 / 1,590). The current-code comparison remains 532
+changed rows and 22 selected-identity changes.
+
+All 532 changes were replayed into the private packet
+`outputs/scrum101-multifuel-catalog-all-change-review-packet-20260830.json`.
+The audit
+`outputs/scrum101-multifuel-catalog-all-change-review-audit-20260830.json`
+classifies 222 gained resolutions, 160 lost resolutions, 128 terminal/conflict
+changes, and 22 unresolved-identity changes. The replay checks the v6 output
+against the pinned catalog and retains source, normalized, matcher-attempt and
+candidate evidence. All verdicts are unset; this packet does not approve a
+catalog, persist decisions, attach aliases or write Neo4j.
+
 ## Volvo policy A/B result
 
 The same v6 catalog and same 20,000 source rows were replayed with only the

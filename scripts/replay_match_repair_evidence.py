@@ -33,9 +33,15 @@ def review_source_evidence(raw: dict[str, Any]) -> dict[str, Any]:
     )}
 
 
-def changed_accepted_records(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {row["row_key"]: row for row in report["comparison"]["changed_records"]
-            if "resolved" in {row["before"]["terminal"], row["after"]["terminal"]}}
+def changed_accepted_records(
+    report: dict[str, Any], *, include_non_resolved: bool = False
+) -> dict[str, dict[str, Any]]:
+    """Select changed rows for replay; broaden only with explicit review scope."""
+    return {
+        row["row_key"]: row for row in report["comparison"]["changed_records"]
+        if include_non_resolved
+        or "resolved" in {row["before"]["terminal"], row["after"]["terminal"]}
+    }
 
 
 def capture_evaluation(
@@ -96,6 +102,10 @@ def main() -> None:
     parser.add_argument("--context-policy", type=Path)
     parser.add_argument("--context-policy-version")
     parser.add_argument("--context-policy-sha256")
+    parser.add_argument(
+        "--include-non-resolved", action="store_true",
+        help="include identity and conflict-only changes for adjudication review",
+    )
     args = parser.parse_args()
     report = json.loads(args.report.read_text())
     if report["alignment_version"] != "unpinned-legacy":
@@ -111,7 +121,7 @@ def main() -> None:
                           for p in sorted((code_root / "ingestion").rglob("*.py"))})
     if code_digest != report["code_digest"]:
         raise ValueError("code differs from completed cohort")
-    targets = changed_accepted_records(report)
+    targets = changed_accepted_records(report, include_non_resolved=args.include_non_resolved)
     settings = IngestionSettings(_env_file=args.env_file)  # type: ignore[call-arg]
     if conninfo_to_dict(settings.database_url).get("host") not in {"localhost", "127.0.0.1", "::1"}:
         raise ValueError("evidence replay requires local PostgreSQL")
@@ -160,7 +170,9 @@ def main() -> None:
         raise ValueError("incomplete review packet")
     payload = {key: report[key] for key in ("source_digest", "catalog_digest", "rules_digest", "code_digest")}
     payload.update(count=len(items), items=items, contains_private_plates=True,
-                   independently_adjudicated=False, read_only=True)
+                   independently_adjudicated=False, read_only=True,
+                   review_scope=("all_changed_records" if args.include_non_resolved
+                                 else "resolved_touching_changes"))
     # Round-trip dataclasses' frozen sets using the same deterministic treatment as catalog digests.
     payload = json.loads(json.dumps(payload, default=lambda value: sorted(value) if isinstance(value, set | frozenset) else str(value)))
     write_private_json(args.output, payload)
