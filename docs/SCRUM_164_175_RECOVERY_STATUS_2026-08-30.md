@@ -24,8 +24,10 @@ PR: [#32](https://github.com/kastriotrama/northstar/pull/32)
 
 ## Jira acceptance audit
 
-All tickets below were `To Do` and unassigned when checked on 2026-08-30.
-This table recommends status; it does not change Jira.
+All tickets below were `To Do` and unassigned when first checked on 2026-08-30.
+After PR #32 passed GitHub CI, SCRUM-172–175 were moved to `In Progress`
+with ticket-specific evidence comments. This Jira workflow has no `In Review`
+state, so none was marked `Done`; SCRUM-164–171 were left unchanged.
 
 | Ticket | Evidence in the repository | Remaining acceptance work | Recommended status after PR review |
 | --- | --- | --- | --- |
@@ -37,9 +39,9 @@ This table recommends status; it does not change Jira.
 | SCRUM-169 | Coverage and route categories are measured on controlled cohorts. | Replace the obsolete 25,295-row assumption with current validated evidence; agree minimum precision, coverage, and review SLA plus launch/restrict/invest decision. | To Do / product decision |
 | SCRUM-170 | Promotion contract, controlled limit, preflight/reconciliation code, and integration tests exist on `develop`. | Approve the evidence contract; execute and document a real controlled cohort; prove replay and PostgreSQL/Neo4j reconciliation before production mode. | In Progress |
 | SCRUM-171 | Immutable decision, head, idempotency, and linear supersession persistence plus tests exist on `develop`. | Run an approved matcher policy in persist mode over a controlled real cohort, verify complete evidence, restart safety, and zero alias writes during persistence. | In Progress |
-| SCRUM-172 | PR #32 contains pinned cohort diagnostics, ranked repair groups, immutable private reports, graph-ineligible separation, and regression tests. | Reviewer maps the PR files/results to every criterion and confirms private evidence handling. | In Review |
-| SCRUM-173 | PR #32 implements four-state source-aware comparison, scoped/versioned rules, fail-closed behavior, evaluator wiring, safety tests, and disclosed 20k deltas. | Domain approval remains required before disputed semantic mappings can be activated, but is not evidence that the engineering contract failed. | In Review |
-| SCRUM-174 | PR #32 partitions recovery cohorts, fixes deterministic extraction defects, records scoped proposals/counterexamples, preserves technical gates, and freezes leakage-separated validation groups. | Independent reviewers must approve or reject proposed semantic mappings before activation. | In Review |
+| SCRUM-172 | PR #32 contains pinned cohort diagnostics, ranked repair groups, immutable private reports, graph-ineligible separation, and regression tests. | Reviewer maps the PR files/results to every criterion and confirms private evidence handling. | In Progress; ready for review |
+| SCRUM-173 | PR #32 implements four-state source-aware comparison, scoped/versioned rules, fail-closed behavior, evaluator wiring, safety tests, and disclosed 20k deltas. | Domain approval remains required before disputed semantic mappings can be activated, but is not evidence that the engineering contract failed. | In Progress; ready for review |
+| SCRUM-174 | PR #32 partitions recovery cohorts, fixes deterministic extraction defects, records scoped proposals/counterexamples, preserves technical gates, and freezes leakage-separated validation groups. | Independent reviewers must approve or reject proposed semantic mappings before activation. | In Progress; ready for review |
 | SCRUM-175 | PR #32 preserves a pinned 20k comparison, changed-outcome packets, checksums, and a frozen holdout. | Complete independent adjudication, freeze the final approved policy, score the holdout once, and compare precision/coverage against the SCRUM-169 risk target. | In Progress |
 
 ## Critical path

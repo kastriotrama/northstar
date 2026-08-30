@@ -2,9 +2,9 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-30 — PR #32 CI recovery and Jira acceptance audit
+## 2026-08-30 — PR #32 green and Jira acceptance audit
 
-- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant. Validation against isolated PostgreSQL databases and healthy local services passed on the branch and a synthetic merge with current `origin/develop`: compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests. Audited SCRUM-164–175 without changing Jira: SCRUM-172–174 are ready for PR review; SCRUM-175, 170 and 171 still require independent or controlled execution; SCRUM-164–169 retain material production or product gaps. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No push, workflow trigger, Jira mutation, rule activation, match-decision persistence, alias attachment or Neo4j write occurred.
+- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
 
 ## 2026-08-28 — PR #32 published
 
