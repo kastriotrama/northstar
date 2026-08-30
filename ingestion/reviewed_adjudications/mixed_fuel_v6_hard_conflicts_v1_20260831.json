@@ -1,0 +1,42 @@
+{
+  "version": "mixed-fuel-v6-hard-conflicts-v1-20260831",
+  "status": "reviewed",
+  "scope": "all cases touching hard_conflict in the pinned 532-case v5-to-v6 change packet",
+  "source_packet": "scrum101-multifuel-catalog-all-change-review-packet-20260830.json",
+  "source_packet_sha256": "1665745119c0e13ee408165bf483a309f47812708493e49a2ae629791c671c34",
+  "reviewed_by": "product-owner-chat-approval-2026-08-31",
+  "evidence_ref": "docs/TS_TECDOC_HARD_CONFLICT_ADJUDICATION_2026-08-31.md",
+  "independently_adjudicated": false,
+  "full_mixed_fuel_policy_approved": false,
+  "runtime_activation": false,
+  "match_identity_approved": false,
+  "groups": [
+    {
+      "group_id": "approve-overlap-removes-false-fuel-conflict",
+      "decision": "approve_v6_conflict_removal_only",
+      "expected_count": 11,
+      "rationale": "The TS carrier is an exact component of the TecDoc mixed-fuel set. Compatibility removes the old disjoint-fuel error but supplies no positive score.",
+      "required_outcome": "Keep the v6 provisional or review-required terminal; do not promote from this adjudication."
+    },
+    {
+      "group_id": "reject-peugeot-3008-iii-hybrid-hard-conflict",
+      "decision": "reject_v6_candidate_change_and_hard_conflict",
+      "expected_count": 4,
+      "rationale": "TS HNSU, petrol, 1199 cc and 96 kW support the 3008 II/HNS candidate, while the v6 top is a 3008 III HPY hybrid at 100 kW.",
+      "required_outcome": "Remain unresolved; restore the prior leading hypothesis and add technical-signature discrimination before any future acceptance."
+    },
+    {
+      "group_id": "reject-mini-f56-electric-to-petrol-hard-conflict",
+      "decision": "reject_v6_candidate_change_and_hard_conflict",
+      "expected_count": 13,
+      "rationale": "TS identifies a 2020-2022 electric Cooper SE, while the v6 top is a petrol F56. The catalog contains an electric F56 candidate, but current model ranking does not select it safely.",
+      "required_outcome": "Remain unresolved; investigate approval/variant-to-electric-F56 evidence without attaching either conflicting candidate."
+    }
+  ],
+  "limitations": [
+    "The product-owner decision approves conservative routing treatment, not external vehicle ground truth.",
+    "No KType identity, engine identity, alias, score increase, or graph promotion is approved.",
+    "The other 504 changed cases in the packet remain outside this reviewed scope.",
+    "The complete v6 mixed-fuel policy remains unapproved until the remaining changed cohorts are reviewed."
+  ]
+}

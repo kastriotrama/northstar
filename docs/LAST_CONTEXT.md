@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-31 — Mixed-fuel hard-conflict adjudication
+
+- Applied the product-owner authorization to all 28 v5→v6 changes touching a hard-conflict terminal. Approved removal of 11 false fuel conflicts where TS single fuel is a component of the TecDoc mixed set, while preserving provisional/review routing and no score. Rejected four Peugeot 3008 III hybrid and 13 MINI petrol candidate-derived hard conflicts; all 17 remain unresolved with no identity approval. Added a versioned plate-free reviewed manifest, exact checksum/count audit and tests. The other 504 changed cases and full v6 policy remain unapproved; no runtime rule, decision, alias, Neo4j state or push changed. See `docs/TS_TECDOC_HARD_CONFLICT_ADJUDICATION_2026-08-31.md`.
+
 ## 2026-08-31 — Persisted-decision replay and safe alias retirement
 
 - Replayed all 9,122 current TS decision heads against the v6 complete catalog, active normalization rules and approved Volvo context policy: 4,472 remain resolved on the same KType, 4,533 become review-required, 116 provisional and one a hard year conflict; all 356 KType identity changes are non-resolved. Reconciled 1,000 graph aliases: 467 fresh, 518 now review-required and 15 provisional; 35/105 promoted variants have only stale support, while 4,005 resolved decisions remain unpromoted. Added privacy-safe read-only audit tools and immutable, idempotent alias retirement that preserves historical targets and restores `:Provisional` after the last active assertion. Focused unit/integration tests, Ruff and strict mypy pass. No existing decision, alias, graph edge, push or production state changed. See `docs/SCRUM_170_171_SUPERSESSION_AUDIT_2026-08-31.md`.
@@ -43,7 +47,3 @@ Keep the latest 10 task entries only.
 ## 2026-08-28 — Coverage repair, Jira and completed 20k replay
 
 - Created SCRUM-172–175 under SCRUM-101; added execution map. Implemented source-scoped four-state comparison support (no disputed rules activated), fixed explicit family recovery across multiple catalog generations, and added private cohort/replay evidence. Same 20k: resolved 1,510→2,220, provisional 1,551→2,104, review 15,519→13,967, hard conflicts 1,307→1,596, missing models 7,905→4,785; zero failures. Replayed all 736 changed-resolution cases (716 gains, 6 losses, 14 changed KTypes), pending independent review. 631 unit tests, 205 golden cases, lint/type checks pass. See `docs/TS_TECDOC_REPAIR_EXECUTION_2026-08-28.md`. No push, DB/graph writes or issue-status changes; semantic approval and held-out validation remain open.
-
-## 2026-08-28 — Coverage-first matcher plan
-
-- Rechecked current code, 20k artifacts and Jira contracts; no implementation or Jira mutations. Missing-model (7,905) and bodywork-associated review population (5,053) are disjoint and cover 83.5% of reviews; 1,290 separate provisional records pass resolved scoring but fail candidate-only graph eligibility. Added `docs/TS_TECDOC_COVERAGE_PLAN_2026-08-28.md`: ranked cohort diagnostics, source-aware compatibility, scoped model recovery, distinguishing evidence, independent validation, then ledger/graph delivery. Counts recomputed from artifact; no guaranteed uplift or full-fleet extrapolation. Next implement the focused repair package after authorization.
