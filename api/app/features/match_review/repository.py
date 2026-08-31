@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
+from threading import Lock
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -20,6 +21,9 @@ from ingestion.tecdoc.blocker_review import CATEGORY_BY_CODE
 from ingestion.tecdoc.reference_data import canonical_bodywork_by_kt086
 from api.app.features.match_review.patterns import explain_review_item
 
+_SCHEMA_READY = False
+_SCHEMA_LOCK = Lock()
+
 
 class ConnectionFactory(Protocol):
     def __call__(self) -> AbstractContextManager[Connection[Any]]: ...
@@ -30,9 +34,27 @@ class MatchReviewRepository:
         self._connection_factory = connection_factory
 
     def ensure_schema(self) -> None:
-        with self._connection_factory() as connection:
-            run_match_run_migrations(connection)
-            run_review_queue_migrations(connection)
+        global _SCHEMA_READY
+        if _SCHEMA_READY:
+            return
+        with _SCHEMA_LOCK:
+            if _SCHEMA_READY:
+                return
+            with self._connection_factory() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT to_regclass('core.match_runs'), "
+                        "to_regclass('core.match_review_rule_decisions'), "
+                        "to_regclass('core.match_run_pattern_inventory'), "
+                        "to_regclass('core.review_queue')"
+                    )
+                    existing = cursor.fetchone()
+                if existing is not None and all(existing):
+                    _SCHEMA_READY = True
+                    return
+                run_match_run_migrations(connection)
+                run_review_queue_migrations(connection)
+            _SCHEMA_READY = True
 
     def fetch_run(self, operation_id: str | None) -> dict[str, Any] | None:
         predicate = "WHERE operation_id = %s" if operation_id else ""
