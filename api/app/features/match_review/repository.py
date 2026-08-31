@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 from ingestion.match_run_migrations import (
     MATCH_REVIEW_RULE_DECISIONS_TABLE,
     MATCH_RUN_PATTERN_INVENTORY_TABLE,
+    MATCH_RUN_PATTERN_MEMBERS_TABLE,
     MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUNS_TABLE,
     run_match_run_migrations,
@@ -46,6 +47,8 @@ class MatchReviewRepository:
                         "SELECT to_regclass('core.match_runs'), "
                         "to_regclass('core.match_review_rule_decisions'), "
                         "to_regclass('core.match_run_pattern_inventory'), "
+                        "to_regclass('core.match_run_pattern_batches'), "
+                        "to_regclass('core.match_run_pattern_members'), "
                         "to_regclass('core.review_queue')"
                     )
                     existing = cursor.fetchone()
@@ -200,6 +203,37 @@ class MatchReviewRepository:
                     "pattern_evidence": dict(row[2] or {}),
                     "occurrence_count": int(row[3]),
                     "examples": list(row[4] or []),
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def fetch_pattern_members(
+        self, *, operation_id: str, pattern_key: str, limit: int, offset: int
+    ) -> tuple[int, list[dict[str, Any]]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT count(*) FROM {MATCH_RUN_PATTERN_MEMBERS_TABLE} "
+                "WHERE operation_id=%s AND pattern_key=%s",
+                (operation_id, pattern_key),
+            )
+            total = int((cursor.fetchone() or (0,))[0])
+            cursor.execute(
+                f"""
+                SELECT member.source_record_id, raw.raw_record
+                FROM {MATCH_RUN_PATTERN_MEMBERS_TABLE} member
+                JOIN staging.transportstyrelsen_raw raw
+                  ON raw.id=member.source_record_id
+                WHERE member.operation_id=%s AND member.pattern_key=%s
+                ORDER BY member.source_record_id
+                LIMIT %s OFFSET %s
+                """,
+                (operation_id, pattern_key, limit, offset),
+            )
+            return total, [
+                {
+                    "pattern_key": pattern_key,
+                    "source_record_id": int(row[0]),
+                    "source_evidence": dict(row[1] or {}),
                 }
                 for row in cursor.fetchall()
             ]

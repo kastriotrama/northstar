@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 from ingestion.match_run_migrations import (
     MATCH_RUN_PATTERN_BATCHES_TABLE,
     MATCH_RUN_PATTERN_INVENTORY_TABLE,
+    MATCH_RUN_PATTERN_MEMBERS_TABLE,
 )
 from ingestion.tecdoc.blocker_review import MatchBlockerCategory, classify_match_blocker
 from ingestion.tecdoc.match_run_adapters import MatchEvaluation
@@ -28,10 +29,11 @@ class MatchPatternObservation:
     category: MatchBlockerCategory
     evidence: dict[str, Any]
     example: dict[str, Any]
+    source_record_id: int = 0
 
 
 def observe_match_pattern(
-    raw: dict[str, Any], evaluation: MatchEvaluation
+    raw: dict[str, Any], evaluation: MatchEvaluation, source_record_id: int = 0
 ) -> MatchPatternObservation | None:
     category = classify_match_blocker(evaluation)
     if category is None:
@@ -111,7 +113,7 @@ def observe_match_pattern(
         "model": source_values.get("model", "Model unavailable"),
         "candidate_reference": references[0] if references else None,
     }
-    return MatchPatternObservation(pattern_key, category, evidence, example)
+    return MatchPatternObservation(pattern_key, category, evidence, example, source_record_id)
 
 
 def upsert_match_pattern_inventory(
@@ -141,8 +143,7 @@ def upsert_match_pattern_inventory(
             """,
             (operation_id, batch_number, source_record_id, observations_count),
         )
-        if cursor.rowcount == 0:
-            return
+        is_new_batch = cursor.rowcount == 1
         if not grouped:
             return
         for pattern_key, rows in grouped.items():
@@ -155,36 +156,47 @@ def upsert_match_pattern_inventory(
                     examples.append(row.example)
                 if len(examples) == 4:
                     break
-            cursor.execute(
-                f"""
-                INSERT INTO {MATCH_RUN_PATTERN_INVENTORY_TABLE}
-                    (operation_id, pattern_key, blocker_category, pattern_evidence,
-                     occurrence_count, examples, first_source_record_id, last_source_record_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (operation_id, pattern_key) DO UPDATE SET
-                    occurrence_count = {MATCH_RUN_PATTERN_INVENTORY_TABLE}.occurrence_count
-                        + EXCLUDED.occurrence_count,
-                    examples = (
-                        SELECT jsonb_agg(value)
-                        FROM (
-                            SELECT DISTINCT value
-                            FROM jsonb_array_elements(
-                                {MATCH_RUN_PATTERN_INVENTORY_TABLE}.examples || EXCLUDED.examples
-                            )
-                            LIMIT 4
-                        ) merged
+            if is_new_batch:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {MATCH_RUN_PATTERN_INVENTORY_TABLE}
+                        (operation_id, pattern_key, blocker_category, pattern_evidence,
+                         occurrence_count, examples, first_source_record_id, last_source_record_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (operation_id, pattern_key) DO UPDATE SET
+                        occurrence_count = {MATCH_RUN_PATTERN_INVENTORY_TABLE}.occurrence_count
+                            + EXCLUDED.occurrence_count,
+                        examples = (
+                            SELECT jsonb_agg(value)
+                            FROM (
+                                SELECT DISTINCT value
+                                FROM jsonb_array_elements(
+                                    {MATCH_RUN_PATTERN_INVENTORY_TABLE}.examples || EXCLUDED.examples
+                                )
+                                LIMIT 4
+                            ) merged
+                        ),
+                        last_source_record_id = EXCLUDED.last_source_record_id,
+                        updated_at = now()
+                    """,
+                    (
+                        operation_id,
+                        pattern_key,
+                        rows[0].category.code,
+                        Jsonb(rows[0].evidence),
+                        len(rows),
+                        Jsonb(examples),
+                        source_record_id,
+                        source_record_id,
                     ),
-                    last_source_record_id = EXCLUDED.last_source_record_id,
-                    updated_at = now()
-                """,
-                (
-                    operation_id,
-                    pattern_key,
-                    rows[0].category.code,
-                    Jsonb(rows[0].evidence),
-                    len(rows),
-                    Jsonb(examples),
-                    source_record_id,
-                    source_record_id,
-                ),
+                )
+            cursor.executemany(
+                f"INSERT INTO {MATCH_RUN_PATTERN_MEMBERS_TABLE} "
+                "(operation_id, pattern_key, source_record_id) VALUES (%s, %s, %s) "
+                "ON CONFLICT DO NOTHING",
+                [
+                    (operation_id, pattern_key, row.source_record_id)
+                    for row in rows
+                    if row.source_record_id > 0
+                ],
             )

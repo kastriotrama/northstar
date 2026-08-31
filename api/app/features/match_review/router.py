@@ -11,6 +11,7 @@ from api.app.features.match_review.schemas import (
     MatchReviewItemView,
     MatchReviewPatternDecision,
     MatchReviewPatternDecisionRequest,
+    MatchReviewPatternMemberPage,
     MatchReviewPatternPage,
     MatchReviewPage,
     MatchRunReviewSummary,
@@ -108,3 +109,21 @@ def decide_match_review_pattern(
         raise HTTPException(status_code=409, detail=str(error)) from error
     except psycopg.Error as error:
         raise HTTPException(status_code=503, detail="Pattern decision was not saved.") from error
+
+
+@router.get("/patterns/{pattern_key}/members", response_model=MatchReviewPatternMemberPage)
+def list_match_review_pattern_members(
+    pattern_key: str,
+    service: Annotated[MatchReviewService, Depends(get_match_review_service)],
+    operation_id: str = Query(max_length=80),
+    limit: int = Query(default=100, ge=1, le=300),
+    offset: int = Query(default=0, ge=0),
+) -> MatchReviewPatternMemberPage:
+    try:
+        return service.pattern_members(
+            operation_id=operation_id, pattern_key=pattern_key, limit=limit, offset=offset,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail="Pattern members are unavailable.") from error

@@ -11,6 +11,7 @@ MATCH_RUN_BLOCKER_COUNTS_TABLE = "core.match_run_blocker_counts"
 MATCH_REVIEW_RULE_DECISIONS_TABLE = "core.match_review_rule_decisions"
 MATCH_RUN_PATTERN_INVENTORY_TABLE = "core.match_run_pattern_inventory"
 MATCH_RUN_PATTERN_BATCHES_TABLE = "core.match_run_pattern_batches"
+MATCH_RUN_PATTERN_MEMBERS_TABLE = "core.match_run_pattern_members"
 
 MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -222,6 +223,27 @@ MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
             PRIMARY KEY (operation_id, batch_number),
             UNIQUE (operation_id, last_source_record_id)
         )
+        """,
+    ),
+    (
+        "create_match_run_pattern_members_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_RUN_PATTERN_MEMBERS_TABLE} (
+            operation_id UUID NOT NULL REFERENCES {MATCH_RUNS_TABLE}(operation_id)
+                ON DELETE CASCADE,
+            pattern_key TEXT NOT NULL CHECK (btrim(pattern_key) <> ''),
+            source_record_id BIGINT NOT NULL CHECK (source_record_id > 0),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (operation_id, pattern_key, source_record_id)
+        )
+        """,
+    ),
+    (
+        "create_match_run_pattern_members_index",
+        f"""
+        CREATE INDEX IF NOT EXISTS match_run_pattern_members_page_idx
+        ON {MATCH_RUN_PATTERN_MEMBERS_TABLE}
+            (operation_id, pattern_key, source_record_id)
         """,
     ),
 )

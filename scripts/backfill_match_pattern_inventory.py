@@ -103,7 +103,7 @@ def main() -> None:
                     manufacturer_rules=manufacturers,
                     evaluator=evaluator,
                 )
-                if observation := observe_match_pattern(raw, evaluation):
+                if observation := observe_match_pattern(raw, evaluation, source_id):
                     observations.append(observation)
             batch_number += 1
             processed += len(records)

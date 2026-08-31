@@ -4,7 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
-const matchReviewState = { summary: null, page: null, patterns: null, category: null, status: "", selectedId: null, selectedPatternKey: null, offset: 0, mode: "patterns", loading: false };
+const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, offset: 0, mode: "patterns", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -1102,6 +1102,7 @@ async function loadMatchReviewPatterns() {
     matchReviewState.selectedPatternKey = matchReviewState.patterns.patterns[0]?.pattern_key || null;
   }
   renderMatchReviewPatterns();
+  await loadMatchReviewPatternMembers();
 }
 
 function setMatchReviewMode(mode) {
@@ -1129,10 +1130,48 @@ function renderMatchReviewPatterns() {
   }).join("");
   document.querySelectorAll("[data-match-pattern-key]").forEach((row) => row.addEventListener("click", () => {
     matchReviewState.selectedPatternKey = row.dataset.matchPatternKey;
+    matchReviewState.patternMemberOffset = 0;
     renderMatchReviewPatterns();
+    loadMatchReviewPatternMembers();
   }));
   const selected = page.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey);
   renderMatchReviewPatternInspector(selected);
+}
+
+async function loadMatchReviewPatternMembers() {
+  const operation = matchReviewState.summary?.operation_id;
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!operation || !pattern) { matchReviewState.patternMembers = null; renderMatchReviewPatternMembers(); return; }
+  const query = new URLSearchParams({ operation_id: operation, limit: "50", offset: String(matchReviewState.patternMemberOffset) });
+  try {
+    matchReviewState.patternMembers = await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/members?${query}`);
+  } catch (error) {
+    matchReviewState.patternMembers = null;
+    showToast(`Could not load vehicles for this pattern. ${error.message}`);
+  }
+  renderMatchReviewPatternMembers();
+}
+
+function renderMatchReviewPatternMembers() {
+  const page = matchReviewState.patternMembers;
+  const count = document.querySelector("#match-review-pattern-member-count");
+  const list = document.querySelector("#match-review-pattern-members");
+  const label = document.querySelector("#match-review-pattern-members-page");
+  const previous = document.querySelector("#match-review-pattern-members-previous");
+  const next = document.querySelector("#match-review-pattern-members-next");
+  if (!page) {
+    count.textContent = "Vehicle members will appear after the exhaustive inventory is populated.";
+    list.innerHTML = ""; label.textContent = "0 vehicles"; previous.disabled = true; next.disabled = true; return;
+  }
+  count.textContent = `${page.total.toLocaleString()} vehicle${page.total === 1 ? "" : "s"} share this exact pattern. Plates are visible only in this restricted local view.`;
+  list.innerHTML = page.members.map((member) => {
+    const source = member.source_evidence || {};
+    const vehicle = [source.brand, source.model].filter(Boolean).join(" · ") || "TS vehicle";
+    return `<div class="pattern-example"><span>${escapeHtml(source.plate || `Record ${member.source_record_id}`)} · ${escapeHtml(vehicle)}</span><small>Source record ${escapeHtml(String(member.source_record_id))}</small></div>`;
+  }).join("");
+  label.textContent = page.total ? `${page.offset + 1}–${Math.min(page.offset + page.members.length, page.total)} of ${page.total.toLocaleString()}` : "0 vehicles";
+  previous.disabled = page.offset === 0;
+  next.disabled = page.offset + page.members.length >= page.total;
 }
 
 function renderMatchReviewPatternInspector(pattern) {
@@ -1282,6 +1321,8 @@ document.querySelector("#match-review-pattern-action").addEventListener("change"
   document.querySelector("#match-review-pattern-values-field").hidden = event.target.value !== "change_rule";
 });
 document.querySelector("#match-review-pattern-save").addEventListener("click", decideMatchReviewPattern);
+document.querySelector("#match-review-pattern-members-previous").addEventListener("click", async () => { matchReviewState.patternMemberOffset = Math.max(0, matchReviewState.patternMemberOffset - 50); await loadMatchReviewPatternMembers(); });
+document.querySelector("#match-review-pattern-members-next").addEventListener("click", async () => { matchReviewState.patternMemberOffset += 50; await loadMatchReviewPatternMembers(); });
 window.setInterval(async () => {
   if (elements.matchReviewView.hidden || matchReviewState.loading || !matchReviewState.summary?.operation_id) return;
   try {

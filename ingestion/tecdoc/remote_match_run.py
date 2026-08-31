@@ -86,7 +86,7 @@ def run_remote_dry_match_audit(
             batch_reason_counts.update(evaluation.reason_codes)
             if category := classify_match_blocker(evaluation):
                 batch_blocker_counts[category.code] += 1
-            if observation := observe_match_pattern(raw, evaluation):
+            if observation := observe_match_pattern(raw, evaluation, source_record_id):
                 batch_patterns.append(observation)
             counts = replace(counts, **{terminal: getattr(counts, terminal) + 1})
         batch_number += 1
@@ -180,7 +180,7 @@ def run_local_raw_dry_match_audit(
             batch_reason_counts.update(evaluation.reason_codes)
             if category := classify_match_blocker(evaluation):
                 batch_blocker_counts[category.code] += 1
-            if observation := observe_match_pattern(raw, evaluation):
+            if observation := observe_match_pattern(raw, evaluation, source_id):
                 batch_patterns.append(observation)
             counts = replace(
                 counts,

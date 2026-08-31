@@ -124,6 +124,21 @@ class MatchReviewPatternPage(BaseModel):
     patterns: list[MatchReviewPatternView] = Field(default_factory=list)
 
 
+class MatchReviewPatternMemberView(BaseModel):
+    pattern_key: str
+    source_record_id: int
+    source_evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class MatchReviewPatternMemberPage(BaseModel):
+    operation_id: str
+    pattern_key: str
+    total: int
+    limit: int
+    offset: int
+    members: list[MatchReviewPatternMemberView] = Field(default_factory=list)
+
+
 class MatchReviewPatternDecisionRequest(BaseModel):
     action: Literal["accept_pattern", "keep_blocked", "change_rule"]
     reviewer: str = Field(min_length=1, max_length=120)

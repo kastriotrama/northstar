@@ -9,6 +9,8 @@ from api.app.features.match_review.schemas import (
     MatchReviewPatternDecision,
     MatchReviewPatternPage,
     MatchReviewPatternView,
+    MatchReviewPatternMemberPage,
+    MatchReviewPatternMemberView,
     MatchReviewItemView,
     MatchReviewPage,
     MatchRunCountsView,
@@ -28,6 +30,9 @@ class MatchReviewData(Protocol):
     ) -> dict[str, dict[str, Any]]: ...
     def fetch_pattern_decisions(self, operation_id: str) -> dict[str, dict[str, Any]]: ...
     def fetch_pattern_inventory(self, operation_id: str) -> list[dict[str, Any]]: ...
+    def fetch_pattern_members(
+        self, *, operation_id: str, pattern_key: str, limit: int, offset: int
+    ) -> tuple[int, list[dict[str, Any]]]: ...
     def fetch_items(
         self, *, operation_id: str, category: str | None, status: str | None,
         limit: int, offset: int,
@@ -178,6 +183,24 @@ class MatchReviewService:
             reason=request.reason,
         )
         return MatchReviewPatternDecision(**result)
+
+    def pattern_members(
+        self, *, operation_id: str, pattern_key: str, limit: int, offset: int
+    ) -> MatchReviewPatternMemberPage:
+        self._repository.ensure_schema()
+        if limit < 1 or limit > 300 or offset < 0:
+            raise ValueError("invalid pattern member pagination")
+        total, rows = self._repository.fetch_pattern_members(
+            operation_id=operation_id, pattern_key=pattern_key, limit=limit, offset=offset,
+        )
+        return MatchReviewPatternMemberPage(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            total=total,
+            limit=limit,
+            offset=offset,
+            members=[MatchReviewPatternMemberView(**row) for row in rows],
+        )
 
     def decide(
         self, operation_id: str, item_id: int, request: MatchReviewDecisionRequest

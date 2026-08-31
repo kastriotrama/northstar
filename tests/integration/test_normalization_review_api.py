@@ -9,6 +9,7 @@ from api.app.features.match_review.schemas import (
     MatchReviewItemView,
     MatchReviewPatternDecision,
     MatchReviewPatternDecisionRequest,
+    MatchReviewPatternMemberPage,
     MatchReviewPatternPage,
     MatchReviewPatternView,
     MatchReviewPage,
@@ -284,6 +285,24 @@ class FakeMatchReviewService:
             created_at=datetime.now(UTC),
         )
 
+    def pattern_members(
+        self, *, operation_id: str, pattern_key: str, limit: int, offset: int,
+    ) -> MatchReviewPatternMemberPage:
+        return MatchReviewPatternMemberPage(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            total=2,
+            limit=limit,
+            offset=offset,
+            members=[
+                {
+                    "pattern_key": pattern_key,
+                    "source_record_id": 42,
+                    "source_evidence": {"plate": "ABC123", "brand": "KIA", "model": "NIRO"},
+                }
+            ],
+        )
+
     @staticmethod
     def _item(operation_id: str, status: str) -> MatchReviewItemView:
         return MatchReviewItemView(
@@ -401,6 +420,10 @@ def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: 
                 "reason": "Repeated examples confirm the ontology mapping",
             },
         )
+        members = client.get(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/members",
+            params={"operation_id": "op-1", "limit": 1},
+        )
     finally:
         client.app.dependency_overrides.clear()
 
@@ -409,6 +432,8 @@ def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: 
     assert patterns.json()["patterns"][0]["category_occurrences"] == 7282
     assert decision.status_code == 200
     assert decision.json()["action"] == "accept_pattern"
+    assert members.status_code == 200
+    assert members.json()["members"][0]["source_evidence"]["plate"] == "ABC123"
 
 
 def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
