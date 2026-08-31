@@ -1142,11 +1142,14 @@ function renderMatchReviewPatternInspector(pattern) {
   document.querySelector("#match-review-pattern-category").textContent = humanize(pattern.category);
   document.querySelector("#match-review-pattern-title").textContent = pattern.title;
   document.querySelector("#match-review-pattern-summary").textContent = pattern.summary;
+  document.querySelector("#match-review-pattern-why").textContent = pattern.why_blocked;
+  document.querySelector("#match-review-pattern-question").textContent = `Decision needed: ${pattern.decision_question}`;
   document.querySelector("#match-review-pattern-values").innerHTML = [
     ["TS evidence", Object.values(pattern.source_values || {}).map(displayValue).join(" · ")],
     ["TecDoc evidence", Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ")],
     ["Sample / category", `${pattern.sample_occurrences} sampled · ${pattern.category_occurrences.toLocaleString()} in category`],
   ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  document.querySelector("#match-review-pattern-gaps").innerHTML = pattern.evidence_gaps.map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
   document.querySelector("#match-review-pattern-examples").innerHTML = pattern.examples.length ? pattern.examples.map((example) => `<div class="pattern-example"><span>${escapeHtml(example.manufacturer)} · ${escapeHtml(example.model)}</span><small>${example.candidate_reference ? `KType ${escapeHtml(example.candidate_reference)}` : "No candidate"}</small></div>`).join("") : "<p class=\"section-hint\">No model-family examples are available in the bounded sample.</p>";
   const decided = Boolean(pattern.decision);
   document.querySelector("#match-review-pattern-action").disabled = decided;
@@ -1226,8 +1229,12 @@ function renderMatchReviewInspector(item) {
   status.className = `queue-state queue-${item.status}`;
   document.querySelector("#match-review-guidance").textContent = item.category_guidance;
   document.querySelector("#match-review-reasons").textContent = item.reason_codes.map(humanize).join(" · ");
+  document.querySelector("#match-review-why").textContent = item.blocker_explanation || "";
+  document.querySelector("#match-review-question").textContent = item.decision_question ? `Decision needed: ${item.decision_question}` : "";
   const sourceFields = ["plate", "manufacturer", "brand", "model", "variant", "version", "eeg_type_approval", "body_code", "is_4wd", "fuel1", "fuel2", "engine_code", "displacement", "power_kw", "model_year"];
   document.querySelector("#match-review-source").innerHTML = sourceFields.filter((key) => source[key] !== null && source[key] !== undefined && source[key] !== "").map((key) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(source[key]))}</dd></div>`).join("");
+  document.querySelector("#match-review-comparison").innerHTML = Object.entries(item.field_comparison || {}).map(([field, values]) => `<div><dt>${escapeHtml(humanize(field))}</dt><dd>TS: ${escapeHtml(displayValue(values.ts))}<br/>TecDoc: ${escapeHtml(displayValue(values.tecdoc))}</dd></div>`).join("") || "<p class=\"section-hint\">The candidate did not return a comparable value for this field.</p>";
+  document.querySelector("#match-review-gaps").innerHTML = (item.evidence_gaps || []).map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
   document.querySelector("#match-review-candidates").innerHTML = item.candidate_matches.length ? item.candidate_matches.map((candidate, index) => {
     const evidence = candidate.evidence || {};
     const matched = (evidence.matched_fields || []).join(", ") || "No corroborating fields";

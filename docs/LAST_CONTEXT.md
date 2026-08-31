@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-31 — Full 6.5M audit and stakeholder blocker workspace
 
-- Started a resumable, release-pinned audit of all 6,515,471 local passenger rows against the 72,570-candidate v6 catalog. Added mutually exclusive blocker aggregation, a bounded review sampler, API endpoints and a three-pane frontend for pattern-first category triage, representative model-family examples, and optional plate-level evidence decisions. Added append-only versioned category-rule proposals; they cannot persist match decisions, attach aliases or write Neo4j. At the latest exact checkpoint, 50,000 rows were checked and 77 representative review items were available. Focused backend/API tests, Ruff, mypy and frontend syntax checks pass; the full audit remains running. See `docs/TS_TECDOC_FULL_AUDIT_REVIEW_WORKSPACE_2026-08-31.md`.
+- Started a resumable, release-pinned audit of all 6,515,471 local passenger rows against the 72,570-candidate v6 catalog. Added mutually exclusive blocker aggregation, a bounded review sampler, API endpoints and a pattern-first frontend for recurring category triage plus plate-level evidence. Each item now explains why matching stopped, compares TS/TecDoc fields, lists evidence gaps, and states the stakeholder decision required; category proposals remain append-only and cannot persist match decisions, attach aliases or write Neo4j. The latest exact checkpoint is 175,000 rows (2.686%), with 17,717 resolved, 15,723 provisional, 125,825 review-required, 20 unmatched, and 13,165 hard conflicts. The full audit remains running. See `docs/TS_TECDOC_FULL_AUDIT_REVIEW_WORKSPACE_2026-08-31.md`.
 
 ## 2026-08-31 — Remote qualifier-loss work merged and reconciled
 

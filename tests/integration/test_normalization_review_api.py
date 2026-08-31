@@ -349,6 +349,8 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="vehicle-rule-detail"' in screen.text
     assert 'id="queue-view"' in screen.text
     assert 'id="match-review-view"' in screen.text
+    assert 'id="match-review-pattern-gaps"' in screen.text
+    assert 'id="match-review-comparison"' in screen.text
     assert "/v1/normalization-review/queue" in javascript.text
     assert "/v1/match-review/summary" in javascript.text
     assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text

@@ -279,8 +279,9 @@
             <div id="match-review-inspector-empty" class="inspector-empty"><span class="inspector-glyph">!</span><strong>Select a blocker</strong><p>Compare immutable TS evidence with every returned TecDoc candidate.</p></div>
             <form id="match-review-pattern-form" hidden>
               <header><div><span class="eyebrow" id="match-review-pattern-category">Rule pattern</span><h2 id="match-review-pattern-title">Recurring conflict</h2></div><span class="queue-state queue-pending">Proposal</span></header>
-              <section class="match-review-guidance"><strong id="match-review-pattern-summary">Review the repeated source-to-catalog relationship.</strong><p>Pattern decisions are versioned proposals. They do not activate a normalization rule or change a KType.</p></section>
+              <section class="match-review-guidance"><strong id="match-review-pattern-summary">Review the repeated source-to-catalog relationship.</strong><p id="match-review-pattern-why">Pattern decisions are versioned proposals. They do not activate a normalization rule or change a KType.</p><p id="match-review-pattern-question"></p></section>
               <section><h3>Pattern evidence</h3><dl id="match-review-pattern-values" class="field-list"></dl></section>
+              <section><h3>Evidence still needed</h3><ul id="match-review-pattern-gaps" class="evidence-gap-list"></ul></section>
               <section><h3>Representative model families</h3><div id="match-review-pattern-examples" class="pattern-examples"></div></section>
               <section class="match-review-decision-fields"><h3>Stakeholder rule choice</h3>
                 <label><span>Reviewer</span><input id="match-review-pattern-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
@@ -292,8 +293,10 @@
             </form>
             <form id="match-review-form" hidden>
               <header><div><span class="eyebrow" id="match-review-detail-category">Blocker</span><h2 id="match-review-detail-title">Vehicle</h2></div><span id="match-review-detail-status" class="queue-state queue-pending">Pending</span></header>
-              <section class="match-review-guidance"><strong id="match-review-guidance">Keep unresolved until evidence is sufficient.</strong><p id="match-review-reasons"></p></section>
+              <section class="match-review-guidance"><strong id="match-review-guidance">Keep unresolved until evidence is sufficient.</strong><p id="match-review-reasons"></p><p id="match-review-why"></p><p id="match-review-question"></p></section>
               <section><h3>Transportstyrelsen evidence</h3><dl id="match-review-source" class="field-list"></dl></section>
+              <section><h3>Gate comparison</h3><dl id="match-review-comparison" class="field-list"></dl></section>
+              <section><h3>Evidence still needed</h3><ul id="match-review-gaps" class="evidence-gap-list"></ul></section>
               <section><h3>TecDoc candidates</h3><div id="match-review-candidates" class="candidate-choice-list"></div></section>
               <section id="match-review-recorded" hidden><h3>Recorded decision</h3><dl id="match-review-resolution" class="field-list"></dl></section>
               <section id="match-review-decision-fields" class="match-review-decision-fields">

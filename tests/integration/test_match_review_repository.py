@@ -97,6 +97,9 @@ def test_repository_reads_progress_and_persists_locked_review_decision(
         offset=0,
     )
     assert total == 1 and items[0]["source_evidence"]["plate"] == "TEST-REVIEW"
+    assert items[0]["blocker_explanation"]
+    assert items[0]["decision_question"]
+    assert "model" in items[0]["field_comparison"]
 
     decided = repository.decide(
         operation_id=operation_id,

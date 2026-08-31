@@ -17,6 +17,7 @@ from ingestion.review_queue import transition_review_item
 from ingestion.review_queue_migrations import REVIEW_QUEUE_TABLE, run_review_queue_migrations
 from ingestion.tecdoc.blocker_review import CATEGORY_BY_CODE
 from ingestion.tecdoc.reference_data import canonical_bodywork_by_kt086
+from api.app.features.match_review.patterns import explain_review_item
 
 
 class ConnectionFactory(Protocol):
@@ -319,7 +320,7 @@ class MatchReviewRepository:
     def _item_row(row: tuple[Any, ...], operation_id: str) -> dict[str, Any]:
         category = str(row[1]).removeprefix("ts_tecdoc_match_blocker:")
         metadata = CATEGORY_BY_CODE.get(category, CATEGORY_BY_CODE["other_match_blocker"])
-        return {
+        item = {
             "id": int(row[0]),
             "operation_id": operation_id,
             "category": category,
@@ -336,3 +337,5 @@ class MatchReviewRepository:
             "resolved_by": None if row[10] is None else str(row[10]),
             "updated_at": row[11],
         }
+        item.update(explain_review_item(item))
+        return item

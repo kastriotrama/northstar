@@ -51,6 +51,10 @@ class MatchReviewItemView(BaseModel):
     reason_codes: list[str] = Field(default_factory=list)
     candidate_matches: list[dict[str, Any]] = Field(default_factory=list)
     confidence: float | None = None
+    blocker_explanation: str = ""
+    decision_question: str = ""
+    evidence_gaps: list[str] = Field(default_factory=list)
+    field_comparison: dict[str, Any] = Field(default_factory=dict)
     status: Literal["pending", "in_review", "resolved", "rejected"]
     resolution: dict[str, Any] = Field(default_factory=dict)
     resolved_by: str | None = None
@@ -104,6 +108,9 @@ class MatchReviewPatternView(BaseModel):
     summary: str
     source_values: dict[str, Any] = Field(default_factory=dict)
     candidate_values: dict[str, Any] = Field(default_factory=dict)
+    why_blocked: str = ""
+    decision_question: str = ""
+    evidence_gaps: list[str] = Field(default_factory=list)
     sample_occurrences: int = 0
     category_occurrences: int = 0
     examples: list[MatchReviewPatternExample] = Field(default_factory=list)
