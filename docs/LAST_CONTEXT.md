@@ -2,10 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-30 — PR #32 green and Jira acceptance audit
-
-- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
-
 ## 2026-08-28 — PR #32 published
 
 - Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
@@ -41,3 +37,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Restricted 500k cohort imported to production
 
 - Created a checksum-pinned 103 MB private bundle for exactly VD-AI parts 001–020: 500,000 distinct plates, the 169,190-row v6 TecDoc candidate batch, 169,190 identity rows, 70,671 KType-engine relationships, and the pinned active rule version. Backed up production, imported the bundle transactionally with zero ID/prefix collisions, and reconciled 72,570 KTypes; Neo4j and the 1,000-car showcase were unchanged. Started checkpointed production match run `d2610431-29c3-43a0-b3c0-71d8637a6daf` for exactly 500,000 rows in an isolated container. The run is healthy and CPU-bound; the live UI will update every 25,000 rows.
+
+## 2026-08-31 — Located the existing full database snapshot
+
+- Located and validated the earlier full PostgreSQL archive at `NorthStar-SCRUM-95-98/outputs/snapshots/northstar-ts-tecdoc-v323-6515471/northstar-postgres-ts-v323-6515471.dump`. The 991,886,805-byte custom-format dump includes the 6,515,471-row TS snapshot contract plus normalization, review, TecDoc candidate/relationship, and match-decision tables; SHA-256 is `eb9ad39fe5184b7457ffe833fb5bd0e23d7a195891600ce276f036d564188a86`. Archive listing validation passed and permissions were restricted to the owner. The mistakenly started replacement dump was stopped and its incomplete artifact removed; the source database was unchanged.
