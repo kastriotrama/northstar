@@ -7,6 +7,7 @@ from psycopg import Connection
 MATCH_RUNS_TABLE = "core.match_runs"
 MATCH_RUN_CHECKPOINTS_TABLE = "core.match_run_checkpoints"
 MATCH_RUN_REASON_COUNTS_TABLE = "core.match_run_reason_counts"
+MATCH_RUN_BLOCKER_COUNTS_TABLE = "core.match_run_blocker_counts"
 
 MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -130,6 +131,18 @@ MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
             occurrence_count BIGINT NOT NULL CHECK (occurrence_count >= 0),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (operation_id, reason_code)
+        )
+        """,
+    ),
+    (
+        "create_match_run_blocker_counts_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_RUN_BLOCKER_COUNTS_TABLE} (
+            operation_id UUID NOT NULL REFERENCES {MATCH_RUNS_TABLE}(operation_id),
+            blocker_category TEXT NOT NULL CHECK (btrim(blocker_category) <> ''),
+            occurrence_count BIGINT NOT NULL CHECK (occurrence_count >= 0),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (operation_id, blocker_category)
         )
         """,
     ),

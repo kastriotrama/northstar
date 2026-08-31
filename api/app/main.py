@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.app.core.settings import get_settings
 from api.app.features.health.router import router as health_router
+from api.app.features.match_review.router import router as match_review_router
 from api.app.features.normalization_review.router import (
     STATIC_DIRECTORY as NORMALIZATION_REVIEW_STATIC_DIRECTORY,
 )
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(resolve_router)
+    app.include_router(match_review_router)
     app.include_router(normalization_review_api_router)
     app.include_router(normalization_review_screen_router)
     app.include_router(review_queue_router)

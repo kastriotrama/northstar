@@ -16,10 +16,12 @@ from ingestion.match_run_repository import (
     append_match_checkpoint,
     claim_match_run,
     complete_match_run,
+    increment_match_run_blocker_counts,
     increment_match_run_reason_counts,
 )
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.normalization_rules import ManufacturerEntityRules, normalize_ts_record
+from ingestion.tecdoc.blocker_review import classify_match_blocker
 from ingestion.tecdoc.match_run_adapters import MatchEvaluation, TecDocDryRunEvaluator
 from ingestion.translation_dictionaries import TranslationRuleSet
 
@@ -68,6 +70,7 @@ def run_remote_dry_match_audit(
         if plates != tuple(sorted(set(plates))) or (after_plate and plates[0] <= after_plate):
             raise ValueError("remote plates must be unique, ascending and after checkpoint")
         batch_reason_counts: Counter[str] = Counter()
+        batch_blocker_counts: Counter[str] = Counter()
         for raw in records:
             evaluation = _evaluate_raw_record(
                 raw,
@@ -78,6 +81,8 @@ def run_remote_dry_match_audit(
             )
             terminal = evaluation.terminal
             batch_reason_counts.update(evaluation.reason_codes)
+            if category := classify_match_blocker(evaluation):
+                batch_blocker_counts[category.code] += 1
             counts = replace(counts, **{terminal: getattr(counts, terminal) + 1})
         batch_number += 1
         after_plate = plates[-1]
@@ -93,6 +98,11 @@ def run_remote_dry_match_audit(
             local,
             operation_id=pins.operation_id,
             reason_counts=dict(batch_reason_counts),
+        )
+        increment_match_run_blocker_counts(
+            local,
+            operation_id=pins.operation_id,
+            blocker_counts=dict(batch_blocker_counts),
         )
         local.commit()
         if max_batches is not None and batch_number - progress.last_batch_number >= max_batches:
@@ -145,6 +155,7 @@ def run_local_raw_dry_match_audit(
         if ids != tuple(sorted(set(ids))) or ids[0] <= after_id:
             raise ValueError("local raw ids must be unique, ascending and after checkpoint")
         batch_reason_counts: Counter[str] = Counter()
+        batch_blocker_counts: Counter[str] = Counter()
         for source_id, raw in records:
             evaluation = _evaluate_raw_record(
                 raw,
@@ -154,6 +165,8 @@ def run_local_raw_dry_match_audit(
                 evaluator=evaluator,
             )
             batch_reason_counts.update(evaluation.reason_codes)
+            if category := classify_match_blocker(evaluation):
+                batch_blocker_counts[category.code] += 1
             counts = replace(
                 counts,
                 **{evaluation.terminal: getattr(counts, evaluation.terminal) + 1},
@@ -171,6 +184,11 @@ def run_local_raw_dry_match_audit(
             connection,
             operation_id=pins.operation_id,
             reason_counts=dict(batch_reason_counts),
+        )
+        increment_match_run_blocker_counts(
+            connection,
+            operation_id=pins.operation_id,
+            blocker_counts=dict(batch_blocker_counts),
         )
         connection.commit()
         if max_batches is not None and batch_number - progress.last_batch_number >= max_batches:

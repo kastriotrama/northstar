@@ -4,6 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
+const matchReviewState = { summary: null, page: null, category: null, status: "", selectedId: null, offset: 0, loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -23,6 +24,7 @@ const elements = {
   queueView: document.querySelector("#queue-view"),
   tecdocView: document.querySelector("#tecdoc-view"),
   connectionsView: document.querySelector("#connections-view"),
+  matchReviewView: document.querySelector("#match-review-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -386,17 +388,20 @@ function switchView(view) {
   const showQueue = view === "queue";
   const showTecDoc = view === "tecdoc";
   const showConnections = view === "connections";
-  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections;
+  const showMatchReview = view === "match-review";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections || showMatchReview;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
   elements.queueView.hidden = !showQueue;
   elements.tecdocView.hidden = !showTecDoc;
   elements.connectionsView.hidden = !showConnections;
+  elements.matchReviewView.hidden = !showMatchReview;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
   if (showQueue) loadQueue();
   if (showTecDoc && !tecdocState.page) loadTecDoc();
   if (showConnections && !resolvedConnectionState.page) loadResolvedConnections();
+  if (showMatchReview) loadMatchReview();
 }
 
 const connectionViews = {
@@ -1041,7 +1046,147 @@ async function approveQueueDecision(event) {
   } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
 }
 
+async function loadMatchReview() {
+  if (matchReviewState.loading) return;
+  matchReviewState.loading = true;
+  try {
+    const operation = matchReviewState.summary?.operation_id;
+    const query = operation ? `?operation_id=${encodeURIComponent(operation)}` : "";
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary${query}`);
+    renderMatchReviewSummary();
+    if (matchReviewState.summary.operation_id) await loadMatchReviewItems();
+  } catch (error) { showToast(`Could not load match blockers. ${error.message}`); }
+  finally { matchReviewState.loading = false; }
+}
+
+function renderMatchReviewSummary() {
+  const summary = matchReviewState.summary;
+  if (!summary) return;
+  document.querySelector("#match-review-processed").textContent = summary.processed.toLocaleString();
+  document.querySelector("#match-review-expected").textContent = summary.expected_source_rows.toLocaleString();
+  document.querySelector("#match-review-progress-fill").style.width = `${summary.progress_percent}%`;
+  document.querySelector("#match-review-run-label").textContent = summary.operation_id
+    ? `${humanize(summary.status)} · ${summary.progress_percent}% · checkpoint ${summary.last_batch_number} · ${summary.candidate_catalog_version}`
+    : "No full matcher audit has been started.";
+  document.querySelector("#match-review-resolved").textContent = summary.counts.resolved.toLocaleString();
+  document.querySelector("#match-review-provisional").textContent = summary.counts.provisional.toLocaleString();
+  document.querySelector("#match-review-required").textContent = summary.counts.review_required.toLocaleString();
+  document.querySelector("#match-review-hard").textContent = summary.counts.hard_conflict.toLocaleString();
+  document.querySelector("#match-review-categories").innerHTML = summary.blockers.map((category) => `
+    <button type="button" data-match-category="${escapeHtml(category.code)}" class="blocker-category ${matchReviewState.category === category.code ? "active" : ""}">
+      <span><strong>${escapeHtml(category.title)}</strong><small>${escapeHtml(category.guidance)}</small></span>
+      <b>${category.count.toLocaleString()}</b>
+      <em>${category.pending.toLocaleString()} sampled pending · ${category.decided.toLocaleString()} decided</em>
+    </button>`).join("");
+  document.querySelectorAll("[data-match-category]").forEach((button) => button.addEventListener("click", async () => {
+    matchReviewState.category = button.dataset.matchCategory;
+    matchReviewState.offset = 0;
+    matchReviewState.selectedId = null;
+    renderMatchReviewSummary();
+    await loadMatchReviewItems();
+  }));
+}
+
+async function loadMatchReviewItems() {
+  const operation = matchReviewState.summary?.operation_id;
+  if (!operation) return;
+  const query = new URLSearchParams({ operation_id: operation, limit: "100", offset: String(matchReviewState.offset) });
+  if (matchReviewState.category) query.set("category", matchReviewState.category);
+  if (matchReviewState.status) query.set("status", matchReviewState.status);
+  matchReviewState.page = await apiRequest(`/v1/match-review/items?${query}`);
+  if (!matchReviewState.page.items.some((item) => item.id === matchReviewState.selectedId)) {
+    matchReviewState.selectedId = matchReviewState.page.items[0]?.id ?? null;
+  }
+  renderMatchReviewItems();
+}
+
+function renderMatchReviewItems() {
+  const page = matchReviewState.page;
+  if (!page) return;
+  const category = matchReviewState.summary?.blockers.find((item) => item.code === matchReviewState.category);
+  document.querySelector("#match-review-category-label").textContent = category?.title || "All categories";
+  document.querySelector("#match-review-empty").hidden = page.items.length > 0;
+  document.querySelector("#match-review-page-label").textContent = `${Math.min(page.offset + 1, page.total).toLocaleString()}–${Math.min(page.offset + page.items.length, page.total).toLocaleString()} of ${page.total.toLocaleString()}`;
+  document.querySelector("#match-review-previous").disabled = page.offset === 0;
+  document.querySelector("#match-review-next").disabled = page.offset + page.items.length >= page.total;
+  document.querySelector("#match-review-rows").innerHTML = page.items.map((item, index) => {
+    const source = item.source_evidence || {};
+    const vehicle = [source.manufacturer, source.brand, source.model].filter(Boolean).join(" · ") || `Source ${item.source_record_id}`;
+    const plate = source.plate || "Plate unavailable";
+    const top = item.candidate_matches[0];
+    return `<tr data-match-review-id="${item.id}" class="${item.id === matchReviewState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0"><td><div class="vehicle-cell"><strong>${escapeHtml(plate)} · ${escapeHtml(vehicle)}</strong><span>Record ${item.source_record_id}</span></div></td><td>${escapeHtml(item.category_title)}</td><td>${top ? `KType ${escapeHtml(top.candidate_reference)}<br><small>${escapeHtml(top.evidence?.model || "Candidate")}</small>` : "No candidate"}</td><td><span class="queue-state queue-${escapeHtml(item.status)}">${escapeHtml(humanize(item.status))}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("[data-match-review-id]").forEach((row) => {
+    const select = () => { matchReviewState.selectedId = Number(row.dataset.matchReviewId); renderMatchReviewItems(); };
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  renderMatchReviewInspector(page.items.find((item) => item.id === matchReviewState.selectedId));
+}
+
+function renderMatchReviewInspector(item) {
+  document.querySelector("#match-review-inspector-empty").hidden = Boolean(item);
+  document.querySelector("#match-review-form").hidden = !item;
+  if (!item) return;
+  const source = item.source_evidence || {};
+  document.querySelector("#match-review-detail-category").textContent = item.category_title;
+  document.querySelector("#match-review-detail-title").textContent = `${source.plate || `Record ${item.source_record_id}`} · ${source.model || source.brand || "TS vehicle"}`;
+  const status = document.querySelector("#match-review-detail-status");
+  status.textContent = humanize(item.status);
+  status.className = `queue-state queue-${item.status}`;
+  document.querySelector("#match-review-guidance").textContent = item.category_guidance;
+  document.querySelector("#match-review-reasons").textContent = item.reason_codes.map(humanize).join(" · ");
+  const sourceFields = ["plate", "manufacturer", "brand", "model", "variant", "version", "eeg_type_approval", "body_code", "is_4wd", "fuel1", "fuel2", "engine_code", "displacement", "power_kw", "model_year"];
+  document.querySelector("#match-review-source").innerHTML = sourceFields.filter((key) => source[key] !== null && source[key] !== undefined && source[key] !== "").map((key) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(source[key]))}</dd></div>`).join("");
+  document.querySelector("#match-review-candidates").innerHTML = item.candidate_matches.length ? item.candidate_matches.map((candidate, index) => {
+    const evidence = candidate.evidence || {};
+    const matched = (evidence.matched_fields || []).join(", ") || "No corroborating fields";
+    const conflicts = (evidence.conflicting_fields || []).join(", ");
+    return `<label class="candidate-choice ${index === 0 ? "suggested" : ""}"><input type="radio" name="match-review-candidate" value="${escapeHtml(candidate.candidate_reference)}" ${index === 0 ? "checked" : ""}/><span><strong>KType ${escapeHtml(candidate.candidate_reference)} · ${escapeHtml(evidence.manufacturer || "")} ${escapeHtml(evidence.model || "")}</strong><small>${Math.round(candidate.confidence * 100)}% candidate confidence · matched ${escapeHtml(matched)}</small>${conflicts ? `<em>Conflicts: ${escapeHtml(conflicts)}</em>` : ""}</span>${index === 0 ? "<b>Suggested</b>" : ""}</label>`;
+  }).join("") : "<p class=\"section-hint\">No KType passed the candidate threshold. This row can only remain unresolved until new evidence or a reviewed mapping is available.</p>";
+  const decided = item.status === "resolved" || item.status === "rejected";
+  document.querySelector("#match-review-recorded").hidden = !decided;
+  document.querySelector("#match-review-decision-fields").hidden = decided;
+  document.querySelector("#match-review-actions").hidden = decided;
+  document.querySelector("#match-review-resolution").innerHTML = decided ? Object.entries(item.resolution || {}).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") : "";
+  document.querySelector("#match-review-accept").disabled = item.candidate_matches.length === 0;
+  document.querySelector("#match-review-select").disabled = item.candidate_matches.length === 0;
+}
+
+async function decideMatchReview(action) {
+  const item = matchReviewState.page?.items.find((candidate) => candidate.id === matchReviewState.selectedId);
+  if (!item || !matchReviewState.summary?.operation_id) return;
+  const reviewer = document.querySelector("#match-review-reviewer").value.trim();
+  const reason = document.querySelector("#match-review-note").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear evidence note."); return; }
+  const selected = document.querySelector('input[name="match-review-candidate"]:checked')?.value;
+  const body = { action, reviewer, reason, scope: document.querySelector("#match-review-scope").value };
+  if (action === "select_candidate") body.selected_candidate_reference = selected;
+  try {
+    await apiRequest(`/v1/match-review/items/${item.id}/decision?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`, { method: "POST", body: JSON.stringify(body) });
+    await loadMatchReviewItems();
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`);
+    renderMatchReviewSummary();
+    showToast(action === "keep_unresolved" ? "Unresolved decision recorded without graph writes." : "KType review decision recorded; promotion remains a separate gate.");
+  } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
+}
+
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelector("#match-review-status").addEventListener("change", async (event) => { matchReviewState.status = event.target.value; matchReviewState.offset = 0; await loadMatchReviewItems(); });
+document.querySelector("#match-review-previous").addEventListener("click", async () => { matchReviewState.offset = Math.max(0, matchReviewState.offset - 100); await loadMatchReviewItems(); });
+document.querySelector("#match-review-next").addEventListener("click", async () => { matchReviewState.offset += 100; await loadMatchReviewItems(); });
+document.querySelector("#match-review-accept").addEventListener("click", () => decideMatchReview("accept_top_candidate"));
+document.querySelector("#match-review-select").addEventListener("click", () => decideMatchReview("select_candidate"));
+document.querySelector("#match-review-unresolved").addEventListener("click", () => decideMatchReview("keep_unresolved"));
+window.setInterval(async () => {
+  if (elements.matchReviewView.hidden || matchReviewState.loading || !matchReviewState.summary?.operation_id) return;
+  try {
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`);
+    renderMatchReviewSummary();
+  } catch (_error) {
+    // Keep the last verified snapshot visible; the next interval retries automatically.
+  }
+}, 30_000);
 document.querySelectorAll(".connection-row").forEach((row) => row.addEventListener("click", () => renderConnection(row.dataset.connection)));
 let resolvedConnectionSearchTimer;
 document.querySelector("#connection-vehicle-search").addEventListener("input", (event) => { clearTimeout(resolvedConnectionSearchTimer); resolvedConnectionSearchTimer = setTimeout(() => { resolvedConnectionState.query = event.target.value.trim(); resolvedConnectionState.offset = 0; loadResolvedConnections(); }, 180); });
@@ -1099,4 +1244,5 @@ const initialParams = new URLSearchParams(window.location.search);
 const initialBatch = initialParams.get("batch_id");
 if (initialBatch) document.querySelector("#queue-batch").value = initialBatch;
 if (initialParams.get("view") === "queue") switchView("queue");
+else if (initialParams.get("view") === "match-review") switchView("match-review");
 else loadVehicles();

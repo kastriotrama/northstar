@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=15" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=16" />
   </head>
   <body>
     <div class="app-shell">
@@ -20,6 +20,7 @@
           <button class="view-tab" type="button" data-view="queue">Review queue</button>
           <button class="view-tab" type="button" data-view="tecdoc">TecDoc</button>
           <button class="view-tab" type="button" data-view="connections">TS connections</button>
+          <button class="view-tab" type="button" data-view="match-review">Match blockers</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
         </nav>
         <div class="batch-state">
@@ -240,6 +241,55 @@
         </main>
       </div>
 
+      <div id="match-review-view" hidden>
+        <section class="match-review-summary">
+          <div>
+            <span class="eyebrow">Full TS → TecDoc audit</span>
+            <h1><span id="match-review-processed">0</span> of <span id="match-review-expected">6,515,471</span> checked</h1>
+            <div class="audit-progress"><span id="match-review-progress-fill"></span></div>
+            <p id="match-review-run-label">Loading the latest pinned matcher run…</p>
+          </div>
+          <dl>
+            <div><dt>Resolved</dt><dd id="match-review-resolved">—</dd></div>
+            <div><dt>Provisional</dt><dd id="match-review-provisional">—</dd></div>
+            <div><dt>Review required</dt><dd id="match-review-required">—</dd></div>
+            <div><dt>Hard conflicts</dt><dd id="match-review-hard">—</dd></div>
+          </dl>
+        </section>
+        <main class="match-review-workspace">
+          <nav class="blocker-categories" aria-label="Matcher blocker categories">
+            <header><span class="eyebrow">Primary blockers</span><strong>Choose a category</strong></header>
+            <div id="match-review-categories"></div>
+          </nav>
+          <section class="match-review-results">
+            <header class="match-review-list-head">
+              <div><span class="eyebrow" id="match-review-category-label">All categories</span><h2>Evidence samples</h2></div>
+              <label><span>Status</span><select id="match-review-status"><option value="">All decisions</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Decided</option></select></label>
+            </header>
+            <div class="sensitive-data-note">Restricted local review · real registration plates may be visible · decisions do not write Neo4j</div>
+            <div class="match-review-table-wrap"><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
+            <footer class="pagination"><button id="match-review-previous" type="button">Previous</button><span id="match-review-page-label">0 vehicles</span><button id="match-review-next" type="button">Next</button></footer>
+          </section>
+          <aside class="match-review-inspector">
+            <div id="match-review-inspector-empty" class="inspector-empty"><span class="inspector-glyph">!</span><strong>Select a blocker</strong><p>Compare immutable TS evidence with every returned TecDoc candidate.</p></div>
+            <form id="match-review-form" hidden>
+              <header><div><span class="eyebrow" id="match-review-detail-category">Blocker</span><h2 id="match-review-detail-title">Vehicle</h2></div><span id="match-review-detail-status" class="queue-state queue-pending">Pending</span></header>
+              <section class="match-review-guidance"><strong id="match-review-guidance">Keep unresolved until evidence is sufficient.</strong><p id="match-review-reasons"></p></section>
+              <section><h3>Transportstyrelsen evidence</h3><dl id="match-review-source" class="field-list"></dl></section>
+              <section><h3>TecDoc candidates</h3><div id="match-review-candidates" class="candidate-choice-list"></div></section>
+              <section id="match-review-recorded" hidden><h3>Recorded decision</h3><dl id="match-review-resolution" class="field-list"></dl></section>
+              <section id="match-review-decision-fields" class="match-review-decision-fields">
+                <h3>Stakeholder decision</h3>
+                <label><span>Reviewer</span><input id="match-review-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Scope</span><select id="match-review-scope"><option value="vehicle_only">This vehicle only</option><option value="category_proposal">Propose a reviewed category rule</option></select></label>
+                <label><span>Evidence note</span><textarea id="match-review-note" minlength="5" maxlength="1000" required placeholder="Explain why this KType is right, or why the row must stay unresolved"></textarea></label>
+              </section>
+              <footer id="match-review-actions" class="match-review-actions"><button id="match-review-accept" class="primary-button" type="button">Accept suggested</button><button id="match-review-select" class="secondary-button" type="button">Use selected KType</button><button id="match-review-unresolved" class="text-button danger" type="button">Keep unresolved</button></footer>
+            </form>
+          </aside>
+        </main>
+      </div>
+
       <div id="rules-view" hidden>
         <section class="rule-hero">
           <div>
@@ -413,6 +463,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=23" defer></script>
+    <script src="/normalization-review/assets/app.js?v=24" defer></script>
   </body>
 </html>

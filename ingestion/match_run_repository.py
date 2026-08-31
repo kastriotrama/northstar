@@ -10,6 +10,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from ingestion.match_run_migrations import (
+    MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUN_CHECKPOINTS_TABLE,
     MATCH_RUN_REASON_COUNTS_TABLE,
     MATCH_RUNS_TABLE,
@@ -293,4 +294,34 @@ def increment_match_run_reason_counts(
             f"occurrence_count = {MATCH_RUN_REASON_COUNTS_TABLE}.occurrence_count "
             "+ EXCLUDED.occurrence_count, updated_at=now()",
             ((operation_id, reason, count) for reason, count in sorted(normalized.items())),
+        )
+
+
+def increment_match_run_blocker_counts(
+    connection: Connection,
+    *,
+    operation_id: UUID,
+    blocker_counts: dict[str, int],
+) -> None:
+    """Add one batch of mutually exclusive primary blocker categories."""
+
+    normalized = {
+        category.strip(): count
+        for category, count in blocker_counts.items()
+        if category.strip() and count > 0
+    }
+    if len(normalized) != len(blocker_counts) or any(
+        not isinstance(count, int) for count in blocker_counts.values()
+    ):
+        raise ValueError("blocker counts require unique non-empty codes and positive integers")
+    if not normalized:
+        return
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            f"INSERT INTO {MATCH_RUN_BLOCKER_COUNTS_TABLE} "
+            "(operation_id, blocker_category, occurrence_count) VALUES (%s, %s, %s) "
+            "ON CONFLICT (operation_id, blocker_category) DO UPDATE SET "
+            f"occurrence_count = {MATCH_RUN_BLOCKER_COUNTS_TABLE}.occurrence_count "
+            "+ EXCLUDED.occurrence_count, updated_at=now()",
+            ((operation_id, category, count) for category, count in sorted(normalized.items())),
         )

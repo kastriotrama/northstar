@@ -6,6 +6,7 @@ from ingestion.match_run_repository import (
     MatchRunCounts,
     MatchRunMode,
     MatchRunPins,
+    increment_match_run_blocker_counts,
     increment_match_run_reason_counts,
 )
 
@@ -65,4 +66,13 @@ def test_reason_counts_reject_invalid_aggregates() -> None:
             object(),  # type: ignore[arg-type]
             operation_id=uuid4(),
             reason_counts={"model_missing": 0},
+        )
+
+
+def test_blocker_counts_reject_invalid_aggregates() -> None:
+    with pytest.raises(ValueError, match="blocker counts"):
+        increment_match_run_blocker_counts(
+            object(),  # type: ignore[arg-type]
+            operation_id=uuid4(),
+            blocker_counts={"": 1},
         )

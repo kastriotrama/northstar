@@ -2,6 +2,14 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from api.app.features.match_review.router import get_match_review_service
+from api.app.features.match_review.schemas import (
+    MatchBlockerCategoryView,
+    MatchReviewDecisionRequest,
+    MatchReviewItemView,
+    MatchReviewPage,
+    MatchRunReviewSummary,
+)
 from api.app.features.normalization_review.router import get_normalization_review_service
 from api.app.features.normalization_review.schemas import (
     NormalizationReviewFacets,
@@ -200,6 +208,65 @@ class FakeReviewQueueService:
         )
 
 
+class FakeMatchReviewService:
+    def summary(self, operation_id: str | None) -> MatchRunReviewSummary:
+        return MatchRunReviewSummary(
+            operation_id=operation_id or "op-1",
+            status="running",
+            processed=25_000,
+            expected_source_rows=6_515_471,
+            progress_percent=0.384,
+            blockers=[
+                MatchBlockerCategoryView(
+                    code="bodywork_conflict",
+                    title="Bodywork conflict",
+                    guidance="Review bodywork evidence",
+                    count=7_282,
+                    pending=10,
+                )
+            ],
+        )
+
+    def items(
+        self, *, operation_id: str, category: str | None, status: str | None,
+        limit: int, offset: int,
+    ) -> MatchReviewPage:
+        return MatchReviewPage(
+            operation_id=operation_id,
+            category=category,
+            total=1,
+            limit=limit,
+            offset=offset,
+            items=[self._item(operation_id, status or "pending")],
+        )
+
+    def decide(
+        self, operation_id: str, item_id: int, request: MatchReviewDecisionRequest
+    ) -> MatchReviewItemView:
+        item = self._item(operation_id, "resolved")
+        item.id = item_id
+        item.resolution = {
+            "action": request.action,
+            "selected_candidate_reference": "0001",
+        }
+        return item
+
+    @staticmethod
+    def _item(operation_id: str, status: str) -> MatchReviewItemView:
+        return MatchReviewItemView(
+            id=9,
+            operation_id=operation_id,
+            category="bodywork_conflict",
+            category_title="Bodywork conflict",
+            category_guidance="Review bodywork evidence",
+            source_record_id=42,
+            source_evidence={"plate": "ABC123", "model": "V60"},
+            reason_codes=["context_conflict:bodywork"],
+            candidate_matches=[{"candidate_reference": "0001", "confidence": 0.91}],
+            status=status,
+            updated_at=datetime.now(UTC),
+        )
+
 def test_review_api_accepts_vehicle_search_and_filter_parameters(client: TestClient) -> None:
     client.app.dependency_overrides[get_normalization_review_service] = FakeReviewService
     try:
@@ -248,8 +315,39 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert "showRuleInVehicle(button.dataset.ruleId)" in javascript.text
     assert 'id="vehicle-rule-detail"' in screen.text
     assert 'id="queue-view"' in screen.text
+    assert 'id="match-review-view"' in screen.text
     assert "/v1/normalization-review/queue" in javascript.text
+    assert "/v1/match-review/summary" in javascript.text
     assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text
+
+
+def test_match_review_api_lists_blockers_and_records_decision(client: TestClient) -> None:
+    client.app.dependency_overrides[get_match_review_service] = FakeMatchReviewService
+    try:
+        summary = client.get("/v1/match-review/summary", params={"operation_id": "op-1"})
+        listed = client.get(
+            "/v1/match-review/items",
+            params={"operation_id": "op-1", "category": "bodywork_conflict"},
+        )
+        decided = client.post(
+            "/v1/match-review/items/9/decision",
+            params={"operation_id": "op-1"},
+            json={
+                "action": "accept_top_candidate",
+                "reviewer": "Stakeholder",
+                "reason": "Independent evidence confirms this KType",
+                "scope": "vehicle_only",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert summary.status_code == 200
+    assert summary.json()["blockers"][0]["count"] == 7_282
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["source_evidence"]["plate"] == "ABC123"
+    assert decided.status_code == 200
+    assert decided.json()["resolution"]["selected_candidate_reference"] == "0001"
 
 
 def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:

@@ -32,3 +32,11 @@ def test_reason_counts_are_operation_scoped_aggregates() -> None:
     assert "REFERENCES core.match_runs(operation_id)" in reasons
     assert "PRIMARY KEY (operation_id, reason_code)" in reasons
     assert "occurrence_count BIGINT NOT NULL" in reasons
+
+
+def test_blocker_counts_are_mutually_exclusive_operation_aggregates() -> None:
+    blockers = dict(MATCH_RUN_MIGRATIONS)["create_match_run_blocker_counts_table"]
+
+    assert "REFERENCES core.match_runs(operation_id)" in blockers
+    assert "PRIMARY KEY (operation_id, blocker_category)" in blockers
+    assert "occurrence_count BIGINT NOT NULL" in blockers

@@ -101,6 +101,9 @@ class MatchEvaluation:
     terminal: MatchTerminal
     reason_codes: tuple[str, ...]
     top_candidate_reference: str | None = None
+    candidate_matches: tuple[dict[str, Any], ...] = ()
+    decision_trace: tuple[dict[str, Any], ...] = ()
+    confidence: float | None = None
 
     def __post_init__(self) -> None:
         if not self.reason_codes or any(not reason.strip() for reason in self.reason_codes):
@@ -615,6 +618,9 @@ class TecDocDryRunEvaluator:
             terminal,
             tuple(sorted(match_reasons)),
             top_candidate_reference=decision.top_candidate_reference,
+            candidate_matches=decision.alternative_candidates,
+            decision_trace=tuple(entry.to_payload() for entry in decision.decision_trace),
+            confidence=decision.confidence,
         )
         self._cache[cache_key] = evaluation
         return evaluation
