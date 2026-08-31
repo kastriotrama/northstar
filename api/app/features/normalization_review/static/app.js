@@ -4,7 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
-const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, offset: 0, mode: "patterns", loading: false };
+const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, patternLimit: 10, offset: 0, mode: "patterns", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -1120,8 +1120,16 @@ function setMatchReviewMode(mode) {
 function renderMatchReviewPatterns() {
   const page = matchReviewState.patterns;
   if (!page) return;
+  const selected = page.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey);
+  const visiblePatterns = matchReviewState.patternLimit === null
+    ? page.patterns
+    : page.patterns.slice(0, matchReviewState.patternLimit);
+  if (selected && !visiblePatterns.some((pattern) => pattern.pattern_key === selected.pattern_key)) visiblePatterns.push(selected);
   document.querySelector("#match-review-pattern-empty").hidden = page.patterns.length > 0;
-  document.querySelector("#match-review-pattern-rows").innerHTML = page.patterns.map((pattern) => {
+  document.querySelector("#match-review-pattern-count").textContent = matchReviewState.patternLimit === null
+    ? `Showing all ${page.patterns.length.toLocaleString()} patterns`
+    : `Showing the top ${Math.min(matchReviewState.patternLimit, page.patterns.length).toLocaleString()} of ${page.patterns.length.toLocaleString()} patterns, ranked by occurrences`;
+  document.querySelector("#match-review-pattern-rows").innerHTML = visiblePatterns.map((pattern) => {
     const source = Object.values(pattern.source_values || {}).map(displayValue).join(" · ");
     const candidate = Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ");
     const decision = pattern.decision ? humanize(pattern.decision.action) : "Awaiting stakeholder";
@@ -1134,7 +1142,6 @@ function renderMatchReviewPatterns() {
     renderMatchReviewPatterns();
     loadMatchReviewPatternMembers();
   }));
-  const selected = page.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey);
   renderMatchReviewPatternInspector(selected);
 }
 
@@ -1317,6 +1324,10 @@ document.querySelector("#match-review-select").addEventListener("click", () => d
 document.querySelector("#match-review-unresolved").addEventListener("click", () => decideMatchReview("keep_unresolved"));
 document.querySelector("#match-review-pattern-mode").addEventListener("click", () => setMatchReviewMode("patterns"));
 document.querySelector("#match-review-vehicle-mode").addEventListener("click", () => setMatchReviewMode("vehicles"));
+document.querySelector("#match-review-pattern-limit").addEventListener("change", (event) => {
+  matchReviewState.patternLimit = event.target.value === "all" ? null : Number(event.target.value);
+  renderMatchReviewPatterns();
+});
 document.querySelector("#match-review-pattern-action").addEventListener("change", (event) => {
   document.querySelector("#match-review-pattern-values-field").hidden = event.target.value !== "change_rule";
 });

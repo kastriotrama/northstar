@@ -265,13 +265,14 @@
             <header class="match-review-list-head">
               <div><span class="eyebrow" id="match-review-category-label">All categories</span><h2>Evidence samples</h2></div>
               <label><span>Status</span><select id="match-review-status"><option value="">All decisions</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Decided</option></select></label>
+              <label><span>Patterns shown</span><select id="match-review-pattern-limit"><option value="10">Top 10</option><option value="25">Top 25</option><option value="50">Top 50</option><option value="all">All patterns</option></select></label>
             </header>
             <nav class="match-review-mode-tabs" aria-label="Review level">
               <button id="match-review-pattern-mode" class="active" type="button">Rule patterns</button>
               <button id="match-review-vehicle-mode" type="button">Vehicle evidence</button>
             </nav>
             <div class="sensitive-data-note">Restricted local review · real registration plates may be visible · decisions do not write Neo4j</div>
-            <div id="match-review-pattern-list" class="match-review-table-wrap"><table><thead><tr><th>Recurring pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th>Occurrences</th><th>Rule status</th></tr></thead><tbody id="match-review-pattern-rows"></tbody></table><div id="match-review-pattern-empty" class="empty-state" hidden><strong>No recurring patterns yet</strong><p>The exhaustive inventory is populated as audit batches are processed.</p></div></div>
+            <div id="match-review-pattern-list" class="match-review-table-wrap"><p id="match-review-pattern-count" class="section-hint">Showing the top patterns first.</p><table><thead><tr><th>Recurring pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th>Occurrences</th><th>Rule status</th></tr></thead><tbody id="match-review-pattern-rows"></tbody></table><div id="match-review-pattern-empty" class="empty-state" hidden><strong>No recurring patterns yet</strong><p>The exhaustive inventory is populated as audit batches are processed.</p></div></div>
             <div id="match-review-vehicle-list" class="match-review-table-wrap" hidden><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
             <footer class="pagination"><button id="match-review-previous" type="button">Previous</button><span id="match-review-page-label">0 vehicles</span><button id="match-review-next" type="button">Next</button></footer>
           </section>
@@ -485,6 +486,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=26" defer></script>
+    <script src="/normalization-review/assets/app.js?v=27" defer></script>
   </body>
 </html>

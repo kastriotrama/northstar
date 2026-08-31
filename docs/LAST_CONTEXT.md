@@ -55,3 +55,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Added exhaustive blocker pattern drilldown
 
 - Added persisted, plate-free pattern inventory members and a paginated local review drilldown so stakeholders can inspect every vehicle in a grouped blocker pattern, including restricted local plate evidence and source record IDs. The API and review UI now expose exhaustive pattern coverage with per-pattern vehicle pages; the full audit and member backfill remain active from the 400,000-row checkpoint. Focused tests, Ruff, strict mypy and frontend syntax checks pass. No push, match-decision persistence, alias activation or Neo4j mutation was performed.
+
+## 2026-08-31 — Defaulted pattern review to a compact top-10 view
+
+- The blocker-pattern table now shows the ten highest-occurrence patterns first, with explicit Top 25, Top 50, and All patterns choices. The complete inventory and per-pattern vehicle drilldown remain available. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
