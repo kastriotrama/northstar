@@ -1124,7 +1124,8 @@ function renderMatchReviewPatterns() {
     const source = Object.values(pattern.source_values || {}).map(displayValue).join(" · ");
     const candidate = Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ");
     const decision = pattern.decision ? humanize(pattern.decision.action) : "Awaiting stakeholder";
-    return `<tr data-match-pattern-key="${escapeHtml(pattern.pattern_key)}" class="pattern-row ${pattern.pattern_key === matchReviewState.selectedPatternKey ? "selected" : ""}"><td><strong>${escapeHtml(pattern.title)}</strong><small>${escapeHtml(pattern.summary)}</small></td><td>${escapeHtml(source)}</td><td>${escapeHtml(candidate)}</td><td>${pattern.sample_occurrences} / ${pattern.category_occurrences.toLocaleString()}</td><td><span class="pattern-status ${pattern.decision ? "decided" : ""}">${escapeHtml(decision)}</span></td></tr>`;
+    const occurrenceLabel = pattern.coverage === "exhaustive" ? "observed" : "sampled";
+    return `<tr data-match-pattern-key="${escapeHtml(pattern.pattern_key)}" class="pattern-row ${pattern.pattern_key === matchReviewState.selectedPatternKey ? "selected" : ""}"><td><strong>${escapeHtml(pattern.title)}</strong><small>${escapeHtml(pattern.summary)}</small></td><td>${escapeHtml(source)}</td><td>${escapeHtml(candidate)}</td><td>${pattern.sample_occurrences.toLocaleString()} ${occurrenceLabel} / ${pattern.category_occurrences.toLocaleString()}</td><td><span class="pattern-status ${pattern.decision ? "decided" : ""}">${escapeHtml(decision)}</span></td></tr>`;
   }).join("");
   document.querySelectorAll("[data-match-pattern-key]").forEach((row) => row.addEventListener("click", () => {
     matchReviewState.selectedPatternKey = row.dataset.matchPatternKey;
@@ -1147,7 +1148,7 @@ function renderMatchReviewPatternInspector(pattern) {
   document.querySelector("#match-review-pattern-values").innerHTML = [
     ["TS evidence", Object.values(pattern.source_values || {}).map(displayValue).join(" · ")],
     ["TecDoc evidence", Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ")],
-    ["Sample / category", `${pattern.sample_occurrences} sampled · ${pattern.category_occurrences.toLocaleString()} in category`],
+    [pattern.coverage === "exhaustive" ? "Observed / category" : "Sample / category", `${pattern.sample_occurrences.toLocaleString()} ${pattern.coverage === "exhaustive" ? "observed" : "sampled"} · ${pattern.category_occurrences.toLocaleString()} in category`],
   ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   document.querySelector("#match-review-pattern-gaps").innerHTML = pattern.evidence_gaps.map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
   document.querySelector("#match-review-pattern-examples").innerHTML = pattern.examples.length ? pattern.examples.map((example) => `<div class="pattern-example"><span>${escapeHtml(example.manufacturer)} · ${escapeHtml(example.model)}</span><small>${example.candidate_reference ? `KType ${escapeHtml(example.candidate_reference)}` : "No candidate"}</small></div>`).join("") : "<p class=\"section-hint\">No model-family examples are available in the bounded sample.</p>";

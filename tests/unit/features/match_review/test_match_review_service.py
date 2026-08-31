@@ -41,6 +41,9 @@ class FakeRepository:
     def fetch_pattern_decisions(self, operation_id: str) -> dict[str, dict[str, Any]]:
         return {}
 
+    def fetch_pattern_inventory(self, operation_id: str) -> list[dict[str, Any]]:
+        return []
+
     def decide(self, **kwargs: Any) -> dict[str, Any]:
         return {
             "id": kwargs["item_id"], "operation_id": kwargs["operation_id"],

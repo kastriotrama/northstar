@@ -1,4 +1,6 @@
-from api.app.features.match_review.patterns import build_review_patterns
+from api.app.features.match_review.patterns import build_inventory_patterns, build_review_patterns
+from ingestion.match_pattern_inventory import observe_match_pattern
+from ingestion.tecdoc.match_run_adapters import MatchEvaluation
 
 
 def test_bodywork_patterns_are_plate_free_and_group_repeated_mappings() -> None:
@@ -42,3 +44,38 @@ def test_model_patterns_remain_manufacturer_scoped() -> None:
 
     assert pattern["source_values"] == {"manufacturer": "BMW", "model": "IX M60"}
     assert pattern["title"] == "BMW IX M60 → none"
+
+
+def test_inventory_observation_is_plate_free_and_deterministic() -> None:
+    observation = observe_match_pattern(
+        {"plate": "AAA001", "brand": "BMW", "model": "IX M60", "body_code": "AC"},
+        MatchEvaluation(
+            "review_required",
+            ("match:no_candidate_above_threshold",),
+        ),
+    )
+
+    assert observation is not None
+    assert observation.category.code == "model_unmatched"
+    assert "plate" not in str(observation.evidence).lower()
+    assert observation.example["manufacturer"] == "BMW"
+
+
+def test_inventory_patterns_report_exhaustive_coverage() -> None:
+    patterns = build_inventory_patterns(
+        [{
+            "pattern_key": "model_unmatched:abc",
+            "blocker_category": "model_unmatched",
+            "pattern_evidence": {
+                "source_values": {"manufacturer": "BMW", "model": "IX M60"},
+                "candidate_values": {"candidate_count": 0, "candidate_references": []},
+            },
+            "occurrence_count": 17,
+            "examples": [{"manufacturer": "BMW", "model": "IX M60", "candidate_reference": None}],
+        }],
+        {"model_unmatched": 80},
+    )
+
+    assert patterns[0]["coverage"] == "exhaustive"
+    assert patterns[0]["sample_occurrences"] == 17
+    assert patterns[0]["category_occurrences"] == 80

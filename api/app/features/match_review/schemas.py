@@ -113,6 +113,7 @@ class MatchReviewPatternView(BaseModel):
     evidence_gaps: list[str] = Field(default_factory=list)
     sample_occurrences: int = 0
     category_occurrences: int = 0
+    coverage: Literal["sample", "exhaustive"] = "sample"
     examples: list[MatchReviewPatternExample] = Field(default_factory=list)
     decision: MatchReviewPatternDecision | None = None
 

@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-31 — Exhaustive blocker-pattern inventory
+
+- Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, plus idempotent batch markers. Local and remote audit batches now record every blocker pattern with occurrence totals and safe manufacturer/model/KType examples; the API and frontend label persisted entries `exhaustive` and retain the bounded sample only as a pre-index fallback. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 24 focused tests pass. The current audit is still on its pre-index process at the latest observed checkpoint; backfill and resume are required to make its entire historical prefix exhaustive. No rules, decisions, aliases, Neo4j state, or push changed.
+
 ## 2026-08-31 — Full 6.5M audit and stakeholder blocker workspace
 
 - Started a resumable, release-pinned audit of all 6,515,471 local passenger rows against the 72,570-candidate v6 catalog. Added mutually exclusive blocker aggregation, a bounded review sampler, API endpoints and a pattern-first frontend for recurring category triage plus plate-level evidence. Each item now explains why matching stopped, compares TS/TecDoc fields, lists evidence gaps, and states the stakeholder decision required; category proposals remain append-only and cannot persist match decisions, attach aliases or write Neo4j. The latest exact checkpoint is 175,000 rows (2.686%), with 17,717 resolved, 15,723 provisional, 125,825 review-required, 20 unmatched, and 13,165 hard conflicts. The full audit remains running. See `docs/TS_TECDOC_FULL_AUDIT_REVIEW_WORKSPACE_2026-08-31.md`.

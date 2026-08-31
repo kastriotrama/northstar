@@ -52,7 +52,7 @@ A bounded sampler exposes representative review items across the blocker categor
 
 Every action requires a reviewer and evidence note. The result is stored as an immutable terminal review resolution. A category proposal is evidence for a later reviewed/versioned rule; it is not applied automatically.
 
-The default workspace is pattern-first. It groups the bounded evidence into recurring, plate-free relationships such as `TS body code AF → TecDoc SUV`, shows the exact full-run category count separately from the sample count, and lists representative manufacturer/model families. The adjacent Vehicle evidence view can be opened when a stakeholder needs the actual registration plate and complete source payload behind a pattern. For example, a model-unmatched BMW `IX M60` row is explained as having no manufacturer-scoped catalog candidate above threshold; the decision is whether a reviewed exact alias exists or the vehicle stays unresolved, with the missing approval/family evidence shown alongside the plate-level fields.
+The default workspace is pattern-first. New audit batches write every observed plate-free blocker pattern to `core.match_run_pattern_inventory`, with an idempotent batch marker in `core.match_run_pattern_batches`; the UI labels these entries `exhaustive` and shows occurrence counts, not just a sample size. While an older audit process is still running, the endpoint falls back to the bounded review sample until the new writer has populated the inventory. The adjacent Vehicle evidence view can be opened when a stakeholder needs the actual registration plate and complete source payload behind a pattern. For example, a model-unmatched BMW `IX M60` row is explained as having no manufacturer-scoped catalog candidate above threshold; the decision is whether a reviewed exact alias exists or the vehicle stays unresolved, with the missing approval/family evidence shown alongside the plate-level fields.
 
 Pattern choices are append-only, versioned proposals in `core.match_review_rule_decisions`. `accept_pattern` accepts the displayed mapping for later validation, `keep_blocked` records that the evidence is insufficient, and `change_rule` records corrected target values. None activates a matcher rule or changes PostgreSQL match decisions/Neo4j.
 
@@ -83,3 +83,15 @@ env PYTHONUNBUFFERED=1 .venv/bin/python -m scripts.audit_local_passenger_match_f
 ```
 
 The same operation ID resumes after the last committed source ID and does not recount completed rows.
+
+## Backfill previously processed rows
+
+If an audit was started before pattern indexing was enabled, backfill the already-processed prefix once (the batch markers make retries safe), then restart/resume the audit so subsequent batches continue recording patterns:
+
+```bash
+env PYTHONUNBUFFERED=1 .venv/bin/python scripts/backfill_match_pattern_inventory.py \
+  --env-file /Users/kastriotrama/Documents/NorthStar/.env \
+  --release-manifest ingestion/release_manifests/ts_tecdoc_matcher_candidate_v1_20260831.json \
+  --operation-id 095b6dbd-af64-4e36-bfe1-a04543bac5ed \
+  --source-prefix normalization-vdai-passenger-full-v323-20260817-part-
+```

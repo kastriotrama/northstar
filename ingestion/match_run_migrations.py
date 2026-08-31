@@ -9,6 +9,8 @@ MATCH_RUN_CHECKPOINTS_TABLE = "core.match_run_checkpoints"
 MATCH_RUN_REASON_COUNTS_TABLE = "core.match_run_reason_counts"
 MATCH_RUN_BLOCKER_COUNTS_TABLE = "core.match_run_blocker_counts"
 MATCH_REVIEW_RULE_DECISIONS_TABLE = "core.match_review_rule_decisions"
+MATCH_RUN_PATTERN_INVENTORY_TABLE = "core.match_run_pattern_inventory"
+MATCH_RUN_PATTERN_BATCHES_TABLE = "core.match_run_pattern_batches"
 
 MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -178,6 +180,48 @@ MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
         CREATE INDEX IF NOT EXISTS match_review_rule_decisions_current_idx
         ON {MATCH_REVIEW_RULE_DECISIONS_TABLE}
             (operation_id, pattern_key, created_at DESC, decision_id DESC)
+        """,
+    ),
+    (
+        "create_match_run_pattern_inventory_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_RUN_PATTERN_INVENTORY_TABLE} (
+            operation_id UUID NOT NULL REFERENCES {MATCH_RUNS_TABLE}(operation_id)
+                ON DELETE CASCADE,
+            pattern_key TEXT NOT NULL CHECK (btrim(pattern_key) <> ''),
+            blocker_category TEXT NOT NULL CHECK (btrim(blocker_category) <> ''),
+            pattern_evidence JSONB NOT NULL CHECK (jsonb_typeof(pattern_evidence) = 'object'),
+            occurrence_count BIGINT NOT NULL CHECK (occurrence_count > 0),
+            examples JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(examples) = 'array'),
+            first_source_record_id BIGINT NOT NULL CHECK (first_source_record_id > 0),
+            last_source_record_id BIGINT NOT NULL CHECK (last_source_record_id >= first_source_record_id),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (operation_id, pattern_key)
+        )
+        """,
+    ),
+    (
+        "create_match_run_pattern_inventory_index",
+        f"""
+        CREATE INDEX IF NOT EXISTS match_run_pattern_inventory_category_idx
+        ON {MATCH_RUN_PATTERN_INVENTORY_TABLE}
+            (operation_id, blocker_category, occurrence_count DESC)
+        """,
+    ),
+    (
+        "create_match_run_pattern_batches_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_RUN_PATTERN_BATCHES_TABLE} (
+            operation_id UUID NOT NULL REFERENCES {MATCH_RUNS_TABLE}(operation_id)
+                ON DELETE CASCADE,
+            batch_number INTEGER NOT NULL CHECK (batch_number > 0),
+            last_source_record_id BIGINT NOT NULL CHECK (last_source_record_id > 0),
+            observation_count BIGINT NOT NULL CHECK (observation_count >= 0),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (operation_id, batch_number),
+            UNIQUE (operation_id, last_source_record_id)
+        )
         """,
     ),
 )

@@ -64,7 +64,52 @@ def build_review_patterns(
                 "evidence_gaps": evidence["evidence_gaps"],
                 "sample_occurrences": len(rows),
                 "category_occurrences": int(blocker_counts.get(category, 0)),
+                "coverage": "sample",
                 "examples": examples,
+                "decision": None,
+            }
+        )
+    return sorted(
+        patterns,
+        key=lambda item: (-item["sample_occurrences"], item["category"], item["title"]),
+    )
+
+
+def build_inventory_patterns(
+    rows: list[dict[str, Any]], blocker_counts: dict[str, int]
+) -> list[dict[str, Any]]:
+    """Render the exhaustive persisted inventory without loading raw plates."""
+
+    patterns: list[dict[str, Any]] = []
+    for row in rows:
+        evidence = dict(row.get("pattern_evidence") or {})
+        category = str(
+            row.get("blocker_category")
+            or evidence.get("category")
+            or "other_match_blocker"
+        )
+        source_values = dict(evidence.get("source_values") or {})
+        candidate_values = dict(evidence.get("candidate_values") or {})
+        explanation = _explanation(category, source_values, candidate_values)
+        patterns.append(
+            {
+                "pattern_key": str(row["pattern_key"]),
+                "category": category,
+                "title": _pattern_title(
+                    {
+                        "category": category,
+                        "source_values": source_values,
+                        "candidate_values": candidate_values,
+                    }
+                ),
+                "summary": _pattern_summary({"category": category}),
+                "source_values": source_values,
+                "candidate_values": candidate_values,
+                **explanation,
+                "sample_occurrences": int(row.get("occurrence_count") or 0),
+                "category_occurrences": int(blocker_counts.get(category, 0)),
+                "coverage": "exhaustive",
+                "examples": list(row.get("examples") or []),
                 "decision": None,
             }
         )
@@ -236,14 +281,19 @@ def _pattern_title(evidence: dict[str, Any]) -> str:
     target = evidence["candidate_values"]
     category = evidence["category"]
     if category == "bodywork_conflict":
-        values = ", ".join(str(value).upper() for value in target["bodywork"])
+        values = ", ".join(
+            str(value).upper()
+            for value in target.get("bodywork")
+            or target.get("candidate_references")
+            or ["unknown"]
+        )
         return f"TS body code {source['body_code']} → TecDoc {values}"
     if category == "candidate_margin":
         return f"{source['manufacturer']} {source['model']} · candidates too close"
     if category == "model_missing":
         return f"{source['manufacturer']} · model evidence missing"
     if category in {"model_unmatched", "partial_or_phonetic_model", "model_source_conflict"}:
-        return f"{source['manufacturer']} {source['model']} → {target['catalog_model']}"
+        return f"{source.get('manufacturer', 'unknown')} {source.get('model', 'missing')} → {target.get('catalog_model', 'none')}"
     if category == "manufacturer_scope":
         return f"Manufacturer mapping · {source['manufacturer']}"
     if category == "hard_technical_conflict":

@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from ingestion.match_run_migrations import (
     MATCH_REVIEW_RULE_DECISIONS_TABLE,
+    MATCH_RUN_PATTERN_INVENTORY_TABLE,
     MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUNS_TABLE,
     run_match_run_migrations,
@@ -161,6 +162,25 @@ class MatchReviewRepository:
                 }
                 for row in cursor.fetchall()
             }
+
+    def fetch_pattern_inventory(self, operation_id: str) -> list[dict[str, Any]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT pattern_key, blocker_category, pattern_evidence, occurrence_count, "
+                f"examples FROM {MATCH_RUN_PATTERN_INVENTORY_TABLE} "
+                "WHERE operation_id=%s ORDER BY occurrence_count DESC, pattern_key",
+                (operation_id,),
+            )
+            return [
+                {
+                    "pattern_key": str(row[0]),
+                    "blocker_category": str(row[1]),
+                    "pattern_evidence": dict(row[2] or {}),
+                    "occurrence_count": int(row[3]),
+                    "examples": list(row[4] or []),
+                }
+                for row in cursor.fetchall()
+            ]
 
     def record_pattern_decision(
         self, *, operation_id: str, pattern: dict[str, Any], action: str,

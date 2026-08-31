@@ -50,3 +50,21 @@ def test_rule_pattern_decisions_are_versioned_proposals_not_graph_writes() -> No
     assert "accept_pattern" in decisions and "keep_blocked" in decisions
     assert "supersedes_decision_id UUID" in decisions
     assert "neo4j" not in decisions.lower()
+
+
+def test_pattern_inventory_is_operation_scoped_and_plate_free() -> None:
+    inventory = dict(MATCH_RUN_MIGRATIONS)["create_match_run_pattern_inventory_table"]
+
+    assert "PRIMARY KEY (operation_id, pattern_key)" in inventory
+    assert "occurrence_count BIGINT NOT NULL" in inventory
+    assert "pattern_evidence JSONB NOT NULL" in inventory
+    assert "examples JSONB NOT NULL" in inventory
+    assert "plate" not in inventory.lower()
+
+
+def test_pattern_batches_make_inventory_replay_idempotent() -> None:
+    batches = dict(MATCH_RUN_MIGRATIONS)["create_match_run_pattern_batches_table"]
+
+    assert "PRIMARY KEY (operation_id, batch_number)" in batches
+    assert "UNIQUE (operation_id, last_source_record_id)" in batches
+    assert "observation_count BIGINT NOT NULL" in batches

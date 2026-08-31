@@ -15,7 +15,7 @@ from api.app.features.match_review.schemas import (
     MatchRunReviewSummary,
 )
 from ingestion.tecdoc.blocker_review import CATEGORIES
-from api.app.features.match_review.patterns import build_review_patterns
+from api.app.features.match_review.patterns import build_inventory_patterns, build_review_patterns
 
 
 class MatchReviewData(Protocol):
@@ -27,6 +27,7 @@ class MatchReviewData(Protocol):
         self, *, operation_id: str, candidate_references: tuple[str, ...]
     ) -> dict[str, dict[str, Any]]: ...
     def fetch_pattern_decisions(self, operation_id: str) -> dict[str, dict[str, Any]]: ...
+    def fetch_pattern_inventory(self, operation_id: str) -> list[dict[str, Any]]: ...
     def fetch_items(
         self, *, operation_id: str, category: str | None, status: str | None,
         limit: int, offset: int,
@@ -135,6 +136,18 @@ class MatchReviewService:
         blocker_counts = self._repository.fetch_blocker_counts(operation_id)
         if run is None:
             return MatchReviewPatternPage(operation_id=operation_id, category=category)
+        inventory = self._repository.fetch_pattern_inventory(operation_id)
+        if inventory:
+            patterns = build_inventory_patterns(inventory, blocker_counts)
+            if category is not None:
+                patterns = [pattern for pattern in patterns if pattern["category"] == category]
+            decisions = self._repository.fetch_pattern_decisions(operation_id)
+            views = []
+            for pattern in patterns:
+                decision = decisions.get(pattern["pattern_key"])
+                pattern["decision"] = MatchReviewPatternDecision(**decision) if decision else None
+                views.append(MatchReviewPatternView(**pattern))
+            return MatchReviewPatternPage(operation_id=operation_id, category=category, patterns=views)
         contexts = self._repository.fetch_pattern_candidate_contexts(
             operation_id=operation_id, candidate_references=references,
         )
