@@ -2,10 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-28 — PR #32 published
-
-- Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
-
 ## 2026-08-31 — Frozen mixed-fuel candidate validated locally
 
 - Completed all four requested gates. Reviewed and checksum-pinned all 532 v5→v6 development changes: 222 stable-identity gains, 277 conservative downgrades, 11 false fuel-conflict removals, and 22 rejected candidate identity changes. Added exact Peugeot HNSU source-model repair rules; the final v6 control is 2,492 resolved, 1,990 provisional, 13,819 review-required, 1,586 hard conflicts, 112 policy exclusions and one normalization review out of 20,000. The 11,629-row / 11,107-group frozen holdout passed: zero new hard conflicts, zero changed resolved identities, zero unsafe resolution gains and zero resolved conflict reasons. Final pins are recorded in `ingestion/release_manifests/ts_tecdoc_matcher_candidate_v1_20260831.json`; implementation commits are `d1ed4b0` and `823a830`. 763 tests, Ruff, strict mypy, compile and read-only PostgreSQL integration pass. Match decisions, aliases, Neo4j, production activation and pushes remain untouched.
@@ -41,3 +37,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Located the existing full database snapshot
 
 - Located and validated the earlier full PostgreSQL archive at `NorthStar-SCRUM-95-98/outputs/snapshots/northstar-ts-tecdoc-v323-6515471/northstar-postgres-ts-v323-6515471.dump`. The 991,886,805-byte custom-format dump includes the 6,515,471-row TS snapshot contract plus normalization, review, TecDoc candidate/relationship, and match-decision tables; SHA-256 is `eb9ad39fe5184b7457ffe833fb5bd0e23d7a195891600ce276f036d564188a86`. Archive listing validation passed and permissions were restricted to the owner. The mistakenly started replacement dump was stopped and its incomplete artifact removed; the source database was unchanged.
+
+## 2026-08-31 — Local full matcher stopped cleanly
+
+- Stopped only local matcher process `84986` with `SIGTERM`; the production 500k matcher container remains active. The local resumable run retains checkpoint 51 at 1,275,000 / 6,515,471 rows (19.569%), with zero failures. Its database status intentionally remains `running` so the same pinned operation can resume from the next 25,000-row batch without reprocessing committed work.
