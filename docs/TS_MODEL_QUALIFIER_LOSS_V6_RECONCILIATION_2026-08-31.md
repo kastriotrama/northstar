@@ -1,7 +1,7 @@
 # Model qualifier loss: final v6 reconciliation
 
-Date: 2026-08-31  
-Story: SCRUM-101  
+Date: 2026-08-31
+Story: SCRUM-101
 Status: local, read-only evidence; no mapping activation
 
 ## Outcome

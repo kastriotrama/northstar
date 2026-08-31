@@ -1,7 +1,7 @@
 # SCRUM-164–175 recovery status
 
-Date: 2026-08-30  
-Branch: `feature/SCRUM-101-integrated-matcher-validation`  
+Date: 2026-08-30
+Branch: `feature/SCRUM-101-integrated-matcher-validation`
 PR: [#32](https://github.com/kastriotrama/northstar/pull/32)
 
 ## Verified baseline
