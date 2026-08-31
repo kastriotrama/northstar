@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-31 — Exhaustive blocker-pattern inventory
 
-- Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, plus idempotent batch markers. Local and remote audit batches now record every blocker pattern with occurrence totals and safe manufacturer/model/KType examples; the API and frontend label persisted entries `exhaustive` and retain the bounded sample only as a pre-index fallback. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 24 focused tests pass. The current audit is still on its pre-index process at the latest observed checkpoint; backfill and resume are required to make its entire historical prefix exhaustive. No rules, decisions, aliases, Neo4j state, or push changed.
+- Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, plus idempotent batch markers. Local and remote audit batches now record every blocker pattern with occurrence totals and safe manufacturer/model/KType examples; the API and frontend label persisted entries `exhaustive` and retain the bounded sample only as a pre-index fallback. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 24 focused tests pass. The audit was safely resumed from the 350,000-row checkpoint with the new writer, while the backfill is active for that historical prefix; the first indexed batch has not committed yet. No rules, decisions, aliases, Neo4j state, or push changed.
 
 ## 2026-08-31 — Full 6.5M audit and stakeholder blocker workspace
 
