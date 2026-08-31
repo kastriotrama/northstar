@@ -63,3 +63,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Added general domain decision summary
 
 - Added a compact review-screen summary for the three cross-vehicle decisions that drive the merge: TS bodywork vocabulary, mixed-fuel representation, and `is_4wd=0` drive ambiguity. Each card shows one plain-language example and links to grouped patterns; no plate-level data is shown in the summary. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
+
+## 2026-08-31 — Expanded hard technical conflict explanations
+
+- Added a hard-conflict-only technical breakdown in the pattern inspector. It translates conflicting fields into plain-language causes and required independent evidence for power, displacement, fuel, engine, drive, year, and bodywork, while keeping plate-level details behind the existing member drilldown. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.

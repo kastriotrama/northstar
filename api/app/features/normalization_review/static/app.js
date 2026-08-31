@@ -1201,6 +1201,7 @@ function renderMatchReviewPatternInspector(pattern) {
     ["TecDoc evidence", Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ")],
     [pattern.coverage === "exhaustive" ? "Observed / category" : "Sample / category", `${pattern.sample_occurrences.toLocaleString()} ${pattern.coverage === "exhaustive" ? "observed" : "sampled"} · ${pattern.category_occurrences.toLocaleString()} in category`],
   ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  renderMatchReviewTechnicalBreakdown(pattern);
   document.querySelector("#match-review-pattern-gaps").innerHTML = pattern.evidence_gaps.map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
   document.querySelector("#match-review-pattern-examples").innerHTML = pattern.examples.length ? pattern.examples.map((example) => `<div class="pattern-example"><span>${escapeHtml(example.manufacturer)} · ${escapeHtml(example.model)}</span><small>${example.candidate_reference ? `KType ${escapeHtml(example.candidate_reference)}` : "No candidate"}</small></div>`).join("") : "<p class=\"section-hint\">No model-family examples are available in the bounded sample.</p>";
   const decided = Boolean(pattern.decision);
@@ -1210,6 +1211,31 @@ function renderMatchReviewPatternInspector(pattern) {
   document.querySelector("#match-review-pattern-note").disabled = decided;
   document.querySelector("#match-review-pattern-save").disabled = decided;
   if (decided) document.querySelector("#match-review-pattern-summary").textContent = `Recorded ${humanize(pattern.decision.action)} by ${pattern.decision.reviewer}; a new versioned decision is required to change it.`;
+}
+
+function renderMatchReviewTechnicalBreakdown(pattern) {
+  const section = document.querySelector("#match-review-technical-breakdown");
+  const list = document.querySelector("#match-review-technical-fields");
+  const fields = pattern.category === "hard_technical_conflict"
+    ? (pattern.source_values?.conflicting_fields || ["technical evidence"])
+    : [];
+  section.hidden = fields.length === 0;
+  if (!fields.length) { list.innerHTML = ""; return; }
+  const explanations = {
+    bodywork: ["Body classification differs", "TS and TecDoc use different body vocabularies; confirm whether this is a scoped compatibility issue."],
+    drive_type: ["Drive type is disputed", "TS is_4wd=0 does not distinguish FWD from RWD; require an independent drive source."],
+    engine: ["Engine identity differs", "The TS engine code or engine evidence does not agree with the candidate engine set."],
+    engine_code: ["Engine code is disputed", "The source code is missing from or conflicts with the candidate engine allocation."],
+    fuels: ["Fuel representation differs", "TS energy sources and TecDoc fuel sets do not prove the same KType without independent evidence."],
+    fuel: ["Fuel type is disputed", "The source and catalog fuel assertions disagree; verify the official vehicle specification."],
+    year: ["Year range is disputed", "The TS production/registration year falls outside or conflicts with the candidate's catalog range."],
+    displacement_cc: ["Displacement differs", "TS and TecDoc report different engine displacement values; verify the technical specification."],
+    power_kw: ["Power output differs", "TS and TecDoc report different kW values; verify the approved engine output before selecting a KType."],
+  };
+  list.innerHTML = fields.map((field) => {
+    const [title, detail] = explanations[field] || [humanize(field), "An independent source is required before this field can identify a KType."];
+    return `<div class="technical-breakdown-item"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+  }).join("");
 }
 
 async function decideMatchReviewPattern() {
