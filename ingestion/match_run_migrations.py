@@ -8,6 +8,7 @@ MATCH_RUNS_TABLE = "core.match_runs"
 MATCH_RUN_CHECKPOINTS_TABLE = "core.match_run_checkpoints"
 MATCH_RUN_REASON_COUNTS_TABLE = "core.match_run_reason_counts"
 MATCH_RUN_BLOCKER_COUNTS_TABLE = "core.match_run_blocker_counts"
+MATCH_REVIEW_RULE_DECISIONS_TABLE = "core.match_review_rule_decisions"
 
 MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -144,6 +145,39 @@ MATCH_RUN_MIGRATIONS: tuple[tuple[str, str], ...] = (
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (operation_id, blocker_category)
         )
+        """,
+    ),
+    (
+        "create_match_review_rule_decisions_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {MATCH_REVIEW_RULE_DECISIONS_TABLE} (
+            decision_id UUID PRIMARY KEY,
+            operation_id UUID NOT NULL REFERENCES {MATCH_RUNS_TABLE}(operation_id)
+                ON DELETE CASCADE,
+            pattern_key TEXT NOT NULL CHECK (btrim(pattern_key) <> ''),
+            blocker_category TEXT NOT NULL CHECK (btrim(blocker_category) <> ''),
+            pattern_evidence JSONB NOT NULL CHECK (
+                jsonb_typeof(pattern_evidence) = 'object'
+            ),
+            action TEXT NOT NULL CHECK (
+                action IN ('accept_pattern', 'keep_blocked', 'change_rule')
+            ),
+            selected_values JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+                jsonb_typeof(selected_values) = 'array'
+            ),
+            reviewer TEXT NOT NULL CHECK (btrim(reviewer) <> ''),
+            reason TEXT NOT NULL CHECK (length(btrim(reason)) >= 5),
+            supersedes_decision_id UUID,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+    ),
+    (
+        "create_match_review_rule_decisions_index",
+        f"""
+        CREATE INDEX IF NOT EXISTS match_review_rule_decisions_current_idx
+        ON {MATCH_REVIEW_RULE_DECISIONS_TABLE}
+            (operation_id, pattern_key, created_at DESC, decision_id DESC)
         """,
     ),
 )

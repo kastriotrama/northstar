@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
+from uuid import UUID, uuid4
 
 from psycopg import Connection
+from psycopg.types.json import Jsonb
 
 from ingestion.match_run_migrations import (
+    MATCH_REVIEW_RULE_DECISIONS_TABLE,
     MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUNS_TABLE,
     run_match_run_migrations,
@@ -13,6 +16,7 @@ from ingestion.match_run_migrations import (
 from ingestion.review_queue import transition_review_item
 from ingestion.review_queue_migrations import REVIEW_QUEUE_TABLE, run_review_queue_migrations
 from ingestion.tecdoc.blocker_review import CATEGORY_BY_CODE
+from ingestion.tecdoc.reference_data import canonical_bodywork_by_kt086
 
 
 class ConnectionFactory(Protocol):
@@ -73,6 +77,141 @@ class MatchReviewRepository:
             for category, status, count in cursor.fetchall():
                 result.setdefault(str(category), {})[str(status)] = int(count)
             return result
+
+    def fetch_pattern_candidate_contexts(
+        self, *, operation_id: str, candidate_references: tuple[str, ...]
+    ) -> dict[str, dict[str, Any]]:
+        if not candidate_references:
+            return {}
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT candidate_catalog_version FROM {MATCH_RUNS_TABLE} "
+                "WHERE operation_id=%s",
+                (operation_id,),
+            )
+            run = cursor.fetchone()
+            if run is None:
+                return {}
+            catalog_version = str(run[0]).removeprefix("postgres:")
+            cursor.execute(
+                """
+                SELECT ka.attributes->>'alias_text' AS candidate_reference,
+                       manufacturer.attributes->>'canonical_name' AS manufacturer,
+                       family.attributes->>'canonical_name' AS model,
+                       variant.attributes->>'drive_type' AS drive_type,
+                       coalesce(variant.attributes->>'vehicle_fuel_type',
+                                variant.attributes->>'fuel_type') AS fuel_type,
+                       coalesce(bodywork.attributes->>'canonical_name',
+                                variant.attributes->>'tecdoc_bodywork_official_label') AS bodywork,
+                       variant.attributes->>'tecdoc_body_type_code' AS body_type_code
+                FROM core.tecdoc_canonical_candidates variant
+                JOIN core.tecdoc_canonical_candidates ka
+                  ON ka.batch_id=variant.batch_id AND ka.entity_type='alias'
+                 AND ka.attributes->>'alias_type'='k_type'
+                 AND ka.attributes->>'target_source_key'=variant.source_key
+                JOIN core.tecdoc_canonical_candidates family
+                  ON family.batch_id=variant.batch_id AND family.entity_type='model_family'
+                 AND family.source_key=variant.attributes->>'model_family_source_key'
+                JOIN core.tecdoc_canonical_candidates manufacturer
+                  ON manufacturer.batch_id=variant.batch_id AND manufacturer.entity_type='manufacturer'
+                 AND manufacturer.source_key=variant.attributes->>'manufacturer_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates bodywork
+                  ON bodywork.batch_id=variant.batch_id AND bodywork.entity_type='bodywork'
+                 AND bodywork.source_key=variant.attributes->>'bodywork_source_key'
+                WHERE variant.batch_id=%s AND variant.entity_type='vehicle_variant'
+                  AND ka.attributes->>'alias_text' = ANY(%s)
+                """,
+                (catalog_version, list(candidate_references)),
+            )
+            bodywork_by_code = canonical_bodywork_by_kt086()
+            contexts: dict[str, dict[str, Any]] = {}
+            for row in cursor.fetchall():
+                bodywork = row[5] or bodywork_by_code.get(str(row[6] or "").zfill(3))
+                contexts[str(row[0])] = {
+                    "candidate_reference": str(row[0]),
+                    "manufacturer": row[1],
+                    "model": row[2],
+                    "drive_type": row[3],
+                    "fuel_type": row[4],
+                    "bodyworks": [str(bodywork)] if bodywork else [],
+                }
+            return contexts
+
+    def fetch_pattern_decisions(self, operation_id: str) -> dict[str, dict[str, Any]]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT DISTINCT ON (pattern_key) pattern_key, decision_id, action,
+                       selected_values, reviewer, reason, created_at
+                FROM {MATCH_REVIEW_RULE_DECISIONS_TABLE}
+                WHERE operation_id=%s
+                ORDER BY pattern_key, created_at DESC, decision_id DESC
+                """,
+                (operation_id,),
+            )
+            return {
+                str(row[0]): {
+                    "decision_id": str(row[1]),
+                    "action": str(row[2]),
+                    "selected_values": list(row[3] or []),
+                    "reviewer": str(row[4]),
+                    "reason": str(row[5]),
+                    "created_at": row[6],
+                }
+                for row in cursor.fetchall()
+            }
+
+    def record_pattern_decision(
+        self, *, operation_id: str, pattern: dict[str, Any], action: str,
+        selected_values: list[str], reviewer: str, reason: str,
+    ) -> dict[str, Any]:
+        decision_id = uuid4()
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT decision_id FROM {MATCH_REVIEW_RULE_DECISIONS_TABLE} "
+                "WHERE operation_id=%s AND pattern_key=%s "
+                "ORDER BY created_at DESC, decision_id DESC LIMIT 1",
+                (operation_id, pattern["pattern_key"]),
+            )
+            previous = cursor.fetchone()
+            cursor.execute(
+                f"""
+                INSERT INTO {MATCH_REVIEW_RULE_DECISIONS_TABLE}
+                    (decision_id, operation_id, pattern_key, blocker_category,
+                     pattern_evidence, action, selected_values, reviewer, reason,
+                     supersedes_decision_id)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    decision_id, UUID(operation_id), pattern["pattern_key"],
+                    pattern["category"], Jsonb({
+                        "title": pattern["title"],
+                        "source_values": pattern["source_values"],
+                        "candidate_values": pattern["candidate_values"],
+                    }), action, Jsonb(selected_values), reviewer.strip(), reason.strip(),
+                    previous[0] if previous else None,
+                ),
+            )
+            connection.commit()
+        return {
+            "decision_id": str(decision_id),
+            "action": action,
+            "selected_values": selected_values,
+            "reviewer": reviewer.strip(),
+            "reason": reason.strip(),
+            "created_at": self._read_decision_created_at(decision_id),
+        }
+
+    def _read_decision_created_at(self, decision_id: UUID) -> Any:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT created_at FROM {MATCH_REVIEW_RULE_DECISIONS_TABLE} WHERE decision_id=%s",
+                (decision_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise RuntimeError("saved pattern decision could not be read back")
+        return row[0]
 
     def fetch_items(
         self,

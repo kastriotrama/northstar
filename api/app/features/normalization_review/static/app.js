@@ -4,7 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
-const matchReviewState = { summary: null, page: null, category: null, status: "", selectedId: null, offset: 0, loading: false };
+const matchReviewState = { summary: null, page: null, patterns: null, category: null, status: "", selectedId: null, selectedPatternKey: null, offset: 0, mode: "patterns", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -1054,7 +1054,10 @@ async function loadMatchReview() {
     const query = operation ? `?operation_id=${encodeURIComponent(operation)}` : "";
     matchReviewState.summary = await apiRequest(`/v1/match-review/summary${query}`);
     renderMatchReviewSummary();
-    if (matchReviewState.summary.operation_id) await loadMatchReviewItems();
+    if (matchReviewState.summary.operation_id) {
+      await loadMatchReviewPatterns();
+      await loadMatchReviewItems();
+    }
   } catch (error) { showToast(`Could not load match blockers. ${error.message}`); }
   finally { matchReviewState.loading = false; }
 }
@@ -1082,9 +1085,92 @@ function renderMatchReviewSummary() {
     matchReviewState.category = button.dataset.matchCategory;
     matchReviewState.offset = 0;
     matchReviewState.selectedId = null;
+    matchReviewState.selectedPatternKey = null;
     renderMatchReviewSummary();
+    await loadMatchReviewPatterns();
     await loadMatchReviewItems();
   }));
+}
+
+async function loadMatchReviewPatterns() {
+  const operation = matchReviewState.summary?.operation_id;
+  if (!operation) return;
+  const query = new URLSearchParams({ operation_id: operation });
+  if (matchReviewState.category) query.set("category", matchReviewState.category);
+  matchReviewState.patterns = await apiRequest(`/v1/match-review/patterns?${query}`);
+  if (!matchReviewState.patterns.patterns.some((item) => item.pattern_key === matchReviewState.selectedPatternKey)) {
+    matchReviewState.selectedPatternKey = matchReviewState.patterns.patterns[0]?.pattern_key || null;
+  }
+  renderMatchReviewPatterns();
+}
+
+function setMatchReviewMode(mode) {
+  matchReviewState.mode = mode;
+  document.querySelector("#match-review-pattern-mode").classList.toggle("active", mode === "patterns");
+  document.querySelector("#match-review-vehicle-mode").classList.toggle("active", mode === "vehicles");
+  document.querySelector("#match-review-pattern-list").hidden = mode !== "patterns";
+  document.querySelector("#match-review-vehicle-list").hidden = mode !== "vehicles";
+  document.querySelector("#match-review-pattern-form").hidden = mode !== "patterns" || !matchReviewState.selectedPatternKey;
+  document.querySelector("#match-review-form").hidden = mode !== "vehicles" || !matchReviewState.selectedId;
+  document.querySelector(".match-review-results .pagination").hidden = mode !== "vehicles";
+  if (mode === "patterns") renderMatchReviewPatterns(); else renderMatchReviewItems();
+}
+
+function renderMatchReviewPatterns() {
+  const page = matchReviewState.patterns;
+  if (!page) return;
+  document.querySelector("#match-review-pattern-empty").hidden = page.patterns.length > 0;
+  document.querySelector("#match-review-pattern-rows").innerHTML = page.patterns.map((pattern) => {
+    const source = Object.values(pattern.source_values || {}).map(displayValue).join(" · ");
+    const candidate = Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ");
+    const decision = pattern.decision ? humanize(pattern.decision.action) : "Awaiting stakeholder";
+    return `<tr data-match-pattern-key="${escapeHtml(pattern.pattern_key)}" class="pattern-row ${pattern.pattern_key === matchReviewState.selectedPatternKey ? "selected" : ""}"><td><strong>${escapeHtml(pattern.title)}</strong><small>${escapeHtml(pattern.summary)}</small></td><td>${escapeHtml(source)}</td><td>${escapeHtml(candidate)}</td><td>${pattern.sample_occurrences} / ${pattern.category_occurrences.toLocaleString()}</td><td><span class="pattern-status ${pattern.decision ? "decided" : ""}">${escapeHtml(decision)}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("[data-match-pattern-key]").forEach((row) => row.addEventListener("click", () => {
+    matchReviewState.selectedPatternKey = row.dataset.matchPatternKey;
+    renderMatchReviewPatterns();
+  }));
+  const selected = page.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey);
+  renderMatchReviewPatternInspector(selected);
+}
+
+function renderMatchReviewPatternInspector(pattern) {
+  document.querySelector("#match-review-inspector-empty").hidden = Boolean(pattern);
+  document.querySelector("#match-review-pattern-form").hidden = !pattern || matchReviewState.mode !== "patterns";
+  document.querySelector("#match-review-form").hidden = true;
+  if (!pattern) return;
+  document.querySelector("#match-review-pattern-category").textContent = humanize(pattern.category);
+  document.querySelector("#match-review-pattern-title").textContent = pattern.title;
+  document.querySelector("#match-review-pattern-summary").textContent = pattern.summary;
+  document.querySelector("#match-review-pattern-values").innerHTML = [
+    ["TS evidence", Object.values(pattern.source_values || {}).map(displayValue).join(" · ")],
+    ["TecDoc evidence", Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ")],
+    ["Sample / category", `${pattern.sample_occurrences} sampled · ${pattern.category_occurrences.toLocaleString()} in category`],
+  ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  document.querySelector("#match-review-pattern-examples").innerHTML = pattern.examples.length ? pattern.examples.map((example) => `<div class="pattern-example"><span>${escapeHtml(example.manufacturer)} · ${escapeHtml(example.model)}</span><small>${example.candidate_reference ? `KType ${escapeHtml(example.candidate_reference)}` : "No candidate"}</small></div>`).join("") : "<p class=\"section-hint\">No model-family examples are available in the bounded sample.</p>";
+  const decided = Boolean(pattern.decision);
+  document.querySelector("#match-review-pattern-action").disabled = decided;
+  document.querySelector("#match-review-pattern-reviewer").disabled = decided;
+  document.querySelector("#match-review-pattern-selected-values").disabled = decided;
+  document.querySelector("#match-review-pattern-note").disabled = decided;
+  document.querySelector("#match-review-pattern-save").disabled = decided;
+  if (decided) document.querySelector("#match-review-pattern-summary").textContent = `Recorded ${humanize(pattern.decision.action)} by ${pattern.decision.reviewer}; a new versioned decision is required to change it.`;
+}
+
+async function decideMatchReviewPattern() {
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!pattern || pattern.decision || !matchReviewState.summary?.operation_id) return;
+  const reviewer = document.querySelector("#match-review-pattern-reviewer").value.trim();
+  const reason = document.querySelector("#match-review-pattern-note").value.trim();
+  const action = document.querySelector("#match-review-pattern-action").value;
+  const selectedValues = document.querySelector("#match-review-pattern-selected-values").value.split(",").map((value) => value.trim()).filter(Boolean);
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear category-rule evidence note."); return; }
+  try {
+    await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/decision?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`, { method: "POST", body: JSON.stringify({ action, reviewer, reason, selected_values: selectedValues }) });
+    await loadMatchReviewPatterns();
+    matchReviewState.selectedPatternKey = pattern.pattern_key;
+    showToast("Versioned category-rule proposal recorded; matcher activation remains a separate gate.");
+  } catch (error) { showToast(`Rule choice was not saved. ${error.message}`); }
 }
 
 async function loadMatchReviewItems() {
@@ -1125,6 +1211,10 @@ function renderMatchReviewItems() {
 }
 
 function renderMatchReviewInspector(item) {
+  if (matchReviewState.mode === "patterns") {
+    renderMatchReviewPatternInspector(matchReviewState.patterns?.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey));
+    return;
+  }
   document.querySelector("#match-review-inspector-empty").hidden = Boolean(item);
   document.querySelector("#match-review-form").hidden = !item;
   if (!item) return;
@@ -1178,11 +1268,18 @@ document.querySelector("#match-review-next").addEventListener("click", async () 
 document.querySelector("#match-review-accept").addEventListener("click", () => decideMatchReview("accept_top_candidate"));
 document.querySelector("#match-review-select").addEventListener("click", () => decideMatchReview("select_candidate"));
 document.querySelector("#match-review-unresolved").addEventListener("click", () => decideMatchReview("keep_unresolved"));
+document.querySelector("#match-review-pattern-mode").addEventListener("click", () => setMatchReviewMode("patterns"));
+document.querySelector("#match-review-vehicle-mode").addEventListener("click", () => setMatchReviewMode("vehicles"));
+document.querySelector("#match-review-pattern-action").addEventListener("change", (event) => {
+  document.querySelector("#match-review-pattern-values-field").hidden = event.target.value !== "change_rule";
+});
+document.querySelector("#match-review-pattern-save").addEventListener("click", decideMatchReviewPattern);
 window.setInterval(async () => {
   if (elements.matchReviewView.hidden || matchReviewState.loading || !matchReviewState.summary?.operation_id) return;
   try {
     matchReviewState.summary = await apiRequest(`/v1/match-review/summary?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`);
     renderMatchReviewSummary();
+    await loadMatchReviewPatterns();
   } catch (_error) {
     // Keep the last verified snapshot visible; the next interval retries automatically.
   }

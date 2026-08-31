@@ -9,6 +9,9 @@ from api.app.features.match_review.repository import MatchReviewRepository
 from api.app.features.match_review.schemas import (
     MatchReviewDecisionRequest,
     MatchReviewItemView,
+    MatchReviewPatternDecision,
+    MatchReviewPatternDecisionRequest,
+    MatchReviewPatternPage,
     MatchReviewPage,
     MatchRunReviewSummary,
 )
@@ -74,3 +77,34 @@ def decide_match_review_item(
         raise HTTPException(status_code=409, detail=str(error)) from error
     except psycopg.Error as error:
         raise HTTPException(status_code=503, detail="Match review decision was not saved.") from error
+
+
+@router.get("/patterns", response_model=MatchReviewPatternPage)
+def list_match_review_patterns(
+    service: Annotated[MatchReviewService, Depends(get_match_review_service)],
+    operation_id: str = Query(max_length=80),
+    category: str | None = Query(default=None, max_length=80),
+) -> MatchReviewPatternPage:
+    try:
+        return service.patterns(operation_id=operation_id, category=category)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail="Match review patterns are unavailable.") from error
+
+
+@router.post("/patterns/{pattern_key}/decision", response_model=MatchReviewPatternDecision)
+def decide_match_review_pattern(
+    pattern_key: str,
+    request: MatchReviewPatternDecisionRequest,
+    service: Annotated[MatchReviewService, Depends(get_match_review_service)],
+    operation_id: str = Query(max_length=80),
+) -> MatchReviewPatternDecision:
+    try:
+        return service.decide_pattern(operation_id, pattern_key, request)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail="Pattern decision was not saved.") from error

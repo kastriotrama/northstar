@@ -10,30 +10,31 @@ The run is resumable from its PostgreSQL checkpoint. It records aggregate run co
 
 ## Current verified checkpoint
 
-At the first committed checkpoint, `25,000 / 6,515,471` rows (`0.384%`) had been checked:
+At the latest committed checkpoint, `125,000 / 6,515,471` rows (`1.919%`) had been checked:
 
 | Result | Rows |
 | --- | ---: |
-| Resolved | 3,097 |
-| Provisional | 2,508 |
-| Review required | 17,276 |
-| Hard conflict | 1,976 |
-| Policy excluded | 142 |
-| Normalization review | 1 |
+| Resolved | 13,283 |
+| Provisional | 11,616 |
+| Review required | 88,812 |
+| Hard conflict | 9,587 |
+| Policy excluded | 1,659 |
+| Normalization review | 31 |
+| Unmatched | 12 |
 
 The mutually exclusive blocker counts at that checkpoint are:
 
 | Primary blocker | Rows |
 | --- | ---: |
-| Bodywork conflict | 7,282 |
-| Model evidence missing | 5,454 |
-| Candidates too close | 2,236 |
-| Hard technical conflict | 1,976 |
-| Partial or phonetic model | 1,481 |
-| Model not found in catalog | 766 |
-| Model evidence conflicts | 31 |
-| Other matcher blocker | 26 |
-| Manufacturer scope unresolved | 1 |
+| Bodywork conflict | 36,981 |
+| Model evidence missing | 29,911 |
+| Candidates too close | 10,281 |
+| Hard technical conflict | 9,587 |
+| Partial or phonetic model | 7,206 |
+| Model not found in catalog | 4,043 |
+| Model evidence conflicts | 214 |
+| Other matcher blocker | 168 |
+| Manufacturer scope unresolved | 51 |
 | Normalization needs review | 0 |
 
 These are measured checkpoint counts, not an extrapolation to the complete dataset.
@@ -50,6 +51,10 @@ A bounded sampler has populated 77 representative review items across the blocke
 - record a vehicle-only decision or a category-level rule proposal.
 
 Every action requires a reviewer and evidence note. The result is stored as an immutable terminal review resolution. A category proposal is evidence for a later reviewed/versioned rule; it is not applied automatically.
+
+The default workspace is pattern-first. It groups the bounded evidence into recurring, plate-free relationships such as `TS body code AC → TecDoc SUV`, shows the exact full-run category count separately from the sample count, and lists representative manufacturer/model families. The adjacent Vehicle evidence view can be opened when a stakeholder needs the actual registration plate and complete source payload behind a pattern.
+
+Pattern choices are append-only, versioned proposals in `core.match_review_rule_decisions`. `accept_pattern` accepts the displayed mapping for later validation, `keep_blocked` records that the evidence is insufficient, and `change_rule` records corrected target values. None activates a matcher rule or changes PostgreSQL match decisions/Neo4j.
 
 ## Safety boundary
 

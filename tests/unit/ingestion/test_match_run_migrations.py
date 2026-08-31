@@ -40,3 +40,13 @@ def test_blocker_counts_are_mutually_exclusive_operation_aggregates() -> None:
     assert "REFERENCES core.match_runs(operation_id)" in blockers
     assert "PRIMARY KEY (operation_id, blocker_category)" in blockers
     assert "occurrence_count BIGINT NOT NULL" in blockers
+
+
+def test_rule_pattern_decisions_are_versioned_proposals_not_graph_writes() -> None:
+    decisions = dict(MATCH_RUN_MIGRATIONS)["create_match_review_rule_decisions_table"]
+
+    assert "operation_id UUID NOT NULL REFERENCES core.match_runs(operation_id)" in decisions
+    assert "pattern_evidence JSONB NOT NULL" in decisions
+    assert "accept_pattern" in decisions and "keep_blocked" in decisions
+    assert "supersedes_decision_id UUID" in decisions
+    assert "neo4j" not in decisions.lower()

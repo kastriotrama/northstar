@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=16" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=17" />
   </head>
   <body>
     <div class="app-shell">
@@ -266,12 +266,30 @@
               <div><span class="eyebrow" id="match-review-category-label">All categories</span><h2>Evidence samples</h2></div>
               <label><span>Status</span><select id="match-review-status"><option value="">All decisions</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Decided</option></select></label>
             </header>
+            <nav class="match-review-mode-tabs" aria-label="Review level">
+              <button id="match-review-pattern-mode" class="active" type="button">Rule patterns</button>
+              <button id="match-review-vehicle-mode" type="button">Vehicle evidence</button>
+            </nav>
             <div class="sensitive-data-note">Restricted local review · real registration plates may be visible · decisions do not write Neo4j</div>
-            <div class="match-review-table-wrap"><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
+            <div id="match-review-pattern-list" class="match-review-table-wrap"><table><thead><tr><th>Recurring pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th>Samples</th><th>Rule status</th></tr></thead><tbody id="match-review-pattern-rows"></tbody></table><div id="match-review-pattern-empty" class="empty-state" hidden><strong>No recurring patterns yet</strong><p>A category needs sampled evidence before it can be proposed as a rule.</p></div></div>
+            <div id="match-review-vehicle-list" class="match-review-table-wrap" hidden><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
             <footer class="pagination"><button id="match-review-previous" type="button">Previous</button><span id="match-review-page-label">0 vehicles</span><button id="match-review-next" type="button">Next</button></footer>
           </section>
           <aside class="match-review-inspector">
             <div id="match-review-inspector-empty" class="inspector-empty"><span class="inspector-glyph">!</span><strong>Select a blocker</strong><p>Compare immutable TS evidence with every returned TecDoc candidate.</p></div>
+            <form id="match-review-pattern-form" hidden>
+              <header><div><span class="eyebrow" id="match-review-pattern-category">Rule pattern</span><h2 id="match-review-pattern-title">Recurring conflict</h2></div><span class="queue-state queue-pending">Proposal</span></header>
+              <section class="match-review-guidance"><strong id="match-review-pattern-summary">Review the repeated source-to-catalog relationship.</strong><p>Pattern decisions are versioned proposals. They do not activate a normalization rule or change a KType.</p></section>
+              <section><h3>Pattern evidence</h3><dl id="match-review-pattern-values" class="field-list"></dl></section>
+              <section><h3>Representative model families</h3><div id="match-review-pattern-examples" class="pattern-examples"></div></section>
+              <section class="match-review-decision-fields"><h3>Stakeholder rule choice</h3>
+                <label><span>Reviewer</span><input id="match-review-pattern-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Choice</span><select id="match-review-pattern-action"><option value="accept_pattern">Accept shown mapping as a rule proposal</option><option value="keep_blocked">Keep this pattern blocked</option><option value="change_rule">Change the target value</option></select></label>
+                <label id="match-review-pattern-values-field" hidden><span>Correct target values · comma separated</span><input id="match-review-pattern-selected-values" type="text" maxlength="500" placeholder="SUV, estate" /></label>
+                <label><span>Evidence note</span><textarea id="match-review-pattern-note" minlength="5" maxlength="1000" required placeholder="Explain the domain evidence for this category rule"></textarea></label>
+              </section>
+              <footer class="match-review-actions"><button id="match-review-pattern-save" class="primary-button" type="button">Record rule choice</button></footer>
+            </form>
             <form id="match-review-form" hidden>
               <header><div><span class="eyebrow" id="match-review-detail-category">Blocker</span><h2 id="match-review-detail-title">Vehicle</h2></div><span id="match-review-detail-status" class="queue-state queue-pending">Pending</span></header>
               <section class="match-review-guidance"><strong id="match-review-guidance">Keep unresolved until evidence is sufficient.</strong><p id="match-review-reasons"></p></section>
@@ -463,6 +481,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=24" defer></script>
+    <script src="/normalization-review/assets/app.js?v=25" defer></script>
   </body>
 </html>

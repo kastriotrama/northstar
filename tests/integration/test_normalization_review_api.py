@@ -7,6 +7,10 @@ from api.app.features.match_review.schemas import (
     MatchBlockerCategoryView,
     MatchReviewDecisionRequest,
     MatchReviewItemView,
+    MatchReviewPatternDecision,
+    MatchReviewPatternDecisionRequest,
+    MatchReviewPatternPage,
+    MatchReviewPatternView,
     MatchReviewPage,
     MatchRunReviewSummary,
 )
@@ -251,6 +255,35 @@ class FakeMatchReviewService:
         }
         return item
 
+    def patterns(self, *, operation_id: str, category: str | None) -> MatchReviewPatternPage:
+        return MatchReviewPatternPage(
+            operation_id=operation_id,
+            category=category,
+            patterns=[MatchReviewPatternView(
+                pattern_key="bodywork_conflict:abc",
+                category="bodywork_conflict",
+                title="TS body code AC → TecDoc SUV",
+                summary="Choose a scoped compatibility policy.",
+                source_values={"body_code": "AC"},
+                candidate_values={"bodywork": ["SUV"]},
+                sample_occurrences=4,
+                category_occurrences=7282,
+                examples=[{"manufacturer": "KIA", "model": "NIRO"}],
+            )],
+        )
+
+    def decide_pattern(
+        self, operation_id: str, pattern_key: str, request: MatchReviewPatternDecisionRequest,
+    ) -> MatchReviewPatternDecision:
+        return MatchReviewPatternDecision(
+            decision_id="00000000-0000-0000-0000-000000000008",
+            action=request.action,
+            selected_values=request.selected_values,
+            reviewer=request.reviewer,
+            reason=request.reason,
+            created_at=datetime.now(UTC),
+        )
+
     @staticmethod
     def _item(operation_id: str, status: str) -> MatchReviewItemView:
         return MatchReviewItemView(
@@ -348,6 +381,32 @@ def test_match_review_api_lists_blockers_and_records_decision(client: TestClient
     assert listed.json()["items"][0]["source_evidence"]["plate"] == "ABC123"
     assert decided.status_code == 200
     assert decided.json()["resolution"]["selected_candidate_reference"] == "0001"
+
+
+def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: TestClient) -> None:
+    client.app.dependency_overrides[get_match_review_service] = FakeMatchReviewService
+    try:
+        patterns = client.get(
+            "/v1/match-review/patterns",
+            params={"operation_id": "op-1", "category": "bodywork_conflict"},
+        )
+        decision = client.post(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/decision",
+            params={"operation_id": "op-1"},
+            json={
+                "action": "accept_pattern",
+                "reviewer": "Stakeholder",
+                "reason": "Repeated examples confirm the ontology mapping",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert patterns.status_code == 200
+    assert patterns.json()["patterns"][0]["title"] == "TS body code AC → TecDoc SUV"
+    assert patterns.json()["patterns"][0]["category_occurrences"] == 7282
+    assert decision.status_code == 200
+    assert decision.json()["action"] == "accept_pattern"
 
 
 def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
