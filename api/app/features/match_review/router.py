@@ -12,6 +12,7 @@ from api.app.features.match_review.schemas import (
     MatchReviewPatternDecision,
     MatchReviewPatternDecisionRequest,
     MatchReviewPatternMemberPage,
+    MatchReviewPatternTechnicalEvidence,
     MatchReviewPatternPage,
     MatchReviewPage,
     MatchRunReviewSummary,
@@ -127,3 +128,17 @@ def list_match_review_pattern_members(
         raise HTTPException(status_code=422, detail=str(error)) from error
     except psycopg.Error as error:
         raise HTTPException(status_code=503, detail="Pattern members are unavailable.") from error
+
+
+@router.get("/patterns/{pattern_key}/technical-evidence", response_model=MatchReviewPatternTechnicalEvidence)
+def get_match_review_pattern_technical_evidence(
+    pattern_key: str,
+    service: Annotated[MatchReviewService, Depends(get_match_review_service)],
+    operation_id: str = Query(max_length=80),
+) -> MatchReviewPatternTechnicalEvidence:
+    try:
+        return service.pattern_technical_evidence(operation_id=operation_id, pattern_key=pattern_key)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail="Pattern technical evidence is unavailable.") from error

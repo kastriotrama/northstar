@@ -238,6 +238,147 @@ class MatchReviewRepository:
                 for row in cursor.fetchall()
             ]
 
+    def fetch_pattern_technical_evidence(
+        self, *, operation_id: str, pattern_key: str
+    ) -> dict[str, Any]:
+        """Return plate-free TS/TecDoc values for a hard-conflict pattern."""
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT pattern_evidence FROM {MATCH_RUN_PATTERN_INVENTORY_TABLE} "
+                "WHERE operation_id=%s AND pattern_key=%s",
+                (operation_id, pattern_key),
+            )
+            inventory_row = cursor.fetchone()
+            if inventory_row is None:
+                raise KeyError(f"pattern {pattern_key} does not exist")
+            evidence = dict(inventory_row[0] or {})
+            source_values = dict(evidence.get("source_values") or {})
+            candidate_values = dict(evidence.get("candidate_values") or {})
+            conflicts = [str(value) for value in source_values.get("conflicting_fields") or []]
+            references = [
+                str(value) for value in candidate_values.get("candidate_references") or []
+            ]
+            cursor.execute(
+                f"""
+                SELECT raw.raw_record
+                FROM {MATCH_RUN_PATTERN_MEMBERS_TABLE} member
+                JOIN staging.transportstyrelsen_raw raw ON raw.id=member.source_record_id
+                WHERE member.operation_id=%s AND member.pattern_key=%s
+                ORDER BY member.source_record_id
+                LIMIT 4
+                """,
+                (operation_id, pattern_key),
+            )
+            ts_examples = [
+                {
+                    "manufacturer": str(raw.get("brand") or raw.get("manufacturer") or "Unknown"),
+                    "model": str(raw.get("model") or "Model unavailable"),
+                    "values": {
+                        key: raw[key]
+                        for key in (
+                            "body_code", "is_4wd", "fuel1", "fuel2", "fuel3", "ev_config",
+                            "engine_code", "ccm", "displacement_cc", "kw", "power_kw",
+                            "model_year", "production_year", "eeg_type_approval", "variant", "version",
+                        )
+                        if raw.get(key) is not None and str(raw.get(key)).strip()
+                    },
+                }
+                for (raw_record,) in cursor.fetchall()
+                for raw in (dict(raw_record or {}),)
+            ]
+            cursor.execute(
+                f"SELECT candidate_catalog_version FROM {MATCH_RUNS_TABLE} "
+                "WHERE operation_id=%s",
+                (operation_id,),
+            )
+            run = cursor.fetchone()
+            if run is None or not references:
+                return {
+                    "pattern_key": pattern_key,
+                    "conflicting_fields": conflicts,
+                    "ts_examples": ts_examples,
+                    "tecdoc_candidates": [],
+                    "comparisons": {},
+                }
+            catalog_version = str(run[0]).removeprefix("postgres:")
+            cursor.execute(
+                """
+                SELECT ka.attributes->>'alias_text' AS candidate_reference,
+                       family.attributes->>'canonical_name' AS model,
+                       variant.attributes->>'year_from' AS year_from,
+                       variant.attributes->>'year_to' AS year_to,
+                       coalesce(variant.attributes->>'vehicle_fuel_type',
+                                variant.attributes->>'fuel_type') AS fuel_type,
+                       engine.attributes->>'engine_code' AS engine_code,
+                       variant.attributes->>'displacement_cc' AS displacement_cc,
+                       variant.attributes->>'power_kw' AS power_kw,
+                       variant.attributes->>'drive_type' AS drive_type,
+                       coalesce(bodywork.attributes->>'canonical_name',
+                                variant.attributes->>'tecdoc_bodywork_official_label') AS bodywork,
+                       variant.attributes->>'tecdoc_body_type_code' AS body_type_code
+                FROM core.tecdoc_canonical_candidates variant
+                JOIN core.tecdoc_canonical_candidates ka
+                  ON ka.batch_id=variant.batch_id AND ka.entity_type='alias'
+                 AND ka.attributes->>'alias_type'='k_type'
+                 AND ka.attributes->>'target_source_key'=variant.source_key
+                JOIN core.tecdoc_canonical_candidates family
+                  ON family.batch_id=variant.batch_id AND family.entity_type='model_family'
+                 AND family.source_key=variant.attributes->>'model_family_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates engine
+                  ON engine.batch_id=variant.batch_id AND engine.entity_type='engine'
+                 AND engine.source_key=variant.attributes->>'engine_source_key'
+                LEFT JOIN core.tecdoc_canonical_candidates bodywork
+                  ON bodywork.batch_id=variant.batch_id AND bodywork.entity_type='bodywork'
+                 AND bodywork.source_key=variant.attributes->>'bodywork_source_key'
+                WHERE variant.batch_id=%s AND variant.entity_type='vehicle_variant'
+                  AND ka.attributes->>'alias_text'=ANY(%s)
+                ORDER BY ka.attributes->>'alias_text'
+                """,
+                (catalog_version, references),
+            )
+            bodywork_by_code = canonical_bodywork_by_kt086()
+            tecdoc_candidates = []
+            for row in cursor.fetchall():
+                values = {
+                    "candidate_reference": str(row[0]),
+                    "model": row[1], "year_from": row[2], "year_to": row[3],
+                    "fuel_type": row[4], "engine_code": row[5], "displacement_cc": row[6],
+                    "power_kw": row[7], "drive_type": row[8],
+                    "bodywork": row[9] or bodywork_by_code.get(str(row[10] or "").zfill(3)),
+                }
+                tecdoc_candidates.append({key: value for key, value in values.items() if value is not None})
+            source_keys: dict[str, tuple[str, ...]] = {
+                "bodywork": ("body_code",), "drive_type": ("is_4wd",), "fuels": ("fuel1", "fuel2", "fuel3", "ev_config"),
+                "fuel": ("fuel1", "fuel2", "fuel3", "ev_config"), "engine": ("engine_code",), "engine_code": ("engine_code",),
+                "year": ("model_year", "production_year"), "displacement_cc": ("ccm", "displacement_cc"),
+                "power_kw": ("kw", "power_kw"),
+            }
+            comparisons: dict[str, dict[str, Any]] = {}
+            for field in conflicts:
+                keys: tuple[str, ...] = source_keys.get(field, (field,))
+                ts_values_set: set[str] = set()
+                for example in ts_examples:
+                    example_values = example.get("values")
+                    if not isinstance(example_values, dict):
+                        continue
+                    for key in keys:
+                        if key in example_values:
+                            ts_values_set.add(f"{key}={example_values[key]}")
+                ts_values = sorted(ts_values_set)
+                catalog_values = sorted({
+                    f"{candidate['candidate_reference']}: {field}={candidate.get(field, 'missing')}"
+                    for candidate in tecdoc_candidates
+                })
+                comparisons[field] = {"ts_values": ts_values, "tecdoc_values": catalog_values}
+            return {
+                "pattern_key": pattern_key,
+                "conflicting_fields": conflicts,
+                "ts_examples": ts_examples,
+                "tecdoc_candidates": tecdoc_candidates,
+                "comparisons": comparisons,
+            }
+
     def record_pattern_decision(
         self, *, operation_id: str, pattern: dict[str, Any], action: str,
         selected_values: list[str], reviewer: str, reason: str,

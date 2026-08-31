@@ -139,6 +139,14 @@ class MatchReviewPatternMemberPage(BaseModel):
     members: list[MatchReviewPatternMemberView] = Field(default_factory=list)
 
 
+class MatchReviewPatternTechnicalEvidence(BaseModel):
+    pattern_key: str
+    conflicting_fields: list[str] = Field(default_factory=list)
+    ts_examples: list[dict[str, Any]] = Field(default_factory=list)
+    tecdoc_candidates: list[dict[str, Any]] = Field(default_factory=list)
+    comparisons: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
 class MatchReviewPatternDecisionRequest(BaseModel):
     action: Literal["accept_pattern", "keep_blocked", "change_rule"]
     reviewer: str = Field(min_length=1, max_length=120)

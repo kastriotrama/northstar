@@ -13,6 +13,7 @@ from api.app.features.match_review.schemas import (
     MatchReviewPatternMemberView,
     MatchReviewItemView,
     MatchReviewPage,
+    MatchReviewPatternTechnicalEvidence,
     MatchRunCountsView,
     MatchRunReviewSummary,
 )
@@ -33,6 +34,9 @@ class MatchReviewData(Protocol):
     def fetch_pattern_members(
         self, *, operation_id: str, pattern_key: str, limit: int, offset: int
     ) -> tuple[int, list[dict[str, Any]]]: ...
+    def fetch_pattern_technical_evidence(
+        self, *, operation_id: str, pattern_key: str
+    ) -> dict[str, Any]: ...
     def fetch_items(
         self, *, operation_id: str, category: str | None, status: str | None,
         limit: int, offset: int,
@@ -200,6 +204,16 @@ class MatchReviewService:
             limit=limit,
             offset=offset,
             members=[MatchReviewPatternMemberView(**row) for row in rows],
+        )
+
+    def pattern_technical_evidence(
+        self, *, operation_id: str, pattern_key: str
+    ) -> MatchReviewPatternTechnicalEvidence:
+        self._repository.ensure_schema()
+        return MatchReviewPatternTechnicalEvidence(
+            **self._repository.fetch_pattern_technical_evidence(
+                operation_id=operation_id, pattern_key=pattern_key
+            )
         )
 
     def decide(

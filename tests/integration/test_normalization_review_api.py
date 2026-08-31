@@ -10,6 +10,7 @@ from api.app.features.match_review.schemas import (
     MatchReviewPatternDecision,
     MatchReviewPatternDecisionRequest,
     MatchReviewPatternMemberPage,
+    MatchReviewPatternTechnicalEvidence,
     MatchReviewPatternPage,
     MatchReviewPatternView,
     MatchReviewPage,
@@ -303,6 +304,20 @@ class FakeMatchReviewService:
             ],
         )
 
+    def pattern_technical_evidence(
+        self, *, operation_id: str, pattern_key: str,
+    ) -> MatchReviewPatternTechnicalEvidence:
+        return MatchReviewPatternTechnicalEvidence(
+            pattern_key=pattern_key,
+            conflicting_fields=["power_kw", "bodywork"],
+            ts_examples=[{"manufacturer": "KIA", "model": "NIRO", "values": {"body_code": "AC", "kw": 77}}],
+            tecdoc_candidates=[{"candidate_reference": "0001", "power_kw": "104", "bodywork": "suv"}],
+            comparisons={
+                "power_kw": {"ts_values": ["kw=77"], "tecdoc_values": ["0001: power_kw=104"]},
+                "bodywork": {"ts_values": ["body_code=AC"], "tecdoc_values": ["0001: bodywork=suv"]},
+            },
+        )
+
     @staticmethod
     def _item(operation_id: str, status: str) -> MatchReviewItemView:
         return MatchReviewItemView(
@@ -370,6 +385,7 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="match-review-view"' in screen.text
     assert 'id="match-review-pattern-gaps"' in screen.text
     assert 'id="match-review-technical-breakdown"' in screen.text
+    assert 'id="match-review-technical-evidence"' in screen.text
     assert 'id="match-review-pattern-limit"' in screen.text
     assert 'id="match-review-pattern-count"' in screen.text
     assert 'class="domain-decision-panel"' in screen.text
@@ -380,6 +396,7 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert "patternLimit" in javascript.text
     assert "domain-fuel-count" in javascript.text
     assert "renderMatchReviewTechnicalBreakdown" in javascript.text
+    assert "technical-evidence" in javascript.text
     assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text
 
 
@@ -432,6 +449,10 @@ def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: 
             "/v1/match-review/patterns/bodywork_conflict%3Aabc/members",
             params={"operation_id": "op-1", "limit": 1},
         )
+        technical = client.get(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/technical-evidence",
+            params={"operation_id": "op-1"},
+        )
     finally:
         client.app.dependency_overrides.clear()
 
@@ -442,6 +463,8 @@ def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: 
     assert decision.json()["action"] == "accept_pattern"
     assert members.status_code == 200
     assert members.json()["members"][0]["source_evidence"]["plate"] == "ABC123"
+    assert technical.status_code == 200
+    assert technical.json()["comparisons"]["power_kw"]["ts_values"] == ["kw=77"]
 
 
 def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:

@@ -4,7 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
-const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, patternLimit: 10, offset: 0, mode: "patterns", loading: false };
+const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, patternTechnicalEvidence: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, patternLimit: 10, offset: 0, mode: "patterns", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -1153,7 +1153,7 @@ function renderMatchReviewPatterns() {
 async function loadMatchReviewPatternMembers() {
   const operation = matchReviewState.summary?.operation_id;
   const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
-  if (!operation || !pattern) { matchReviewState.patternMembers = null; renderMatchReviewPatternMembers(); return; }
+  if (!operation || !pattern) { matchReviewState.patternMembers = null; renderMatchReviewPatternMembers(); await loadMatchReviewPatternTechnicalEvidence(); return; }
   const query = new URLSearchParams({ operation_id: operation, limit: "50", offset: String(matchReviewState.patternMemberOffset) });
   try {
     matchReviewState.patternMembers = await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/members?${query}`);
@@ -1162,6 +1162,35 @@ async function loadMatchReviewPatternMembers() {
     showToast(`Could not load vehicles for this pattern. ${error.message}`);
   }
   renderMatchReviewPatternMembers();
+  await loadMatchReviewPatternTechnicalEvidence();
+}
+
+async function loadMatchReviewPatternTechnicalEvidence() {
+  const section = document.querySelector("#match-review-technical-evidence");
+  const content = document.querySelector("#match-review-technical-comparisons");
+  const operation = matchReviewState.summary?.operation_id;
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!operation || !pattern || pattern.category !== "hard_technical_conflict") {
+    matchReviewState.patternTechnicalEvidence = null;
+    section.hidden = true;
+    content.innerHTML = "";
+    return;
+  }
+  section.hidden = false;
+  content.innerHTML = '<p class="section-hint">Loading exact TS and TecDoc comparison…</p>';
+  try {
+    matchReviewState.patternTechnicalEvidence = await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/technical-evidence?operation_id=${encodeURIComponent(operation)}`);
+    const comparisons = matchReviewState.patternTechnicalEvidence.comparisons || {};
+    const labels = { bodywork: "Bodywork", drive_type: "Drive type", fuels: "Fuel set", fuel: "Fuel type", engine: "Engine", engine_code: "Engine code", year: "Year", displacement_cc: "Displacement", power_kw: "Power output" };
+    content.innerHTML = Object.entries(comparisons).map(([field, comparison]) => {
+      const ts = comparison.ts_values?.length ? comparison.ts_values.join(" · ") : "Not present in representative TS rows";
+      const tecdoc = comparison.tecdoc_values?.length ? comparison.tecdoc_values.join(" · ") : "Not present in returned TecDoc candidates";
+      return `<article class="technical-comparison"><header><strong>${escapeHtml(labels[field] || humanize(field))}</strong><span>${escapeHtml(field)}</span></header><dl><div><dt>TS values</dt><dd>${escapeHtml(ts)}</dd></div><div><dt>TecDoc values</dt><dd>${escapeHtml(tecdoc)}</dd></div></dl></article>`;
+    }).join("") || '<p class="section-hint">No field-level comparison is available for this pattern yet.</p>';
+  } catch (error) {
+    matchReviewState.patternTechnicalEvidence = null;
+    content.innerHTML = `<p class="section-hint">Exact comparison unavailable: ${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function renderMatchReviewPatternMembers() {
