@@ -371,10 +371,13 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert 'id="match-review-pattern-gaps"' in screen.text
     assert 'id="match-review-pattern-limit"' in screen.text
     assert 'id="match-review-pattern-count"' in screen.text
+    assert 'class="domain-decision-panel"' in screen.text
+    assert 'data-domain-filter="bodywork_conflict"' in screen.text
     assert 'id="match-review-comparison"' in screen.text
     assert "/v1/normalization-review/queue" in javascript.text
     assert "/v1/match-review/summary" in javascript.text
     assert "patternLimit" in javascript.text
+    assert "domain-fuel-count" in javascript.text
     assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text
 
 

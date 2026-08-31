@@ -59,3 +59,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Defaulted pattern review to a compact top-10 view
 
 - The blocker-pattern table now shows the ten highest-occurrence patterns first, with explicit Top 25, Top 50, and All patterns choices. The complete inventory and per-pattern vehicle drilldown remain available. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
+
+## 2026-08-31 — Added general domain decision summary
+
+- Added a compact review-screen summary for the three cross-vehicle decisions that drive the merge: TS bodywork vocabulary, mixed-fuel representation, and `is_4wd=0` drive ambiguity. Each card shows one plain-language example and links to grouped patterns; no plate-level data is shown in the summary. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.

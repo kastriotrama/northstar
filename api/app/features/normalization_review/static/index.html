@@ -272,6 +272,14 @@
               <button id="match-review-vehicle-mode" type="button">Vehicle evidence</button>
             </nav>
             <div class="sensitive-data-note">Restricted local review · real registration plates may be visible · decisions do not write Neo4j</div>
+            <details class="domain-decision-panel" open>
+              <summary><span><span class="eyebrow">Before vehicle review</span><strong>Three domain decisions drive the merge</strong></span><span class="domain-decision-toggle">Hide details</span></summary>
+              <div class="domain-decision-cards">
+                <article><header><span class="domain-decision-number">01</span><div><strong>Bodywork vocabulary</strong><small id="domain-bodywork-count">Loading conflict count…</small></div></header><p>TS has no SUV class: `AC` is a broad estate/station-wagon code, while TecDoc may say SUV.</p><div class="domain-decision-example"><b>Example</b><span>Volvo XC40/XC60 · TS AC/estate → TecDoc SUV</span></div><button type="button" data-domain-filter="bodywork_conflict">View bodywork patterns</button></article>
+                <article><header><span class="domain-decision-number">02</span><div><strong>Fuel representation</strong><small id="domain-fuel-count">Loading technical conflict count…</small></div></header><p>TS can report petrol + electricity while TecDoc stores hybrid or mixed-fuel sets. Overlap is not proof of identity.</p><div class="domain-decision-example"><b>Example</b><span>TS petrol/electricity → TecDoc hybrid or mixed-fuel KTypes</span></div><button type="button" data-domain-filter="hard_technical_conflict">View technical patterns</button></article>
+                <article><header><span class="domain-decision-number">03</span><div><strong>Drive meaning</strong><small id="domain-drive-count">Loading technical conflict count…</small></div></header><p>TS `is_4wd=0` means not 4WD; it does not tell us whether the car is FWD or RWD.</p><div class="domain-decision-example"><b>Example</b><span>TS 0 → TecDoc candidates split between FWD and RWD</span></div><button type="button" data-domain-filter="hard_technical_conflict">View technical patterns</button></article>
+              </div>
+            </details>
             <div id="match-review-pattern-list" class="match-review-table-wrap"><p id="match-review-pattern-count" class="section-hint">Showing the top patterns first.</p><table><thead><tr><th>Recurring pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th>Occurrences</th><th>Rule status</th></tr></thead><tbody id="match-review-pattern-rows"></tbody></table><div id="match-review-pattern-empty" class="empty-state" hidden><strong>No recurring patterns yet</strong><p>The exhaustive inventory is populated as audit batches are processed.</p></div></div>
             <div id="match-review-vehicle-list" class="match-review-table-wrap" hidden><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
             <footer class="pagination"><button id="match-review-previous" type="button">Previous</button><span id="match-review-page-label">0 vehicles</span><button id="match-review-next" type="button">Next</button></footer>
@@ -486,6 +494,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=27" defer></script>
+    <script src="/normalization-review/assets/app.js?v=28" defer></script>
   </body>
 </html>

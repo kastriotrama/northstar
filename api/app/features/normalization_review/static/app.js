@@ -1075,6 +1075,11 @@ function renderMatchReviewSummary() {
   document.querySelector("#match-review-provisional").textContent = summary.counts.provisional.toLocaleString();
   document.querySelector("#match-review-required").textContent = summary.counts.review_required.toLocaleString();
   document.querySelector("#match-review-hard").textContent = summary.counts.hard_conflict.toLocaleString();
+  const bodyworkBlocker = summary.blockers.find((category) => category.code === "bodywork_conflict");
+  const technicalBlocker = summary.blockers.find((category) => category.code === "hard_technical_conflict");
+  document.querySelector("#domain-bodywork-count").textContent = bodyworkBlocker ? `${bodyworkBlocker.count.toLocaleString()} observed in this category` : "No bodywork count yet";
+  document.querySelector("#domain-fuel-count").textContent = technicalBlocker ? `Part of ${technicalBlocker.count.toLocaleString()} technical conflicts` : "No technical count yet";
+  document.querySelector("#domain-drive-count").textContent = technicalBlocker ? `Part of ${technicalBlocker.count.toLocaleString()} technical conflicts` : "No technical count yet";
   document.querySelector("#match-review-categories").innerHTML = summary.blockers.map((category) => `
     <button type="button" data-match-category="${escapeHtml(category.code)}" class="blocker-category ${matchReviewState.category === category.code ? "active" : ""}">
       <span><strong>${escapeHtml(category.title)}</strong><small>${escapeHtml(category.guidance)}</small></span>
@@ -1324,6 +1329,15 @@ document.querySelector("#match-review-select").addEventListener("click", () => d
 document.querySelector("#match-review-unresolved").addEventListener("click", () => decideMatchReview("keep_unresolved"));
 document.querySelector("#match-review-pattern-mode").addEventListener("click", () => setMatchReviewMode("patterns"));
 document.querySelector("#match-review-vehicle-mode").addEventListener("click", () => setMatchReviewMode("vehicles"));
+document.querySelectorAll("[data-domain-filter]").forEach((button) => button.addEventListener("click", async () => {
+  matchReviewState.category = button.dataset.domainFilter;
+  matchReviewState.offset = 0;
+  matchReviewState.selectedId = null;
+  matchReviewState.selectedPatternKey = null;
+  renderMatchReviewSummary();
+  await loadMatchReviewPatterns();
+  await loadMatchReviewItems();
+}));
 document.querySelector("#match-review-pattern-limit").addEventListener("change", (event) => {
   matchReviewState.patternLimit = event.target.value === "all" ? null : Number(event.target.value);
   renderMatchReviewPatterns();
