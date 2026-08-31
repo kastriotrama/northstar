@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-08-31 — Remote qualifier-loss work merged and reconciled
+
+- Merged remote commit `36a29b0` locally as merge `d1470fd`; no push. Added a digest-pinned, read-only v6 qualifier-loss audit and tests. On the frozen 20k cohort, 1,195 rows lose a trailing qualifier; 430 name a unique specific catalog family, of which 189 already resolve, 59 are provisional, 172 remain review-required and 10 are hard conflicts. C3 Picasso mostly already recovers from raw model evidence; C4 Picasso is commonly blocked by bodywork/conflict gates. No rule, decision, alias, PostgreSQL or Neo4j state changed. See `docs/TS_MODEL_QUALIFIER_LOSS_V6_RECONCILIATION_2026-08-31.md`.
+
 ## 2026-08-31 — SCRUM-170/171 promotion cohort dry-run
 
 - Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, computes planned v6 immutable decision IDs, excludes aliases requiring retirement, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The corrected private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-v2-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible, 4,005 without an active alias, 467 requiring retirement, 1,000 selected, and 1,000/1,000 Neo4j-preflighted with planned v6 IDs. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (6), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.
@@ -39,10 +43,6 @@ Keep the latest 10 task entries only.
 ## 2026-08-28 — Independent approval evidence and mixed-fuel gate
 
 - Added read-only RDW exact approval/variant/version/revision evidence joins for the 143 Golf proposals: 66 AU, 59 AUV, 16 CD and 2 CDV rows; all independently join to Golf and body code AC, but this does not identify a TecDoc KType or justify a blanket Golf Variant rule. Reviewed TÜV evidence showing AUV is shared by Golf R Variant and Golf Sportsvan. Added a full 72,570-KType source audit: 2,332 active engine relationships use official KT088 `Petrol/Alcohol` (026); all 11 candidate-only targets are present, nine have unique source displacement, and mixed fuel remains non-promotable. Implemented immutable `EngineFuelEvidence`, PostgreSQL relationship/candidate persistence, scalar-fuel guard, and regression/integration coverage. 727 unit tests, Ruff, strict mypy and diff checks pass. No commit, push, catalog rebuild, decision persistence, alias activation, Neo4j mutation or Jira status change. See `docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md`.
-
-## 2026-08-28 — Scoped source-model policy and promotion readiness
-
-- Added pinned, reviewed source-context family-query support to the real evaluator, default disabled; exact 20k replay preserved all evaluations (2,284 resolved / 13,788 review). Golf's 143 cases have four source types and zero qualifying strict full-fingerprint proposals. Audited 114 provisional cars → 11 absent graph KTypes: 113 blocked by mixed Petrol/Alcohol engine fuel, one by two engine allocations; complete-source displacement verification remains. Prepared 47 unapproved Volvo rules covering 403 records; froze 11,629 unscored holdout rows from the next 50k after group-leakage exclusions. 699 unit tests, 205 golden, Ruff/mypy pass. Jira progress comments only; no push/datastore writes/rule activation. See `docs/TS_TECDOC_SCOPED_RECOVERY_2026-08-28.md`; independent approval remains the next gate.
 
 ## 2026-08-31 — Frozen mixed-fuel candidate validated locally
 

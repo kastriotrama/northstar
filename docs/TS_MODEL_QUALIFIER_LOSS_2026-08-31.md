@@ -4,6 +4,13 @@ Date: 2026-08-31
 Branch: `feature/SCRUM-101-integrated-matcher-validation`
 Author: developer measurement, for review alongside PR #32
 
+> **Current status:** this original graph-catalog measurement has been merged
+> locally and retained as evidence. A digest-pinned audit against the final v6
+> PostgreSQL candidate catalog found that the matcher already recovers many raw
+> source qualifiers. See
+> `TS_MODEL_QUALIFIER_LOSS_V6_RECONCILIATION_2026-08-31.md` before proposing or
+> activating any mapping from the table below.
+
 ## Why this exists
 
 The SCRUM-101 integration recorded nine lost resolutions on Citroën rows and
