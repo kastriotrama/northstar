@@ -62,18 +62,115 @@ def test_parser_registers_version_pinned_match_audit() -> None:
             "ts-review-20260817T073842135705Z",
             "--candidate-catalog-version",
             "tecdoc-0326",
+            "--candidate-source",
+            "postgres",
             "--expected-ktype-count",
             "55808",
             "--policy-version",
             "confidence-routing-v1",
             "--code-revision",
             "abc123",
+            "--source-mode",
+            "raw",
+            "--max-batches",
+            "2",
         ]
     )
 
     assert args.command == "match-ts-tecdoc"
     assert args.expected_source_rows == 6_515_471
     assert args.expected_ktype_count == 55_808
+    assert args.candidate_source == "postgres"
+    assert args.source_mode == "raw"
+    assert args.max_batches == 2
+
+
+def test_match_parser_accepts_complete_context_policy_pin() -> None:
+    args = build_parser().parse_args(
+        [
+            "match-ts-tecdoc",
+            "--operation-id",
+            "00000000-0000-4000-8000-000000000001",
+            "--source-version",
+            "ts-2026-08",
+            "--source-batch-prefix",
+            "passenger-part-",
+            "--expected-source-rows",
+            "6515471",
+            "--normalization-rule-version",
+            "rules-v1",
+            "--candidate-catalog-version",
+            "tecdoc-v1",
+            "--expected-ktype-count",
+            "72570",
+            "--policy-version",
+            "routing-v1",
+            "--code-revision",
+            "abc123",
+            "--context-policy",
+            "reviewed-policy.json",
+            "--context-policy-version",
+            "context-v2",
+            "--context-policy-sha256",
+            "deadbeef",
+        ]
+    )
+
+    assert str(args.context_policy) == "reviewed-policy.json"
+    assert args.context_policy_version == "context-v2"
+    assert args.context_policy_sha256 == "deadbeef"
+
+
+def test_match_command_rejects_partial_context_policy_pin(tmp_path) -> None:
+    manifest = tmp_path / "policy.json"
+    manifest.write_text("{}")
+
+    exit_code = main(
+        [
+            "match-ts-tecdoc",
+            "--operation-id",
+            "00000000-0000-4000-8000-000000000001",
+            "--source-version",
+            "ts-2026-08",
+            "--source-batch-prefix",
+            "passenger-part-",
+            "--expected-source-rows",
+            "1",
+            "--normalization-rule-version",
+            "rules-v1",
+            "--candidate-catalog-version",
+            "tecdoc-v1",
+            "--expected-ktype-count",
+            "1",
+            "--policy-version",
+            "routing-v1",
+            "--code-revision",
+            "abc123",
+            "--context-policy",
+            str(manifest),
+        ]
+    )
+
+    assert exit_code == 2
+
+
+def test_canonical_promotion_parser_supports_postgres_only_catalog_rebuild() -> None:
+    args = build_parser().parse_args(
+        [
+            "promote-tecdoc-canonical",
+            "--batch-id",
+            "tecdoc-0326-catalog-v6",
+            "--source-path",
+            "/licensed/source",
+            "--reference-path",
+            "/licensed/reference",
+            "--source-checksum",
+            "abc123",
+            "--candidate-catalog-only",
+        ]
+    )
+
+    assert args.candidate_catalog_only is True
 
 
 def test_commands_fail_safely_or_run_with_batch_id() -> None:

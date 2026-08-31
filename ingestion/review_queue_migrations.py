@@ -93,6 +93,9 @@ _REQUIRED_CONSTRAINTS = {
 _REQUIRED_INDEX_FRAGMENTS = {
     "review_queue_status_created_at_idx": ("(status, created_at, id)",),
     "review_queue_source_record_idx": ("(source_table, source_record_id)",),
+    "review_queue_source_batch_status_idx": (
+        "(source_batch_id, status, updated_at, id)",
+    ),
 }
 
 
@@ -199,6 +202,14 @@ REVIEW_QUEUE_MIGRATION_STATEMENTS: tuple[ReviewQueueMigrationStatement, ...] = (
         sql=(
             "CREATE INDEX IF NOT EXISTS review_queue_source_record_idx "
             f"ON {REVIEW_QUEUE_TABLE} (source_table, source_record_id)"
+        ),
+    ),
+    ReviewQueueMigrationStatement(
+        name="review_queue_source_batch_status_index",
+        kind="index",
+        sql=(
+            "CREATE INDEX IF NOT EXISTS review_queue_source_batch_status_idx "
+            f"ON {REVIEW_QUEUE_TABLE} (source_batch_id, status, updated_at, id)"
         ),
     ),
 )

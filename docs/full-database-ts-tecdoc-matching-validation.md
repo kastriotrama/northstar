@@ -216,15 +216,21 @@ northstar-ingest match-ts-tecdoc \
   --expected-source-rows 6515471 \
   --normalization-rule-version ts-review-20260817T073842135705Z \
   --candidate-catalog-version <immutable-tecdoc-version> \
-  --expected-ktype-count 55808 \
+  --candidate-source postgres \
+  --expected-ktype-count 72570 \
   --policy-version confidence-routing-v1 \
+  --context-policy ingestion/reviewed_context_policies/volvo_bodywork_reviewed_v1_20260830.json \
+  --context-policy-version volvo-bodywork-reviewed-v1-20260830 \
+  --context-policy-sha256 4acdee26fb88c639fa29cae914e7d24bc067b963e0be65a4718a5036d2ea522a \
   --code-revision <git-commit-sha> \
   --page-size 25000
 ```
 
 The command currently supports dry-run only. It loads the KType catalog from
-Neo4j, verifies its pinned count, reads only the selected normalization rule
-version from PostgreSQL, and writes only run manifests, checkpoints, and
+the explicitly selected source, verifies its pinned count, loads an optional
+reviewed context policy only when manifest/version/SHA pins all agree, reads
+only the selected normalization rule version from PostgreSQL, and writes only
+run manifests, checkpoints, and
 sanitized aggregate reason counts in `core.match_run_reason_counts`. Reason
 aggregates are committed atomically with each checkpoint and contain no plate,
 VIN, credential, or raw payload. It does not persist SCRUM-171 decisions or

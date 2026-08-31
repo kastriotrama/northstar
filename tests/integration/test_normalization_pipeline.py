@@ -12,6 +12,7 @@ from ingestion.normalization_migrations import (
     run_normalization_migrations,
 )
 from ingestion.normalization_repository import fetch_batch_results
+from ingestion.normalization_rules import PIPELINE_VERSION
 from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import REVIEW_QUEUE_TABLE, run_review_queue_migrations
 from ingestion.staging_loaders import copy_raw_records
@@ -102,7 +103,7 @@ def test_pipeline_persists_results_routes_review_and_retries_as_noop(
                 "WHERE source_batch_id = %s",
                 (batch_id,),
             )
-            assert cursor.fetchall() == [("normalization-pipeline-v5",)]
+            assert cursor.fetchall() == [(PIPELINE_VERSION,)]
     finally:
         pg_connection.rollback()
         with pg_connection.cursor() as cursor:

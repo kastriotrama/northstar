@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Literal
 
 from ingestion.tecdoc.fixed_width import ParsedRow, read_table
 
@@ -70,18 +73,76 @@ _ENGINE_FUEL_LABELS: dict[str, str] = {
     "Flexfuel/Electric": "hybrid_petrol",
     "Petrol/Ethanol/Electric": "hybrid_petrol",
     "Petrol/Electric/Liquefied Petroleum Gas (LPG)": "hybrid_petrol",
+    # KT 182 describes the vehicle's alternate carrier. Retaining that carrier
+    # separates otherwise identical petrol-engine KTypes during TS matching.
+    "Petrol/Liquified Petroleum Gas (LPG)": "lpg",
+    "Petrol/Ethanol": "ethanol",
     "Diesel/Electro": "hybrid_diesel",
 }
 
 
-def canonical_engine_fuels(reference_directory: Path) -> dict[str, str]:
+_MIXED_ENGINE_FUEL_LABELS: dict[str, tuple[str, ...]] = {
+    "Petrol/Alcohol": ("petrol", "alcohol_unspecified"),
+    "Petrol/Ethanol": ("petrol", "ethanol"),
+    "Petrol/Electric": ("petrol", "electric"),
+    "Diesel/Electro": ("diesel", "electric"),
+    "Flexfuel/Electric": ("flexfuel_unspecified", "electric"),
+    "Petrol/Ethanol/Electric": ("petrol", "ethanol", "electric"),
+    "Petrol/Electric/Liquefied Petroleum Gas (LPG)": ("petrol", "electric", "lpg"),
+    "Petrol/Liquified Petroleum Gas (LPG)": ("petrol", "lpg"),
+    "Petrol/Liquefied Petroleum Gas (LPG)": ("petrol", "lpg"),
+}
+
+
+@dataclass(frozen=True)
+class EngineFuelEvidence:
+    """KT088 descriptors, not proof of the fuel used by an individual vehicle.
+
+    Mixed descriptors are not matcher equivalences, confirmed capabilities, or
+    authority to select one fuel. In particular, Alcohol does not specify E85.
+    """
+
+    source_code: str | None
+    official_label: str | None
+    representation: Literal["single", "mixed", "unmapped", "missing"]
+    components: tuple[str, ...]
+    scalar_fuel_type: str | None
+    version: str = "tecdoc-engine-fuel-evidence-v1"
+    scope: str = "engine"
+    key_table: str = "088"
+    source_system: str = "tecdoc"
+
+    def as_attributes(self) -> dict[str, object]:
+        result = asdict(self)
+        result["components"] = list(self.components)
+        return result
+
+
+def engine_fuel_evidence(
+    code: str | None, labels: Mapping[str, str],
+) -> EngineFuelEvidence:
+    """Resolve exact official labels without guessing from a numeric code."""
+    label = labels.get(code) if code else None
+    if not label:
+        return EngineFuelEvidence(code, label, "missing", (), None)
+    if components := _MIXED_ENGINE_FUEL_LABELS.get(label):
+        return EngineFuelEvidence(code, label, "mixed", components, None)
+    if scalar := _ENGINE_FUEL_LABELS.get(label):
+        return EngineFuelEvidence(code, label, "single", (scalar,), scalar)
+    return EngineFuelEvidence(code, label, "unmapped", (), None)
+
+
+def canonical_engine_fuels(
+    reference_directory: Path, *, labels: Mapping[str, str] | None = None,
+) -> dict[str, str]:
     """Map only officially labeled, unambiguous KT 088 fuels to graph values."""
 
-    labels = load_key_table_labels(reference_directory, key_table_id="088")
+    if labels is None:
+        labels = load_key_table_labels(reference_directory, key_table_id="088")
     return {
         code: canonical
-        for code, label in labels.items()
-        if (canonical := _ENGINE_FUEL_LABELS.get(label)) is not None
+        for code in labels
+        if (canonical := engine_fuel_evidence(code, labels).scalar_fuel_type) is not None
     }
 
 

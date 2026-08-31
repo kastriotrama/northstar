@@ -13,8 +13,8 @@ FIXTURE = (
 )
 
 
-def test_bundle_loader_validates_complete_portable_contract() -> None:
-    bundle = load_normalization_bundle(FIXTURE)
+def test_bundle_loader_validates_complete_portable_contract(current_normalization_bundle: Path) -> None:
+    bundle = load_normalization_bundle(current_normalization_bundle)
 
     assert bundle.source_batch_id == "normalization-bundle-fixture-v1"
     assert len(bundle.raw_records) == 1
@@ -33,3 +33,8 @@ def test_bundle_loader_validates_complete_portable_contract() -> None:
 def test_bundle_loader_rejects_a_missing_file() -> None:
     with pytest.raises(NormalizationBundleError, match="does not exist"):
         load_normalization_bundle("missing-normalization-bundle.xlsx")
+
+
+def test_historical_bundle_is_not_silently_reprocessed_under_new_pipeline() -> None:
+    with pytest.raises(NormalizationBundleError, match="incompatible pipeline version"):
+        load_normalization_bundle(FIXTURE)

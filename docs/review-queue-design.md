@@ -206,6 +206,8 @@ The composite `review_queue_status_created_at_idx(status, created_at, id)`
 serves pending, in-review, resolved, and rejected worklists. The
 `review_queue_source_record_idx(source_table, source_record_id)` finds prior
 decisions for one raw record.
+`review_queue_source_batch_status_idx(source_batch_id, status, updated_at, id)`
+keeps batch-filtered review worklists fast as the queue grows.
 
 ## 9. Migration runner
 
@@ -222,6 +224,7 @@ index contract before committing.
 | `create_review_queue_table` | table |
 | `review_queue_status_created_at_index` | index |
 | `review_queue_source_record_index` | index |
+| `review_queue_source_batch_status_index` | index |
 
 ## 10. Review checklist
 

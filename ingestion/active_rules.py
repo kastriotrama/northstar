@@ -19,6 +19,19 @@ from ingestion.translation_dictionaries import (
 )
 
 
+def load_active_rule_overrides(connection: Connection) -> tuple[str | None, dict[str, Any]]:
+    """Load the latest immutable rule version and its typed overrides."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT version, overrides FROM {TRANSLATION_RULE_VERSIONS_TABLE} "
+            "ORDER BY activated_at DESC, version DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None, {}
+    return str(row[0]), dict(row[1] or {})
+
+
 def load_active_rules(
     connection: Connection,
 ) -> tuple[TranslationRuleSet, ManufacturerEntityRules]:

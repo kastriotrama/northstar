@@ -4,6 +4,7 @@ const ruleState = { page: null, selectedId: null, kind: "translation", loading: 
 const queueState = { page: null, selectedId: null, loading: false };
 const tecdocState = { page: null, entityPage: null, kind: "vehicle", loadedKind: null, selectedId: null, offset: 0, loading: false };
 const resolvedConnectionState = { page: null, offset: 0, query: "", selectedId: null, loading: false };
+const matchReviewState = { summary: null, page: null, patterns: null, patternMembers: null, patternTechnicalEvidence: null, category: null, status: "", selectedId: null, selectedPatternKey: null, patternMemberOffset: 0, patternLimit: 10, offset: 0, mode: "patterns", loading: false };
 
 const elements = {
   rows: document.querySelector("#vehicle-rows"),
@@ -23,6 +24,7 @@ const elements = {
   queueView: document.querySelector("#queue-view"),
   tecdocView: document.querySelector("#tecdoc-view"),
   connectionsView: document.querySelector("#connections-view"),
+  matchReviewView: document.querySelector("#match-review-view"),
   ruleRows: document.querySelector("#rule-rows"),
   ruleSearch: document.querySelector("#rule-search"),
   ruleArea: document.querySelector("#rule-area"),
@@ -386,17 +388,20 @@ function switchView(view) {
   const showQueue = view === "queue";
   const showTecDoc = view === "tecdoc";
   const showConnections = view === "connections";
-  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections;
+  const showMatchReview = view === "match-review";
+  elements.vehiclesView.hidden = showRules || showGuide || showQueue || showTecDoc || showConnections || showMatchReview;
   elements.rulesView.hidden = !showRules;
   elements.guideView.hidden = !showGuide;
   elements.queueView.hidden = !showQueue;
   elements.tecdocView.hidden = !showTecDoc;
   elements.connectionsView.hidden = !showConnections;
+  elements.matchReviewView.hidden = !showMatchReview;
   document.querySelectorAll(".view-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showRules && !ruleState.page) loadRules();
   if (showQueue) loadQueue();
   if (showTecDoc && !tecdocState.page) loadTecDoc();
   if (showConnections && !resolvedConnectionState.page) loadResolvedConnections();
+  if (showMatchReview) loadMatchReview();
 }
 
 const connectionViews = {
@@ -418,11 +423,29 @@ function renderConnection(key) {
   document.querySelector("#connection-decision-copy").textContent = view.copy;
 }
 
+function enginePresentation(item) {
+  const compatible = item.tecdoc_compatible_engine_codes || item.engine_codes || [];
+  const joined = compatible.join(", ");
+  const presentations = {
+    source_exact: { primary: item.selected_engine_code || item.ts_engine_code, detail: "Exact TS code in the TecDoc engine set", verdict: "Matched", tone: "pass", note: `TS engine ${item.ts_engine_code} was available before ranking and exactly matched the selected KType allocation.` },
+    uniquely_supported: { primary: item.selected_engine_code || "Uniquely supported engine", detail: "Reviewed independent evidence", verdict: "Supported", tone: "pass", note: "Reviewed independent evidence uniquely selected one compatible TecDoc engine." },
+    ambiguous: { primary: `${compatible.length} compatible TecDoc engines`, detail: joined || "No unique engine can be asserted", verdict: "Ambiguous", tone: "warning", note: `KType ${item.ktype} has multiple compatible TecDoc engines. No vehicle-specific engine was selected.` },
+    tecdoc_only: { primary: "TecDoc engine allocation", detail: joined || "Catalog assertion unavailable", verdict: "Inherited", tone: "warning", note: `${joined || "The engine"} was inherited after KType ${item.ktype} was selected; TS did not supply an engine code.` },
+    contradicted: { primary: "Engine evidence conflicts", detail: `TS ${item.ts_engine_code || "—"} · TecDoc ${joined || "—"}`, verdict: "Conflict", tone: "blocked", note: "The TS engine evidence does not occur in the selected KType engine set and must remain reviewable." },
+    unavailable: { primary: "Engine unavailable", detail: "Neither TS nor the selected KType provides an engine code", verdict: "Missing", tone: "warning", note: "No engine assertion is available for this vehicle." },
+  };
+  return presentations[item.engine_selection_status] || presentations.unavailable;
+}
+
 function renderResolvedConnectionRows() {
   const page = resolvedConnectionState.page;
   if (!page) return;
   const rows = document.querySelector("#resolved-connection-rows");
-  rows.innerHTML = page.items.map((item, index) => `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(item.engine_codes.join(", ") || "Engine facts only")}</strong><span>${escapeHtml(item.power_kw ? `${item.power_kw} kW` : "Power pending")} · ${escapeHtml(item.displacement_cc ? `${item.displacement_cc} cc` : "Displacement pending")}</span></div></td><td><span class="connection-status status-validated">Resolved</span></td></tr>`).join("");
+  rows.innerHTML = page.items.map((item, index) => {
+    const engine = enginePresentation(item);
+    const validation = item.match_validation_status === "rerun_required" ? ["Rerun required", "status-blocked"] : ["Current resolved", "status-validated"];
+    return `<tr data-resolved-index="${index}" class="${item.vehicle_id === resolvedConnectionState.selectedId ? "selected" : ""}"><td><div class="vehicle-cell"><strong>${escapeHtml(item.plate)}</strong><span>${escapeHtml(item.manufacturer)} ${escapeHtml(item.ts_model || "Model pending")} · ${escapeHtml(item.year || "Year pending")}</span></div></td><td><div class="vehicle-cell"><strong>KType ${escapeHtml(item.ktype)}</strong><span>${escapeHtml(item.tecdoc_model)}</span></div></td><td><div class="vehicle-cell"><strong>${escapeHtml(engine.primary)}</strong><span>${escapeHtml(engine.detail)}</span></div></td><td><span class="connection-status ${validation[1]}">${validation[0]}</span></td></tr>`;
+  }).join("");
   rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => renderResolvedVehicle(page.items[Number(row.dataset.resolvedIndex)])));
   const start = page.filtered_total ? page.offset + 1 : 0;
   const end = Math.min(page.offset + page.items.length, page.filtered_total);
@@ -437,17 +460,23 @@ function renderResolvedVehicle(item) {
   document.querySelectorAll(".connection-row").forEach((row) => row.classList.remove("selected"));
   document.querySelector("#connection-eyebrow").textContent = `${item.vehicle_id} · registration plate`;
   document.querySelector("#connection-name").textContent = `${item.plate} → KType ${item.ktype}`;
-  const badge = document.querySelector("#connection-badge"); badge.textContent = "Resolved"; badge.className = "connection-status status-validated";
+  const requiresRerun = item.match_validation_status === "rerun_required";
+  const badge = document.querySelector("#connection-badge"); badge.textContent = requiresRerun ? "Rerun required" : "Current resolved"; badge.className = `connection-status ${requiresRerun ? "status-blocked" : "status-validated"}`;
   const fuel = item.fuels.length ? item.fuels.map(humanize).join(", ") : "Fuel evidence pending";
-  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
+  const engine = enginePresentation(item);
+  const enginePathLabel = item.engine_used_for_ktype_selection ? "Engine evidence used during ranking" : "TecDoc assertion inherited after selection";
+  document.querySelector("#connection-path").innerHTML = [["TS normalized vehicle", `${item.manufacturer} · ${item.ts_model || "model evidence"}`, "source"], ["Manufacturer catalog scope", "Eligible TecDoc KTypes only", "evidence"], ["Technical filtering", `${item.year || "—"} · ${fuel} · ${item.power_kw || "—"} kW`, "evidence"], ["Highest-ranked graph-safe candidate", `${item.tecdoc_model} · KType ${item.ktype}`, "target"], [enginePathLabel, engine.note, engine.tone === "blocked" ? "blocked" : "evidence"]].map(([title, detail, status]) => `<article class="path-${status}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(detail)}</strong></article>`).join("");
   const yearRange = [item.tecdoc_year_from || "—", item.tecdoc_year_to || "present"].join("–");
-  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model], ["Production year", item.year || "—", yearRange], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts"], ["Engine", item.ts_engine_code || "No TS engine code", item.engine_codes.join(", ") || "No unique engine allocation"], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—"]];
-  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b>Passed</b></article>`).join("");
-  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["No technical hard conflict", "pass"], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-pass">${escapeHtml(humanize(value))}</strong></div>`).join("");
-  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", "Applied year, fuel, engine, displacement, power, bodywork and drive compatibility."], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
+  const comparisons = [["Manufacturer", item.manufacturer, item.manufacturer, "Passed", "pass"], ["Model", item.ts_model || "Source model evidence", item.tecdoc_model, "Passed", "pass"], ["Production year", item.year || "—", yearRange, "Passed", "pass"], ["Fuel", fuel, item.tecdoc_fuels.length ? item.tecdoc_fuels.map(humanize).join(", ") : "KType fuel facts", "Passed", "pass"], ["Engine", item.ts_engine_code || "No TS engine code", (item.tecdoc_compatible_engine_codes || []).join(", ") || "No TecDoc engine allocation", engine.verdict, engine.tone], ["Power", item.power_kw ? `${item.power_kw} kW` : "—", item.tecdoc_power_kw ? `${item.tecdoc_power_kw} kW` : "—", "Passed", "pass"], ["Displacement", item.displacement_cc ? `${item.displacement_cc} cc` : "—", item.tecdoc_displacement_cc ? `${item.tecdoc_displacement_cc} cc` : "—", "Passed", "pass"]];
+  document.querySelector("#connection-comparison").innerHTML = comparisons.map(([field, ts, tecdoc, verdict, tone]) => `<article><strong>${escapeHtml(field)}</strong><span><small>TS</small>${escapeHtml(ts)}</span><i>→</i><span><small>TecDoc</small>${escapeHtml(tecdoc)}</span><b class="comparison-${escapeHtml(tone)}">${escapeHtml(verdict)}</b></article>`).join("");
+  const validationGate = requiresRerun ? "blocked" : "pass";
+  document.querySelector("#connection-gates").innerHTML = [["Graph-safe promoted KType", "pass"], ["Manufacturer-scoped candidate set", "pass"], ["Current context-conflict gate", validationGate], ["Resolved confidence threshold", "pass"], ["Candidate-margin gate", "pass"]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong class="gate-${escapeHtml(value)}">${escapeHtml(humanize(value))}</strong></div>`).join("");
+  const engineFilterTrace = item.engine_used_for_ktype_selection ? `Engine ${item.ts_engine_code} was compared with every candidate engine set.` : "Engine code was not used because TS supplied no vehicle-specific engine evidence.";
+  const trace = [["Normalize", `Accepted ${item.manufacturer} and ${item.ts_model || "source model evidence"}.`], ["Scope", `Compared only eligible ${item.manufacturer} TecDoc KTypes.`], ["Filter", `Applied year, fuel, displacement, power, bodywork and drive compatibility. ${engineFilterTrace}`], ["Rank", `${item.ktype} remained the unique highest-ranked graph-safe candidate.`], ["Inherit", engine.note], ["Route", `Matcher recorded: ${(item.routing_reasons || []).map(humanize).join(", ") || "resolved threshold and margin passed"}.`]];
   document.querySelector("#connection-trace").innerHTML = trace.map(([title, copy], index) => `<li><b>${index + 1}</b><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span></div></li>`).join("");
-  document.querySelector("#connection-decision-title").textContent = `Selected ${item.ktype} as the unique top candidate`;
-  document.querySelector("#connection-decision-copy").textContent = `The candidate was inside the exact manufacturer scope, passed the applicable technical compatibility checks, exceeded the resolved threshold, and retained enough separation from the runner-up. Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
+  document.querySelector("#connection-decision-title").textContent = requiresRerun ? `Stored selection ${item.ktype} requires rerun` : `Selected ${item.ktype} as the unique top candidate`;
+  const validationCopy = requiresRerun ? `The stored decision predates the current context-conflict gate and is not currently validated. Retained reasons: ${item.match_validation_reasons.map(humanize).join(" · ")}.` : "The decision passes the currently integrated routing gates.";
+  document.querySelector("#connection-decision-copy").textContent = `${validationCopy} Engine status: ${humanize(item.engine_selection_status)}. ${engine.note} Evidence trace: ${item.evidence.map(humanize).join(" · ") || "primary model evidence"}.`;
 }
 
 async function loadResolvedConnections() {
@@ -456,6 +485,8 @@ async function loadResolvedConnections() {
   try {
     const query = encodeURIComponent(resolvedConnectionState.query);
     resolvedConnectionState.page = await apiRequest(`/v1/normalization-review/connections/resolved?query=${query}&limit=25&offset=${resolvedConnectionState.offset}`);
+    document.querySelector("#connections-current-resolved").textContent = resolvedConnectionState.page.current_resolved_total.toLocaleString();
+    document.querySelector("#connections-rerun-required").textContent = resolvedConnectionState.page.rerun_required_total.toLocaleString();
     renderResolvedConnectionRows();
     if (resolvedConnectionState.page.items.length && !resolvedConnectionState.selectedId) renderResolvedVehicle(resolvedConnectionState.page.items[0]);
   } catch (error) { showToast(`Could not load resolved TS connections. ${error.message}`); }
@@ -888,7 +919,9 @@ async function loadQueue() {
   try {
     const query = new URLSearchParams();
     if (status) query.set("status", status);
-    if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
+    const requestedBatch = document.querySelector("#queue-batch").value.trim();
+    if (requestedBatch) query.set("batch_id", requestedBatch);
+    else if (state.page?.batch_id) query.set("batch_id", state.page.batch_id);
     queueState.page = await apiRequest(`/v1/normalization-review/queue?${query}`);
     if (!queueState.page.items.some((item) => item.id === queueState.selectedId)) queueState.selectedId = queueState.page.items[0]?.id ?? null;
     renderQueue();
@@ -923,16 +956,23 @@ function renderQueueEditor(item) {
   document.querySelector("#queue-editor-empty").hidden = Boolean(item);
   document.querySelector("#queue-review-form").hidden = !item;
   if (!item) return;
-  const source = item.source_evidence || {};
+  let calibration = null;
+  if (item.reason_code === "match_margin_calibration") {
+    try { calibration = JSON.parse(item.reason_detail); } catch (_) { calibration = {}; }
+  }
+  const source = calibration?.source_evidence || item.source_evidence || {};
   document.querySelector("#queue-item-state").textContent = humanize(item.status);
   document.querySelector("#queue-item-title").textContent = `${source.manufacturer || source.brand || "Unresolved vehicle"} ${source.model || ""}`.trim();
   document.querySelector("#queue-item-confidence").textContent = percent(item.confidence);
   document.querySelector("#queue-source-evidence").innerHTML = Object.entries(source).filter(([, value]) => value !== null && value !== "").slice(0, 20).map(([key, value]) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
-  document.querySelector("#queue-current-result").innerHTML = Object.entries({ ...item.normalized, ...item.candidates }).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
-  document.querySelector("#queue-reason-detail").textContent = item.reason_detail || item.reason_code;
+  const candidateEvidence = calibration ? { margin_band: calibration.band, separation_margin: calibration.separation_margin, match_scope: calibration.match_scope, candidates: item.candidate_matches } : { ...item.normalized, ...item.candidates };
+  document.querySelector("#queue-current-result").innerHTML = Object.entries(candidateEvidence).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") || "<div><dt>Result</dt><dd>No candidates or accepted values</dd></div>";
+  document.querySelector("#queue-reason-detail").textContent = calibration?.question || item.reason_detail || item.reason_code;
   const terminal = item.status === "resolved" || item.status === "rejected";
-  document.querySelector("#queue-decision-fields").hidden = terminal;
-  document.querySelector("#queue-actions").hidden = terminal;
+  document.querySelector("#queue-decision-fields").hidden = terminal || Boolean(calibration);
+  document.querySelector("#queue-calibration-fields").hidden = terminal || !calibration;
+  document.querySelector("#queue-actions").hidden = terminal || Boolean(calibration);
+  document.querySelector("#queue-calibration-actions").hidden = terminal || !calibration;
   document.querySelector("#queue-resolution-summary").hidden = !terminal;
   document.querySelector("#start-review").hidden = item.status !== "pending";
   document.querySelector("#save-review-draft").hidden = item.status !== "in_review";
@@ -945,6 +985,16 @@ function renderQueueEditor(item) {
   document.querySelector("#queue-rule-reference-label").hidden = (draft.decision_scope || "vehicle_only") === "vehicle_only";
   document.querySelector("#queue-decision-reason").value = draft.reason || "";
   if (terminal) document.querySelector("#queue-resolution-values").innerHTML = Object.entries(item.resolution || {}).filter(([, value]) => value).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("");
+}
+
+async function recordCalibrationVerdict(verdict) {
+  const reviewer = document.querySelector("#queue-calibration-reviewer").value.trim();
+  const reason = document.querySelector("#queue-calibration-reason").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a short evidence note."); return; }
+  try {
+    await transitionQueue("resolved", { reviewer, verdict, reason });
+    showToast(`Calibration verdict ${verdict} recorded.`);
+  } catch (error) { showToast(`Calibration verdict was not saved. ${error.message}`); }
 }
 
 async function transitionQueue(status, overrides = {}) {
@@ -996,7 +1046,373 @@ async function approveQueueDecision(event) {
   } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
 }
 
+async function loadMatchReview() {
+  if (matchReviewState.loading) return;
+  matchReviewState.loading = true;
+  try {
+    const operation = matchReviewState.summary?.operation_id;
+    const query = operation ? `?operation_id=${encodeURIComponent(operation)}` : "";
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary${query}`);
+    renderMatchReviewSummary();
+    if (matchReviewState.summary.operation_id) {
+      await loadMatchReviewPatterns();
+      await loadMatchReviewItems();
+    }
+  } catch (error) { showToast(`Could not load match blockers. ${error.message}`); }
+  finally { matchReviewState.loading = false; }
+}
+
+function renderMatchReviewSummary() {
+  const summary = matchReviewState.summary;
+  if (!summary) return;
+  document.querySelector("#match-review-processed").textContent = summary.processed.toLocaleString();
+  document.querySelector("#match-review-expected").textContent = summary.expected_source_rows.toLocaleString();
+  document.querySelector("#match-review-progress-fill").style.width = `${summary.progress_percent}%`;
+  document.querySelector("#match-review-run-label").textContent = summary.operation_id
+    ? `${humanize(summary.status)} · ${summary.progress_percent}% · checkpoint ${summary.last_batch_number} · ${summary.candidate_catalog_version}`
+    : "No full matcher audit has been started.";
+  document.querySelector("#match-review-resolved").textContent = summary.counts.resolved.toLocaleString();
+  document.querySelector("#match-review-provisional").textContent = summary.counts.provisional.toLocaleString();
+  document.querySelector("#match-review-required").textContent = summary.counts.review_required.toLocaleString();
+  document.querySelector("#match-review-hard").textContent = summary.counts.hard_conflict.toLocaleString();
+  const bodyworkBlocker = summary.blockers.find((category) => category.code === "bodywork_conflict");
+  const technicalBlocker = summary.blockers.find((category) => category.code === "hard_technical_conflict");
+  document.querySelector("#domain-bodywork-count").textContent = bodyworkBlocker ? `${bodyworkBlocker.count.toLocaleString()} observed in this category` : "No bodywork count yet";
+  document.querySelector("#domain-fuel-count").textContent = technicalBlocker ? `Part of ${technicalBlocker.count.toLocaleString()} technical conflicts` : "No technical count yet";
+  document.querySelector("#domain-drive-count").textContent = technicalBlocker ? `Part of ${technicalBlocker.count.toLocaleString()} technical conflicts` : "No technical count yet";
+  document.querySelector("#match-review-categories").innerHTML = summary.blockers.map((category) => `
+    <button type="button" data-match-category="${escapeHtml(category.code)}" class="blocker-category ${matchReviewState.category === category.code ? "active" : ""}">
+      <span><strong>${escapeHtml(category.title)}</strong><small>${escapeHtml(category.guidance)}</small></span>
+      <b>${category.count.toLocaleString()}</b>
+      <em>${category.pending.toLocaleString()} sampled pending · ${category.decided.toLocaleString()} decided</em>
+    </button>`).join("");
+  document.querySelectorAll("[data-match-category]").forEach((button) => button.addEventListener("click", async () => {
+    matchReviewState.category = button.dataset.matchCategory;
+    matchReviewState.offset = 0;
+    matchReviewState.selectedId = null;
+    matchReviewState.selectedPatternKey = null;
+    renderMatchReviewSummary();
+    await loadMatchReviewPatterns();
+    await loadMatchReviewItems();
+  }));
+}
+
+async function loadMatchReviewPatterns() {
+  const operation = matchReviewState.summary?.operation_id;
+  if (!operation) return;
+  const query = new URLSearchParams({ operation_id: operation });
+  if (matchReviewState.category) query.set("category", matchReviewState.category);
+  matchReviewState.patterns = await apiRequest(`/v1/match-review/patterns?${query}`);
+  if (!matchReviewState.patterns.patterns.some((item) => item.pattern_key === matchReviewState.selectedPatternKey)) {
+    matchReviewState.selectedPatternKey = matchReviewState.patterns.patterns[0]?.pattern_key || null;
+  }
+  renderMatchReviewPatterns();
+  await loadMatchReviewPatternMembers();
+}
+
+function setMatchReviewMode(mode) {
+  matchReviewState.mode = mode;
+  document.querySelector("#match-review-pattern-mode").classList.toggle("active", mode === "patterns");
+  document.querySelector("#match-review-vehicle-mode").classList.toggle("active", mode === "vehicles");
+  document.querySelector("#match-review-pattern-list").hidden = mode !== "patterns";
+  document.querySelector("#match-review-vehicle-list").hidden = mode !== "vehicles";
+  document.querySelector("#match-review-pattern-form").hidden = mode !== "patterns" || !matchReviewState.selectedPatternKey;
+  document.querySelector("#match-review-form").hidden = mode !== "vehicles" || !matchReviewState.selectedId;
+  document.querySelector(".match-review-results .pagination").hidden = mode !== "vehicles";
+  if (mode === "patterns") renderMatchReviewPatterns(); else renderMatchReviewItems();
+}
+
+function renderMatchReviewPatterns() {
+  const page = matchReviewState.patterns;
+  if (!page) return;
+  const selected = page.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey);
+  const visiblePatterns = matchReviewState.patternLimit === null
+    ? page.patterns
+    : page.patterns.slice(0, matchReviewState.patternLimit);
+  if (selected && !visiblePatterns.some((pattern) => pattern.pattern_key === selected.pattern_key)) visiblePatterns.push(selected);
+  document.querySelector("#match-review-pattern-empty").hidden = page.patterns.length > 0;
+  document.querySelector("#match-review-pattern-count").textContent = matchReviewState.patternLimit === null
+    ? `Showing all ${page.patterns.length.toLocaleString()} patterns`
+    : `Showing the top ${Math.min(matchReviewState.patternLimit, page.patterns.length).toLocaleString()} of ${page.patterns.length.toLocaleString()} patterns, ranked by occurrences`;
+  document.querySelector("#match-review-pattern-rows").innerHTML = visiblePatterns.map((pattern) => {
+    const source = Object.values(pattern.source_values || {}).map(displayValue).join(" · ");
+    const candidate = Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ");
+    const decision = pattern.decision ? humanize(pattern.decision.action) : "Awaiting stakeholder";
+    const occurrenceLabel = pattern.coverage === "exhaustive" ? "observed" : "sampled";
+    return `<tr data-match-pattern-key="${escapeHtml(pattern.pattern_key)}" class="pattern-row ${pattern.pattern_key === matchReviewState.selectedPatternKey ? "selected" : ""}"><td><strong>${escapeHtml(pattern.title)}</strong><small>${escapeHtml(pattern.summary)}</small></td><td>${escapeHtml(source)}</td><td>${escapeHtml(candidate)}</td><td>${pattern.sample_occurrences.toLocaleString()} ${occurrenceLabel} / ${pattern.category_occurrences.toLocaleString()}</td><td><span class="pattern-status ${pattern.decision ? "decided" : ""}">${escapeHtml(decision)}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("[data-match-pattern-key]").forEach((row) => row.addEventListener("click", () => {
+    matchReviewState.selectedPatternKey = row.dataset.matchPatternKey;
+    matchReviewState.patternMemberOffset = 0;
+    renderMatchReviewPatterns();
+    loadMatchReviewPatternMembers();
+  }));
+  renderMatchReviewPatternInspector(selected);
+}
+
+async function loadMatchReviewPatternMembers() {
+  const operation = matchReviewState.summary?.operation_id;
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!operation || !pattern) { matchReviewState.patternMembers = null; renderMatchReviewPatternMembers(); await loadMatchReviewPatternTechnicalEvidence(); return; }
+  const query = new URLSearchParams({ operation_id: operation, limit: "50", offset: String(matchReviewState.patternMemberOffset) });
+  try {
+    matchReviewState.patternMembers = await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/members?${query}`);
+  } catch (error) {
+    matchReviewState.patternMembers = null;
+    showToast(`Could not load vehicles for this pattern. ${error.message}`);
+  }
+  renderMatchReviewPatternMembers();
+  await loadMatchReviewPatternTechnicalEvidence();
+}
+
+async function loadMatchReviewPatternTechnicalEvidence() {
+  const section = document.querySelector("#match-review-technical-evidence");
+  const content = document.querySelector("#match-review-technical-comparisons");
+  const operation = matchReviewState.summary?.operation_id;
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!operation || !pattern || pattern.category !== "hard_technical_conflict") {
+    matchReviewState.patternTechnicalEvidence = null;
+    section.hidden = true;
+    content.innerHTML = "";
+    return;
+  }
+  section.hidden = false;
+  content.innerHTML = '<p class="section-hint">Loading exact TS and TecDoc comparison…</p>';
+  try {
+    matchReviewState.patternTechnicalEvidence = await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/technical-evidence?operation_id=${encodeURIComponent(operation)}`);
+    const comparisons = matchReviewState.patternTechnicalEvidence.comparisons || {};
+    const labels = { bodywork: "Bodywork", drive_type: "Drive type", fuels: "Fuel set", fuel: "Fuel type", engine: "Engine", engine_code: "Engine code", year: "Year", displacement_cc: "Displacement", power_kw: "Power output" };
+    content.innerHTML = Object.entries(comparisons).map(([field, comparison]) => {
+      const ts = comparison.ts_values?.length ? comparison.ts_values.join(" · ") : "Not present in representative TS rows";
+      const tecdoc = comparison.tecdoc_values?.length ? comparison.tecdoc_values.join(" · ") : "Not present in returned TecDoc candidates";
+      return `<article class="technical-comparison"><header><strong>${escapeHtml(labels[field] || humanize(field))}</strong><span>${escapeHtml(field)}</span></header><dl><div><dt>TS values</dt><dd>${escapeHtml(ts)}</dd></div><div><dt>TecDoc values</dt><dd>${escapeHtml(tecdoc)}</dd></div></dl></article>`;
+    }).join("") || '<p class="section-hint">No field-level comparison is available for this pattern yet.</p>';
+  } catch (error) {
+    matchReviewState.patternTechnicalEvidence = null;
+    content.innerHTML = `<p class="section-hint">Exact comparison unavailable: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderMatchReviewPatternMembers() {
+  const page = matchReviewState.patternMembers;
+  const count = document.querySelector("#match-review-pattern-member-count");
+  const list = document.querySelector("#match-review-pattern-members");
+  const label = document.querySelector("#match-review-pattern-members-page");
+  const previous = document.querySelector("#match-review-pattern-members-previous");
+  const next = document.querySelector("#match-review-pattern-members-next");
+  if (!page) {
+    count.textContent = "Vehicle members will appear after the exhaustive inventory is populated.";
+    list.innerHTML = ""; label.textContent = "0 vehicles"; previous.disabled = true; next.disabled = true; return;
+  }
+  count.textContent = `${page.total.toLocaleString()} vehicle${page.total === 1 ? "" : "s"} share this exact pattern. Plates are visible only in this restricted local view.`;
+  list.innerHTML = page.members.map((member) => {
+    const source = member.source_evidence || {};
+    const vehicle = [source.brand, source.model].filter(Boolean).join(" · ") || "TS vehicle";
+    return `<div class="pattern-example"><span>${escapeHtml(source.plate || `Record ${member.source_record_id}`)} · ${escapeHtml(vehicle)}</span><small>Source record ${escapeHtml(String(member.source_record_id))}</small></div>`;
+  }).join("");
+  label.textContent = page.total ? `${page.offset + 1}–${Math.min(page.offset + page.members.length, page.total)} of ${page.total.toLocaleString()}` : "0 vehicles";
+  previous.disabled = page.offset === 0;
+  next.disabled = page.offset + page.members.length >= page.total;
+}
+
+function renderMatchReviewPatternInspector(pattern) {
+  document.querySelector("#match-review-inspector-empty").hidden = Boolean(pattern);
+  document.querySelector("#match-review-pattern-form").hidden = !pattern || matchReviewState.mode !== "patterns";
+  document.querySelector("#match-review-form").hidden = true;
+  if (!pattern) return;
+  document.querySelector("#match-review-pattern-category").textContent = humanize(pattern.category);
+  document.querySelector("#match-review-pattern-title").textContent = pattern.title;
+  document.querySelector("#match-review-pattern-summary").textContent = pattern.summary;
+  document.querySelector("#match-review-pattern-why").textContent = pattern.why_blocked;
+  document.querySelector("#match-review-pattern-question").textContent = `Decision needed: ${pattern.decision_question}`;
+  document.querySelector("#match-review-pattern-values").innerHTML = [
+    ["TS evidence", Object.values(pattern.source_values || {}).map(displayValue).join(" · ")],
+    ["TecDoc evidence", Object.values(pattern.candidate_values || {}).map(displayValue).join(" · ")],
+    [pattern.coverage === "exhaustive" ? "Observed / category" : "Sample / category", `${pattern.sample_occurrences.toLocaleString()} ${pattern.coverage === "exhaustive" ? "observed" : "sampled"} · ${pattern.category_occurrences.toLocaleString()} in category`],
+  ].map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  renderMatchReviewTechnicalBreakdown(pattern);
+  document.querySelector("#match-review-pattern-gaps").innerHTML = pattern.evidence_gaps.map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
+  document.querySelector("#match-review-pattern-examples").innerHTML = pattern.examples.length ? pattern.examples.map((example) => `<div class="pattern-example"><span>${escapeHtml(example.manufacturer)} · ${escapeHtml(example.model)}</span><small>${example.candidate_reference ? `KType ${escapeHtml(example.candidate_reference)}` : "No candidate"}</small></div>`).join("") : "<p class=\"section-hint\">No model-family examples are available in the bounded sample.</p>";
+  const decided = Boolean(pattern.decision);
+  document.querySelector("#match-review-pattern-action").disabled = decided;
+  document.querySelector("#match-review-pattern-reviewer").disabled = decided;
+  document.querySelector("#match-review-pattern-selected-values").disabled = decided;
+  document.querySelector("#match-review-pattern-note").disabled = decided;
+  document.querySelector("#match-review-pattern-save").disabled = decided;
+  if (decided) document.querySelector("#match-review-pattern-summary").textContent = `Recorded ${humanize(pattern.decision.action)} by ${pattern.decision.reviewer}; a new versioned decision is required to change it.`;
+}
+
+function renderMatchReviewTechnicalBreakdown(pattern) {
+  const section = document.querySelector("#match-review-technical-breakdown");
+  const list = document.querySelector("#match-review-technical-fields");
+  const fields = pattern.category === "hard_technical_conflict"
+    ? (pattern.source_values?.conflicting_fields || ["technical evidence"])
+    : [];
+  section.hidden = fields.length === 0;
+  if (!fields.length) { list.innerHTML = ""; return; }
+  const explanations = {
+    bodywork: ["Body classification differs", "TS and TecDoc use different body vocabularies; confirm whether this is a scoped compatibility issue."],
+    drive_type: ["Drive type is disputed", "TS is_4wd=0 does not distinguish FWD from RWD; require an independent drive source."],
+    engine: ["Engine identity differs", "The TS engine code or engine evidence does not agree with the candidate engine set."],
+    engine_code: ["Engine code is disputed", "The source code is missing from or conflicts with the candidate engine allocation."],
+    fuels: ["Fuel representation differs", "TS energy sources and TecDoc fuel sets do not prove the same KType without independent evidence."],
+    fuel: ["Fuel type is disputed", "The source and catalog fuel assertions disagree; verify the official vehicle specification."],
+    year: ["Year range is disputed", "The TS production/registration year falls outside or conflicts with the candidate's catalog range."],
+    displacement_cc: ["Displacement differs", "TS and TecDoc report different engine displacement values; verify the technical specification."],
+    power_kw: ["Power output differs", "TS and TecDoc report different kW values; verify the approved engine output before selecting a KType."],
+  };
+  list.innerHTML = fields.map((field) => {
+    const [title, detail] = explanations[field] || [humanize(field), "An independent source is required before this field can identify a KType."];
+    return `<div class="technical-breakdown-item"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+  }).join("");
+}
+
+async function decideMatchReviewPattern() {
+  const pattern = matchReviewState.patterns?.patterns.find((item) => item.pattern_key === matchReviewState.selectedPatternKey);
+  if (!pattern || pattern.decision || !matchReviewState.summary?.operation_id) return;
+  const reviewer = document.querySelector("#match-review-pattern-reviewer").value.trim();
+  const reason = document.querySelector("#match-review-pattern-note").value.trim();
+  const action = document.querySelector("#match-review-pattern-action").value;
+  const selectedValues = document.querySelector("#match-review-pattern-selected-values").value.split(",").map((value) => value.trim()).filter(Boolean);
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear category-rule evidence note."); return; }
+  try {
+    await apiRequest(`/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/decision?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`, { method: "POST", body: JSON.stringify({ action, reviewer, reason, selected_values: selectedValues }) });
+    await loadMatchReviewPatterns();
+    matchReviewState.selectedPatternKey = pattern.pattern_key;
+    showToast("Versioned category-rule proposal recorded; matcher activation remains a separate gate.");
+  } catch (error) { showToast(`Rule choice was not saved. ${error.message}`); }
+}
+
+async function loadMatchReviewItems() {
+  const operation = matchReviewState.summary?.operation_id;
+  if (!operation) return;
+  const query = new URLSearchParams({ operation_id: operation, limit: "100", offset: String(matchReviewState.offset) });
+  if (matchReviewState.category) query.set("category", matchReviewState.category);
+  if (matchReviewState.status) query.set("status", matchReviewState.status);
+  matchReviewState.page = await apiRequest(`/v1/match-review/items?${query}`);
+  if (!matchReviewState.page.items.some((item) => item.id === matchReviewState.selectedId)) {
+    matchReviewState.selectedId = matchReviewState.page.items[0]?.id ?? null;
+  }
+  renderMatchReviewItems();
+}
+
+function renderMatchReviewItems() {
+  const page = matchReviewState.page;
+  if (!page) return;
+  const category = matchReviewState.summary?.blockers.find((item) => item.code === matchReviewState.category);
+  document.querySelector("#match-review-category-label").textContent = category?.title || "All categories";
+  document.querySelector("#match-review-empty").hidden = page.items.length > 0;
+  document.querySelector("#match-review-page-label").textContent = `${Math.min(page.offset + 1, page.total).toLocaleString()}–${Math.min(page.offset + page.items.length, page.total).toLocaleString()} of ${page.total.toLocaleString()}`;
+  document.querySelector("#match-review-previous").disabled = page.offset === 0;
+  document.querySelector("#match-review-next").disabled = page.offset + page.items.length >= page.total;
+  document.querySelector("#match-review-rows").innerHTML = page.items.map((item, index) => {
+    const source = item.source_evidence || {};
+    const vehicle = [source.manufacturer, source.brand, source.model].filter(Boolean).join(" · ") || `Source ${item.source_record_id}`;
+    const plate = source.plate || "Plate unavailable";
+    const top = item.candidate_matches[0];
+    return `<tr data-match-review-id="${item.id}" class="${item.id === matchReviewState.selectedId ? "selected" : ""}" style="animation-delay:${Math.min(index, 12) * 18}ms" tabindex="0"><td><div class="vehicle-cell"><strong>${escapeHtml(plate)} · ${escapeHtml(vehicle)}</strong><span>Record ${item.source_record_id}</span></div></td><td>${escapeHtml(item.category_title)}</td><td>${top ? `KType ${escapeHtml(top.candidate_reference)}<br><small>${escapeHtml(top.evidence?.model || "Candidate")}</small>` : "No candidate"}</td><td><span class="queue-state queue-${escapeHtml(item.status)}">${escapeHtml(humanize(item.status))}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("[data-match-review-id]").forEach((row) => {
+    const select = () => { matchReviewState.selectedId = Number(row.dataset.matchReviewId); renderMatchReviewItems(); };
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
+  });
+  renderMatchReviewInspector(page.items.find((item) => item.id === matchReviewState.selectedId));
+}
+
+function renderMatchReviewInspector(item) {
+  if (matchReviewState.mode === "patterns") {
+    renderMatchReviewPatternInspector(matchReviewState.patterns?.patterns.find((pattern) => pattern.pattern_key === matchReviewState.selectedPatternKey));
+    return;
+  }
+  document.querySelector("#match-review-inspector-empty").hidden = Boolean(item);
+  document.querySelector("#match-review-form").hidden = !item;
+  if (!item) return;
+  const source = item.source_evidence || {};
+  document.querySelector("#match-review-detail-category").textContent = item.category_title;
+  document.querySelector("#match-review-detail-title").textContent = `${source.plate || `Record ${item.source_record_id}`} · ${source.model || source.brand || "TS vehicle"}`;
+  const status = document.querySelector("#match-review-detail-status");
+  status.textContent = humanize(item.status);
+  status.className = `queue-state queue-${item.status}`;
+  document.querySelector("#match-review-guidance").textContent = item.category_guidance;
+  document.querySelector("#match-review-reasons").textContent = item.reason_codes.map(humanize).join(" · ");
+  document.querySelector("#match-review-why").textContent = item.blocker_explanation || "";
+  document.querySelector("#match-review-question").textContent = item.decision_question ? `Decision needed: ${item.decision_question}` : "";
+  const sourceFields = ["plate", "manufacturer", "brand", "model", "variant", "version", "eeg_type_approval", "body_code", "is_4wd", "fuel1", "fuel2", "engine_code", "displacement", "power_kw", "model_year"];
+  document.querySelector("#match-review-source").innerHTML = sourceFields.filter((key) => source[key] !== null && source[key] !== undefined && source[key] !== "").map((key) => `<div><dt>${escapeHtml(sourceLabel(key))}</dt><dd>${escapeHtml(displayValue(source[key]))}</dd></div>`).join("");
+  document.querySelector("#match-review-comparison").innerHTML = Object.entries(item.field_comparison || {}).map(([field, values]) => `<div><dt>${escapeHtml(humanize(field))}</dt><dd>TS: ${escapeHtml(displayValue(values.ts))}<br/>TecDoc: ${escapeHtml(displayValue(values.tecdoc))}</dd></div>`).join("") || "<p class=\"section-hint\">The candidate did not return a comparable value for this field.</p>";
+  document.querySelector("#match-review-gaps").innerHTML = (item.evidence_gaps || []).map((gap) => `<li>${escapeHtml(gap)}</li>`).join("");
+  document.querySelector("#match-review-candidates").innerHTML = item.candidate_matches.length ? item.candidate_matches.map((candidate, index) => {
+    const evidence = candidate.evidence || {};
+    const matched = (evidence.matched_fields || []).join(", ") || "No corroborating fields";
+    const conflicts = (evidence.conflicting_fields || []).join(", ");
+    return `<label class="candidate-choice ${index === 0 ? "suggested" : ""}"><input type="radio" name="match-review-candidate" value="${escapeHtml(candidate.candidate_reference)}" ${index === 0 ? "checked" : ""}/><span><strong>KType ${escapeHtml(candidate.candidate_reference)} · ${escapeHtml(evidence.manufacturer || "")} ${escapeHtml(evidence.model || "")}</strong><small>${Math.round(candidate.confidence * 100)}% candidate confidence · matched ${escapeHtml(matched)}</small>${conflicts ? `<em>Conflicts: ${escapeHtml(conflicts)}</em>` : ""}</span>${index === 0 ? "<b>Suggested</b>" : ""}</label>`;
+  }).join("") : "<p class=\"section-hint\">No KType passed the candidate threshold. This row can only remain unresolved until new evidence or a reviewed mapping is available.</p>";
+  const decided = item.status === "resolved" || item.status === "rejected";
+  document.querySelector("#match-review-recorded").hidden = !decided;
+  document.querySelector("#match-review-decision-fields").hidden = decided;
+  document.querySelector("#match-review-actions").hidden = decided;
+  document.querySelector("#match-review-resolution").innerHTML = decided ? Object.entries(item.resolution || {}).map(([key, value]) => `<div><dt>${escapeHtml(humanize(key))}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`).join("") : "";
+  document.querySelector("#match-review-accept").disabled = item.candidate_matches.length === 0;
+  document.querySelector("#match-review-select").disabled = item.candidate_matches.length === 0;
+}
+
+async function decideMatchReview(action) {
+  const item = matchReviewState.page?.items.find((candidate) => candidate.id === matchReviewState.selectedId);
+  if (!item || !matchReviewState.summary?.operation_id) return;
+  const reviewer = document.querySelector("#match-review-reviewer").value.trim();
+  const reason = document.querySelector("#match-review-note").value.trim();
+  if (!reviewer || reason.length < 5) { showToast("Add the reviewer and a clear evidence note."); return; }
+  const selected = document.querySelector('input[name="match-review-candidate"]:checked')?.value;
+  const body = { action, reviewer, reason, scope: document.querySelector("#match-review-scope").value };
+  if (action === "select_candidate") body.selected_candidate_reference = selected;
+  try {
+    await apiRequest(`/v1/match-review/items/${item.id}/decision?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`, { method: "POST", body: JSON.stringify(body) });
+    await loadMatchReviewItems();
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`);
+    renderMatchReviewSummary();
+    showToast(action === "keep_unresolved" ? "Unresolved decision recorded without graph writes." : "KType review decision recorded; promotion remains a separate gate.");
+  } catch (error) { showToast(`Decision was not saved. ${error.message}`); }
+}
+
 document.querySelectorAll(".view-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelector("#match-review-status").addEventListener("change", async (event) => { matchReviewState.status = event.target.value; matchReviewState.offset = 0; await loadMatchReviewItems(); });
+document.querySelector("#match-review-previous").addEventListener("click", async () => { matchReviewState.offset = Math.max(0, matchReviewState.offset - 100); await loadMatchReviewItems(); });
+document.querySelector("#match-review-next").addEventListener("click", async () => { matchReviewState.offset += 100; await loadMatchReviewItems(); });
+document.querySelector("#match-review-accept").addEventListener("click", () => decideMatchReview("accept_top_candidate"));
+document.querySelector("#match-review-select").addEventListener("click", () => decideMatchReview("select_candidate"));
+document.querySelector("#match-review-unresolved").addEventListener("click", () => decideMatchReview("keep_unresolved"));
+document.querySelector("#match-review-pattern-mode").addEventListener("click", () => setMatchReviewMode("patterns"));
+document.querySelector("#match-review-vehicle-mode").addEventListener("click", () => setMatchReviewMode("vehicles"));
+document.querySelectorAll("[data-domain-filter]").forEach((button) => button.addEventListener("click", async () => {
+  matchReviewState.category = button.dataset.domainFilter;
+  matchReviewState.offset = 0;
+  matchReviewState.selectedId = null;
+  matchReviewState.selectedPatternKey = null;
+  renderMatchReviewSummary();
+  await loadMatchReviewPatterns();
+  await loadMatchReviewItems();
+}));
+document.querySelector("#match-review-pattern-limit").addEventListener("change", (event) => {
+  matchReviewState.patternLimit = event.target.value === "all" ? null : Number(event.target.value);
+  renderMatchReviewPatterns();
+});
+document.querySelector("#match-review-pattern-action").addEventListener("change", (event) => {
+  document.querySelector("#match-review-pattern-values-field").hidden = event.target.value !== "change_rule";
+});
+document.querySelector("#match-review-pattern-save").addEventListener("click", decideMatchReviewPattern);
+document.querySelector("#match-review-pattern-members-previous").addEventListener("click", async () => { matchReviewState.patternMemberOffset = Math.max(0, matchReviewState.patternMemberOffset - 50); await loadMatchReviewPatternMembers(); });
+document.querySelector("#match-review-pattern-members-next").addEventListener("click", async () => { matchReviewState.patternMemberOffset += 50; await loadMatchReviewPatternMembers(); });
+window.setInterval(async () => {
+  if (elements.matchReviewView.hidden || matchReviewState.loading || !matchReviewState.summary?.operation_id) return;
+  try {
+    matchReviewState.summary = await apiRequest(`/v1/match-review/summary?operation_id=${encodeURIComponent(matchReviewState.summary.operation_id)}`);
+    renderMatchReviewSummary();
+    await loadMatchReviewPatterns();
+  } catch (_error) {
+    // Keep the last verified snapshot visible; the next interval retries automatically.
+  }
+}, 30_000);
 document.querySelectorAll(".connection-row").forEach((row) => row.addEventListener("click", () => renderConnection(row.dataset.connection)));
 let resolvedConnectionSearchTimer;
 document.querySelector("#connection-vehicle-search").addEventListener("input", (event) => { clearTimeout(resolvedConnectionSearchTimer); resolvedConnectionSearchTimer = setTimeout(() => { resolvedConnectionState.query = event.target.value.trim(); resolvedConnectionState.offset = 0; loadResolvedConnections(); }, 180); });
@@ -1027,7 +1443,9 @@ document.querySelector("#manufacturer-role").addEventListener("change", syncManu
 document.querySelector("#activate-rules").addEventListener("click", activateRules);
 document.querySelector("#reprocess-batch").addEventListener("click", reprocessBatch);
 document.querySelector("#queue-status").addEventListener("change", loadQueue);
+document.querySelector("#queue-batch").addEventListener("change", loadQueue);
 document.querySelector("#refresh-queue").addEventListener("click", loadQueue);
+document.querySelectorAll(".calibration-verdict").forEach((button) => button.addEventListener("click", () => recordCalibrationVerdict(button.dataset.verdict)));
 document.querySelector("#queue-decision-scope").addEventListener("change", (event) => {
   document.querySelector("#queue-rule-reference-label").hidden = event.target.value === "vehicle_only";
 });
@@ -1048,4 +1466,9 @@ document.querySelector("#reject-review").addEventListener("click", async () => {
   catch (error) { showToast(`Review was not rejected. ${error.message}`); }
 });
 
-loadVehicles();
+const initialParams = new URLSearchParams(window.location.search);
+const initialBatch = initialParams.get("batch_id");
+if (initialBatch) document.querySelector("#queue-batch").value = initialBatch;
+if (initialParams.get("view") === "queue") switchView("queue");
+else if (initialParams.get("view") === "match-review") switchView("match-review");
+else loadVehicles();

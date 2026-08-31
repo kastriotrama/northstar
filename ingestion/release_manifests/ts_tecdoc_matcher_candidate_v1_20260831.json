@@ -1,0 +1,88 @@
+{
+  "version": "ts-tecdoc-matcher-candidate-v1-20260831",
+  "status": "validated_candidate",
+  "frozen_at": "2026-08-31",
+  "implementation_commit": "d1ed4b0",
+  "runtime_activation": false,
+  "production_rollout": false,
+  "postgres_writes": 0,
+  "neo4j_writes": 0,
+  "pins": {
+    "ingestion_code_digest": "933e5ebe68e2874e8a89355d0efe61ae9fc3906ccba3faf05755286a49183453",
+    "normalization_rule_version": "ts-engine-fingerprint-heldout-v1-disabled-20260824",
+    "normalization_rules_digest": "b3a261666bbcb0ffdbb74fa1f9ca5dbbb30f4daf50fe0a0425a35e975de60508",
+    "source_model_policy_version": "peugeot-3008-hns-reviewed-v1-20260831",
+    "source_model_policy_digest": "2f86bb7428611fa773672986dd94b9e4f1875c5aa8d1da745e5d645897b66862",
+    "source_model_policy_payload_sha256": "af2aa26a514f889e8079688fd4b904c41c2dbc6689c47b469c51660c76fe19ae",
+    "context_policy_version": "volvo-bodywork-reviewed-v1-20260830",
+    "context_policy_digest": "079d4b4381bcc8050c17bb99b7f9cae0b36492c091f27311ff13724933209d14",
+    "context_policy_payload_sha256": "4acdee26fb88c639fa29cae914e7d24bc067b963e0be65a4718a5036d2ea522a",
+    "v5_catalog_version": "tecdoc-0326-all-active-candidates-v5-fuel-local",
+    "v5_catalog_digest": "67226ade1b02bc7dc08759f5546eb5ed6036e0efe6f97374124cf9ac15b6ee20",
+    "v6_catalog_version": "tecdoc-0326-all-active-candidates-v6-multifuel-complete-local",
+    "v6_catalog_digest": "f81b1f66afd00d1566704d356945e4d1f4b73cc9d93b74d7a8b31b66bbe49179"
+  },
+  "reviewed_manifests": {
+    "holdout_acceptance_version": "mixed-fuel-v6-holdout-acceptance-v1-20260831",
+    "holdout_acceptance_sha256": "0f888d2b1a99a537305e8ae6fe05a0a3d9f677d335b622ce9468d25c12e916e6",
+    "hard_conflict_version": "mixed-fuel-v6-hard-conflicts-v1-20260831",
+    "hard_conflict_sha256": "cf0c8856d47ece094487cca270cfd0adc41077ae103c9b08d9fac2680ef21433",
+    "remaining_changes_version": "mixed-fuel-v6-remaining-changes-v1-20260831",
+    "remaining_changes_sha256": "2a8e5195815e74e705f073eb2602ab71394c0d1f6bdde5029922d9a8b0105187",
+    "source_model_policy_file_sha256": "493f2510469ae4c60cabb0a6b8fe85c92d1c5d9a9e2df15d8c50735aab176c98",
+    "context_policy_file_sha256": "094b20f684d4c2158cee18a7afc4a5271f353bc4ba81e2dd8d0b31015eb326ff"
+  },
+  "full_scale_control": {
+    "rows": 20000,
+    "source_digest": "b6ccfcdce5ebebaa1c0817f12ed49f71d6351f42de9edcceec3a485391b4e8ca",
+    "v5_counts": {
+      "resolved": 2430,
+      "provisional": 2325,
+      "review_required": 13535,
+      "hard_conflict": 1597,
+      "policy_excluded": 112,
+      "normalization_review": 1
+    },
+    "v6_counts": {
+      "resolved": 2492,
+      "provisional": 1990,
+      "review_required": 13819,
+      "hard_conflict": 1586,
+      "policy_excluded": 112,
+      "normalization_review": 1
+    },
+    "catalog_change_count": 528,
+    "reviewed_development_change_count": 532,
+    "selected_identity_change_count": 18,
+    "suppressed_rejected_hard_conflicts": 4,
+    "comparison_output_sha256": "d071f03125f82a2a61ec69b558fe42080be1d68b11fd79642d0a875ddf549c7e",
+    "candidate_audit_output_sha256": "1c31420f0ab5668824bd6072b253afbf43010eeca6a5cc28c77851369eec972f"
+  },
+  "frozen_holdout": {
+    "source_file": "scrum101-source-only-holdout-50k-window-20260828.json",
+    "source_sha256": "810d34619e8ecd644fcf9349559039afc2fac7a44ba20e7cfd723f7e406c748b",
+    "records": 11629,
+    "groups": 11107,
+    "scored_output_sha256": "237c44c75fb0ddd7c89c0ea1a3e6dd6fe85688c592441e0c69c0e7fbb32293be",
+    "assessment": {
+      "passed": true,
+      "new_hard_conflicts": 0,
+      "changed_resolved_identities": 0,
+      "unsafe_resolution_gains": 0,
+      "resolved_conflict_reasons": 0,
+      "unresolved_candidate_changes": 1,
+      "allowed_conservative_downgrades": true
+    }
+  },
+  "decision_and_graph_gate": {
+    "immutable_scrum171_persistence": "not_run",
+    "scrum170_alias_attachment": "not_run",
+    "neo4j_reconciliation": "not_run",
+    "reason": "The candidate is frozen and validated, but no match identity is promoted until a separately approved production rollout."
+  },
+  "privacy": {
+    "contains_private_plates": false,
+    "contains_private_vins": false,
+    "holdout_outputs_are_read_only": true
+  }
+}

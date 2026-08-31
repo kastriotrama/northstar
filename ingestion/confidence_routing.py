@@ -287,12 +287,26 @@ class ConfidenceRouter:
                 "ROUTE-REVIEW-HARD-CONFLICT-V1",
                 "One or more hard conflicts override the statistical score.",
             )
+        if match_result.reason == "context_conflict_requires_review":
+            return (
+                "review_required",
+                ("non_hard_context_conflict",),
+                "ROUTE-REVIEW-CONTEXT-CONFLICT-V1",
+                "A non-hard context conflict remains review-only regardless of score.",
+            )
         if match_result.scope != "exact_manufacturer":
             return (
                 "review_required",
                 ("manufacturer_scope_not_exact",),
                 "ROUTE-REVIEW-MANUFACTURER-SCOPE-V1",
                 "Only an exact manufacturer scope may pass automatic routing.",
+            )
+        if "model_partial" in match_result.candidates[0].matched_fields:
+            return (
+                "review_required",
+                ("partial_model_requires_review",),
+                "ROUTE-REVIEW-PARTIAL-MODEL-V1",
+                "A partial family label is discovery evidence, not an accepted KType identity.",
             )
         if match_result.candidates[0].phonetic_match:
             return (

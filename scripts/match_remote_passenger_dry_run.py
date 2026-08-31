@@ -11,11 +11,18 @@ from uuid import UUID
 import psycopg
 from neo4j import GraphDatabase
 
-from ingestion.active_rules import load_active_rules
+from ingestion.active_rules import load_active_rule_overrides, load_active_rules
 from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
-from ingestion.tecdoc.match_run_adapters import TecDocDryRunEvaluator, load_ktype_catalog
+from ingestion.tecdoc.engine_fingerprint_proposals import ReviewedEngineFingerprintIndex
+from ingestion.tecdoc.match_run_adapters import (
+    TecDocDryRunEvaluator,
+    load_ktype_catalog,
+    load_postgres_ktype_catalog,
+)
+from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.remote_match_run import run_remote_dry_match_audit
+from ingestion.vocabulary_alignment import load_fuel_alignment
 
 
 def _required_url(name: str) -> str:
@@ -32,8 +39,20 @@ def main() -> None:
     parser.add_argument("--expected-source-rows", type=int, required=True)
     parser.add_argument("--normalization-rule-version", required=True)
     parser.add_argument("--candidate-catalog-version", required=True)
+    parser.add_argument(
+        "--candidate-source", choices=("neo4j", "postgres"), default="neo4j"
+    )
     parser.add_argument("--expected-ktype-count", type=int, required=True)
     parser.add_argument("--policy-version", required=True)
+    parser.add_argument(
+        "--alignment-version",
+        default="unpinned-legacy",
+        help=(
+            "Vocabulary alignment set governing how TS and TecDoc terms are "
+            "compared. Defaults to the pre-alignment sentinel so prior runs "
+            "stay reproducible; pass a real version once alignments are used."
+        ),
+    )
     parser.add_argument("--code-revision", required=True)
     parser.add_argument("--batch-size", type=int, default=25_000)
     parser.add_argument("--max-batches", type=int, default=None)
@@ -49,7 +68,15 @@ def main() -> None:
     ):
         run_match_run_migrations(local)
         rules, manufacturer_rules = load_active_rules(local)
-        catalog = load_ktype_catalog(driver)
+        _, active_overrides = load_active_rule_overrides(local)
+        catalog = (
+            load_postgres_ktype_catalog(
+                local,
+                batch_id=args.candidate_catalog_version,
+            )
+            if args.candidate_source == "postgres"
+            else load_ktype_catalog(driver)
+        )
         if len(catalog) != args.expected_ktype_count:
             raise ValueError(
                 f"TecDoc KType count mismatch: expected {args.expected_ktype_count}, "
@@ -62,9 +89,12 @@ def main() -> None:
             source_batch_prefix="remote:public.swedish_vehicles",
             expected_source_rows=args.expected_source_rows,
             normalization_rule_version=args.normalization_rule_version,
-            candidate_catalog_version=args.candidate_catalog_version,
+            candidate_catalog_version=(
+                f"{args.candidate_source}:{args.candidate_catalog_version}"
+            ),
             policy_version=args.policy_version,
             code_revision=args.code_revision,
+            alignment_version=args.alignment_version,
         )
         counts = run_remote_dry_match_audit(
             local,
@@ -72,7 +102,13 @@ def main() -> None:
             pins=pins,
             rule_set=rules,
             manufacturer_rules=manufacturer_rules,
-            evaluator=TecDocDryRunEvaluator(catalog, manufacturer_rules),
+            evaluator=TecDocDryRunEvaluator(
+                catalog,
+                manufacturer_rules,
+                ReviewedModelAliasIndex(rules),
+                ReviewedEngineFingerprintIndex.from_overrides(active_overrides),
+                fuel_alignment=load_fuel_alignment(local, alignment_version=args.alignment_version),
+            ),
             batch_size=args.batch_size,
             max_batches=args.max_batches,
         )

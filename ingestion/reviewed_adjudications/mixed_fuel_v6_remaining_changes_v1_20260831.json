@@ -1,0 +1,49 @@
+{
+  "version": "mixed-fuel-v6-remaining-changes-v1-20260831",
+  "status": "reviewed",
+  "scope": "all 504 non-hard-conflict cases in the pinned 532-case v5-to-v6 change packet",
+  "source_packet": "scrum101-multifuel-catalog-all-change-review-packet-20260830.json",
+  "source_packet_sha256": "1665745119c0e13ee408165bf483a309f47812708493e49a2ae629791c671c34",
+  "reviewed_by": "product-owner-chat-approval-2026-08-31",
+  "evidence_ref": "docs/TS_TECDOC_REMAINING_CHANGE_ADJUDICATION_2026-08-31.md",
+  "independently_adjudicated": false,
+  "approved_for_frozen_holdout": true,
+  "runtime_activation": false,
+  "direct_match_identity_approval": false,
+  "groups": [
+    {
+      "group_id": "approve-stable-identity-eligibility-gains-for-holdout",
+      "decision": "approve_v6_for_holdout_only",
+      "expected_count": 222,
+      "rationale": "The selected KType is unchanged and already passed resolved scoring in v5; v6 only makes the same KType graph-safe through set-valued fuel evidence.",
+      "required_outcome": "Allow the resolved outcome in the frozen holdout candidate policy, but do not persist or promote from this development review."
+    },
+    {
+      "group_id": "approve-resolved-to-review-conservative-downgrade",
+      "decision": "approve_v6_conservative_downgrade",
+      "expected_count": 160,
+      "rationale": "The KType is unchanged, while newly represented alternatives reduce the candidate margin. Retaining the old resolution would be overconfident.",
+      "required_outcome": "Route to review-required and remove any existing live alias after immutable decision supersession."
+    },
+    {
+      "group_id": "approve-provisional-to-review-conservative-downgrade",
+      "decision": "approve_v6_conservative_downgrade",
+      "expected_count": 117,
+      "rationale": "The KType is unchanged, but corrected alternatives leave insufficient separation for even a provisional assertion.",
+      "required_outcome": "Route to review-required; do not attach an alias."
+    },
+    {
+      "group_id": "reject-unresolved-candidate-identity-changes",
+      "decision": "reject_v6_candidate_identity_change",
+      "expected_count": 5,
+      "rationale": "Four changes prefer LPG-labelled KTypes for TS petrol records and one maps an Audi A8 sedan to a Q8 SUV. Compatibility or measurement fit does not prove identity.",
+      "required_outcome": "Remain review-required with no selected identity until independent type-approval/model evidence resolves the candidates."
+    }
+  ],
+  "limitations": [
+    "Approval is limited to running the frozen holdout once with the locked candidate policy.",
+    "No development-row KType identity is directly approved for persistence or graph promotion.",
+    "A failed holdout rejects this candidate policy; it must not be tuned against the same holdout.",
+    "The complete policy decision also requires the separate 28-case hard-conflict manifest."
+  ]
+}

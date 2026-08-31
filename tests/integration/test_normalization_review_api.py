@@ -2,6 +2,20 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from api.app.features.match_review.router import get_match_review_service
+from api.app.features.match_review.schemas import (
+    MatchBlockerCategoryView,
+    MatchReviewDecisionRequest,
+    MatchReviewItemView,
+    MatchReviewPage,
+    MatchReviewPatternDecision,
+    MatchReviewPatternDecisionRequest,
+    MatchReviewPatternMemberPage,
+    MatchReviewPatternPage,
+    MatchReviewPatternTechnicalEvidence,
+    MatchReviewPatternView,
+    MatchRunReviewSummary,
+)
 from api.app.features.normalization_review.router import get_normalization_review_service
 from api.app.features.normalization_review.schemas import (
     NormalizationReviewFacets,
@@ -169,12 +183,16 @@ class FakeReviewQueueService:
     def transition(self, item_id: int, request: ReviewTransitionRequest) -> ReviewQueueItemView:
         item = self._item(request.status)
         if request.status == "resolved":
-            item.resolution = {
-                "field": request.field,
-                "canonical_value": request.canonical_value,
-                "decision_scope": request.decision_scope,
-                "reason": request.reason,
-            }
+            item.resolution = (
+                {"verdict": request.verdict, "reason": request.reason}
+                if request.verdict
+                else {
+                    "field": request.field,
+                    "canonical_value": request.canonical_value,
+                    "decision_scope": request.decision_scope,
+                    "reason": request.reason,
+                }
+            )
             item.resolved_by = request.reviewer
         return item
 
@@ -195,6 +213,126 @@ class FakeReviewQueueService:
             source_evidence={"brand": "TOYOTA COROLLA", "model": "COROLLA"},
         )
 
+
+class FakeMatchReviewService:
+    def summary(self, operation_id: str | None) -> MatchRunReviewSummary:
+        return MatchRunReviewSummary(
+            operation_id=operation_id or "op-1",
+            status="running",
+            processed=25_000,
+            expected_source_rows=6_515_471,
+            progress_percent=0.384,
+            blockers=[
+                MatchBlockerCategoryView(
+                    code="bodywork_conflict",
+                    title="Bodywork conflict",
+                    guidance="Review bodywork evidence",
+                    count=7_282,
+                    pending=10,
+                )
+            ],
+        )
+
+    def items(
+        self, *, operation_id: str, category: str | None, status: str | None,
+        limit: int, offset: int,
+    ) -> MatchReviewPage:
+        return MatchReviewPage(
+            operation_id=operation_id,
+            category=category,
+            total=1,
+            limit=limit,
+            offset=offset,
+            items=[self._item(operation_id, status or "pending")],
+        )
+
+    def decide(
+        self, operation_id: str, item_id: int, request: MatchReviewDecisionRequest
+    ) -> MatchReviewItemView:
+        item = self._item(operation_id, "resolved")
+        item.id = item_id
+        item.resolution = {
+            "action": request.action,
+            "selected_candidate_reference": "0001",
+        }
+        return item
+
+    def patterns(self, *, operation_id: str, category: str | None) -> MatchReviewPatternPage:
+        return MatchReviewPatternPage(
+            operation_id=operation_id,
+            category=category,
+            patterns=[MatchReviewPatternView(
+                pattern_key="bodywork_conflict:abc",
+                category="bodywork_conflict",
+                title="TS body code AC → TecDoc SUV",
+                summary="Choose a scoped compatibility policy.",
+                source_values={"body_code": "AC"},
+                candidate_values={"bodywork": ["SUV"]},
+                sample_occurrences=4,
+                category_occurrences=7282,
+                examples=[{"manufacturer": "KIA", "model": "NIRO"}],
+            )],
+        )
+
+    def decide_pattern(
+        self, operation_id: str, pattern_key: str, request: MatchReviewPatternDecisionRequest,
+    ) -> MatchReviewPatternDecision:
+        return MatchReviewPatternDecision(
+            decision_id="00000000-0000-0000-0000-000000000008",
+            action=request.action,
+            selected_values=request.selected_values,
+            reviewer=request.reviewer,
+            reason=request.reason,
+            created_at=datetime.now(UTC),
+        )
+
+    def pattern_members(
+        self, *, operation_id: str, pattern_key: str, limit: int, offset: int,
+    ) -> MatchReviewPatternMemberPage:
+        return MatchReviewPatternMemberPage(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            total=2,
+            limit=limit,
+            offset=offset,
+            members=[
+                {
+                    "pattern_key": pattern_key,
+                    "source_record_id": 42,
+                    "source_evidence": {"plate": "ABC123", "brand": "KIA", "model": "NIRO"},
+                }
+            ],
+        )
+
+    def pattern_technical_evidence(
+        self, *, operation_id: str, pattern_key: str,
+    ) -> MatchReviewPatternTechnicalEvidence:
+        return MatchReviewPatternTechnicalEvidence(
+            pattern_key=pattern_key,
+            conflicting_fields=["power_kw", "bodywork"],
+            ts_examples=[{"manufacturer": "KIA", "model": "NIRO", "values": {"body_code": "AC", "kw": 77}}],
+            tecdoc_candidates=[{"candidate_reference": "0001", "power_kw": "104", "bodywork": "suv"}],
+            comparisons={
+                "power_kw": {"ts_values": ["kw=77"], "tecdoc_values": ["0001: power_kw=104"]},
+                "bodywork": {"ts_values": ["body_code=AC"], "tecdoc_values": ["0001: bodywork=suv"]},
+            },
+        )
+
+    @staticmethod
+    def _item(operation_id: str, status: str) -> MatchReviewItemView:
+        return MatchReviewItemView(
+            id=9,
+            operation_id=operation_id,
+            category="bodywork_conflict",
+            category_title="Bodywork conflict",
+            category_guidance="Review bodywork evidence",
+            source_record_id=42,
+            source_evidence={"plate": "ABC123", "model": "V60"},
+            reason_codes=["context_conflict:bodywork"],
+            candidate_matches=[{"candidate_reference": "0001", "confidence": 0.91}],
+            status=status,
+            updated_at=datetime.now(UTC),
+        )
 
 def test_review_api_accepts_vehicle_search_and_filter_parameters(client: TestClient) -> None:
     client.app.dependency_overrides[get_normalization_review_service] = FakeReviewService
@@ -244,8 +382,89 @@ def test_review_screen_and_assets_are_served_by_application(client: TestClient) 
     assert "showRuleInVehicle(button.dataset.ruleId)" in javascript.text
     assert 'id="vehicle-rule-detail"' in screen.text
     assert 'id="queue-view"' in screen.text
+    assert 'id="match-review-view"' in screen.text
+    assert 'id="match-review-pattern-gaps"' in screen.text
+    assert 'id="match-review-technical-breakdown"' in screen.text
+    assert 'id="match-review-technical-evidence"' in screen.text
+    assert 'id="match-review-pattern-limit"' in screen.text
+    assert 'id="match-review-pattern-count"' in screen.text
+    assert 'class="domain-decision-panel"' in screen.text
+    assert 'data-domain-filter="bodywork_conflict"' in screen.text
+    assert 'id="match-review-comparison"' in screen.text
     assert "/v1/normalization-review/queue" in javascript.text
+    assert "/v1/match-review/summary" in javascript.text
+    assert "patternLimit" in javascript.text
+    assert "domain-fuel-count" in javascript.text
+    assert "renderMatchReviewTechnicalBreakdown" in javascript.text
+    assert "technical-evidence" in javascript.text
     assert "If Tillverkare is missing, Brand may become a manufacturer candidate" in javascript.text
+
+
+def test_match_review_api_lists_blockers_and_records_decision(client: TestClient) -> None:
+    client.app.dependency_overrides[get_match_review_service] = FakeMatchReviewService
+    try:
+        summary = client.get("/v1/match-review/summary", params={"operation_id": "op-1"})
+        listed = client.get(
+            "/v1/match-review/items",
+            params={"operation_id": "op-1", "category": "bodywork_conflict"},
+        )
+        decided = client.post(
+            "/v1/match-review/items/9/decision",
+            params={"operation_id": "op-1"},
+            json={
+                "action": "accept_top_candidate",
+                "reviewer": "Stakeholder",
+                "reason": "Independent evidence confirms this KType",
+                "scope": "vehicle_only",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert summary.status_code == 200
+    assert summary.json()["blockers"][0]["count"] == 7_282
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["source_evidence"]["plate"] == "ABC123"
+    assert decided.status_code == 200
+    assert decided.json()["resolution"]["selected_candidate_reference"] == "0001"
+
+
+def test_match_review_api_exposes_plate_free_patterns_and_rule_decision(client: TestClient) -> None:
+    client.app.dependency_overrides[get_match_review_service] = FakeMatchReviewService
+    try:
+        patterns = client.get(
+            "/v1/match-review/patterns",
+            params={"operation_id": "op-1", "category": "bodywork_conflict"},
+        )
+        decision = client.post(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/decision",
+            params={"operation_id": "op-1"},
+            json={
+                "action": "accept_pattern",
+                "reviewer": "Stakeholder",
+                "reason": "Repeated examples confirm the ontology mapping",
+            },
+        )
+        members = client.get(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/members",
+            params={"operation_id": "op-1", "limit": 1},
+        )
+        technical = client.get(
+            "/v1/match-review/patterns/bodywork_conflict%3Aabc/technical-evidence",
+            params={"operation_id": "op-1"},
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert patterns.status_code == 200
+    assert patterns.json()["patterns"][0]["title"] == "TS body code AC → TecDoc SUV"
+    assert patterns.json()["patterns"][0]["category_occurrences"] == 7282
+    assert decision.status_code == 200
+    assert decision.json()["action"] == "accept_pattern"
+    assert members.status_code == 200
+    assert members.json()["members"][0]["source_evidence"]["plate"] == "ABC123"
+    assert technical.status_code == 200
+    assert technical.json()["comparisons"]["power_kw"]["ts_values"] == ["kw=77"]
 
 
 def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
@@ -271,6 +490,25 @@ def test_review_queue_api_lists_and_resolves_items(client: TestClient) -> None:
     assert listed.json()["rule_activity"][0]["rule_id"] == "BDY-110"
     assert resolved.status_code == 200
     assert resolved.json()["resolution"]["canonical_value"] == "Toyota"
+
+
+def test_review_queue_api_records_margin_calibration_verdict(client: TestClient) -> None:
+    client.app.dependency_overrides[get_review_queue_service] = FakeReviewQueueService
+    try:
+        response = client.post(
+            "/v1/normalization-review/queue/7/transition",
+            json={
+                "status": "resolved",
+                "reviewer": "Ada",
+                "verdict": "unsure",
+                "reason": "Evidence does not distinguish the candidates",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["resolution"]["verdict"] == "unsure"
 
 
 def test_rule_review_api_supports_drafts_activation_and_safe_reprocess(

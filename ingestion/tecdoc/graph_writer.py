@@ -94,13 +94,19 @@ MERGE (family)-[:MADE_BY]->(manufacturer)
 MERGE (engine:Engine {id: row.engine_id})
 SET engine.engine_code = row.engine_code,
     engine.displacement_cc = row.displacement_cc,
-    engine.fuel_type = row.fuel_type
+    engine.fuel_type = row.fuel_type,
+    engine.fuel_components = row.fuel_components,
+    engine.tecdoc_engine_fuel_code = row.engine_fuel_code,
+    engine.tecdoc_engine_fuel_label = row.engine_fuel_label,
+    engine.fuel_representation = row.fuel_representation
 MERGE (variant:VehicleVariant:Provisional {id: row.variant_id})
 SET variant.market = [], variant.year_from = row.year_from, variant.year_to = row.year_to
 SET variant.engine_link_status = row.engine_link_status,
     variant.power_kw = row.power_kw,
     variant.displacement_cc = row.displacement_cc,
     variant.fuel_type = row.fuel_type,
+    variant.fuel_components = row.fuel_components,
+    variant.fuel_representation = row.fuel_representation,
     variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
     variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code,
     variant.drive_type = row.drive_type,
@@ -155,6 +161,8 @@ SET variant.market = [], variant.year_from = row.year_from, variant.year_to = ro
     variant.power_kw = row.power_kw,
     variant.displacement_cc = row.displacement_cc,
     variant.fuel_type = row.fuel_type,
+    variant.fuel_components = row.fuel_components,
+    variant.fuel_representation = row.fuel_representation,
     variant.tecdoc_fuel_code = row.tecdoc_fuel_code,
     variant.tecdoc_engine_type_code = row.tecdoc_engine_type_code
 SET variant.drive_type = row.drive_type,
@@ -219,8 +227,12 @@ def promote_canonical_vehicles(
 ) -> int:
     """Idempotently create graph nodes for graph-safe provisional KTypes."""
 
-    linked_rows = [promotion.__dict__ for promotion in promotions if promotion.engine_id]
-    facts_only_rows = [promotion.__dict__ for promotion in promotions if not promotion.engine_id]
+    rows = [
+        {**promotion.__dict__, "fuel_components": list(promotion.fuel_components)}
+        for promotion in promotions
+    ]
+    linked_rows = [row for row, promotion in zip(rows, promotions, strict=True) if promotion.engine_id]
+    facts_only_rows = [row for row, promotion in zip(rows, promotions, strict=True) if not promotion.engine_id]
     if not linked_rows and not facts_only_rows:
         return 0
     with driver.session() as session:
