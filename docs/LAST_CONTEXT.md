@@ -2,10 +2,6 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-08-30 — Controlled mixed-fuel/engine-set activation held at 20k gate
-
-- Implemented set-valued TecDoc mixed-fuel persistence/scoring and full KType engine-set loading, plus a PostgreSQL-only complete-catalog rebuild mode. Rebuilt immutable local v6 catalog: 72,570 KTypes, 57,613 graph-safe, 14,957 candidate-only, 1,805 mixed-fuel promotions, zero Neo4j writes. Volvo activated 0/47 unreviewed bodywork proposals; Golf activated zero redundant/unsupported scoring rules. Same pinned 20k: resolved 2,284→2,346, provisional 2,218→1,883, review 13,788→14,068, hard conflicts 1,597→1,590; 532 changed rows, 22 identity changes, 160 resolved→review. Activation is held before the unscored holdout pending independent review. Ruff, targeted mypy, compilation, focused PostgreSQL/Neo4j integrations and 813 effective tests pass; one unrelated broad-mypy baseline error remains in `scripts/generate_golden_corpus.py`. Added evidence comments to SCRUM-170/173/174/175 without status changes. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`. No push, decision persistence, alias attachment or graph mutation.
-
 ## 2026-08-30 — PR #32 green and Jira acceptance audit
 
 - Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
@@ -41,3 +37,7 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — PR #32 deployed to Hetzner
 
 - Merged PR #32 into `develop` as `b1a601b` after green branch and synthetic-merge validation, then deployed through the existing Hetzner workflow. Production runs the exact technical-conflict review UI/API and all PostgreSQL, Neo4j, Redis, Elasticsearch, and API health checks pass; the restricted 1,000-vehicle showcase is present. Production retains its prior data volumes: 89,545 raw TS rows and no full-audit match runs or pattern inventory, so the local 6.5M audit state was not copied and no plate/VIN data was transferred.
+
+## 2026-08-31 — Restricted 500k cohort imported to production
+
+- Created a checksum-pinned 103 MB private bundle for exactly VD-AI parts 001–020: 500,000 distinct plates, the 169,190-row v6 TecDoc candidate batch, 169,190 identity rows, 70,671 KType-engine relationships, and the pinned active rule version. Backed up production, imported the bundle transactionally with zero ID/prefix collisions, and reconciled 72,570 KTypes; Neo4j and the 1,000-car showcase were unchanged. Started checkpointed production match run `d2610431-29c3-43a0-b3c0-71d8637a6daf` for exactly 500,000 rows in an isolated container. The run is healthy and CPU-bound; the live UI will update every 25,000 rows.
