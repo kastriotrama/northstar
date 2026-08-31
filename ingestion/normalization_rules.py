@@ -422,16 +422,143 @@ _VIN_WMI_MANUFACTURERS: dict[str, str] = {
     "ZAR": "Alfa Romeo",
 }
 
+# Transportstyrelsen publishes karosseri-, text- and dispenskoder but no
+# fabrikatkod list, so this catalogue is DERIVED from the production register:
+# for each code, the normalized manufacturer it resolves to, kept only where a
+# single manufacturer covers >=95% of that code's rows (>=20 rows). Across the
+# 688,828 rows covered, fab_code disagrees with the normalized
+# manufacturer on 145 rows (0.021%) — the corroborator is meant to surface
+# exactly those.
+#
+# Excluded as ambiguous, and why: ÖV (17.8%), DQ (85.2%), MG (92.1%), LQ (72.3%), POL (77.7%), BC (91.7%), AN (93.6%), RO (92.2%), CUA (81.9%), LL (92.5%), HB (90.7%), IF (80%), KB (70%).
+# `ÖV` is Övrigt (a catch-all), not a make. Lexus/Polestar bleed into
+# Toyota/Volvo, so their codes need a decision rather than a default.
+#
+# NOTE: `SA` here is the fabrikatkod for Saab. The same string is a
+# karosserikod meaning Campingbil. Codes are only meaningful per field.
 _FAB_CODE_MANUFACTURERS: dict[str, str] = {
-    "AR": "Alfa Romeo",
-    "CI": "Citroën",
-    "HK": "Hyundai",
-    "MB": "Mercedes-Benz",
-    "NA": "Nissan",
-    "OP": "Opel",
-    "VW": "Volkswagen",
+    "VO": "Volvo",  # 152,810 rows, 100% pure
+    "VW": "Volkswagen",  # 84,403 rows, 100% pure
+    "TO": "Toyota",  # 42,601 rows, 100% pure
+    "FO": "Ford",  # 34,709 rows, 100% pure
+    "MB": "Mercedes-Benz",  # 34,614 rows, 100% pure
+    "BW": "BMW",  # 33,217 rows, 100% pure
+    "KG": "Kia",  # 29,761 rows, 100% pure
+    "AU": "Audi",  # 29,531 rows, 100% pure
+    "SA": "Saab",  # 23,702 rows, 100% pure
+    "SK": "Škoda",  # 22,553 rows, 100% pure
+    "OP": "Opel",  # 18,839 rows, 100% pure
+    "PG": "Peugeot",  # 16,740 rows, 100% pure
+    "RN": "Renault",  # 16,684 rows, 100% pure
+    "HK": "Hyundai",  # 14,145 rows, 100% pure
+    "NA": "Nissan",  # 12,964 rows, 100% pure
+    "CI": "Citroën",  # 10,733 rows, 99.8% pure
+    "CV": "Chevrolet",  # 9,651 rows, 100% pure
+    "MZ": "Mazda",  # 9,628 rows, 100% pure
+    "SH": "Subaru",  # 7,765 rows, 100% pure
+    "S4": "SEAT",  # 7,012 rows, 100% pure
+    "HO": "Honda",  # 6,584 rows, 100% pure
+    "MH": "Mitsubishi",  # 6,240 rows, 99.6% pure
+    "T-": "Tesla",  # 5,843 rows, 100% pure
+    "FI": "Fiat",  # 5,209 rows, 100% pure
+    "SZ": "Suzuki",  # 4,557 rows, 100% pure
+    "PR": "Porsche",  # 4,479 rows, 100% pure
+    "M5": "MINI",  # 3,220 rows, 100% pure
+    "CR": "Chrysler",  # 2,878 rows, 99.9% pure
+    "AR": "Alfa Romeo",  # 2,715 rows, 99.9% pure
+    "JA": "Jaguar",  # 2,418 rows, 97.8% pure
+    "CA": "Cadillac",  # 2,286 rows, 100% pure
+    "DD": "Dodge",  # 2,141 rows, 100% pure
+    "PO": "Pontiac",  # 1,851 rows, 100% pure
+    "JP": "Jeep",  # 1,746 rows, 100% pure
+    "LR": "Land Rover",  # 1,636 rows, 99.9% pure
+    "OL": "Oldsmobile",  # 1,290 rows, 100% pure
+    "LA": "Lancia",  # 1,215 rows, 99.8% pure
+    "MS": "Maserati",  # 1,208 rows, 100% pure
+    "BU": "Buick",  # 1,163 rows, 100% pure
+    "TR": "Triumph",  # 1,029 rows, 100% pure
+    "PL": "Plymouth",  # 952 rows, 100% pure
+    "DT": "Datsun",  # 835 rows, 100% pure
+    "LO": "Lotus",  # 828 rows, 100% pure
+    "NZ": "Nilsson",  # 761 rows, 98% pure
+    "M6": "Morgan",  # 727 rows, 100% pure
+    "MO": "Morris",  # 632 rows, 99.8% pure
+    "GM": "GMC",  # 597 rows, 100% pure
+    "LYO": "Lynk & Co",  # 509 rows, 100% pure
+    "WI": "Willys",  # 445 rows, 99.6% pure
+    "DU": "Daihatsu",  # 438 rows, 100% pure
+    "ST": "Studebaker",  # 404 rows, 100% pure
+    "BYD": "BYD",  # 399 rows, 100% pure
+    "VH": "Vauxhall",  # 393 rows, 100% pure
+    "AÖ": "Aston Martin",  # 392 rows, 100% pure
+    "DK": "DKW",  # 391 rows, 100% pure
+    "LI": "Lincoln",  # 363 rows, 100% pure
+    "MR": "Mercury",  # 351 rows, 100% pure
+    "LÄ": "Lada",  # 306 rows, 100% pure
+    "FR": "Ferrari",  # 278 rows, 100% pure
+    "M+": "McLaren",  # 260 rows, 100% pure
+    "RA": "Rambler",  # 256 rows, 100% pure
+    "LG": "Lamborghini",  # 246 rows, 100% pure
+    "AZ": "AMC",  # 241 rows, 100% pure
+    "ZEK": "Zeekr",  # 241 rows, 100% pure
+    "I2": "Infiniti",  # 239 rows, 100% pure
+    "AIS": "Aiways",  # 212 rows, 100% pure
+    "XS": "Smart",  # 211 rows, 98.6% pure
+    "T1": "TVR",  # 208 rows, 100% pure
+    "SI": "Simca",  # 198 rows, 100% pure
+    "HI": "Hillman",  # 194 rows, 100% pure
+    "SU": "Sunbeam",  # 191 rows, 100% pure
+    "FAW": "FAW",  # 187 rows, 100% pure
+    "GEE": "Geely",  # 185 rows, 100% pure
+    "M-": "Mercedes-Benz",  # 183 rows, 100% pure
+    "BE": "Bentley",  # 181 rows, 100% pure
+    "DP": "De Tomaso",  # 181 rows, 100% pure
+    "JE": "Jensen",  # 167 rows, 100% pure
+    "VZ": "VAZ",  # 153 rows, 100% pure
+    "RR": "Rolls-Royce",  # 152 rows, 100% pure
+    "NS": "NSU",  # 150 rows, 100% pure
+    "QU": "Audi",  # 149 rows, 100% pure
+    "A5": "Alpina",  # 145 rows, 99.3% pure
+    "H+": "Hummer",  # 141 rows, 100% pure
+    "DA": "DAF",  # 139 rows, 99.3% pure
+    "TB": "Talbot",  # 127 rows, 100% pure
+    "BO": "Borgward",  # 127 rows, 100% pure
+    "WL": "Wolseley",  # 126 rows, 100% pure
+    "LE": "Leyland",  # 123 rows, 100% pure
+    "DSS": "DS",  # 118 rows, 100% pure
+    "GRO": "ORA",  # 102 rows, 100% pure
+    "RI": "Riley",  # 98 rows, 100% pure
+    "DFK": "DFSK",  # 96 rows, 100% pure
+    "SD": "SsangYong",  # 94 rows, 100% pure
+    "CC": "Checker",  # 76 rows, 100% pure
+    "XPE": "XPENG",  # 73 rows, 100% pure
+    "C/": "Caterham",  # 72 rows, 100% pure
+    "GT": "Galloper",  # 71 rows, 100% pure
+    "INS": "INEOS",  # 70 rows, 100% pure
+    "F1": "Ford",  # 69 rows, 100% pure
+    "WA": "Wartburg",  # 68 rows, 100% pure
+    "T2": "Tri-Star",  # 57 rows, 100% pure
+    "ALL": "Alpine",  # 52 rows, 100% pure
+    "KE": "Kewet",  # 51 rows, 100% pure
+    "MXU": "Maxus",  # 48 rows, 100% pure
+    "MV": "Moskvitch",  # 45 rows, 100% pure
+    "DW": "Daewoo",  # 42 rows, 100% pure
+    "BX": "Bertone",  # 38 rows, 100% pure
+    "JAC": "JAC",  # 37 rows, 100% pure
+    "NE": "Neckar",  # 37 rows, 100% pure
+    "N1": "NIO",  # 36 rows, 100% pure
+    "GZ": "GAZ",  # 34 rows, 100% pure
+    "IN": "International",  # 33 rows, 100% pure
+    "GG": "Goggomobil",  # 31 rows, 100% pure
+    "T4": "Think",  # 27 rows, 100% pure
+    "AB": "Autobianchi",  # 27 rows, 100% pure
+    "IS": "Isuzu",  # 27 rows, 100% pure
+    "GL": "Glas",  # 26 rows, 100% pure
+    "HA": "Hanomag",  # 25 rows, 100% pure
+    "SR": "Steyr-Puch",  # 22 rows, 95.5% pure
+    "AD": "Acadian",  # 22 rows, 95.5% pure
+    "VG": "Volga",  # 20 rows, 100% pure
 }
-
 _PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
     "75": ("fire_rescue_vehicle", "Brandfordon"),
     "88": ("customs_vehicle", "Tull"),
@@ -453,6 +580,21 @@ _SECONDARY_PURPOSE_CODES: dict[str, tuple[str, str, str]] = {
     "SD": ("special_purpose_type", "hearse", "Likbil"),
     "SG": ("special_purpose_type", "other_special_purpose", "Annat särskilt ändamål"),
     "SH": ("special_purpose_type", "wheelchair_accessible", "Rullstolsanpassat fordon"),
+    # Remaining codes from Transportstyrelsen's "Fordon för särskilda ändamål"
+    # list. Rare on passenger cars, recorded so the register's own vocabulary
+    # is represented rather than silently dropped.
+    "SF": ("special_purpose_type", "mobile_crane", "Mobilkran"),
+    "SK": (
+        "special_purpose_type",
+        "exceptional_load_trailer",
+        "Släpvagn för transport av exceptionell last",
+    ),
+    "SL": (
+        "special_purpose_type",
+        "exceptional_load_vehicle",
+        "Motorfordon för transport av exceptionell last",
+    ),
+    "SM": ("special_purpose_type", "implement_carrier", "Redskapsbärare"),
 }
 
 _TEXT_CODE_DEFINITIONS: dict[str, tuple[str, str, str]] = {

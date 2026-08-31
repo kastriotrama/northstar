@@ -43,6 +43,31 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    rule_advisor_model: str = Field(
+        default="gpt-4o-mini", alias="RULE_ADVISOR_MODEL"
+    )
+    rule_advisor_base_url: str = Field(
+        default="https://api.openai.com/v1", alias="RULE_ADVISOR_BASE_URL"
+    )
+    rule_advisor_timeout_seconds: float = Field(
+        default=30.0, alias="RULE_ADVISOR_TIMEOUT_SECONDS", gt=0
+    )
+
+    oem_vin_provider_name: str | None = Field(
+        default=None, alias="OEM_VIN_PROVIDER_NAME"
+    )
+    oem_vin_provider_base_url: str | None = Field(
+        default=None, alias="OEM_VIN_PROVIDER_BASE_URL"
+    )
+    oem_vin_provider_api_key: str | None = Field(
+        default=None, alias="OEM_VIN_PROVIDER_API_KEY"
+    )
+    oem_vin_provider_dataset_version: str = Field(
+        default="unversioned", alias="OEM_VIN_PROVIDER_DATASET_VERSION"
+    )
+    oem_vin_provider_timeout_seconds: float = Field(
+        default=15.0, alias="OEM_VIN_PROVIDER_TIMEOUT_SECONDS", gt=0
+    )
     resolved_match_showcase_path: Path = Field(
         default=Path("outputs/ts-ktype-resolved-showcase-1000.json"),
         alias="RESOLVED_MATCH_SHOWCASE_PATH",
