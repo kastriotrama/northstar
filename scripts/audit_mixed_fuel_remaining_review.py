@@ -59,7 +59,7 @@ def audit_review(
         raise ValueError("review packet accounting is incomplete")
     group_rows = manifest.get("groups")
     if not isinstance(group_rows, list):
-        raise ValueError("remaining-change manifest requires groups")
+        raise TypeError("remaining-change manifest requires groups")
     expected = {str(row["group_id"]): int(row["expected_count"]) for row in group_rows}
     if len(expected) != len(group_rows):
         raise ValueError("remaining-change manifest has duplicate groups")

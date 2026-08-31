@@ -7,7 +7,6 @@ from ingestion.tecdoc.source_model_rules import (
     reviewed_source_model_policy,
 )
 
-
 MANIFEST = (
     Path(__file__).parents[3]
     / "ingestion/reviewed_source_model_policies/peugeot_3008_hns_reviewed_v1_20260831.json"

@@ -10,14 +10,14 @@ from uuid import UUID
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
-from ingestion.config import IngestionSettings
 from ingestion.active_rules import load_active_rules
+from ingestion.config import IngestionSettings
+from ingestion.context_comparison import reviewed_context_policy
 from ingestion.match_pattern_inventory import observe_match_pattern, upsert_match_pattern_inventory
 from ingestion.match_run_migrations import MATCH_RUNS_TABLE, run_match_run_migrations
 from ingestion.tecdoc.match_run_adapters import TecDocDryRunEvaluator, load_postgres_ktype_catalog
-from ingestion.tecdoc.remote_match_run import _evaluate_raw_record, _fetch_local_raw_page
-from ingestion.context_comparison import reviewed_context_policy
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
+from ingestion.tecdoc.remote_match_run import _evaluate_raw_record, _fetch_local_raw_page
 from ingestion.tecdoc.source_model_rules import reviewed_source_model_policy
 
 

@@ -70,7 +70,7 @@ def audit_review(
         raise ValueError("review packet accounting is incomplete")
     group_rows = manifest.get("groups")
     if not isinstance(group_rows, list):
-        raise ValueError("hard-conflict manifest requires groups")
+        raise TypeError("hard-conflict manifest requires groups")
     expected = {str(row["group_id"]): int(row["expected_count"]) for row in group_rows}
     if len(expected) != len(group_rows):
         raise ValueError("hard-conflict manifest has duplicate groups")

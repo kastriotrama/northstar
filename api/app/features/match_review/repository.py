@@ -8,11 +8,12 @@ from uuid import UUID, uuid4
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from api.app.features.match_review.patterns import explain_review_item
 from ingestion.match_run_migrations import (
     MATCH_REVIEW_RULE_DECISIONS_TABLE,
+    MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUN_PATTERN_INVENTORY_TABLE,
     MATCH_RUN_PATTERN_MEMBERS_TABLE,
-    MATCH_RUN_BLOCKER_COUNTS_TABLE,
     MATCH_RUNS_TABLE,
     run_match_run_migrations,
 )
@@ -20,7 +21,6 @@ from ingestion.review_queue import transition_review_item
 from ingestion.review_queue_migrations import REVIEW_QUEUE_TABLE, run_review_queue_migrations
 from ingestion.tecdoc.blocker_review import CATEGORY_BY_CODE
 from ingestion.tecdoc.reference_data import canonical_bodywork_by_kt086
-from api.app.features.match_review.patterns import explain_review_item
 
 _SCHEMA_READY = False
 _SCHEMA_LOCK = Lock()

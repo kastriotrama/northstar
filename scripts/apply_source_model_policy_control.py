@@ -47,7 +47,7 @@ def apply_replacements(
     if len(base_keys) != len(records) or not replacements.keys() <= base_keys:
         raise ValueError("replacement row keys are duplicate or outside the base report")
     updated = [
-        replacements[row_key] if row_key in replacements else row
+        replacements.get(row_key, row)
         for row in typed_records
         for row_key in (str(row["row_key"]),)
     ]

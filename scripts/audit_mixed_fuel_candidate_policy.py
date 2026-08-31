@@ -9,11 +9,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from scripts.audit_mixed_fuel_hard_conflict_review import audit_review as audit_hard
 from scripts.audit_mixed_fuel_hard_conflict_review import (
     PEUGEOT_REJECTION,
     classify_hard_conflict_case,
 )
+from scripts.audit_mixed_fuel_hard_conflict_review import audit_review as audit_hard
 from scripts.audit_mixed_fuel_remaining_review import audit_review as audit_remaining
 from scripts.validate_local_matcher_cohort import write_private_json
 

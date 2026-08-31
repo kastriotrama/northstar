@@ -2,23 +2,23 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from api.app.features.match_review.patterns import build_inventory_patterns, build_review_patterns
 from api.app.features.match_review.schemas import (
     MatchBlockerCategoryView,
     MatchReviewDecisionRequest,
-    MatchReviewPatternDecisionRequest,
-    MatchReviewPatternDecision,
-    MatchReviewPatternPage,
-    MatchReviewPatternView,
-    MatchReviewPatternMemberPage,
-    MatchReviewPatternMemberView,
     MatchReviewItemView,
     MatchReviewPage,
+    MatchReviewPatternDecision,
+    MatchReviewPatternDecisionRequest,
+    MatchReviewPatternMemberPage,
+    MatchReviewPatternMemberView,
+    MatchReviewPatternPage,
     MatchReviewPatternTechnicalEvidence,
+    MatchReviewPatternView,
     MatchRunCountsView,
     MatchRunReviewSummary,
 )
 from ingestion.tecdoc.blocker_review import CATEGORIES
-from api.app.features.match_review.patterns import build_inventory_patterns, build_review_patterns
 
 
 class MatchReviewData(Protocol):

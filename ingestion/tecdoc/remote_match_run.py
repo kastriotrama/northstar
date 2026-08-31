@@ -9,6 +9,7 @@ from typing import Any
 from psycopg import Connection
 from psycopg.rows import dict_row
 
+from ingestion.match_pattern_inventory import observe_match_pattern, upsert_match_pattern_inventory
 from ingestion.match_run_repository import (
     MatchRunCounts,
     MatchRunMode,
@@ -19,7 +20,6 @@ from ingestion.match_run_repository import (
     increment_match_run_blocker_counts,
     increment_match_run_reason_counts,
 )
-from ingestion.match_pattern_inventory import observe_match_pattern, upsert_match_pattern_inventory
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.normalization_rules import ManufacturerEntityRules, normalize_ts_record
 from ingestion.tecdoc.blocker_review import classify_match_blocker

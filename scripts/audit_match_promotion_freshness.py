@@ -138,7 +138,7 @@ def main() -> None:
     replay_report = json.loads(args.replay_report.read_text())
     changed_records = replay_report.get("changed_records")
     if not isinstance(changed_records, list):
-        raise ValueError("replay report has no changed_records list")
+        raise TypeError("replay report has no changed_records list")
     if replay_report.get("count") != args.expected_decisions:
         raise ValueError("replay report decision count differs from requested count")
 
