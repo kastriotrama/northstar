@@ -16,13 +16,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-from uuid import UUID
 
 import psycopg
 from neo4j import GraphDatabase
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 
+from ingestion.confidence_routing_repository import routing_decision_uuid
 from ingestion.config import IngestionSettings
 from ingestion.tecdoc.match_promotion import (
     MatchPromotion,
@@ -114,15 +114,24 @@ def _promotion_rows(
     heads: list[dict[str, Any]],
     *,
     source_version: str,
+    catalog_version: str,
 ) -> tuple[MatchPromotion, ...]:
     rows: list[MatchPromotion] = []
     for head in heads:
         entity_key = str(head["source_entity_key"])
         if not entity_key.startswith("plate:"):
             raise ValueError("promotion cohort contains a non-plate source entity key")
+        decision_id = routing_decision_uuid(
+            source_system="Transportstyrelsen",
+            source_batch_id=str(head["source_batch_id"]),
+            source_table=str(head["source_table"]),
+            source_record_id=int(head["source_record_id"]),
+            candidate_catalog_version=catalog_version,
+            policy_version=str(head["policy_version"]),
+        )
         rows.append(
             MatchPromotion(
-                decision_id=UUID(str(head["decision_id"])),
+                decision_id=decision_id,
                 source_system="Transportstyrelsen",
                 source_version=source_version,
                 source_entity_key=entity_key,
@@ -133,6 +142,63 @@ def _promotion_rows(
             )
         )
     return tuple(rows)
+
+
+def select_graph_safe_heads(
+    heads: list[dict[str, Any]],
+    graph_rows: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Keep only rows whose planned v6 alias has no graph collision."""
+
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    by_decision = {str(row["decision_id"]): row for row in graph_rows}
+    counts: Counter[str] = Counter(graph_checked=len(heads))
+    safe: list[dict[str, Any]] = []
+    for head in heads:
+        planned = str(head["planned_decision_id"])
+        state = by_decision.get(planned)
+        if state is None:
+            counts["graph_preflight_missing_row"] += 1
+            continue
+        expected = state.get("expected_variant_id")
+        targets = {str(value) for value in state.get("targets", ()) if value}
+        decisions = {str(value) for value in state.get("decisions", ()) if value}
+        if not expected:
+            counts["graph_ktype_missing"] += 1
+            continue
+        if targets and targets != {str(expected)}:
+            counts["graph_alias_collision"] += 1
+            continue
+        if len(targets) > 1:
+            counts["graph_alias_collision"] += 1
+            continue
+        if decisions and decisions != {planned}:
+            counts["graph_alias_requires_retirement"] += 1
+            continue
+        counts["graph_alias_absent_or_idempotent"] += 1
+        if len(safe) < limit:
+            safe.append(head)
+    counts["graph_safe_selected"] = len(safe)
+    return safe, dict(sorted(counts.items()))
+
+
+def _load_graph_alias_states(driver: Any, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    query = """
+    UNWIND $rows AS row
+    OPTIONAL MATCH (ktype:Alias {source_system: 'tecdoc', alias_type: 'k_type',
+                                 alias_text: row.ktype_reference})-[:REFERS_TO]->(expected:VehicleVariant)
+    OPTIONAL MATCH (alias:Alias {source_system: 'transportstyrelsen', alias_type: 'plate',
+                                 alias_text: row.alias_text})-[:REFERS_TO]->(target:VehicleVariant)
+    RETURN row.decision_id AS decision_id,
+           collect(DISTINCT expected.id)[0] AS expected_variant_id,
+           collect(DISTINCT target.id) AS targets,
+           collect(DISTINCT alias.match_decision_id) AS decisions
+    """
+    records, _, _ = driver.execute_query(query, rows=rows, routing_="r")
+    return [dict(record) for record in records]
 
 
 def main() -> None:
@@ -181,13 +247,27 @@ def main() -> None:
         heads,
         changed_decision_ids=changed_ids,
         catalog_types=catalog_types,
-        limit=args.cohort_size,
+        # Keep the full eligible pool until graph collision checks have run;
+        # existing aliases are deliberately filtered before taking the limit.
+        limit=len(heads),
         minimum_confidence=args.minimum_confidence,
     )
-    if len(selected) != args.cohort_size:
-        raise ValueError("fewer than the requested number of safe promotion rows are available")
-
-    promotions = _promotion_rows(selected, source_version=args.source_version)
+    planned_promotions = _promotion_rows(
+        selected,
+        source_version=args.source_version,
+        catalog_version=args.catalog_version,
+    )
+    planned_by_entity = {
+        promotion.source_entity_key: promotion for promotion in planned_promotions
+    }
+    graph_probe_rows = [
+        {
+            "decision_id": str(promotion.decision_id),
+            "alias_text": promotion.alias_text,
+            "ktype_reference": promotion.ktype_reference,
+        }
+        for promotion in planned_promotions
+    ]
     with GraphDatabase.driver(
         settings.neo4j_uri,
         auth=(settings.neo4j_user, settings.neo4j_password),
@@ -195,6 +275,27 @@ def main() -> None:
         connection_acquisition_timeout=5,
     ) as driver:
         driver.verify_connectivity()
+        graph_states = _load_graph_alias_states(driver, graph_probe_rows)
+        graph_safe, graph_counts = select_graph_safe_heads(
+            [
+                {
+                    **head,
+                    "planned_decision_id": str(
+                        planned_by_entity[str(head["source_entity_key"])].decision_id
+                    ),
+                }
+                for head in selected
+            ],
+            graph_states,
+            limit=args.cohort_size,
+        )
+        if len(graph_safe) != args.cohort_size:
+            raise ValueError(
+                "fewer than the requested number of graph-safe promotion rows are available"
+            )
+        promotions = tuple(
+            planned_by_entity[str(head["source_entity_key"])] for head in graph_safe
+        )
         preflight_count = promote_and_attach_matches(
             driver, promotions, mode=PromotionMode.DRY_RUN, controlled_limit=args.cohort_size
         )
@@ -202,12 +303,16 @@ def main() -> None:
         raise RuntimeError("Neo4j promotion preflight did not validate every row")
 
     evidence_rows = []
-    for head in selected:
+    selection_counts.update(graph_counts)
+    selection_counts["selected"] = len(graph_safe)
+    for head in graph_safe:
         reference = str(head["selected_candidate_reference"])
         candidate = next(item for item in catalog if item.candidate_reference == reference)
+        promotion = planned_by_entity[str(head["source_entity_key"])]
         evidence_rows.append(
             {
-                "decision_id": str(head["decision_id"]),
+                "decision_id": str(promotion.decision_id),
+                "current_decision_id": str(head["decision_id"]),
                 "source_entity_key": str(head["source_entity_key"]),
                 "alias_text": str(head["source_entity_key"]).removeprefix("plate:"),
                 "ktype_reference": reference,
@@ -239,6 +344,8 @@ def main() -> None:
         "candidate_catalog_digest": catalog_digest,
         "minimum_confidence": args.minimum_confidence,
         "decision_ids_are_immutable": True,
+        "v6_decision_ids_are_planned_only": True,
+        "ledger_persistence_required_before_alias_write": True,
         "decisions_persisted": 0,
         "aliases_written": 0,
         "postgres_writes": 0,

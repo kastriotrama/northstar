@@ -4,7 +4,7 @@ Keep the latest 10 task entries only.
 
 ## 2026-08-31 — SCRUM-170/171 promotion cohort dry-run
 
-- Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, selects 1,000 unchanged resolved graph-safe KTypes at confidence ≥0.975, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible before limit, 1,000 selected, 1,000/1,000 Neo4j preflighted. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (5), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.
+- Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, computes planned v6 immutable decision IDs, excludes aliases requiring retirement, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The corrected private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-v2-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible, 4,005 without an active alias, 467 requiring retirement, 1,000 selected, and 1,000/1,000 Neo4j-preflighted with planned v6 IDs. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (6), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.
 
 ## 2026-08-31 — Mixed-fuel hard-conflict adjudication
 

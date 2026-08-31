@@ -3,7 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from scripts.prepare_controlled_match_promotion_cohort import select_stable_heads
+from scripts.prepare_controlled_match_promotion_cohort import (
+    select_graph_safe_heads,
+    select_stable_heads,
+)
 
 
 def head(*, route: str = "resolved", reference: str | None = "000000001", confidence: float = 1.0) -> dict[str, Any]:
@@ -65,3 +68,29 @@ def test_requires_positive_limit_and_valid_confidence() -> None:
         select_stable_heads([], changed_decision_ids=set(), catalog_types={}, limit=0, minimum_confidence=0.9)
     with pytest.raises(ValueError, match="minimum_confidence"):
         select_stable_heads([], changed_decision_ids=set(), catalog_types={}, limit=1, minimum_confidence=2.0)
+
+
+def test_graph_filter_skips_existing_aliases_that_need_retirement() -> None:
+    first = {"decision_id": "current-1", "planned_decision_id": "planned-1"}
+    second = {"decision_id": "current-2", "planned_decision_id": "planned-2"}
+    selected, counts = select_graph_safe_heads(
+        [first, second],
+        [
+            {
+                "decision_id": "planned-1",
+                "expected_variant_id": "variant-1",
+                "targets": [],
+                "decisions": [],
+            },
+            {
+                "decision_id": "planned-2",
+                "expected_variant_id": "variant-2",
+                "targets": ["variant-2"],
+                "decisions": ["old-decision"],
+            },
+        ],
+        limit=1,
+    )
+    assert selected == [first]
+    assert counts["graph_alias_requires_retirement"] == 1
+    assert counts["graph_safe_selected"] == 1
