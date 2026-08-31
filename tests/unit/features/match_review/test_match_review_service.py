@@ -9,6 +9,7 @@ from api.app.features.match_review.field_resolution import PredicateTerm
 from api.app.features.match_review.schemas import (
     OemSampleRequest,
     ProposalReviewRequest,
+    RefineRequest,
     RuleCondition,
     RulePreviewRequest,
 )
@@ -27,6 +28,7 @@ class FakeRepository:
     def __init__(self) -> None:
         self.chunk_status = "open"
         self.brand_variants = 1
+        self.model_no_variants = 1
         self.previewed_conditions: list[PredicateTerm] = []
         self.population_oem: list[dict[str, Any]] = []
         self.member_source: dict[str, Any] = {
@@ -199,6 +201,39 @@ class FakeRepository:
                 "top_values": [{"value": "120000", "count": 12}],
             }
         ]
+
+    def fetch_refined_discriminators(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+        candidate_fields: tuple[str, ...],
+        top_values: int = 8,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        return 938, [
+            {
+                "field": "brand",
+                "distinct_count": 2,
+                "present_count": 938,
+                "top_values": [{"value": "MERCEDES-BENZ 204 K", "count": 493}],
+            },
+            {
+                "field": "model_no",
+                "distinct_count": self.model_no_variants,
+                "present_count": 938,
+                "top_values": [{"value": "000731", "count": 938}],
+            },
+        ]
+
+    def fetch_narrowing_trail(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+    ) -> list[int]:
+        return [191_921, 938][: len(conditions)]
 
     def fetch_signature_values(
         self, build_id: UUID, *, signature_field: str, limit: int = 60
@@ -634,6 +669,52 @@ def test_comparison_falls_back_to_the_secondary_key_when_primary_is_empty() -> N
     assert by_field["Manufacturer"].source_value == "VOLVO 21134 E"
     assert by_field["Manufacturer"].source_field == "brand"
     assert by_field["Year"].source_field == "model_year"
+
+
+def _refine(repository: FakeRepository) -> Any:
+    service, _, _ = _service(repository)
+    return service.refine(
+        RefineRequest(
+            build_id=uuid4(),
+            source_field="is_4wd",
+            source_value="0",
+            conditions=[
+                RuleCondition(field="is_4wd", value="0"),
+                RuleCondition(
+                    field="brand",
+                    operator="starts_with",
+                    values=["MERCEDES-BENZ 204"],
+                ),
+            ],
+        )
+    )
+
+
+def test_refine_ignores_fields_the_reviewer_already_constrained() -> None:
+    """Grouping `204` with `204 K` is a deliberate statement, not a conflict."""
+
+    result = _refine(FakeRepository())
+
+    assert "brand" not in result.varying_identity_fields
+    assert result.homogeneous is True
+    assert all(field.field != "brand" for field in result.fields)
+
+
+def test_refine_blocks_while_an_unconstrained_identity_field_varies() -> None:
+    repository = FakeRepository()
+    repository.model_no_variants = 4
+
+    result = _refine(repository)
+
+    assert result.varying_identity_fields == ["model_no"]
+    assert result.homogeneous is False
+
+
+def test_refine_reports_the_narrowing_trail() -> None:
+    result = _refine(FakeRepository())
+
+    assert [step.matched_rows for step in result.trail] == [191_921, 938]
+    assert result.trail[1].label == "brand starts with MERCEDES-BENZ 204"
 
 
 def test_member_comparison_missing_member_raises() -> None:

@@ -40,6 +40,8 @@ from api.app.features.match_review.schemas import (
     PopulationAttributes,
     ProposalReviewRequest,
     ProposalSummary,
+    RefineRequest,
+    RefineResult,
     RuleAdvice,
     RuleAdviceRequest,
     RulePreview,
@@ -246,6 +248,18 @@ def get_target_vocabulary(
 ) -> TargetVocabulary:
     try:
         return service.get_target_vocabulary(build_id, target_field=target_field)
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.post("/unresolved/refine", response_model=RefineResult)
+def refine_rule(request: RefineRequest, service: ServiceDependency) -> RefineResult:
+    """Live counts and facets for the predicate as it stands. Writes nothing."""
+
+    try:
+        return service.refine(request)
     except MatchReviewNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except psycopg.Error as error:

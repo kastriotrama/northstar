@@ -305,3 +305,33 @@ class TargetVocabulary(BaseModel):
     closed: bool
     values: list[FieldValueCount]
     source: Literal["reviewed_rules", "observed", "none"]
+
+
+class NarrowingStep(BaseModel):
+    label: str
+    matched_rows: int
+
+
+class RefineRequest(BaseModel):
+    build_id: UUID
+    source_field: str = Field(min_length=1, max_length=60)
+    source_value: str = Field(min_length=1, max_length=200)
+    conditions: list[RuleCondition] = Field(min_length=1, max_length=6)
+
+
+class RefineResult(BaseModel):
+    """Live state of a rule being narrowed: how many, what is left, are we done."""
+
+    matched_rows: int
+    would_resolve: int
+    already_resolved: int
+    signature_field: str
+    homogeneous: bool = Field(
+        description=(
+            "True when no identity-bearing field still varies, so the matched "
+            "cars can be treated as one thing."
+        )
+    )
+    varying_identity_fields: list[str]
+    trail: list[NarrowingStep]
+    fields: list[DiscriminatorField]

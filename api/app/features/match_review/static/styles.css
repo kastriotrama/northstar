@@ -700,3 +700,26 @@ button.status-tag-action {
   text-transform: uppercase;
 }
 button.status-tag-action:hover { background: var(--amber); color: #fff; }
+
+/* Live refinement status */
+.refine-status {
+  margin-top: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+  background: var(--amber-soft);
+  transition: opacity 140ms;
+}
+.refine-status.loading { opacity: 0.55; }
+.refine-status.coherent { border-left-color: var(--accent); background: var(--accent-soft); }
+.refine-headline { margin: 0; font-size: 15px; font-weight: 650; color: var(--amber); }
+.refine-status.coherent .refine-headline { color: var(--accent); }
+.refine-extra { font-weight: 500; font-size: 13px; color: var(--muted); }
+.refine-verdict { margin: 5px 0 0; font-size: 13px; line-height: 1.45; }
+.refine-trail {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

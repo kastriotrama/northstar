@@ -388,3 +388,33 @@ most. `GET /target-vocabulary` now answers per target field:
 The screen renders an `<input list=…>` combobox: suggestions where they exist,
 free typing where the vocabulary is open. Closed vocabularies are enforced on
 both sides — the client blocks before previewing, and the service returns 422.
+
+## 17. Live refinement: narrow until coherent
+
+Adding a condition used to leave the facets below describing the *original*
+population, so a reviewer narrowed blind — the counts under the cursor stopped
+being true the moment they were used. `POST /unresolved/refine` now answers the
+whole loop in one call, on every edit:
+
+- **how many** — matched rows, split into would-resolve and already-resolved;
+- **what is left to split on** — facets recomputed against the current
+  predicate, with fields the reviewer has already constrained removed;
+- **whether to stop** — `homogeneous` is true when no identity-bearing field
+  (`brand`, `model`, `model_no`, `variant`, `type_text`) still varies among the
+  matched rows. That is the same question the chunk source-spread gate asks;
+- **which term did the work** — the narrowing trail, computed in a single pass
+  with cumulative `FILTER` aggregates (`is_4wd = 0` → 191,921 → 938).
+
+A field named in the predicate is excluded from the homogeneity check: grouping
+`MERCEDES-BENZ 204` with `204 K` is a deliberate statement that those spellings
+mean the same car, so it must not keep blocking. Without that exclusion a
+`starts_with` condition could never converge.
+
+Selecting a population uses the same endpoint, so the initial state and every
+later edit follow one code path, and the pane no longer issues a duplicate
+facet query on open.
+
+Scope note: what the reviewer isolates is a **predicate, not a sub-chunk**. The
+resulting rule resolves matching cars wherever they live, across chunks and
+future imports — which is why the count shown is the population's, not the
+chunk's.

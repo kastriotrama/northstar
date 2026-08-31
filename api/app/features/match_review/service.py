@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
-from api.app.features.match_review.adjudicator import MatchAdjudicator
+from api.app.features.match_review.adjudicator import (
+    IDENTITY_FIELDS,
+    MatchAdjudicator,
+)
 from api.app.features.match_review.field_resolution import (
     CANDIDATE_DISCRIMINATORS,
     RESOLVABLE_TARGETS,
@@ -32,6 +35,7 @@ from api.app.features.match_review.schemas import (
     FieldVariance,
     MemberComparison,
     MemberSummary,
+    NarrowingStep,
     OemSampleRequest,
     OemSampleSummary,
     PatternReport,
@@ -39,6 +43,8 @@ from api.app.features.match_review.schemas import (
     PopulationAttributes,
     ProposalReviewRequest,
     ProposalSummary,
+    RefineRequest,
+    RefineResult,
     RuleAdvice,
     RuleAdviceRequest,
     RuleCondition,
@@ -138,6 +144,22 @@ class ChunkRepository(Protocol):
         signature_field: str,
         limit: int = 5,
     ) -> list[dict[str, Any]]: ...
+    def fetch_refined_discriminators(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+        candidate_fields: tuple[str, ...],
+        top_values: int = 8,
+    ) -> tuple[int, list[dict[str, Any]]]: ...
+    def fetch_narrowing_trail(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+    ) -> list[int]: ...
     def preview_rule(
         self,
         build_id: UUID,
@@ -211,6 +233,21 @@ class MatchReviewConflictError(RuntimeError):
 
 class MemberVinUnavailableError(LookupError):
     pass
+
+
+_OPERATOR_LABELS = {
+    "equals": "=",
+    "not_equals": "≠",
+    "starts_with": "starts with",
+    "contains": "contains",
+    "gte": "≥",
+    "lte": "≤",
+}
+
+
+def _condition_label(condition: Any) -> str:
+    operator = _OPERATOR_LABELS.get(condition.operator, condition.operator)
+    return f"{condition.field} {operator} {' or '.join(condition.terms)}"
 
 
 def _value_counts(field: str, items: list[dict[str, Any]]) -> list[FieldValueCount]:
@@ -487,6 +524,95 @@ class MatchReviewService:
                 for row in observed
             ],
             source="observed" if observed else "none",
+        )
+
+    def refine(self, request: RefineRequest) -> RefineResult:
+        """Recompute counts and facets for the predicate as it stands.
+
+        Every edit answers three questions at once: how many cars are matched,
+        what still separates them, and whether anything identity-bearing still
+        varies. The last one is the stopping condition — while `brand` or
+        `model_no` still splits the matched rows, they are not one thing yet
+        and assigning a single value would over-claim.
+        """
+
+        signature_field = self._signature_field_for(request.source_field)
+        terms = [
+            PredicateTerm(
+                layer=condition.layer,
+                field=condition.field,
+                operator=condition.operator,
+                values=condition.terms,
+            )
+            for condition in request.conditions
+        ]
+        counts = self._repository.preview_rule(
+            request.build_id, conditions=terms, signature_field=signature_field
+        )
+        population, breakdown = self._repository.fetch_refined_discriminators(
+            request.build_id,
+            signature_field=signature_field,
+            conditions=terms,
+            candidate_fields=CANDIDATE_DISCRIMINATORS,
+        )
+        constrained = {condition.field for condition in request.conditions}
+        fields = []
+        for entry in breakdown:
+            if entry["field"] in constrained:
+                continue
+            scored = score_discriminator(
+                field=entry["field"],
+                population=population,
+                present_count=entry["present_count"],
+                distinct_count=entry["distinct_count"],
+                top_counts=[item["count"] for item in entry["top_values"]],
+            )
+            fields.append(
+                DiscriminatorField(
+                    field=scored.field,
+                    distinct_count=scored.distinct_count,
+                    present_count=scored.present_count,
+                    coverage=scored.coverage,
+                    separation=scored.separation,
+                    concision=scored.concision,
+                    score=scored.score,
+                    usable=scored.usable,
+                    top_values=_value_counts(entry["field"], entry["top_values"]),
+                )
+            )
+        fields.sort(key=lambda item: item.score, reverse=True)
+
+        # A field the reviewer has already constrained is not an open question:
+        # grouping `MERCEDES-BENZ 204` with `204 K` is a deliberate statement
+        # that those spellings mean the same car, so it must not keep blocking.
+        varying = sorted(
+            entry["field"]
+            for entry in breakdown
+            if entry["field"] in IDENTITY_FIELDS
+            and entry["field"] not in constrained
+            and entry["distinct_count"] > 1
+        )
+        trail_counts = self._repository.fetch_narrowing_trail(
+            request.build_id, signature_field=signature_field, conditions=terms
+        )
+        trail = [
+            NarrowingStep(
+                label=_condition_label(condition),
+                matched_rows=matched,
+            )
+            for condition, matched in zip(
+                request.conditions, trail_counts, strict=False
+            )
+        ]
+        return RefineResult(
+            matched_rows=counts["matched_rows"],
+            would_resolve=counts["would_resolve"],
+            already_resolved=counts["already_resolved"],
+            signature_field=signature_field,
+            homogeneous=not varying and population > 0,
+            varying_identity_fields=varying,
+            trail=trail,
+            fields=fields,
         )
 
     def preview_rule(self, request: RulePreviewRequest) -> RulePreview:

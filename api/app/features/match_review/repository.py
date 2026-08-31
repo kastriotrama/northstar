@@ -258,79 +258,6 @@ class MatchReviewRepository:
             {"source_value": str(row[0]), "row_count": int(row[1])} for row in rows
         ]
 
-    def fetch_discriminators(
-        self,
-        build_id: UUID,
-        *,
-        source_field: str,
-        source_value: str,
-        signature_field: str,
-        candidate_fields: tuple[str, ...],
-        top_values: int = 8,
-    ) -> tuple[int, list[dict[str, Any]]]:
-        """Break an unresolved population down by each candidate predicate field."""
-
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                WITH population AS (
-                    SELECT raw.raw_record AS record
-                    FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
-                    JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
-                    JOIN staging.transportstyrelsen_raw AS raw
-                        ON raw.id = mem.source_record_id
-                    WHERE chunks.build_id = %s
-                      AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
-                      AND btrim(raw.raw_record ->> %s) = %s
-                ), total AS (
-                    SELECT count(*) AS population FROM population
-                ), pairs AS (
-                    SELECT field.name AS field,
-                           nullif(btrim(population.record ->> field.name), '')
-                               AS value
-                    FROM population, unnest(%s::text[]) AS field(name)
-                ), counted AS (
-                    SELECT field, value, count(*) AS occurrences
-                    FROM pairs WHERE value IS NOT NULL
-                    GROUP BY field, value
-                )
-                SELECT (SELECT population FROM total),
-                       field,
-                       count(*) AS distinct_count,
-                       sum(occurrences) AS present_count,
-                       (array_agg(value ORDER BY occurrences DESC, value))[1:%s],
-                       (array_agg(occurrences ORDER BY occurrences DESC, value))[1:%s]
-                FROM counted
-                GROUP BY field
-                """,
-                (
-                    build_id,
-                    signature_field,
-                    source_field,
-                    source_value,
-                    list(candidate_fields),
-                    top_values,
-                    top_values,
-                ),
-            )
-            rows = cursor.fetchall()
-        if not rows:
-            return 0, []
-        population = int(rows[0][0])
-        breakdown = [
-            {
-                "field": str(row[1]),
-                "distinct_count": int(row[2]),
-                "present_count": int(row[3]),
-                "top_values": [
-                    {"value": str(value), "count": int(count)}
-                    for value, count in zip(row[4], row[5], strict=True)
-                ],
-            }
-            for row in rows
-        ]
-        return population, breakdown
-
     @staticmethod
     def _condition_sql(
         conditions: list[PredicateTerm],
@@ -376,6 +303,142 @@ class MatchReviewRepository:
             else:
                 raise ValueError(f"unsupported operator: {term.operator}")
         return " AND ".join(clauses), parameters
+
+    def fetch_discriminators(
+        self,
+        build_id: UUID,
+        *,
+        source_field: str,
+        source_value: str,
+        signature_field: str,
+        candidate_fields: tuple[str, ...],
+        top_values: int = 8,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Facets for the whole unresolved population (no extra narrowing)."""
+
+        return self.fetch_refined_discriminators(
+            build_id,
+            signature_field=signature_field,
+            conditions=[
+                PredicateTerm("source", source_field, "equals", (source_value,))
+            ],
+            candidate_fields=candidate_fields,
+            top_values=top_values,
+        )
+
+    def fetch_refined_discriminators(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+        candidate_fields: tuple[str, ...],
+        top_values: int = 8,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Break down the rows matching a predicate, by each candidate field.
+
+        Recomputed against the *current* predicate so the counts a reviewer
+        clicks on describe the population they have actually narrowed to, not
+        the one they started from.
+        """
+
+        clauses, parameters = self._condition_sql(conditions)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                WITH population AS (
+                    SELECT raw.raw_record AS record
+                    FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
+                    JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
+                    JOIN staging.transportstyrelsen_raw AS raw
+                        ON raw.id = mem.source_record_id
+                    WHERE chunks.build_id = %s
+                      AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
+                      AND {clauses}
+                ), total AS (
+                    SELECT count(*) AS population FROM population
+                ), pairs AS (
+                    SELECT field.name AS field,
+                           nullif(btrim(population.record ->> field.name), '')
+                               AS value
+                    FROM population, unnest(%s::text[]) AS field(name)
+                ), counted AS (
+                    SELECT field, value, count(*) AS occurrences
+                    FROM pairs WHERE value IS NOT NULL
+                    GROUP BY field, value
+                )
+                SELECT (SELECT population FROM total),
+                       field,
+                       count(*) AS distinct_count,
+                       sum(occurrences) AS present_count,
+                       (array_agg(value ORDER BY occurrences DESC, value))[1:%s],
+                       (array_agg(occurrences ORDER BY occurrences DESC, value))[1:%s]
+                FROM counted
+                GROUP BY field
+                """,
+                (
+                    build_id,
+                    signature_field,
+                    *parameters,
+                    list(candidate_fields),
+                    top_values,
+                    top_values,
+                ),
+            )
+            rows = cursor.fetchall()
+        if not rows:
+            return 0, []
+        population = int(rows[0][0])
+        breakdown = [
+            {
+                "field": str(row[1]),
+                "distinct_count": int(row[2]),
+                "present_count": int(row[3]),
+                "top_values": [
+                    {"value": str(value), "count": int(count)}
+                    for value, count in zip(row[4], row[5], strict=True)
+                ],
+            }
+            for row in rows
+        ]
+        return population, breakdown
+
+    def fetch_narrowing_trail(
+        self,
+        build_id: UUID,
+        *,
+        signature_field: str,
+        conditions: list[PredicateTerm],
+    ) -> list[int]:
+        """Row count after each successive condition, in one pass.
+
+        Shows which term did the work (191,921 -> 6,550 -> 926) rather than
+        only the final number.
+        """
+
+        if not conditions:
+            return []
+        filters: list[str] = []
+        parameters: list[object] = []
+        for index in range(1, len(conditions) + 1):
+            clause, clause_parameters = self._condition_sql(conditions[:index])
+            filters.append(f"count(*) FILTER (WHERE {clause})")
+            parameters.extend(clause_parameters)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT {", ".join(filters)}
+                FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
+                JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
+                JOIN staging.transportstyrelsen_raw AS raw
+                    ON raw.id = mem.source_record_id
+                WHERE chunks.build_id = %s
+                  AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
+                """,
+                (*parameters, build_id, signature_field),
+            )
+            row = cursor.fetchone()
+        return [int(value) for value in row] if row else []
 
     def fetch_population_attributes(
         self,

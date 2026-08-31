@@ -783,6 +783,7 @@ const unresolved = {
   openAttributes: document.getElementById("open-attributes"),
   adviseRule: document.getElementById("advise-rule"),
   adviceBox: document.getElementById("advice-box"),
+  refineStatus: document.getElementById("refine-status"),
   dialog: document.getElementById("attr-dialog"),
   dialogNote: document.getElementById("attr-dialog-note"),
   dialogClose: document.getElementById("attr-close"),
@@ -919,49 +920,6 @@ async function selectPopulation(population) {
   unresolved.sub.textContent = "Loading…";
   unresolved.discriminators.innerHTML = '<li class="empty-row">Analysing…</li>';
 
-  let report;
-  try {
-    report = await api(
-      "/v1/match-review/unresolved/discriminators?build_id=" +
-        `${state.buildId}&source_field=${encodeURIComponent(
-          population.source_field
-        )}&source_value=${encodeURIComponent(population.source_value)}`
-    );
-  } catch (error) {
-    unresolved.discriminators.innerHTML = "";
-    unresolved.sub.textContent = "";
-    unresolved.detail.hidden = true;
-    unresolved.empty.hidden = false;
-    showToast(error.message, true);
-    return;
-  }
-
-  currentPopulation = {
-    ...population,
-    signature_field: report.signature_field,
-    row_count: report.population,
-  };
-
-  if (report.population === 0) {
-    // Reachable by a hand-edited link, or a value whose target is already
-    // derived. Say so rather than showing an empty builder.
-    unresolved.sub.textContent =
-      `No unresolved cars here — ${report.signature_field} is already derived ` +
-      `for cars with ${population.source_field} = ${population.source_value}.`;
-    unresolved.discriminators.innerHTML =
-      '<li class="empty-row">Nothing to resolve for this value.</li>';
-    unresolved.previewResult.hidden = true;
-    unresolved.adviceBox.hidden = true;
-    unresolved.runPreview.disabled = true;
-    conditions = [];
-    renderConditions();
-    return;
-  }
-
-  unresolved.sub.textContent =
-    `${formatCount(report.population)} cars carry this value and NorthStar ` +
-    `cannot derive ${report.signature_field} from it.`;
-
   conditions = [
     {
       field: population.source_field,
@@ -971,9 +929,41 @@ async function selectPopulation(population) {
     },
   ];
   renderConditions();
+
+  // One call answers everything the pane needs: counts, facets and whether the
+  // population is already coherent — the same call every later edit makes.
+  const report = await runRefine();
+  if (!report) {
+    unresolved.sub.textContent = "";
+    unresolved.detail.hidden = true;
+    unresolved.empty.hidden = false;
+    return;
+  }
+
+  currentPopulation = {
+    ...population,
+    signature_field: report.signature_field,
+    row_count: report.would_resolve,
+  };
+
+  if (report.would_resolve === 0) {
+    unresolved.sub.textContent =
+      `No unresolved cars here — ${report.signature_field} is already derived ` +
+      `for cars with ${population.source_field} = ${population.source_value}.`;
+    unresolved.discriminators.innerHTML =
+      '<li class="empty-row">Nothing to resolve for this value.</li>';
+    unresolved.refineStatus.hidden = true;
+    unresolved.previewResult.hidden = true;
+    unresolved.adviceBox.hidden = true;
+    unresolved.runPreview.disabled = true;
+    return;
+  }
+
+  unresolved.sub.textContent =
+    `${formatCount(report.would_resolve)} cars carry this value and NorthStar ` +
+    `cannot derive ${report.signature_field} from it.`;
   await renderTargets(report.signature_field);
   unresolved.previewResult.hidden = true;
-  renderDiscriminators(report);
 }
 
 async function renderTargets(signatureField) {
@@ -1188,6 +1178,7 @@ function renderConditions() {
         }
         renderConditions();
         unresolved.previewResult.hidden = true;
+        scheduleRefine();
       });
       chip.appendChild(op);
     }
@@ -1215,6 +1206,7 @@ function renderConditions() {
         conditions = conditions.filter((item) => item !== condition);
         renderConditions();
         unresolved.previewResult.hidden = true;
+        scheduleRefine();
       });
       chip.appendChild(remove);
     }
@@ -1237,6 +1229,7 @@ function addTerm(field, value, { operator = "equals" } = {}) {
   }
   renderConditions();
   unresolved.previewResult.hidden = true;
+  scheduleRefine();
 }
 
 function renderDiscriminators(report) {
@@ -1336,6 +1329,83 @@ function renderPreview(preview) {
   unresolved.previewResult.appendChild(note);
 }
 
+
+
+/* ---------- live refinement ---------- */
+
+let refineTimer = null;
+let refineToken = 0;
+
+function scheduleRefine() {
+  clearTimeout(refineTimer);
+  refineTimer = setTimeout(runRefine, 250);
+}
+
+async function runRefine() {
+  if (!currentPopulation || !conditions.length) return;
+  const token = ++refineToken;
+  unresolved.refineStatus.hidden = false;
+  unresolved.refineStatus.classList.add("loading");
+  let result;
+  try {
+    result = await api("/v1/match-review/unresolved/refine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        build_id: state.buildId,
+        source_field: currentPopulation.source_field,
+        source_value: currentPopulation.source_value,
+        conditions: conditions.map(({ field, operator, values }) => ({
+          field,
+          operator: operator || "equals",
+          values,
+        })),
+      }),
+    });
+  } catch (error) {
+    unresolved.refineStatus.classList.remove("loading");
+    showToast(error.message, true);
+    return;
+  }
+  // A slower earlier request must not overwrite a newer result.
+  if (token !== refineToken) return;
+  unresolved.refineStatus.classList.remove("loading");
+  renderRefineStatus(result);
+  renderDiscriminators(result);
+  return result;
+}
+
+function renderRefineStatus(result) {
+  unresolved.refineStatus.innerHTML = "";
+  unresolved.refineStatus.classList.toggle("coherent", result.homogeneous);
+
+  const headline = document.createElement("p");
+  headline.className = "refine-headline";
+  headline.textContent = `${formatCount(result.would_resolve)} cars would be resolved`;
+  if (result.already_resolved) {
+    const extra = document.createElement("span");
+    extra.className = "refine-extra";
+    extra.textContent = ` · ${formatCount(result.already_resolved)} already have a value`;
+    headline.appendChild(extra);
+  }
+  unresolved.refineStatus.appendChild(headline);
+
+  const verdict = document.createElement("p");
+  verdict.className = "refine-verdict";
+  verdict.textContent = result.homogeneous
+    ? "One coherent block — nothing identity-bearing still varies, so a single value is safe."
+    : `Still mixed on ${result.varying_identity_fields.join(", ")} — narrow further before assigning a value.`;
+  unresolved.refineStatus.appendChild(verdict);
+
+  if (result.trail.length > 1) {
+    const trail = document.createElement("p");
+    trail.className = "refine-trail";
+    trail.textContent = result.trail
+      .map((step) => `${step.label} → ${formatCount(step.matched_rows)}`)
+      .join("   ·   ");
+    unresolved.refineStatus.appendChild(trail);
+  }
+}
 
 /* ---------- All-attributes dialog ---------- */
 
