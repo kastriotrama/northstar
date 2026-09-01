@@ -131,10 +131,16 @@ accepted singular relationship contract.
 
 ### Canonical KType promotion
 
-Automatic promotion requires one active engine, an official supported fuel
-code, a resolved displacement, and a valid production start year. Exact Table
-155 displacement is preferred; a single Table 120 displacement observed across
-the complete restored source is accepted as corroboration.
+Automatic promotion requires one active engine, official mapped fuel evidence,
+a resolved displacement, and a valid production start year. A single official
+fuel is stored in the scalar `fuel_type`. An official mixed fuel is stored with
+`fuel_type=null`, the exact TecDoc code and label, `fuel_representation=mixed`,
+and the complete immutable `fuel_components` set. A TS fuel that intersects
+that component set is compatible but non-confirming: it removes an unsupported
+fuel conflict but adds no positive score. Disjoint fuel evidence remains a hard
+conflict. Unknown or unmapped fuel still fails closed. Exact Table 155
+displacement is preferred; a single Table 120 displacement observed across the
+complete restored source is accepted as corroboration.
 
 Manufacturer, ModelFamily, provisional VehicleVariant, Engine and KType Alias
 nodes may then be created. Every promoted variant receives a `VARIANT_OF`
@@ -144,6 +150,9 @@ another approved source supplies reliable platform evidence. The variant
 candidate retains both hierarchy source keys and records
 `hierarchy_link_status=model_family_linked_platform_optional`. Ambiguous
 engines and unresolved fuel/displacement records stay outside Neo4j for review.
+The matcher may inspect every preserved KType-to-engine candidate and compare a
+TS engine code against the full engine-code set, but must not select one engine
+or mark the KType graph-safe from that overlap alone.
 
 Bodywork is optional but directly available as the Table 120 KT 086 code. Link
 it with `HAS_BODY`, preserve the code, and use Tables 020/030/052 for its
@@ -192,6 +201,12 @@ The command parses the complete source before writing, uses official English
 fuel labels, persists only safe candidates, loads Neo4j in bounded chunks, and
 reconciles the final PostgreSQL candidate count. Reusing the identical batch
 is safe and produces zero additional candidates.
+
+To rebuild and validate a complete PostgreSQL matcher catalog without changing
+Neo4j, add `--candidate-catalog-only`. This mode retains both graph-safe KTypes
+and explicitly labelled `candidate_only` KTypes, reconciles the immutable batch,
+and reports zero graph rows and zero graph chunks. Use a new batch ID whenever
+code or evidence semantics change; never retrofit a completed batch.
 
 KTypes without a Table 125 row are not engine-less vehicles. Table 120 already
 contains their vehicle-level engine facts. Promote them as provisional variants

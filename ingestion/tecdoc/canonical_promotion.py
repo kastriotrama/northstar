@@ -14,6 +14,7 @@ from ingestion.tecdoc.dat_extraction import (
     TransmissionAllocation,
 )
 from ingestion.tecdoc.models import CanonicalCandidate
+from ingestion.tecdoc.reference_data import engine_fuel_evidence
 from ingestion.tecdoc.repository import get_or_mint_node_id, write_candidate
 from northstar.alias_identity import build_assertion_identity
 
@@ -53,6 +54,10 @@ class CanonicalPromotion:
     drive_type: str | None = None
     drive_official_label: str | None = None
     drive_code: str | None = None
+    fuel_components: tuple[str, ...] = ()
+    engine_fuel_code: str | None = None
+    engine_fuel_label: str | None = None
+    fuel_representation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +77,7 @@ def prepare_canonical_promotions(
     batch_id: str,
     records: Iterable[TecDocHierarchyRecord],
     engine_fuels: Mapping[str, str],
+    engine_fuel_labels: Mapping[str, str] | None = None,
     vehicle_fuels: Mapping[str, str] | None = None,
     bodywork_labels: Mapping[str, str] | None = None,
     bodywork_canonical: Mapping[str, str] | None = None,
@@ -80,6 +86,7 @@ def prepare_canonical_promotions(
     drive_canonical: Mapping[str, str] | None = None,
     complete_source: bool = False,
     promotion_limit: int | None = None,
+    retain_candidate_only: bool = False,
 ) -> PromotionPreparationSummary:
     """Persist and return only graph-safe, one-active-engine KType promotions."""
 
@@ -104,12 +111,18 @@ def prepare_canonical_promotions(
             if promotion_limit is not None and len(promotions) >= promotion_limit:
                 break
             active_engines = [engine for engine in record.engines if not engine.deleted]
+            vehicle_fuel_type = (vehicle_fuels or {}).get(record.fuel_type_code or "")
             if not active_engines:
                 year_from = _year(record.year_from)
                 if year_from is None:
                     skipped["year_missing"] += 1
+                    if retain_candidate_only:
+                        candidates_written += _write_candidate_only(
+                            connection, batch_id, record, reason="year_missing",
+                            vehicle_fuel_type=vehicle_fuel_type,
+                            engine_fuel_labels=engine_fuel_labels,
+                        )
                     continue
-                vehicle_fuel_type = (vehicle_fuels or {}).get(record.fuel_type_code or "")
                 candidates = _vehicle_candidates(
                     record,
                     year_from=year_from,
@@ -117,6 +130,11 @@ def prepare_canonical_promotions(
                     displacement_cc=record.displacement_cc,
                     displacement_source=("table_120_technical" if record.displacement_cc else None),
                     fuel_type=vehicle_fuel_type,
+                    fuel_components=((vehicle_fuel_type,) if vehicle_fuel_type else ()),
+                    engine_fuel_code=None,
+                    engine_fuel_label=None,
+                    fuel_representation=("single" if vehicle_fuel_type else "missing"),
+                    vehicle_fuel_type=vehicle_fuel_type,
                     engine_link_status="allocation_missing",
                     bodywork_labels=bodywork_labels,
                     bodywork_canonical=bodywork_canonical,
@@ -137,6 +155,10 @@ def prepare_canonical_promotions(
                             "table_120_technical" if record.displacement_cc else None
                         ),
                         fuel_type=vehicle_fuel_type,
+                        fuel_components=((vehicle_fuel_type,) if vehicle_fuel_type else ()),
+                        engine_fuel_code=None,
+                        engine_fuel_label=None,
+                        fuel_representation=("single" if vehicle_fuel_type else "missing"),
                         engine_link_status="allocation_missing",
                         bodywork_labels=bodywork_labels,
                         bodywork_canonical=bodywork_canonical,
@@ -148,11 +170,39 @@ def prepare_canonical_promotions(
                 continue
             if len(active_engines) != 1:
                 skipped["engine_ambiguous"] += 1
+                if retain_candidate_only:
+                    candidates_written += _write_candidate_only(
+                        connection, batch_id, record, reason="engine_ambiguous",
+                        vehicle_fuel_type=vehicle_fuel_type,
+                        engine_fuel_labels=engine_fuel_labels,
+                    )
                 continue
             engine = active_engines[0]
             fuel_type = engine_fuels.get(engine.fuel_type_code or "")
-            if fuel_type is None:
+            fuel_components: tuple[str, ...] = (fuel_type,) if fuel_type else ()
+            fuel_evidence = engine_fuel_evidence(
+                engine.fuel_type_code, engine_fuel_labels or {},
+            )
+            if engine_fuel_labels is not None:
+                # A caller-supplied scalar cannot flatten explicit mixed or
+                # unknown KT088 evidence, nor contradict its single value.
+                supported = fuel_evidence.scalar_fuel_type
+                if fuel_evidence.representation == "mixed":
+                    fuel_type = None
+                    fuel_components = fuel_evidence.components
+                elif supported is None or supported != fuel_type:
+                    fuel_type = None
+                    fuel_components = ()
+                else:
+                    fuel_components = fuel_evidence.components
+            if fuel_type is None and not fuel_components:
                 skipped["fuel_unresolved"] += 1
+                if retain_candidate_only:
+                    candidates_written += _write_candidate_only(
+                        connection, batch_id, record, reason="fuel_unresolved",
+                        vehicle_fuel_type=vehicle_fuel_type,
+                        engine_fuel_labels=engine_fuel_labels,
+                    )
                 continue
             exact_displacement = None
             if (
@@ -168,10 +218,22 @@ def prepare_canonical_promotions(
                 displacement_source = "table_120_complete_source_consensus"
             if displacement_cc is None:
                 skipped["displacement_unresolved"] += 1
+                if retain_candidate_only:
+                    candidates_written += _write_candidate_only(
+                        connection, batch_id, record, reason="displacement_unresolved",
+                        vehicle_fuel_type=vehicle_fuel_type,
+                        engine_fuel_labels=engine_fuel_labels,
+                    )
                 continue
             year_from = _year(record.year_from)
             if year_from is None:
                 skipped["year_missing"] += 1
+                if retain_candidate_only:
+                    candidates_written += _write_candidate_only(
+                        connection, batch_id, record, reason="year_missing",
+                        vehicle_fuel_type=vehicle_fuel_type,
+                        engine_fuel_labels=engine_fuel_labels,
+                    )
                 continue
 
             candidates = _vehicle_candidates(
@@ -181,6 +243,11 @@ def prepare_canonical_promotions(
                 displacement_cc=displacement_cc,
                 displacement_source=displacement_source,
                 fuel_type=fuel_type,
+                fuel_components=fuel_components,
+                engine_fuel_code=fuel_evidence.source_code,
+                engine_fuel_label=fuel_evidence.official_label,
+                fuel_representation=fuel_evidence.representation,
+                vehicle_fuel_type=vehicle_fuel_type,
                 engine_link_status="linked",
                 bodywork_labels=bodywork_labels,
                 bodywork_canonical=bodywork_canonical,
@@ -199,6 +266,10 @@ def prepare_canonical_promotions(
                     displacement_cc=displacement_cc,
                     displacement_source=displacement_source,
                     fuel_type=fuel_type,
+                    fuel_components=fuel_components,
+                    engine_fuel_code=fuel_evidence.source_code,
+                    engine_fuel_label=fuel_evidence.official_label,
+                    fuel_representation=fuel_evidence.representation,
                     engine_link_status="linked",
                     bodywork_labels=bodywork_labels,
                     bodywork_canonical=bodywork_canonical,
@@ -214,6 +285,103 @@ def prepare_canonical_promotions(
     return PromotionPreparationSummary(tuple(promotions), dict(skipped), candidates_written)
 
 
+def _candidate_only_vehicle_candidates(
+    record: TecDocHierarchyRecord,
+    *,
+    reason: str,
+    vehicle_fuel_type: str | None = None,
+    engine_fuel_labels: Mapping[str, str] | None = None,
+) -> tuple[CanonicalCandidate, ...]:
+    """Retain an active KType for matching without making it graph-promotable."""
+
+    return (
+        CanonicalCandidate(
+            "manufacturer",
+            f"manufacturer:{record.manufacturer_id}",
+            {"canonical_name": record.manufacturer_name},
+        ),
+        CanonicalCandidate(
+            "model_family",
+            f"model:{record.model_id}",
+            {
+                "canonical_name": record.model_name,
+                "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
+            },
+        ),
+        CanonicalCandidate(
+            "vehicle_variant",
+            f"variant:{record.ktype_id}",
+            {
+                "market": [],
+                "year_from": _year(record.year_from),
+                "year_to": _year(record.year_to),
+                "source_name": record.ktype_name,
+                "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
+                "model_family_source_key": f"model:{record.model_id}",
+                "engine_link_status": (
+                    "ambiguous" if reason == "engine_ambiguous" else "review_required"
+                ),
+                "promotion_status": "candidate_only",
+                "candidate_only_reason": reason,
+                "engine_fuel_evidence": [
+                    {
+                        "engine_source_key": f"engine:{engine.engine_id}",
+                        "engine_source_row_ref": engine.engine_source_row_ref,
+                        "engine_deleted": engine.deleted,
+                        "fuel": engine_fuel_evidence(
+                            engine.fuel_type_code, engine_fuel_labels or {},
+                        ).as_attributes(),
+                    }
+                    for engine in record.engines
+                ],
+                "power_kw": record.power_kw,
+                "displacement_cc": record.displacement_cc,
+                "tecdoc_fuel_code": record.fuel_type_code,
+                "vehicle_fuel_type": vehicle_fuel_type,
+                "tecdoc_engine_type_code": record.engine_type_code,
+                "tecdoc_drive_type_code": record.drive_type_code,
+                "tecdoc_transmission_type_code": record.transmission_type_code,
+                "tecdoc_body_type_code": record.body_type_code,
+                "hierarchy_link_status": "model_family_linked_platform_optional",
+            },
+        ),
+        CanonicalCandidate(
+            "alias",
+            f"ktype:{record.ktype_id}",
+            {
+                "alias_text": record.ktype_id,
+                "alias_type": "k_type",
+                "source_system": "tecdoc",
+                "target_source_key": f"variant:{record.ktype_id}",
+                "promotion_status": "candidate_only",
+                "candidate_only_reason": reason,
+            },
+        ),
+    )
+
+
+def _write_candidate_only(
+    connection: Connection,
+    batch_id: str,
+    record: TecDocHierarchyRecord,
+    *,
+    reason: str,
+    vehicle_fuel_type: str | None,
+    engine_fuel_labels: Mapping[str, str] | None = None,
+) -> int:
+    _, written = _write_candidates(
+        connection,
+        batch_id,
+        _candidate_only_vehicle_candidates(
+            record, reason=reason, vehicle_fuel_type=vehicle_fuel_type,
+            engine_fuel_labels=engine_fuel_labels,
+        ),
+        record,
+        None,
+    )
+    return written
+
+
 def _vehicle_candidates(
     record: TecDocHierarchyRecord,
     *,
@@ -222,6 +390,11 @@ def _vehicle_candidates(
     displacement_cc: int | None,
     displacement_source: str | None,
     fuel_type: str | None,
+    fuel_components: tuple[str, ...],
+    engine_fuel_code: str | None,
+    engine_fuel_label: str | None,
+    fuel_representation: str,
+    vehicle_fuel_type: str | None,
     engine_link_status: str,
     bodywork_labels: Mapping[str, str] | None,
     bodywork_canonical: Mapping[str, str] | None,
@@ -306,6 +479,11 @@ def _vehicle_candidates(
                 "displacement_cc": displacement_cc,
                 "displacement_source": displacement_source,
                 "fuel_type": fuel_type,
+                "fuel_components": list(fuel_components),
+                "tecdoc_engine_fuel_code": engine_fuel_code,
+                "tecdoc_engine_fuel_label": engine_fuel_label,
+                "fuel_representation": fuel_representation,
+                "vehicle_fuel_type": vehicle_fuel_type,
                 "hierarchy_link_status": "model_family_linked_platform_optional",
             },
         ),
@@ -320,6 +498,10 @@ def _vehicle_candidates(
                     "displacement_cc": displacement_cc,
                     "displacement_source": displacement_source,
                     "fuel_type": fuel_type,
+                    "fuel_components": list(fuel_components),
+                    "tecdoc_engine_fuel_code": engine_fuel_code,
+                    "tecdoc_engine_fuel_label": engine_fuel_label,
+                    "fuel_representation": fuel_representation,
                 },
             )
         )
@@ -408,6 +590,10 @@ def _promotion(
     displacement_cc: int | None,
     displacement_source: str | None,
     fuel_type: str | None,
+    fuel_components: tuple[str, ...],
+    engine_fuel_code: str | None,
+    engine_fuel_label: str | None,
+    fuel_representation: str,
     engine_link_status: str,
     bodywork_labels: Mapping[str, str] | None,
     bodywork_canonical: Mapping[str, str] | None,
@@ -460,6 +646,10 @@ def _promotion(
         drive_type=drive_type,
         drive_official_label=drive_official_label,
         drive_code=record.drive_type_code,
+        fuel_components=fuel_components,
+        engine_fuel_code=engine_fuel_code,
+        engine_fuel_label=engine_fuel_label,
+        fuel_representation=fuel_representation,
     )
 
 

@@ -251,3 +251,27 @@ def test_saturated_sibling_ktypes_route_on_real_evidence_separation() -> None:
     assert decision.reason_codes == ("resolved_threshold_met",)
     assert decision.selected_candidate_reference == "KTYPE-EXACT"
     assert decision.hard_conflicts == ()
+
+
+def test_non_hard_bodywork_conflict_cannot_resolve_from_high_score() -> None:
+    match = _match(
+        VehicleMatchQuery(
+            manufacturer="Volvo",
+            model="V70",
+            bodywork="suv",
+        ),
+        VehicleCandidate(
+            "KTYPE-ESTATE",
+            "Volvo",
+            "V70",
+            bodyworks=frozenset({"estate"}),
+        ),
+    )
+
+    decision = ConfidenceRouter().route(match)
+
+    assert match.reason == "context_conflict_requires_review"
+    assert match.candidates[0].conflicting_fields == ("bodywork",)
+    assert decision.route == "review_required"
+    assert decision.reason_codes == ("non_hard_context_conflict",)
+    assert decision.selected_candidate_reference is None

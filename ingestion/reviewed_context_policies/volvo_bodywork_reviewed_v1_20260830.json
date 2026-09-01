@@ -1,0 +1,805 @@
+{
+  "version": "volvo-bodywork-reviewed-v1-20260830",
+  "status": "approved",
+  "rules": [
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-8d2eee2977ad8ab8",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e5*NKS*9994*00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-be3c0d7a9ea2743b",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-d15fb91756aabc93",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*01"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-e6dbae4f78a5687e",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*02"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-01894072336ae2a0",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*03"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-b246561c023c3669",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*04"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-9fc68cf2b13953a9",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*05"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-8bb24a0a94086bd0",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*06"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-8c4edf9bae849ad3",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*07"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-e2bb4f6770864e1a",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*08"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-fd9b9eba0f45980d",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*09"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-ac073a5eae59c2a7",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*10"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-024d9843079b5654",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*11"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-cb4cf433f0596e60",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*12"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-69dcbc1c40da68d2",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*13"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-d16152506fb7b9b8",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*14"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-1ec52c3afd4c79c5",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*15"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-45e5dc96822c6412",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*16"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-21ef4d9116daf17a",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*17"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-953539f7407573ab",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*18"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-ad42ccfb7c7d4491",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC40 (536)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2007/46*3146*21"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-1b3251610fdbd903",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-31c487a5b14e2fe7",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*01"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-81e5feca52d73b97",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*02"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-009282037c5e0abb",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*03"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-cd14eab725a859ee",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*04"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-6083d6a927133c24",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*05"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-e2a0af80d0da8812",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*06"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-5c2e7916659f95df",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*07"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-c89d217c3da7bdae",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*08"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-e6bb2c6458e35953",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*09"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-407f9bee7348a9cb",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*10"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-6801da42e476ad89",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*11"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-f7d4299fb13b9ca9",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*12"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-5da2c838b740f2f3",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*13"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-8db8309ebeea8af8",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*14"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-bd406dd7ef6324e8",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*15"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-e455abe724af9485",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*17"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-cba6befaba09caa4",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*18"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-09b541776c8d7ba2",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*19"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-f1545a6fc164701e",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*22"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-7ff145b8f98882f0",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*23"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-90bbdad09d47eed6",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*25"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-82497bd3cdf4228e",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*26"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-d6800dde07fa71bb",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e4*2007/46*1220*27"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-2b5d23c1b149f07d",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e5*NKS*9993*00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    },
+    {
+      "status": "approved",
+      "rule_id": "BODY-REVIEWED-678ac7f03a8a54d8",
+      "field": "bodywork",
+      "manufacturer": "VOLVO",
+      "model": "XC60 II (246)",
+      "source_value": "estate",
+      "allowed_values": [
+        "suv"
+      ],
+      "source_conditions": {
+        "body_code": "AC",
+        "eeg_type_approval": "e9*2001/116*0068*26"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-30",
+      "evidence_ref": "SCRUM-174; docs/TS_TECDOC_NEXT_GATES_EVIDENCE_2026-08-28.md; explicit activation approval 2026-08-30"
+    }
+  ]
+}

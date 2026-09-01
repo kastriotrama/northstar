@@ -76,6 +76,10 @@ def test_both_promotion_paths_link_variant_directly_to_model_family() -> None:
         assert "MERGE (variant)-[:BUILT_ON]" not in query
         assert "MERGE (variant)-[:HAS_BODY]->(bodywork)" in query
         assert "MERGE (variant)-[:USES_TRANSMISSION]->(transmission)" in query
+        assert "variant.fuel_components = row.fuel_components" in query
+        assert "variant.fuel_representation = row.fuel_representation" in query
+    assert "engine.fuel_components = row.fuel_components" in _PROMOTION_QUERY
+    assert "engine.tecdoc_engine_fuel_code = row.engine_fuel_code" in _PROMOTION_QUERY
 
 
 def test_rejects_multiple_engines_for_one_canonical_variant_before_writing() -> None:

@@ -29,9 +29,10 @@ def pg_connection() -> Iterator[Connection]:
 
 def test_bundle_import_populates_normalizes_verifies_and_retries(
     pg_connection: Connection,
+    current_normalization_bundle: Path,
 ) -> None:
-    first = import_normalization_bundle(pg_connection, FIXTURE)
-    retry = import_normalization_bundle(pg_connection, FIXTURE)
+    first = import_normalization_bundle(pg_connection, current_normalization_bundle)
+    retry = import_normalization_bundle(pg_connection, current_normalization_bundle)
 
     assert first.source_batch_id == "normalization-bundle-fixture-v1"
     assert first.rule_version == "ts-review-fixture-v1"

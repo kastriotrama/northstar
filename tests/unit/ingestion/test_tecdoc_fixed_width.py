@@ -8,6 +8,7 @@ from ingestion.tecdoc.reference_data import (
     canonical_bodywork_by_kt086,
     canonical_drive_by_kt082,
     canonical_engine_fuels,
+    canonical_vehicle_fuels,
     load_key_table_labels,
     official_bodywork_labels,
     official_transmission_type_labels,
@@ -153,6 +154,12 @@ def test_loads_official_key_labels_and_maps_only_supported_fuels(tmp_path: Path)
         make_row(
             "052", key_table_id="088", key="039", description_id="000012777", deleted="0"
         ),
+        make_row(
+            "052", key_table_id="182", key="018", description_id="000012778", deleted="0"
+        ),
+        make_row(
+            "052", key_table_id="182", key="019", description_id="000012779", deleted="0"
+        ),
     ])
     write_table(tmp_path, "030", [
         make_row(
@@ -161,12 +168,21 @@ def test_loads_official_key_labels_and_maps_only_supported_fuels(tmp_path: Path)
         make_row(
             "030", description_id="000012777", language_id="004", text="Bi-Fuel", deleted="0"
         ),
+        make_row(
+            "030", description_id="000012778", language_id="004",
+            text="Petrol/Liquified Petroleum Gas (LPG)", deleted="0"
+        ),
+        make_row(
+            "030", description_id="000012779", language_id="004",
+            text="Petrol/Ethanol", deleted="0"
+        ),
     ])
 
     assert load_key_table_labels(tmp_path, key_table_id="088") == {
         "001": "Petrol", "039": "Bi-Fuel"
     }
     assert canonical_engine_fuels(tmp_path) == {"001": "petrol"}
+    assert canonical_vehicle_fuels(tmp_path) == {"018": "lpg", "019": "ethanol"}
 
 
 def test_exposes_official_bodywork_and_transmission_labels(tmp_path: Path) -> None:

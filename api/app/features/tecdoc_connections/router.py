@@ -23,5 +23,5 @@ def list_resolved(
 ) -> ResolvedConnectionPage:
     try:
         return service.list(query=query, limit=limit, offset=offset)
-    except (OSError, ValueError) as error:
+    except (OSError, TypeError, ValueError) as error:
         raise HTTPException(status_code=503, detail="Resolved connection showcase is unavailable.") from error

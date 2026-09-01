@@ -14,11 +14,13 @@ from ingestion.tecdoc.graph_writer import (
     write_resolved_engine_relationships,
 )
 from ingestion.tecdoc.match_promotion import (
+    MatchAliasRetirement,
     MatchPromotion,
     MatchPromotionConflictError,
     PromotionMode,
     promote_and_attach_matches,
     reconcile_match_promotions,
+    retire_match_aliases,
 )
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
@@ -167,6 +169,173 @@ def test_match_promotion_rejects_one_alias_targeting_multiple_ktypes() -> None:
         promote_and_attach_matches(None, promotions)  # type: ignore[arg-type]
 
 
+def test_superseded_match_alias_is_retired_without_deleting_history(
+    graph_driver: Driver,
+) -> None:
+    variant_id = mint_node_id("VEH")
+    ktype_alias_id = mint_node_id("ALI")
+    predecessor_id = uuid4()
+    successor_id = uuid4()
+    promotion = MatchPromotion(
+        decision_id=predecessor_id,
+        source_system="Transportstyrelsen",
+        source_version="ts-v1",
+        source_entity_key="plate:RET123",
+        alias_type="plate",
+        alias_text="RET123",
+        ktype_reference="retirement-ktype",
+        confidence=0.96,
+    )
+    retirement = MatchAliasRetirement(
+        predecessor_decision_id=predecessor_id,
+        successor_decision_id=successor_id,
+        source_system="Transportstyrelsen",
+        alias_type="plate",
+        alias_text="RET123",
+        reason="current policy requires review",
+    )
+    with graph_driver.session() as session:
+        session.run(
+            "CREATE (:VehicleVariant:Provisional:TecDocWriterFixture {id:$variant_id}) "
+            "CREATE (a:Alias:TecDocWriterFixture {id:$alias_id, source_system:'tecdoc', "
+            "alias_type:'k_type', alias_text:'retirement-ktype', assertion_identity:$identity}) "
+            "WITH a MATCH (v:VehicleVariant {id:$variant_id}) CREATE (a)-[:REFERS_TO]->(v)",
+            variant_id=variant_id,
+            alias_id=ktype_alias_id,
+            identity=build_assertion_identity("tecdoc", f"ktype:{predecessor_id}"),
+        ).consume()
+    try:
+        assert promote_and_attach_matches(
+            graph_driver, (promotion,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        assert retire_match_aliases(graph_driver, (retirement,)) == 1
+        with graph_driver.session() as session:
+            dry_run_state = session.run(
+                "MATCH (a:Alias {match_decision_id:$decision}) "
+                "RETURN a.active AS active, a:Superseded AS superseded, "
+                "count { (a)-[:REFERS_TO]->() } AS current_targets",
+                decision=str(predecessor_id),
+            ).single(strict=True)
+        assert dict(dry_run_state) == {
+            "active": True,
+            "superseded": False,
+            "current_targets": 1,
+        }
+        replacement = MatchPromotion(
+            decision_id=successor_id,
+            source_system="Transportstyrelsen",
+            source_version="ts-v1",
+            source_entity_key="plate:RET123",
+            alias_type="plate",
+            alias_text="RET123",
+            ktype_reference="retirement-ktype",
+            confidence=0.97,
+        )
+        with pytest.raises(MatchPromotionConflictError, match="missing, ambiguous"):
+            promote_and_attach_matches(graph_driver, (replacement,))
+
+        assert retire_match_aliases(
+            graph_driver, (retirement,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        assert retire_match_aliases(
+            graph_driver, (retirement,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        with graph_driver.session() as session:
+            retired_state = session.run(
+                "MATCH (a:Alias {match_decision_id:$decision}) "
+                "OPTIONAL MATCH (a)-[history:PREVIOUSLY_REFERRED_TO]->(v:VehicleVariant) "
+                "RETURN a.active AS active, a:Superseded AS superseded, "
+                "a.retired_by_decision_id AS successor, "
+                "a.retirement_reason AS reason, count(history) AS history_edges, "
+                "count { (a)-[:REFERS_TO]->() } AS current_targets, "
+                "v:Provisional AS provisional, "
+                "v.ktype_promotion_decision_id AS promotion_decision",
+                decision=str(predecessor_id),
+            ).single(strict=True)
+        assert dict(retired_state) == {
+            "active": False,
+            "superseded": True,
+            "successor": str(successor_id),
+            "reason": "current policy requires review",
+            "history_edges": 1,
+            "current_targets": 0,
+            "provisional": True,
+            "promotion_decision": None,
+        }
+    finally:
+        with graph_driver.session() as session:
+            session.run(
+                "MATCH (v:VehicleVariant {id:$variant_id}) "
+                "OPTIONAL MATCH (a:Alias)-[]->(v) DETACH DELETE a, v",
+                variant_id=variant_id,
+            ).consume()
+
+
+def test_retirement_keeps_variant_promoted_when_another_active_alias_remains(
+    graph_driver: Driver,
+) -> None:
+    variant_id = mint_node_id("VEH")
+    ktype_alias_id = mint_node_id("ALI")
+    retired_id = uuid4()
+    retained_id = uuid4()
+    promotions = tuple(
+        MatchPromotion(
+            decision_id=decision_id,
+            source_system="Transportstyrelsen",
+            source_version="ts-v1",
+            source_entity_key=f"plate:{plate}",
+            alias_type="plate",
+            alias_text=plate,
+            ktype_reference="shared-retirement-ktype",
+            confidence=0.96,
+        )
+        for decision_id, plate in ((retired_id, "RET111"), (retained_id, "KEEP11"))
+    )
+    retirement = MatchAliasRetirement(
+        predecessor_decision_id=retired_id,
+        successor_decision_id=uuid4(),
+        source_system="Transportstyrelsen",
+        alias_type="plate",
+        alias_text="RET111",
+        reason="current policy requires review",
+    )
+    with graph_driver.session() as session:
+        session.run(
+            "CREATE (:VehicleVariant:Provisional:TecDocWriterFixture {id:$variant_id}) "
+            "CREATE (a:Alias:TecDocWriterFixture {id:$alias_id, source_system:'tecdoc', "
+            "alias_type:'k_type', alias_text:'shared-retirement-ktype', "
+            "assertion_identity:$identity}) "
+            "WITH a MATCH (v:VehicleVariant {id:$variant_id}) CREATE (a)-[:REFERS_TO]->(v)",
+            variant_id=variant_id,
+            alias_id=ktype_alias_id,
+            identity=build_assertion_identity("tecdoc", f"ktype:{retired_id}"),
+        ).consume()
+    try:
+        assert promote_and_attach_matches(
+            graph_driver, promotions, mode=PromotionMode.CONTROLLED
+        ) == 2
+        assert retire_match_aliases(
+            graph_driver, (retirement,), mode=PromotionMode.CONTROLLED
+        ) == 1
+        with graph_driver.session() as session:
+            state = session.run(
+                "MATCH (v:VehicleVariant {id:$variant_id}) "
+                "RETURN v:Provisional AS provisional, "
+                "count { (:Alias {match_decision_id:$retained})-[:REFERS_TO]->(v) } "
+                "AS retained_aliases",
+                variant_id=variant_id,
+                retained=str(retained_id),
+            ).single(strict=True)
+        assert dict(state) == {"provisional": False, "retained_aliases": 1}
+    finally:
+        with graph_driver.session() as session:
+            session.run(
+                "MATCH (v:VehicleVariant {id:$variant_id}) "
+                "OPTIONAL MATCH (a:Alias)-[]->(v) DETACH DELETE a, v",
+                variant_id=variant_id,
+            ).consume()
+
+
 def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) -> None:
     manufacturer_id = mint_node_id("MFR")
     family_id = mint_node_id("FAM")
@@ -207,6 +376,10 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
         bodywork_name="sedan",
         bodywork_official_label="Saloon",
         transmission_type_name="Fully Automatic",
+        fuel_components=("diesel",),
+        engine_fuel_code="002",
+        engine_fuel_label="Diesel",
+        fuel_representation="single",
     )
     try:
         assert promote_canonical_vehicles(graph_driver, (promotion,)) == 1
@@ -223,7 +396,10 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
                 "f.id AS family, m.id AS manufacturer, t.id AS transmission, "
                 "t.speeds AS speeds, t.transmission_type_name AS transmission_type, "
                 "b.id AS bodywork, b.tecdoc_body_type_code AS body_code, "
-                "b.canonical_name AS body_name",
+                "b.canonical_name AS body_name, "
+                "v.fuel_components AS variant_fuels, "
+                "e.fuel_components AS engine_fuels, "
+                "e.tecdoc_engine_fuel_code AS engine_fuel_code",
                 alias_id=alias_id,
                 family_id=family_id,
             ).single(strict=True)
@@ -245,6 +421,9 @@ def test_promotes_complete_ktype_hierarchy_idempotently(graph_driver: Driver) ->
             "bodywork": bodywork_id,
             "body_code": "027",
             "body_name": "sedan",
+            "variant_fuels": ["diesel"],
+            "engine_fuels": ["diesel"],
+            "engine_fuel_code": "002",
         }
         assert model_family_links == 1
     finally:

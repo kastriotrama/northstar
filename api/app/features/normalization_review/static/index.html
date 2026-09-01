@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#102b2a" />
     <title>NorthStar · Normalization review</title>
-    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=15" />
+    <link rel="stylesheet" href="/normalization-review/assets/styles.css?v=17" />
   </head>
   <body>
     <div class="app-shell">
@@ -20,6 +20,7 @@
           <button class="view-tab" type="button" data-view="queue">Review queue</button>
           <button class="view-tab" type="button" data-view="tecdoc">TecDoc</button>
           <button class="view-tab" type="button" data-view="connections">TS connections</button>
+          <button class="view-tab" type="button" data-view="match-review">Match blockers</button>
           <button class="view-tab" type="button" data-view="guide">Decision guide</button>
           <a class="view-tab view-tab-link" href="/match-review">Match review</a>
         </nav>
@@ -218,8 +219,8 @@
 
       <div id="connections-view" hidden>
         <section class="connection-summary">
-          <div class="connection-title"><span class="eyebrow">Resolved TS → TecDoc connections</span><h1>1,000 vehicles with selected KTypes.</h1><p>Restricted local meeting view with registration plates. VIN and raw source records remain hidden.</p></div>
-          <dl><div><dt>Vehicles shown</dt><dd>1,000</dd></div><div><dt>Match route</dt><dd>Resolved</dd></div><div><dt>KType coverage</dt><dd>100%</dd></div><div><dt>Graph aliases</dt><dd>0</dd></div></dl>
+          <div class="connection-title"><span class="eyebrow">TS → TecDoc validation cohort</span><h1>1,000 stored KType decisions.</h1><p>Restricted local meeting view with registration plates. Current gates identify decisions that require a controlled rerun.</p></div>
+          <dl><div><dt>Vehicles shown</dt><dd>1,000</dd></div><div><dt>Current resolved</dt><dd id="connections-current-resolved">—</dd></div><div><dt>Rerun required</dt><dd id="connections-rerun-required">—</dd></div><div><dt>Graph aliases</dt><dd>0</dd></div></dl>
         </section>
         <main class="connection-workspace">
           <section class="connection-list">
@@ -237,6 +238,88 @@
             <section><h3>Selection gates</h3><div id="connection-gates" class="connection-gates"></div></section>
             <section><h3>Decision trace</h3><ol id="connection-trace" class="connection-trace"></ol></section>
             <section class="connection-decision"><h3>Why this KType was selected</h3><strong id="connection-decision-title">Choose a row to inspect its connection</strong><p id="connection-decision-copy">The selected vehicle will show its plate, normalized TS evidence and matched TecDoc KType.</p></section>
+          </aside>
+        </main>
+      </div>
+
+      <div id="match-review-view" hidden>
+        <section class="match-review-summary">
+          <div>
+            <span class="eyebrow">Full TS → TecDoc audit</span>
+            <h1><span id="match-review-processed">0</span> of <span id="match-review-expected">6,515,471</span> checked</h1>
+            <div class="audit-progress"><span id="match-review-progress-fill"></span></div>
+            <p id="match-review-run-label">Loading the latest pinned matcher run…</p>
+          </div>
+          <dl>
+            <div><dt>Resolved</dt><dd id="match-review-resolved">—</dd></div>
+            <div><dt>Provisional</dt><dd id="match-review-provisional">—</dd></div>
+            <div><dt>Review required</dt><dd id="match-review-required">—</dd></div>
+            <div><dt>Hard conflicts</dt><dd id="match-review-hard">—</dd></div>
+          </dl>
+        </section>
+        <main class="match-review-workspace">
+          <nav class="blocker-categories" aria-label="Matcher blocker categories">
+            <header><span class="eyebrow">Primary blockers</span><strong>Choose a category</strong></header>
+            <div id="match-review-categories"></div>
+          </nav>
+          <section class="match-review-results">
+            <header class="match-review-list-head">
+              <div><span class="eyebrow" id="match-review-category-label">All categories</span><h2>Evidence samples</h2></div>
+              <label><span>Status</span><select id="match-review-status"><option value="">All decisions</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Decided</option></select></label>
+              <label><span>Patterns shown</span><select id="match-review-pattern-limit"><option value="10">Top 10</option><option value="25">Top 25</option><option value="50">Top 50</option><option value="all">All patterns</option></select></label>
+            </header>
+            <nav class="match-review-mode-tabs" aria-label="Review level">
+              <button id="match-review-pattern-mode" class="active" type="button">Rule patterns</button>
+              <button id="match-review-vehicle-mode" type="button">Vehicle evidence</button>
+            </nav>
+            <div class="sensitive-data-note">Restricted local review · real registration plates may be visible · decisions do not write Neo4j</div>
+            <details class="domain-decision-panel" open>
+              <summary><span><span class="eyebrow">Before vehicle review</span><strong>Three domain decisions drive the merge</strong></span><span class="domain-decision-toggle">Hide details</span></summary>
+              <div class="domain-decision-cards">
+                <article><header><span class="domain-decision-number">01</span><div><strong>Bodywork vocabulary</strong><small id="domain-bodywork-count">Loading conflict count…</small></div></header><p>TS has no SUV class: `AC` is a broad estate/station-wagon code, while TecDoc may say SUV.</p><div class="domain-decision-example"><b>Example</b><span>Volvo XC40/XC60 · TS AC/estate → TecDoc SUV</span></div><button type="button" data-domain-filter="bodywork_conflict">View bodywork patterns</button></article>
+                <article><header><span class="domain-decision-number">02</span><div><strong>Fuel representation</strong><small id="domain-fuel-count">Loading technical conflict count…</small></div></header><p>TS can report petrol + electricity while TecDoc stores hybrid or mixed-fuel sets. Overlap is not proof of identity.</p><div class="domain-decision-example"><b>Example</b><span>TS petrol/electricity → TecDoc hybrid or mixed-fuel KTypes</span></div><button type="button" data-domain-filter="hard_technical_conflict">View technical patterns</button></article>
+                <article><header><span class="domain-decision-number">03</span><div><strong>Drive meaning</strong><small id="domain-drive-count">Loading technical conflict count…</small></div></header><p>TS `is_4wd=0` means not 4WD; it does not tell us whether the car is FWD or RWD.</p><div class="domain-decision-example"><b>Example</b><span>TS 0 → TecDoc candidates split between FWD and RWD</span></div><button type="button" data-domain-filter="hard_technical_conflict">View technical patterns</button></article>
+              </div>
+            </details>
+            <div id="match-review-pattern-list" class="match-review-table-wrap"><p id="match-review-pattern-count" class="section-hint">Showing the top patterns first.</p><table><thead><tr><th>Recurring pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th>Occurrences</th><th>Rule status</th></tr></thead><tbody id="match-review-pattern-rows"></tbody></table><div id="match-review-pattern-empty" class="empty-state" hidden><strong>No recurring patterns yet</strong><p>The exhaustive inventory is populated as audit batches are processed.</p></div></div>
+            <div id="match-review-vehicle-list" class="match-review-table-wrap" hidden><table><thead><tr><th>TS vehicle</th><th>Blocker</th><th>Suggested KType</th><th>Decision</th></tr></thead><tbody id="match-review-rows"></tbody></table><div id="match-review-empty" class="empty-state" hidden><strong>No sampled vehicles yet</strong><p>The full audit can continue while a bounded evidence sample is prepared.</p></div></div>
+            <footer class="pagination"><button id="match-review-previous" type="button">Previous</button><span id="match-review-page-label">0 vehicles</span><button id="match-review-next" type="button">Next</button></footer>
+          </section>
+          <aside class="match-review-inspector">
+            <div id="match-review-inspector-empty" class="inspector-empty"><span class="inspector-glyph">!</span><strong>Select a blocker</strong><p>Compare immutable TS evidence with every returned TecDoc candidate.</p></div>
+            <form id="match-review-pattern-form" hidden>
+              <header><div><span class="eyebrow" id="match-review-pattern-category">Rule pattern</span><h2 id="match-review-pattern-title">Recurring conflict</h2></div><span class="queue-state queue-pending">Proposal</span></header>
+              <section class="match-review-guidance"><strong id="match-review-pattern-summary">Review the repeated source-to-catalog relationship.</strong><p id="match-review-pattern-why">Pattern decisions are versioned proposals. They do not activate a normalization rule or change a KType.</p><p id="match-review-pattern-question"></p></section>
+              <section><h3>Pattern evidence</h3><dl id="match-review-pattern-values" class="field-list"></dl></section>
+              <section id="match-review-technical-breakdown" hidden><h3>Why this technical conflict matters</h3><div id="match-review-technical-fields" class="technical-breakdown"></div><p class="section-hint">This is an aggregate explanation. Use the vehicle evidence pages only when an individual TS value must be checked.</p></section>
+              <section id="match-review-technical-evidence" hidden><h3>Exact field comparison</h3><div id="match-review-technical-comparisons" class="technical-comparisons"></div><p class="section-hint">Values are representative and plate-free. A decision still requires independent source verification.</p></section>
+              <section><h3>Evidence still needed</h3><ul id="match-review-pattern-gaps" class="evidence-gap-list"></ul></section>
+              <section><h3>Representative model families</h3><div id="match-review-pattern-examples" class="pattern-examples"></div></section>
+              <section><h3>Vehicles in this pattern</h3><p id="match-review-pattern-member-count" class="section-hint">Select a pattern to load its vehicles.</p><div id="match-review-pattern-members" class="pattern-examples"></div><footer class="pattern-member-pagination"><button id="match-review-pattern-members-previous" type="button">Previous</button><span id="match-review-pattern-members-page">0 vehicles</span><button id="match-review-pattern-members-next" type="button">Next</button></footer></section>
+              <section class="match-review-decision-fields"><h3>Stakeholder rule choice</h3>
+                <label><span>Reviewer</span><input id="match-review-pattern-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Choice</span><select id="match-review-pattern-action"><option value="accept_pattern">Accept shown mapping as a rule proposal</option><option value="keep_blocked">Keep this pattern blocked</option><option value="change_rule">Change the target value</option></select></label>
+                <label id="match-review-pattern-values-field" hidden><span>Correct target values · comma separated</span><input id="match-review-pattern-selected-values" type="text" maxlength="500" placeholder="SUV, estate" /></label>
+                <label><span>Evidence note</span><textarea id="match-review-pattern-note" minlength="5" maxlength="1000" required placeholder="Explain the domain evidence for this category rule"></textarea></label>
+              </section>
+              <footer class="match-review-actions"><button id="match-review-pattern-save" class="primary-button" type="button">Record rule choice</button></footer>
+            </form>
+            <form id="match-review-form" hidden>
+              <header><div><span class="eyebrow" id="match-review-detail-category">Blocker</span><h2 id="match-review-detail-title">Vehicle</h2></div><span id="match-review-detail-status" class="queue-state queue-pending">Pending</span></header>
+              <section class="match-review-guidance"><strong id="match-review-guidance">Keep unresolved until evidence is sufficient.</strong><p id="match-review-reasons"></p><p id="match-review-why"></p><p id="match-review-question"></p></section>
+              <section><h3>Transportstyrelsen evidence</h3><dl id="match-review-source" class="field-list"></dl></section>
+              <section><h3>Gate comparison</h3><dl id="match-review-comparison" class="field-list"></dl></section>
+              <section><h3>Evidence still needed</h3><ul id="match-review-gaps" class="evidence-gap-list"></ul></section>
+              <section><h3>TecDoc candidates</h3><div id="match-review-candidates" class="candidate-choice-list"></div></section>
+              <section id="match-review-recorded" hidden><h3>Recorded decision</h3><dl id="match-review-resolution" class="field-list"></dl></section>
+              <section id="match-review-decision-fields" class="match-review-decision-fields">
+                <h3>Stakeholder decision</h3>
+                <label><span>Reviewer</span><input id="match-review-reviewer" type="text" maxlength="120" required placeholder="Your name" /></label>
+                <label><span>Scope</span><select id="match-review-scope"><option value="vehicle_only">This vehicle only</option><option value="category_proposal">Propose a reviewed category rule</option></select></label>
+                <label><span>Evidence note</span><textarea id="match-review-note" minlength="5" maxlength="1000" required placeholder="Explain why this KType is right, or why the row must stay unresolved"></textarea></label>
+              </section>
+              <footer id="match-review-actions" class="match-review-actions"><button id="match-review-accept" class="primary-button" type="button">Accept suggested</button><button id="match-review-select" class="secondary-button" type="button">Use selected KType</button><button id="match-review-unresolved" class="text-button danger" type="button">Keep unresolved</button></footer>
+            </form>
           </aside>
         </main>
       </div>
@@ -347,7 +430,7 @@
         </section>
         <main class="queue-workspace">
           <section class="queue-results">
-            <div class="toolbar"><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
+            <div class="toolbar"><label class="compact-filter"><span>Batch</span><input id="queue-batch" type="text" maxlength="200" placeholder="Current normalized batch" /></label><label class="compact-filter"><span>Status</span><select id="queue-status"><option value="">All queue items</option><option value="pending">Pending</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="rejected">Rejected</option></select></label><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
             <div class="result-meta"><span id="queue-result-count">Loading queue…</span><span>Newest activity first</span></div>
             <div class="table-wrap"><table class="queue-table"><thead><tr><th>Vehicle evidence</th><th>Reason</th><th>Confidence</th><th>Queue state</th></tr></thead><tbody id="queue-rows"></tbody></table><div id="queue-empty" class="empty-state" hidden><strong>No review items in this view</strong><p>Review-required imports are added automatically.</p></div></div>
             <section class="rule-change-history"><div><span class="eyebrow">Pending governance work</span><h2>Current rule drafts</h2><p class="section-hint">Only unactivated drafts from the Rules workspace and vehicle reviews are shown here.</p></div><div id="queue-rule-changes" class="rule-change-list"><p>No rule drafts recorded yet.</p></div></section>
@@ -368,7 +451,14 @@
                 <label id="queue-rule-reference-label" hidden><span>Existing rule/entity ID</span><input id="queue-rule-reference" type="text" maxlength="160" placeholder="For example MFE-… or BDY-110" /></label>
                 <label><span>Review reason</span><textarea id="queue-decision-reason" minlength="5" maxlength="1000" required placeholder="Explain the evidence behind this decision"></textarea></label>
               </section>
+              <section id="queue-calibration-fields" class="editor-section editor-fields" hidden>
+                <h3>KType calibration verdict</h3>
+                <p class="section-hint">Accept only when the top candidate is the correct KType. Reject when it is wrong; use unsure when the evidence is insufficient.</p>
+                <label><span>Reviewer</span><input id="queue-calibration-reviewer" type="text" maxlength="120" placeholder="Your name" /></label>
+                <label><span>Evidence note</span><textarea id="queue-calibration-reason" minlength="5" maxlength="1000" placeholder="Explain why the top candidate is correct, wrong, or uncertain"></textarea></label>
+              </section>
               <footer id="queue-actions" class="editor-actions"><button id="start-review" class="text-button" type="button">Start review</button><button id="save-review-draft" class="text-button" type="button">Save review draft</button><button class="primary-button" type="submit">Approve decision</button><button id="reject-review" class="text-button danger" type="button">Reject</button></footer>
+              <footer id="queue-calibration-actions" class="editor-actions" hidden><button class="primary-button calibration-verdict" data-verdict="accept" type="button">Accept top candidate</button><button class="text-button danger calibration-verdict" data-verdict="reject" type="button">Reject top candidate</button><button class="text-button calibration-verdict" data-verdict="unsure" type="button">Unsure</button></footer>
             </form>
           </aside>
         </main>
@@ -407,6 +497,6 @@
       </div>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/normalization-review/assets/app.js?v=23" defer></script>
+    <script src="/normalization-review/assets/app.js?v=29" defer></script>
   </body>
 </html>

@@ -1,0 +1,44 @@
+{
+  "version": "peugeot-3008-hns-reviewed-v1-20260831",
+  "status": "approved",
+  "reviewed_by": "product-owner-chat-approval-2026-08-31",
+  "evidence_ref": "docs/TS_TECDOC_HARD_CONFLICT_REPAIR_2026-08-31.md",
+  "rules": [
+    {
+      "rule_id": "SRC-MODEL-PEUGEOT-3008-HNSU-0534-25-V1",
+      "status": "approved",
+      "manufacturer": "PEUGEOT",
+      "source_model": "3008",
+      "target_model": "3008 II SUV (MC_, MR_, MJ_, M4_)",
+      "source_conditions": {
+        "eeg_type_approval": "e2*2007/46*0534*25",
+        "type_text": "M",
+        "variant": "R",
+        "version": "HNSU-C16E00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-31",
+      "evidence_ref": "docs/TS_TECDOC_HARD_CONFLICT_REPAIR_2026-08-31.md"
+    },
+    {
+      "rule_id": "SRC-MODEL-PEUGEOT-3008-HNSU-0534-26-V1",
+      "status": "approved",
+      "manufacturer": "PEUGEOT",
+      "source_model": "3008",
+      "target_model": "3008 II SUV (MC_, MR_, MJ_, M4_)",
+      "source_conditions": {
+        "eeg_type_approval": "e2*2007/46*0534*26",
+        "type_text": "M",
+        "variant": "R",
+        "version": "HNSU-C16E00"
+      },
+      "reviewed_by": "product-owner-chat-approval-2026-08-31",
+      "evidence_ref": "docs/TS_TECDOC_HARD_CONFLICT_REPAIR_2026-08-31.md"
+    }
+  ],
+  "constraints": [
+    "The rules select a catalog family query, never a KType or engine identity.",
+    "Every source condition is exact; approval extensions are not generalized.",
+    "Normal year, fuel, displacement, power, bodywork and candidate-margin gates remain active.",
+    "The rules must be checksum-pinned and pass the frozen holdout before runtime activation."
+  ]
+}

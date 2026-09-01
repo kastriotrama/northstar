@@ -92,6 +92,56 @@ def test_recognized_manufacturer_alias_uses_exact_scope() -> None:
     assert result.candidates[0].candidate_reference == "KTYPE-100"
 
 
+def test_mixed_fuel_components_are_compatible_without_confirming_a_match() -> None:
+    candidate = VehicleCandidate(
+        "mixed", "Saab", "9-3", fuel_components=frozenset({"petrol", "alcohol_unspecified"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    score = matcher._score(
+        VehicleMatchQuery("9-3", manufacturer="Saab", fuels=frozenset({"petrol"})),
+        candidate,
+    )
+
+    assert "fuels_compatible_not_confirmed" in score.missing_fields
+    assert "fuels" not in score.matched_fields
+    assert "fuels" not in score.conflicting_fields
+
+
+def test_mixed_fuel_components_reject_a_disjoint_observed_fuel() -> None:
+    candidate = VehicleCandidate(
+        "mixed", "Saab", "9-3", fuel_components=frozenset({"petrol", "alcohol_unspecified"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    score = matcher._score(
+        VehicleMatchQuery("9-3", manufacturer="Saab", fuels=frozenset({"diesel"})),
+        candidate,
+    )
+
+    assert "fuels" in score.conflicting_fields
+
+
+def test_engine_code_is_compared_to_the_full_candidate_engine_set() -> None:
+    candidate = VehicleCandidate(
+        "multi-engine", "Opel", "Insignia", engine_codes=frozenset({"A19DTR", "Z19DTR"}),
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    matched = matcher._score(
+        VehicleMatchQuery("Insignia", manufacturer="Opel", engine_code="Z 19 DTR"),
+        candidate,
+    )
+    conflict = matcher._score(
+        VehicleMatchQuery("Insignia", manufacturer="Opel", engine_code="B20DTH"),
+        candidate,
+    )
+
+    assert "engine_code" in matched.matched_fields
+    assert "engine_code" not in matched.conflicting_fields
+    assert "engine_code" in conflict.conflicting_fields
+
+
 def test_noisy_manufacturer_is_scoped_but_never_auto_resolved() -> None:
     result = _matcher().match(VehicleMatchQuery(manufacturer="Volov", model="XC90"))
 
@@ -130,6 +180,48 @@ def test_index_recovers_model_from_alternative_scoped_evidence() -> None:
         "Volvo",
         {"variant": "XC90 T8", "version": "UNKNOWN"},
     ) == ("XC90", "variant")
+
+
+def test_recovery_attribution_prefers_specific_evidence_over_brand_on_tie() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90", "variant": "XC90 T8"},
+    ) == ("XC90", "variant")
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90", "eeg_type_approval": "XC90"},
+    ) == ("XC90", "eeg_type_approval")
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"brand": "VOLVO XC90"},
+    ) == ("XC90", "brand")
+
+
+def test_recovery_tolerates_an_evidence_field_outside_the_known_order() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    # An unlisted field must still recover rather than raising.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"trade_name": "VOLVO XC90"},
+    ) == ("XC90", "trade_name")
+    # Known fields still outrank unlisted ones on a tie.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"trade_name": "XC90", "variant": "XC90"},
+    ) == ("XC90", "variant")
+
+
+def test_registry_model_text_outranks_incidental_evidence_fields() -> None:
+    index = ManufacturerCandidateIndex(_catalog())
+
+    # The model column states the model; brand merely happens to contain it.
+    assert index.recover_model_from_evidence(
+        "Volvo",
+        {"model": "XC90", "brand": "VOLVO XC90"},
+    ) == ("XC90", "model")
 
 
 def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
@@ -522,3 +614,41 @@ def test_exact_power_still_outranks_a_within_tolerance_sibling() -> None:
     )
 
     assert result.candidates[0].candidate_reference == "KTYPE-EXACT"
+
+
+def test_reviewed_fuel_vocabulary_equivalents_match_exactly() -> None:
+    for ts_fuel, tecdoc_fuel in (("electricity", "electric"), ("methane", "cng")):
+        candidate = VehicleCandidate(
+            "KTYPE-1", "Volvo", "XC40", fuels=frozenset({tecdoc_fuel})
+        )
+        result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,))).match(
+            VehicleMatchQuery(
+                manufacturer="Volvo", model="XC40", fuels=frozenset({ts_fuel})
+            )
+        )
+
+        assert "fuels" in result.candidates[0].matched_fields
+        assert "fuels" not in result.candidates[0].conflicting_fields
+
+
+def test_hybrid_category_requires_both_underlying_ts_carriers() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-1", "Volvo", "XC60", fuels=frozenset({"hybrid_petrol"})
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+
+    compatible = matcher.match(
+        VehicleMatchQuery(
+            manufacturer="Volvo",
+            model="XC60",
+            fuels=frozenset({"petrol", "electricity"}),
+        )
+    ).candidates[0]
+    incomplete = matcher.match(
+        VehicleMatchQuery(
+            manufacturer="Volvo", model="XC60", fuels=frozenset({"electricity"})
+        )
+    ).candidates[0]
+
+    assert "fuels" in compatible.matched_fields
+    assert "fuels" in incomplete.conflicting_fields

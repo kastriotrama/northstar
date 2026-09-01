@@ -1,337 +1,166 @@
-"""Request and response contracts for the chunk review workspace."""
-
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
-from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-ChunkStatus = Literal["open", "proposed", "approved", "rejected", "split"]
-Recommendation = Literal[
-    "assign_ktype", "split_chunk", "needs_more_evidence", "no_safe_match"
-]
+
+class MatchRunCountsView(BaseModel):
+    resolved: int = 0
+    provisional: int = 0
+    review_required: int = 0
+    unmatched: int = 0
+    hard_conflict: int = 0
+    normalization_review: int = 0
+    policy_excluded: int = 0
+    failed: int = 0
 
 
-class BuildSummary(BaseModel):
-    build_id: UUID
-    source_batch_id: str
-    signature_version: str
-    status: str
-    row_count: int
-    chunk_count: int
-    started_at: datetime
-    finished_at: datetime | None
+class MatchBlockerCategoryView(BaseModel):
+    code: str
+    title: str
+    guidance: str
+    count: int = 0
+    pending: int = 0
+    in_review: int = 0
+    decided: int = 0
 
 
-class ChunkListItem(BaseModel):
-    chunk_id: UUID
-    signature: dict[str, Any]
-    member_count: int
-    reason_profile: dict[str, int]
-    status: ChunkStatus
+class MatchRunReviewSummary(BaseModel):
+    operation_id: str | None = None
+    status: str = "not_started"
+    processed: int = 0
+    expected_source_rows: int = 0
+    progress_percent: float = 0.0
+    last_batch_number: int = 0
+    candidate_catalog_version: str | None = None
+    policy_version: str | None = None
+    updated_at: datetime | None = None
+    counts: MatchRunCountsView = Field(default_factory=MatchRunCountsView)
+    blockers: list[MatchBlockerCategoryView] = Field(default_factory=list)
 
 
-class ChunkPage(BaseModel):
-    build: BuildSummary
-    total: int
-    decided_members: int
-    items: list[ChunkListItem]
-
-
-class MemberSummary(BaseModel):
+class MatchReviewItemView(BaseModel):
+    id: int
+    operation_id: str
+    category: str
+    category_title: str
+    category_guidance: str
     source_record_id: int
-    source_batch_id: str
-    normalization_status: str
-    review_reasons: list[str]
-    plate: str | None
-    source_manufacturer: str | None
-    source_model: str | None
-    source_year: str | None
-    label: str
+    source_batch_id: str | None = None
+    source_evidence: dict[str, Any] = Field(default_factory=dict)
+    reason_codes: list[str] = Field(default_factory=list)
+    candidate_matches: list[dict[str, Any]] = Field(default_factory=list)
+    confidence: float | None = None
+    blocker_explanation: str = ""
+    decision_question: str = ""
+    evidence_gaps: list[str] = Field(default_factory=list)
+    field_comparison: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["pending", "in_review", "resolved", "rejected"]
+    resolution: dict[str, Any] = Field(default_factory=dict)
+    resolved_by: str | None = None
+    updated_at: datetime
 
 
-class UnresolvedPopulation(BaseModel):
-    source_field: str
-    source_value: str
-    signature_field: str
-    row_count: int
+class MatchReviewPage(BaseModel):
+    operation_id: str
+    category: str | None = None
+    total: int
+    limit: int
+    offset: int
+    items: list[MatchReviewItemView]
 
 
-class UnresolvedOverview(BaseModel):
-    build_id: UUID
-    populations: list[UnresolvedPopulation]
-
-
-class DiscriminatorField(BaseModel):
-    field: str
-    distinct_count: int
-    present_count: int
-    coverage: float
-    separation: float
-    concision: float
-    score: float
-    usable: bool
-    top_values: list[FieldValueCount]
-
-
-class DiscriminatorReport(BaseModel):
-    build_id: UUID
-    source_field: str
-    source_value: str
-    signature_field: str
-    population: int
-    fields: list[DiscriminatorField]
-
-
-class RuleCondition(BaseModel):
-    """One clause. Values are OR-ed; clauses are AND-ed together."""
-
-    field: str = Field(min_length=1, max_length=60)
-    value: str | None = Field(default=None, max_length=200)
-    values: list[str] | None = Field(default=None, max_length=50)
-    layer: Literal["source", "normalized"] = Field(
-        default="source",
-        description=(
-            "`source` matches the registry string verbatim; `normalized` "
-            "matches the canonical value derived from it."
-        ),
-    )
-    operator: Literal[
-        "equals", "not_equals", "starts_with", "contains", "gte", "lte"
-    ] = "equals"
+class MatchReviewDecisionRequest(BaseModel):
+    action: Literal["accept_top_candidate", "select_candidate", "keep_unresolved"]
+    reviewer: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=5, max_length=1000)
+    selected_candidate_reference: str | None = Field(default=None, max_length=160)
+    scope: Literal["vehicle_only", "category_proposal"] = "vehicle_only"
 
     @model_validator(mode="after")
-    def _require_terms(self) -> RuleCondition:
-        if not self.terms:
-            raise ValueError("condition needs `value` or a non-empty `values`")
-        if self.operator in {"gte", "lte"} and len(self.terms) != 1:
-            raise ValueError(f"{self.operator} takes exactly one value")
+    def validate_candidate_selection(self) -> "MatchReviewDecisionRequest":
+        if self.action == "select_candidate" and not self.selected_candidate_reference:
+            raise ValueError("selected_candidate_reference is required")
+        if self.action != "select_candidate" and self.selected_candidate_reference is not None:
+            raise ValueError("selected_candidate_reference is only valid when selecting a candidate")
         return self
 
-    @property
-    def terms(self) -> tuple[str, ...]:
-        source = self.values if self.values else ([self.value] if self.value else [])
-        return tuple(item for item in source if item and item.strip())
+
+class MatchReviewPatternExample(BaseModel):
+    manufacturer: str
+    model: str
+    candidate_reference: str | None = None
 
 
-class RulePreviewRequest(BaseModel):
-    build_id: UUID
-    conditions: list[RuleCondition] = Field(min_length=1, max_length=6)
-    target_field: str = Field(min_length=1, max_length=60)
-    target_value: str = Field(min_length=1, max_length=80)
-
-
-class RulePreview(BaseModel):
-    conditions: list[RuleCondition]
-    target_field: str
-    target_value: str
-    matched_rows: int
-    would_resolve: int
-    already_resolved: int
-    sample_plates: list[str]
-
-
-class ComparisonRow(BaseModel):
-    field: str
-    source_field: str | None
-    resolvable: bool = Field(
-        default=False,
-        description=(
-            "True when this source field has an unresolved-population view, so "
-            "the screen can link straight to authoring a rule for it."
-        ),
-    )
-    status: Literal["resolved", "unresolved", "missing"]
-    source_value: str | None
-    normalized_value: str | None
-    oem_value: str | None
-    conflict: bool | None = Field(
-        description=(
-            "True when normalized and OEM evidence disagree; null while no "
-            "OEM evidence exists for this vehicle."
-        )
-    )
-
-
-class FieldValueCount(BaseModel):
-    value: str
-    count: int
-    meaning: str | None = Field(
-        default=None,
-        description="What the register means by this code, when it defines one.",
-    )
-
-
-class FieldVariance(BaseModel):
-    field: str
-    distinct_count: int
-    present_count: int
-    uniform: bool
-    top_values: list[FieldValueCount]
-
-
-class ChunkFieldProfile(BaseModel):
-    chunk_id: UUID
-    member_count: int
-    scanned_members: int
-    truncated: bool = Field(
-        description="True when the chunk is larger than the scan limit."
-    )
-    varying_fields: list[str]
-    fields: list[FieldVariance]
-
-
-class MemberComparison(BaseModel):
-    source_record_id: int
-    label: str
-    plate: str | None
-    has_oem_evidence: bool
-    rows: list[ComparisonRow]
-
-
-class OemSampleSummary(BaseModel):
-    sample_id: int
-    source_record_id: int
-    provider: str
-    masked_vin: str
-    dataset_version: str
-    fetched_at: datetime
-    reused_cached_evidence: bool
-    response_payload: dict[str, Any]
-
-
-class ProposalSummary(BaseModel):
-    proposal_id: UUID
-    proposal_source: Literal["heuristic", "agent", "human"]
-    adjudicator_version: str
-    recommendation: Recommendation
-    target_ktype_reference: str | None
-    confidence: float
-    evidence: dict[str, Any]
-    reasoning: str
-    status: Literal["proposed", "approved", "rejected"]
-    reviewed_by: str | None
-    review_note: str | None
-    reviewed_at: datetime | None
+class MatchReviewPatternDecision(BaseModel):
+    decision_id: str
+    action: Literal["accept_pattern", "keep_blocked", "change_rule"]
+    selected_values: list[str] = Field(default_factory=list)
+    reviewer: str
+    reason: str
     created_at: datetime
 
 
-class ChunkDetail(BaseModel):
-    chunk_id: UUID
-    build_id: UUID
-    signature: dict[str, Any]
-    member_count: int
-    reason_profile: dict[str, int]
-    status: ChunkStatus
-    members: list[MemberSummary]
-    oem_samples: list[OemSampleSummary]
-    proposals: list[ProposalSummary]
+class MatchReviewPatternView(BaseModel):
+    pattern_key: str
+    category: str
+    title: str
+    summary: str
+    source_values: dict[str, Any] = Field(default_factory=dict)
+    candidate_values: dict[str, Any] = Field(default_factory=dict)
+    why_blocked: str = ""
+    decision_question: str = ""
+    evidence_gaps: list[str] = Field(default_factory=list)
+    sample_occurrences: int = 0
+    category_occurrences: int = 0
+    coverage: Literal["sample", "exhaustive"] = "sample"
+    examples: list[MatchReviewPatternExample] = Field(default_factory=list)
+    decision: MatchReviewPatternDecision | None = None
 
 
-class OemSampleRequest(BaseModel):
-    source_record_id: int = Field(ge=1)
-    request_id: UUID = Field(
-        description="Caller-issued idempotency key reused across retries."
-    )
+class MatchReviewPatternPage(BaseModel):
+    operation_id: str
+    category: str | None = None
+    patterns: list[MatchReviewPatternView] = Field(default_factory=list)
 
 
-class ProposalReviewRequest(BaseModel):
-    action: Literal["approve", "reject"]
+class MatchReviewPatternMemberView(BaseModel):
+    pattern_key: str
+    source_record_id: int
+    source_evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class MatchReviewPatternMemberPage(BaseModel):
+    operation_id: str
+    pattern_key: str
+    total: int
+    limit: int
+    offset: int
+    members: list[MatchReviewPatternMemberView] = Field(default_factory=list)
+
+
+class MatchReviewPatternTechnicalEvidence(BaseModel):
+    pattern_key: str
+    conflicting_fields: list[str] = Field(default_factory=list)
+    ts_examples: list[dict[str, Any]] = Field(default_factory=list)
+    tecdoc_candidates: list[dict[str, Any]] = Field(default_factory=list)
+    comparisons: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class MatchReviewPatternDecisionRequest(BaseModel):
+    action: Literal["accept_pattern", "keep_blocked", "change_rule"]
     reviewer: str = Field(min_length=1, max_length=120)
-    note: str | None = Field(default=None, max_length=2000)
+    reason: str = Field(min_length=5, max_length=1000)
+    selected_values: list[str] = Field(default_factory=list, max_length=20)
 
-
-class PopulationAttribute(BaseModel):
-    field: str
-    distinct_count: int
-    present_count: int
-    top_values: list[FieldValueCount]
-
-
-class PopulationAttributes(BaseModel):
-    """Every source key present in the population, for free-form picking."""
-
-    build_id: UUID
-    source_field: str
-    source_value: str
-    population: int
-    scanned_members: int
-    sampled: bool = Field(
-        description="True when counts come from a sample, not the full population."
-    )
-    attributes: list[PopulationAttribute]
-
-
-class ValuePatternSuggestion(BaseModel):
-    prefix: str
-    row_count: int
-    distinct_values: int
-    coverage: float
-    score: float
-
-
-class PatternReport(BaseModel):
-    field: str
-    population: int
-    patterns: list[ValuePatternSuggestion]
-
-
-class RuleAdviceRequest(BaseModel):
-    build_id: UUID
-    source_field: str = Field(min_length=1, max_length=60)
-    source_value: str = Field(min_length=1, max_length=200)
-
-
-class RuleAdvice(BaseModel):
-    advisor: str
-    confident: bool
-    conditions: list[RuleCondition]
-    target_field: str
-    target_value: str | None
-    reasoning: str
-    evidence: dict[str, Any]
-
-
-class TargetVocabulary(BaseModel):
-    """Allowed values for a rule target.
-
-    `closed` means the value must come from `values`; otherwise `values` are
-    suggestions and free text is accepted.
-    """
-
-    target_field: str
-    closed: bool
-    values: list[FieldValueCount]
-    source: Literal["reviewed_rules", "observed", "none"]
-
-
-class NarrowingStep(BaseModel):
-    label: str
-    matched_rows: int
-
-
-class RefineRequest(BaseModel):
-    build_id: UUID
-    source_field: str = Field(min_length=1, max_length=60)
-    source_value: str = Field(min_length=1, max_length=200)
-    conditions: list[RuleCondition] = Field(min_length=1, max_length=6)
-
-
-class RefineResult(BaseModel):
-    """Live state of a rule being narrowed: how many, what is left, are we done."""
-
-    matched_rows: int
-    would_resolve: int
-    already_resolved: int
-    signature_field: str
-    homogeneous: bool = Field(
-        description=(
-            "True when no identity-bearing field still varies, so the matched "
-            "cars can be treated as one thing."
-        )
-    )
-    varying_identity_fields: list[str]
-    trail: list[NarrowingStep]
-    fields: list[DiscriminatorField]
+    @model_validator(mode="after")
+    def validate_rule_change(self) -> "MatchReviewPatternDecisionRequest":
+        cleaned = [value.strip() for value in self.selected_values if value.strip()]
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("selected_values must be unique")
+        if self.action == "change_rule" and not cleaned:
+            raise ValueError("change_rule requires at least one corrected value")
+        if self.action == "keep_blocked" and cleaned:
+            raise ValueError("keep_blocked cannot select target values")
+        self.selected_values = cleaned
+        return self
