@@ -134,6 +134,7 @@ def build_match_chunks(
     source_batch_prefix: str,
     statuses: tuple[str, ...] = DEFAULT_STATUS_FILTER,
     page_size: int = 25_000,
+    evaluation_key: EvaluationKeyResolver | None = None,
 ) -> ChunkBuildSummary:
     """Group the latest normalization results into signature chunks.
 
@@ -169,7 +170,9 @@ def build_match_chunks(
         )
         if not rows:
             break
-        _store_page(connection, build_id=build_id, rows=rows)
+        _store_page(
+            connection, build_id=build_id, rows=rows, evaluation_key=evaluation_key
+        )
         connection.commit()
         after_id = int(rows[-1]["source_record_id"])
         if len(rows) < page_size:
@@ -295,11 +298,14 @@ def _store_page(
     *,
     build_id: UUID,
     rows: list[dict[str, Any]],
+    evaluation_key: EvaluationKeyResolver | None = None,
 ) -> None:
     chunk_rows: dict[str, tuple[UUID, str]] = {}
     member_rows: list[tuple[UUID, int, str, str, list[str]]] = []
     for row in rows:
-        signature = compute_signature(row["normalized_payload"])
+        signature = compute_signature(
+            row["normalized_payload"], evaluation_key=evaluation_key
+        )
         key = signature_key(signature)
         if key not in chunk_rows:
             chunk_rows[key] = (
