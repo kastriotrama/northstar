@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Match Review — NorthStar</title>
+  <link rel="stylesheet" href="/match-review/assets/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">N</span>
+        <span>NorthStar <em>Match Review</em></span>
+      </div>
+      <nav class="top-nav">
+        <button type="button" class="nav-tab active" data-view="chunks">Chunks</button>
+        <button type="button" class="nav-tab" data-view="unresolved">
+          Unresolved fields
+        </button>
+        <a href="/normalization-review">Normalization</a>
+      </nav>
+      <div class="build-picker">
+        <label for="build-select">Build</label>
+        <select id="build-select" aria-label="Chunk build"></select>
+      </div>
+    </header>
+
+    <section class="stats" id="stats" hidden>
+      <div class="stat">
+        <span class="stat-label">Chunks</span>
+        <strong id="stat-chunks">–</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Rows covered</span>
+        <strong id="stat-rows">–</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Rows decided</span>
+        <strong id="stat-decided">–</strong>
+      </div>
+      <div class="stat stat-wide">
+        <span class="stat-label">Coverage</span>
+        <div class="progress"><span id="stat-progress"></span></div>
+        <strong id="stat-coverage">0%</strong>
+      </div>
+    </section>
+
+    <main class="workspace" id="view-unresolved" hidden>
+      <section class="list-pane">
+        <div class="list-controls">
+          <span class="list-title">What we cannot interpret</span>
+        </div>
+        <p class="list-meta" id="unresolved-meta">Loading…</p>
+        <ol class="chunk-list" id="population-list"></ol>
+      </section>
+
+      <section class="detail-pane">
+        <div class="detail-empty" id="population-empty">
+          <strong>Select an unresolved value</strong>
+          <p>
+            These are values Transportstyrelsen sends that NorthStar cannot yet
+            interpret — present, but meaningless to us. Resolve one with a rule
+            and every matching car is resolved at once.
+          </p>
+        </div>
+        <div class="detail" id="population-detail" hidden>
+          <header class="detail-head">
+            <div>
+              <h1 id="population-title"></h1>
+              <p class="detail-sub" id="population-sub"></p>
+            </div>
+          </header>
+
+          <section class="panel rule-builder">
+            <h2>Rule</h2>
+            <p class="panel-note">
+              Add conditions until the matched cars all mean the same thing,
+              then preview. Nothing is written — this only counts.
+            </p>
+            <div class="rule-line">
+              <span class="rule-keyword">IF</span>
+              <div class="condition-row" id="condition-row"></div>
+              <button type="button" class="ghost-button" id="open-attributes">
+                + Add any attribute
+              </button>
+              <button type="button" class="ghost-button" id="advise-rule">
+                AI Suggest Rule
+              </button>
+            </div>
+            <div class="advice-box" id="advice-box" hidden></div>
+            <div class="rule-line">
+              <span class="rule-keyword">THEN</span>
+              <select id="target-field" aria-label="Target field"></select>
+              <span class="rule-eq">=</span>
+              <div class="combo" id="target-combo">
+                <input
+                  id="target-value"
+                  type="text"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-controls="target-listbox"
+                  aria-autocomplete="list"
+                  aria-label="Target value"
+                  autocomplete="off"
+                />
+                <button
+                  type="button"
+                  class="combo-toggle"
+                  id="target-toggle"
+                  tabindex="-1"
+                  aria-label="Show values"
+                >▾</button>
+                <ul class="combo-list" id="target-listbox" role="listbox" hidden></ul>
+              </div>
+              <button type="button" id="run-preview">Preview coverage</button>
+            </div>
+            <div class="refine-status" id="refine-status" hidden></div>
+            <div class="preview-result" id="preview-result" hidden></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>What separates these cars</h2>
+              <span class="soft">click a value to add it as a condition</span>
+            </div>
+            <p class="panel-note">
+              Ranked by how well each field splits this population into blocks
+              worth writing a rule for — coverage, distance from constant, and
+              how few rules it would take.
+            </p>
+            <ul class="spread-list" id="discriminator-list"></ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <main class="workspace" id="view-chunks">
+      <section class="list-pane">
+        <div class="list-controls">
+          <input
+            id="search"
+            type="search"
+            placeholder="Search manufacturer or model…"
+            autocomplete="off"
+          />
+          <select id="status-filter" aria-label="Chunk status">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="proposed">Proposed</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="split">Split</option>
+          </select>
+        </div>
+        <p class="list-meta" id="list-meta"></p>
+        <ol class="chunk-list" id="chunk-list"></ol>
+        <div class="list-footer">
+          <button id="prev-page" type="button">Previous</button>
+          <span id="page-label"></span>
+          <button id="next-page" type="button">Next</button>
+        </div>
+      </section>
+
+      <section class="detail-pane" id="detail-pane">
+        <div class="detail-empty" id="detail-empty">
+          <strong>Select a chunk</strong>
+          <p>
+            Chunks are sorted by leverage — deciding the top chunk resolves the
+            most rows at once.
+          </p>
+        </div>
+        <div class="detail" id="detail" hidden>
+          <header class="detail-head">
+            <div>
+              <h1 id="detail-title"></h1>
+              <p class="detail-sub" id="detail-sub"></p>
+            </div>
+            <span class="pill" id="detail-status"></span>
+          </header>
+
+          <section class="panel vehicle-card">
+            <div class="vehicle-card-main">
+              <span class="vehicle-card-eyebrow">Checking vehicle</span>
+              <strong class="vehicle-plate" id="vehicle-plate">—</strong>
+              <span class="vehicle-card-sub" id="vehicle-sub"></span>
+            </div>
+            <label class="vehicle-picker">
+              <span>Sample vehicle</span>
+              <select id="oem-member" aria-label="Sample vehicle"></select>
+            </label>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Source comparison</h2>
+              <form id="oem-form" class="oem-form">
+                <button type="submit" id="oem-fetch">Fetch OEM data</button>
+              </form>
+            </div>
+            <p class="panel-note">
+              Transportstyrelsen evidence next to the normalized signature and
+              OEM data for the selected vehicle. Conflicts are highlighted.
+              OEM responses are cached permanently — one paid call per VIN.
+            </p>
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Transportstyrelsen</th>
+                  <th>Normalized</th>
+                  <th>OEM evidence</th>
+                </tr>
+              </thead>
+              <tbody id="compare-rows"></tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Source spread across the chunk</h2>
+              <span class="pill" id="spread-verdict"></span>
+            </div>
+            <p class="panel-note" id="spread-note"></p>
+            <ul class="spread-list" id="spread-list"></ul>
+          </section>
+
+          <section class="panel">
+            <h2>Technical signature</h2>
+            <dl class="signature-grid" id="signature-grid"></dl>
+            <div class="chip-row" id="reason-chips"></div>
+          </section>
+
+          <section class="panel">
+            <h2>OEM evidence on file</h2>
+            <ul class="sample-list" id="sample-list"></ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Proposals</h2>
+              <button type="button" id="propose">Generate proposal</button>
+            </div>
+            <ul class="proposal-list" id="proposal-list"></ul>
+          </section>
+
+          <section class="panel">
+            <h2>Members <span class="soft" id="member-note"></span></h2>
+            <table class="member-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Status</th>
+                  <th>Review reasons</th>
+                </tr>
+              </thead>
+              <tbody id="member-rows"></tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="attr-dialog" id="attr-dialog">
+    <header class="attr-dialog-head">
+      <div>
+        <h2>All attributes</h2>
+        <p id="attr-dialog-note"></p>
+      </div>
+      <button type="button" id="attr-close" aria-label="Close">×</button>
+    </header>
+    <input
+      type="search"
+      id="attr-search"
+      placeholder="Filter attributes or values…"
+      autocomplete="off"
+    />
+    <div class="attr-list" id="attr-list"></div>
+  </dialog>
+  <div class="toast" id="toast" hidden></div>
+  <script src="/match-review/assets/app.js"></script>
+</body>
+</html>

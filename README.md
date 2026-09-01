@@ -84,3 +84,17 @@ to 300 sanitized normalization results. See
 The **Rules** tab supports reviewed draft corrections, immutable activation,
 and safe re-import with a before/after comparison. See
 [`docs/rule-review-workbench.md`](docs/rule-review-workbench.md).
+
+## Match Chunk Review
+
+To resolve TS-to-TecDoc matching at chunk level (one decision covers every row
+sharing a technical signature), build chunks and open the dashboard:
+
+```sh
+northstar-ingest build-match-chunks --build-id <uuid> --batch-prefix <prefix>
+open http://localhost:8000/match-review
+```
+
+The screen supports manual OEM VIN evidence sampling (cached permanently, one
+paid call per VIN) and chunk-level proposal review. See
+[`docs/chunk-review-dashboard.md`](docs/chunk-review-dashboard.md).

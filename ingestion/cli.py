@@ -16,6 +16,8 @@ from ingestion.context_comparison import (
 from ingestion.datastores import DatastoreClients
 from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
+from ingestion.match_chunk_migrations import run_match_chunk_migrations
+from ingestion.match_chunks import DEFAULT_STATUS_FILTER, build_match_chunks
 from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
 from ingestion.match_run_service import run_dry_match_audit
@@ -130,6 +132,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply the seed and write the graph. Omitted means dry run.",
     )
 
+    chunk_parser = subparsers.add_parser(
+        "build-match-chunks",
+        help="Group latest normalization results into signature chunks for review.",
+    )
+    chunk_parser.add_argument("--build-id", type=UUID, required=True)
+    chunk_parser.add_argument("--batch-prefix", required=True)
+    chunk_parser.add_argument(
+        "--status",
+        action="append",
+        default=None,
+        choices=["resolved", "provisional", "review_required", "failed"],
+        help="Normalization status to include; repeatable. Default: review_required.",
+    )
+    chunk_parser.add_argument("--page-size", type=int, default=25_000)
+
     match_parser = subparsers.add_parser(
         "match-ts-tecdoc",
         help="Run a version-pinned, write-free TS-to-TecDoc matching audit.",
@@ -235,6 +252,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "match-ts-tecdoc\tTransportstyrelsen+TecDoc\t"
             "Run a version-pinned, write-free TS-to-TecDoc matching audit."
+        )
+        print(
+            "build-match-chunks\tnormalization_results\t"
+            "Group latest normalization results into signature chunks for review."
         )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
@@ -388,6 +409,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+
+    if args.command == "build-match-chunks":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_match_chunk_migrations(connection)
+                chunk_summary = build_match_chunks(
+                    connection,
+                    build_id=args.build_id,
+                    source_batch_prefix=args.batch_prefix,
+                    statuses=tuple(args.status) if args.status else DEFAULT_STATUS_FILTER,
+                    page_size=args.page_size,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Match chunk build stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(chunk_summary), sort_keys=True))
         return 0
 
     if args.command == "match-ts-tecdoc":
