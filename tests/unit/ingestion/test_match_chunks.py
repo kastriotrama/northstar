@@ -35,7 +35,7 @@ def test_signature_mirrors_matcher_fields_and_sorts_fuels() -> None:
     assert signature["manufacturer"] == "Volvo"
     assert signature["energy_sources"] == ["electric", "petrol"]
     assert signature["displacement_cc"] == 1969
-    assert signature["signature_version"] == "1"
+    assert signature["signature_version"] == "2"
 
 
 def test_signature_falls_back_to_candidates_for_identity_fields() -> None:
@@ -87,3 +87,41 @@ def test_build_rejects_unsafe_inputs_before_touching_the_database(
     }
     with pytest.raises(ChunkBuildError):
         build_match_chunks(cast(Connection[Any], object()), **arguments)
+
+
+def test_signature_defers_to_the_matcher_key_when_one_is_supplied() -> None:
+    """Rows the matcher separates must not share a chunk.
+
+    The v1 signature read model_family from the normalized payload and stopped.
+    Model recovery runs after that, so rows with no model_family but different
+    recovered models -- a Golf and a Sharan both recovered from brand -- looked
+    identical to chunking while the matcher evaluated them apart.
+    """
+
+    from ingestion.match_chunks import compute_signature, signature_key
+
+    golf = {"normalized": {"manufacturer": "VW"}, "candidates": {}}
+    sharan = {"normalized": {"manufacturer": "VW"}, "candidates": {}}
+
+    # Without the matcher key these are indistinguishable: the defect.
+    assert signature_key(compute_signature(golf)) == signature_key(compute_signature(sharan))
+
+    keys = {id(golf): ("VW", "GOLF"), id(sharan): ("VW", "SHARAN")}
+    resolver = lambda payload: keys[id(payload)]
+
+    assert signature_key(
+        compute_signature(golf, evaluation_key=resolver)
+    ) != signature_key(compute_signature(sharan, evaluation_key=resolver))
+
+
+def test_signature_falls_back_when_the_row_has_no_matcher_key() -> None:
+    """A row that terminates before matching keeps the normalized-field grouping."""
+
+    from ingestion.match_chunks import compute_signature
+
+    payload = {"normalized": {"manufacturer": "VOLVO", "model_family": "V70"}, "candidates": {}}
+    signature = compute_signature(payload, evaluation_key=lambda _payload: None)
+
+    assert signature["manufacturer"] == "VOLVO"
+    assert signature["model_family"] == "V70"
+    assert "evaluation_key" not in signature

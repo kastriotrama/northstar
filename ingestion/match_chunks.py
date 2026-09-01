@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID, uuid5
@@ -22,7 +22,12 @@ from ingestion.match_chunk_migrations import (
 )
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 
-SIGNATURE_VERSION = "1"
+# v2 consults the matcher's own evaluation key when one is supplied, so a chunk
+# cannot group rows the matcher would evaluate apart. v1 mirrored that key by
+# hand and drifted once the matcher gained model recovery and manufacturer
+# bridging: 143 chunks over 726 rows held several matcher keys, one of them a
+# Golf, a Sharan and a Variant II all recovered from brand.
+SIGNATURE_VERSION = "2"
 
 DEFAULT_STATUS_FILTER = ("review_required",)
 
@@ -50,8 +55,30 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def compute_signature(normalized_payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Mirror the matcher's evaluation key so chunks align with match behaviour."""
+EvaluationKeyResolver = Callable[[Mapping[str, Any]], object | None]
+
+
+def compute_signature(
+    normalized_payload: Mapping[str, Any],
+    *,
+    evaluation_key: EvaluationKeyResolver | None = None,
+) -> dict[str, Any]:
+    """Group rows that the matcher evaluates identically.
+
+    With `evaluation_key` supplied the matcher's own key is used, so chunk
+    grouping is identical to match grouping by construction. Without it the
+    normalized fields below are used, which is a close approximation but blind
+    to anything the matcher derives after normalization -- model recovery and
+    manufacturer bridging most of all.
+    """
+
+    if evaluation_key is not None:
+        resolved = evaluation_key(normalized_payload)
+        if resolved is not None:
+            return {
+                "signature_version": SIGNATURE_VERSION,
+                "evaluation_key": repr(resolved),
+            }
 
     normalized = _mapping(normalized_payload.get("normalized"))
     candidates = _mapping(normalized_payload.get("candidates"))
