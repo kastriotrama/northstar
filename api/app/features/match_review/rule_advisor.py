@@ -13,11 +13,8 @@ the two happened.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
-
-import httpx
 
 from api.app.features.match_review.field_resolution import (
     CONDITION_OPERATOR_VALUES,
@@ -25,6 +22,7 @@ from api.app.features.match_review.field_resolution import (
     TARGET_FIELD_PRIORS,
     suggest_value_patterns,
 )
+from api.app.features.match_review.integrations import JsonLlm
 
 MIN_BLOCK_ROWS = 20
 
@@ -206,8 +204,32 @@ class PatternRuleAdvisor:
         )
 
 
+ADVISOR_INSTRUCTIONS = """\
+You propose resolution rules over Swedish vehicle-register data. A rule is a
+conjunction of conditions (AND); values inside one condition are OR-ed.
+
+Rules:
+1. Use only `allowed_condition_fields` and `allowed_operators`.
+2. Prefer fields listed in `semantically_relevant_fields_in_order`: a
+   statistically strong field can still be meaningless for the target (a model
+   year says nothing about which wheels are driven).
+3. `value_distributions` shows real values; shared prefixes often encode model
+   or chassis identity worth a `starts_with`.
+4. Every condition needs a `layer` from `allowed_layers`. Use `source` unless
+   you deliberately mean the canonical normalized value: the fields and
+   distributions above are all source-layer registry strings.
+5. Set `target_value` ONLY when `oem_evidence` supports it and it is in
+   `allowed_target_values`; otherwise null and `confident` false. Narrowing the
+   population without naming a value is a good answer.
+6. Never guess a fact about cars that the supplied evidence does not contain.
+
+Reply with one JSON object: conditions (list of {field, operator, values,
+layer}), target_value, confident (bool), reasoning.
+"""
+
+
 class LlmRuleAdvisor:
-    """Optional LLM adapter, used only when an API key is configured.
+    """Optional LLM adapter, used only when a model is configured.
 
     Sends the same evidence bundle the deterministic advisor sees and expects
     one JSON object back. It never writes anything: the result is a proposal
@@ -219,21 +241,15 @@ class LlmRuleAdvisor:
     def __init__(
         self,
         *,
-        api_key: str,
-        model: str,
-        base_url: str = "https://api.openai.com/v1",
-        timeout_seconds: float = 30.0,
+        llm: JsonLlm,
         fallback: RuleAdvisor | None = None,
     ) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._base_url = base_url.rstrip("/")
-        self._timeout_seconds = timeout_seconds
+        self._llm = llm
         self._fallback = fallback or PatternRuleAdvisor()
 
     @property
     def name(self) -> str:
-        return f"llm:{self._model}"
+        return f"llm:{self._llm.model}"
 
     def advise(
         self,
@@ -265,6 +281,7 @@ class LlmRuleAdvisor:
                 TARGET_FIELD_PRIORS.get(target_field, ())
             ),
             "allowed_condition_fields": allowed_fields,
+            "allowed_layers": ["source", "normalized"],
             "allowed_operators": [
                 "equals",
                 "not_equals",
@@ -283,54 +300,8 @@ class LlmRuleAdvisor:
             "oem_evidence": oem_samples[:5],
         }
         try:
-            response = httpx.post(
-                f"{self._base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json={
-                    "model": self._model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You propose resolution rules over Swedish "
-                                "vehicle-register data. A rule is a "
-                                "conjunction of conditions (AND); values "
-                                "inside one condition are OR-ed.\n\n"
-                                "Rules:\n"
-                                "1. Use only `allowed_condition_fields` and "
-                                "`allowed_operators`.\n"
-                                "2. Prefer fields listed in "
-                                "`semantically_relevant_fields_in_order`: a "
-                                "statistically strong field can still be "
-                                "meaningless for the target (a model year "
-                                "says nothing about which wheels are "
-                                "driven).\n"
-                                "3. `value_distributions` shows real values; "
-                                "shared prefixes often encode model or "
-                                "chassis identity worth a `starts_with`.\n"
-                                "4. Set `target_value` ONLY when "
-                                "`oem_evidence` supports it and it is in "
-                                "`allowed_target_values`; otherwise null and "
-                                "`confident` false. Narrowing the population "
-                                "without naming a value is a good answer.\n"
-                                "5. Never guess a fact about cars that the "
-                                "supplied evidence does not contain.\n\n"
-                                "Reply with one JSON object: conditions "
-                                "(list of {field, operator, values, layer}), "
-                                "target_value, confident (bool), reasoning."
-                            ),
-                        },
-                        {"role": "user", "content": json.dumps(prompt)},
-                    ],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0,
-                    "max_tokens": 900,
-                },
-                timeout=self._timeout_seconds,
-            )
-            response.raise_for_status()
-            payload = json.loads(
-                response.json()["choices"][0]["message"]["content"]
+            payload = self._llm.complete_json(
+                instructions=ADVISOR_INSTRUCTIONS, payload=prompt
             )
             conditions = [
                 AdvisedCondition(
@@ -375,7 +346,7 @@ class LlmRuleAdvisor:
                 target_value=str(target_value) if target_value else None,
                 reasoning=str(payload.get("reasoning", "")).strip()
                 or "Model returned no reasoning.",
-                evidence={"population": population, "source": "llm"},
+                evidence={"population": population, "source": self.name},
             )
         except Exception:  # noqa: BLE001 - any failure degrades to heuristics
             advice = self._fallback.advise(

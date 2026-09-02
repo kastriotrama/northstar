@@ -33,10 +33,35 @@ class ChunkListItem(BaseModel):
     status: ChunkStatus
 
 
+class BuildProgress(BaseModel):
+    """Work done on a build, counted build-wide rather than per list filter.
+
+    The two kinds of work are reported apart because they settle different
+    questions: a chunk decision says what a group of cars matches, while a
+    resolution rule fills a field the register left uninterpretable. A car can
+    be counted in both, so they must never be added together.
+    """
+
+    decided_rows: int = Field(
+        description="Rows in chunks a reviewer approved or sent to be split."
+    )
+    in_review_rows: int = Field(
+        description="Rows in chunks holding a proposal nobody has ruled on yet."
+    )
+    member_rows: int = Field(description="Rows the build's chunks actually hold.")
+    resolved_rows: int = Field(
+        description="Cars a resolution rule has filled a field for."
+    )
+    applied_rules: int = Field(description="Resolution rules currently in force.")
+
+
 class ChunkPage(BaseModel):
     build: BuildSummary
     total: int
-    decided_members: int
+    decided_members: int = Field(
+        description="Deprecated alias for `progress.decided_rows`.",
+    )
+    progress: BuildProgress
     items: list[ChunkListItem]
 
 
@@ -113,6 +138,18 @@ class DiscriminatorField(BaseModel):
     score: float
     usable: bool
     top_values: list[FieldValueCount]
+    constrained: bool = Field(
+        default=False,
+        description=(
+            "True when the rule already tests this field. Its counts are then "
+            "computed with its own clause lifted, so the values it does not "
+            "yet cover stay visible and can be OR-ed in."
+        ),
+    )
+    selected_values: list[str] = Field(
+        default_factory=list,
+        description="Values of this field the rule already covers.",
+    )
 
 
 class DiscriminatorReport(BaseModel):
@@ -170,6 +207,63 @@ class RulePreview(BaseModel):
     would_resolve: int
     already_resolved: int
     sample_plates: list[str]
+
+
+class ResolutionRuleRequest(BaseModel):
+    """A previewed rule a reviewer wants kept."""
+
+    build_id: UUID
+    source_field: str = Field(min_length=1, max_length=60)
+    source_value: str = Field(min_length=1, max_length=200)
+    conditions: list[RuleCondition] = Field(min_length=1, max_length=6)
+    target_field: str = Field(min_length=1, max_length=60)
+    target_value: str = Field(min_length=1, max_length=80)
+    author: str = Field(min_length=1, max_length=120)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ResolutionRuleActionRequest(BaseModel):
+    """Who is running or retiring a saved rule."""
+
+    reviewer: str = Field(min_length=1, max_length=120)
+
+
+class ResolutionRule(BaseModel):
+    """A saved rule and what running it has done so far.
+
+    The counts split deliberately: `would_resolve` is what the preview promised
+    when the rule was saved, `resolved_rows` is what running it actually wrote.
+    They differ whenever the population moved in between — another rule got
+    there first, or a rebuild filled the gap.
+    """
+
+    rule_id: UUID
+    build_id: UUID
+    source_field: str
+    source_value: str
+    target_field: str
+    target_value: str
+    conditions: list[RuleCondition]
+    author: str
+    note: str | None
+    matched_rows: int
+    would_resolve: int
+    already_resolved: int
+    status: Literal["saved", "applied", "retired"]
+    resolved_rows: int
+    created_at: datetime
+    applied_at: datetime | None
+    applied_by: str | None
+    retired_at: datetime | None
+    retired_by: str | None
+    resolved_now: int | None = Field(
+        default=None,
+        description="Rows this run wrote; null unless the call ran the rule.",
+    )
+    superseded_rows: int | None = Field(
+        default=None,
+        description="Rows this call reopened; null unless the call retired it.",
+    )
 
 
 class ComparisonRow(BaseModel):

@@ -20,8 +20,12 @@ const elements = {
   statChunks: document.getElementById("stat-chunks"),
   statRows: document.getElementById("stat-rows"),
   statDecided: document.getElementById("stat-decided"),
+  statReview: document.getElementById("stat-review"),
+  statResolved: document.getElementById("stat-resolved"),
+  statRules: document.getElementById("stat-rules"),
   statCoverage: document.getElementById("stat-coverage"),
   statProgress: document.getElementById("stat-progress"),
+  statProgressResolved: document.getElementById("stat-progress-resolved"),
   search: document.getElementById("search"),
   statusFilter: document.getElementById("status-filter"),
   listMeta: document.getElementById("list-meta"),
@@ -152,14 +156,7 @@ async function loadChunks() {
   state.total = page.total;
 
   elements.stats.hidden = false;
-  elements.statChunks.textContent = formatCount(page.build.chunk_count);
-  elements.statRows.textContent = formatCount(page.build.row_count);
-  elements.statDecided.textContent = formatCount(page.decided_members);
-  const coverage = page.build.row_count
-    ? Math.round((page.decided_members / page.build.row_count) * 1000) / 10
-    : 0;
-  elements.statCoverage.textContent = `${coverage}%`;
-  elements.statProgress.style.width = `${Math.min(coverage, 100)}%`;
+  renderProgress(page.build, page.progress);
 
   state.maxMembers = page.items.length
     ? Math.max(...page.items.map((item) => item.member_count))
@@ -177,6 +174,41 @@ async function loadChunks() {
   elements.pageLabel.textContent = `Page ${pageIndex} of ${pageCount}`;
   elements.prevPage.disabled = state.offset === 0;
   elements.nextPage.disabled = state.offset + state.limit >= page.total;
+}
+
+// The header reports the build, never the current list filter — searching the
+// worklist must not look like progress was undone. Chunk decisions and field
+// resolutions stay separate: one settles what cars match, the other fills a
+// field the register left uninterpretable, and a car can be in both.
+function renderProgress(build, progress) {
+  elements.statChunks.textContent = formatCount(build.chunk_count);
+  elements.statRows.textContent = formatCount(build.row_count);
+
+  elements.statDecided.textContent = formatCount(progress.decided_rows);
+  elements.statReview.textContent = progress.in_review_rows
+    ? `${formatCount(progress.in_review_rows)} awaiting your ruling`
+    : "";
+
+  elements.statResolved.textContent = formatCount(progress.resolved_rows);
+  elements.statRules.textContent = progress.applied_rules
+    ? `${formatCount(progress.applied_rules)} rule${
+        progress.applied_rules === 1 ? "" : "s"
+      } in force`
+    : "no rules run yet";
+
+  const rows = build.row_count || 0;
+  const share = (value) => (rows ? Math.min((value / rows) * 100, 100) : 0);
+  const decided = share(progress.decided_rows);
+  const resolved = share(progress.resolved_rows);
+  elements.statProgress.style.width = `${decided}%`;
+  // Resolutions ride alongside decisions rather than stacking on them, since
+  // the same car can be counted by both.
+  elements.statProgressResolved.style.width = `${resolved}%`;
+  elements.statCoverage.textContent = `${Math.round(decided * 10) / 10}%`;
+  elements.statCoverage.title =
+    `${formatCount(progress.decided_rows)} rows decided · ` +
+    `${formatCount(progress.resolved_rows)} rows field-resolved · ` +
+    `of ${formatCount(rows)}`;
 }
 
 function valueChip(entry, { clickable = false } = {}) {
@@ -199,7 +231,9 @@ function valueChip(entry, { clickable = false } = {}) {
 
   const count = document.createElement("span");
   count.className = "chip-count";
-  count.textContent = formatCount(entry.count);
+  // A value already in the rule may sit outside the counted top values, so it
+  // is rendered from the rule itself, without a count of its own.
+  count.textContent = entry.count === null ? "in rule" : formatCount(entry.count);
   chip.appendChild(count);
   return chip;
 }
@@ -610,6 +644,19 @@ function renderProposals(proposals) {
   }
 }
 
+// Say plainly which adjudicator answered. An `agent` proposal still falls back
+// to the deterministic rules whenever the model is unreachable or its answer
+// fails validation, and a reviewer must be able to see that at a glance.
+function adjudicatorLabel(proposal) {
+  const version = proposal.adjudicator_version;
+  if (!version.startsWith("llm:")) {
+    return `${version} (deterministic rules, no AI)`;
+  }
+  return proposal.evidence && proposal.evidence.llm_fallback
+    ? `${version} — AI unavailable, deterministic rules answered`
+    : version;
+}
+
 function renderProposal(proposal) {
   const item = document.createElement("li");
   item.className = "proposal-item";
@@ -621,7 +668,7 @@ function renderProposal(proposal) {
   head.appendChild(label);
   const badge = document.createElement("span");
   badge.className = "badge";
-  badge.textContent = `${proposal.status} · ${proposal.adjudicator_version}`;
+  badge.textContent = `${proposal.status} · ${adjudicatorLabel(proposal)}`;
   head.appendChild(badge);
   item.appendChild(head);
 
@@ -786,6 +833,13 @@ const unresolved = {
   targetToggle: document.getElementById("target-toggle"),
   targetCombo: document.getElementById("target-combo"),
   runPreview: document.getElementById("run-preview"),
+  saveRule: document.getElementById("save-rule"),
+  saveRunRule: document.getElementById("save-run-rule"),
+  author: document.getElementById("rule-author"),
+  noteInput: document.getElementById("rule-note"),
+  savedPanel: document.getElementById("saved-rules-panel"),
+  savedList: document.getElementById("saved-rule-list"),
+  savedCount: document.getElementById("saved-rules-count"),
   previewResult: document.getElementById("preview-result"),
   discriminators: document.getElementById("discriminator-list"),
   openAttributes: document.getElementById("open-attributes"),
@@ -923,6 +977,7 @@ async function selectPopulation(population) {
   currentPopulation = population;
   attributeCache = null;
   unresolved.adviceBox.hidden = true;
+  unresolved.savedPanel.hidden = true;
 
   for (const card of unresolved.list.children) {
     card.classList.toggle(
@@ -972,6 +1027,11 @@ async function selectPopulation(population) {
     unresolved.previewResult.hidden = true;
     unresolved.adviceBox.hidden = true;
     unresolved.runPreview.disabled = true;
+    unresolved.saveRule.disabled = true;
+    unresolved.saveRunRule.disabled = true;
+    // A rule someone already ran is the likeliest reason there is nothing
+    // left here, so the rules stay visible — and retirable — either way.
+    await loadSavedRules();
     return;
   }
 
@@ -980,6 +1040,7 @@ async function selectPopulation(population) {
     `cannot derive ${report.signature_field} from it.`;
   await renderTargets(report.signature_field);
   unresolved.previewResult.hidden = true;
+  await loadSavedRules();
 }
 
 async function renderTargets(signatureField) {
@@ -992,6 +1053,8 @@ async function renderTargets(signatureField) {
   unresolved.targetValue.value = "";
   unresolved.targetValue.disabled = false;
   unresolved.runPreview.disabled = false;
+  unresolved.saveRule.disabled = false;
+  unresolved.saveRunRule.disabled = false;
   closeCombo();
 
   let vocabulary;
@@ -1248,12 +1311,32 @@ function addTerm(field, value, { operator = "equals" } = {}) {
   scheduleRefine();
 }
 
+// Clicking a value the rule already covers takes it back out — the same click
+// that added it, so a wrong pick costs one click rather than rebuilding the
+// condition. The clause goes when its last value does.
+function removeTerm(field, value) {
+  const existing = conditions.find(
+    (item) => item.field === field && !item.locked
+  );
+  if (!existing) return;
+  existing.values = existing.values.filter((item) => item !== value);
+  if (!existing.values.length) {
+    conditions = conditions.filter((item) => item !== existing);
+  }
+  renderConditions();
+  unresolved.previewResult.hidden = true;
+  scheduleRefine();
+}
+
 function renderDiscriminators(report) {
   unresolved.discriminators.innerHTML = "";
   for (const field of report.fields) {
     const item = document.createElement("li");
     item.className = "spread-item";
-    if (!field.usable) item.classList.add("unusable");
+    // A field already in the rule is never "unusable": its counts describe the
+    // wider population its own clause was lifted from, not a split decision.
+    if (!field.usable && !field.constrained) item.classList.add("unusable");
+    if (field.constrained) item.classList.add("in-rule");
 
     const head = document.createElement("div");
     head.className = "spread-head";
@@ -1262,24 +1345,65 @@ function renderDiscriminators(report) {
     head.appendChild(name);
     const stats = document.createElement("span");
     stats.className = "spread-count";
-    stats.textContent = field.usable
-      ? `score ${field.score.toFixed(2)} · ${formatCount(
-          field.distinct_count
-        )} values`
-      : `${formatCount(field.distinct_count)} values · near-constant, no split`;
+    if (field.constrained) {
+      stats.textContent =
+        `in your rule · ${formatCount(field.selected_values.length)} of ` +
+        `${formatCount(field.distinct_count)} values — click to add or remove`;
+    } else {
+      stats.textContent = field.usable
+        ? `score ${field.score.toFixed(2)} · ${formatCount(
+            field.distinct_count
+          )} values`
+        : `${formatCount(field.distinct_count)} values · near-constant, no split`;
+    }
     head.appendChild(stats);
     item.appendChild(head);
 
     const values = document.createElement("div");
     values.className = "spread-values";
+    const selected = new Set(field.selected_values);
+    const listed = new Set();
     for (const entry of field.top_values) {
+      listed.add(entry.value);
       const chip = valueChip(entry, { clickable: true });
-      chip.addEventListener("click", () => addTerm(field.field, entry.value));
+      if (selected.has(entry.value)) {
+        chip.classList.add("selected");
+        chip.title = "In the rule — click to remove";
+        chip.addEventListener("click", () =>
+          removeTerm(field.field, entry.value)
+        );
+      } else {
+        chip.addEventListener("click", () => addTerm(field.field, entry.value));
+      }
+      values.appendChild(chip);
+    }
+    // Values the rule covers that the counted list does not reach still need a
+    // way out of the rule, so they are shown regardless of rank.
+    for (const value of field.selected_values) {
+      if (listed.has(value)) continue;
+      const chip = valueChip({ value, count: null }, { clickable: true });
+      chip.classList.add("selected");
+      chip.title = "In the rule — click to remove";
+      chip.addEventListener("click", () => removeTerm(field.field, value));
       values.appendChild(chip);
     }
     item.appendChild(values);
     unresolved.discriminators.appendChild(item);
   }
+}
+
+function rulePayload() {
+  return {
+    build_id: state.buildId,
+    conditions: conditions.map(({ field, operator, values, layer }) => ({
+      field,
+      operator: operator || "equals",
+      values,
+      layer: layer || "source",
+    })),
+    target_field: unresolved.targetField.value,
+    target_value: unresolved.targetValue.value.trim(),
+  };
 }
 
 unresolved.runPreview.addEventListener("click", async () => {
@@ -1293,16 +1417,7 @@ unresolved.runPreview.addEventListener("click", async () => {
     const preview = await api("/v1/match-review/rule-preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        build_id: state.buildId,
-        conditions: conditions.map(({ field, operator, values }) => ({
-          field,
-          operator: operator || "equals",
-          values,
-        })),
-        target_field: unresolved.targetField.value,
-        target_value: unresolved.targetValue.value.trim(),
-      }),
+      body: JSON.stringify(rulePayload()),
     });
     renderPreview(preview);
   } catch (error) {
@@ -1341,8 +1456,260 @@ function renderPreview(preview) {
   const note = document.createElement("p");
   note.className = "preview-note";
   note.textContent =
-    "Preview only — authoring this as an immutable reviewed rule comes next.";
+    "Preview only — nothing is written. Save rule keeps it for later; " +
+    "Save & run resolves these cars now.";
   unresolved.previewResult.appendChild(note);
+}
+
+/* ---------- saving and running rules ---------- */
+
+// Rules are attributed, so the screen needs a name. It lives in the panel as a
+// field rather than behind a `prompt()`: a dialog the browser suppresses -- or
+// the reviewer dismisses -- returns null, and the button then looks broken.
+// The name is remembered per browser so it is typed once.
+// Storage is a convenience, never a dependency: it throws outright when a
+// browser blocks site data, and a throw here would take the click handlers
+// below with it.
+function rememberedReviewer() {
+  try {
+    return localStorage.getItem("match-review-reviewer") || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function rememberReviewer(name) {
+  try {
+    localStorage.setItem("match-review-reviewer", name);
+  } catch (error) {
+    /* not remembering the name costs a retype, nothing more */
+  }
+}
+
+unresolved.author.value = rememberedReviewer();
+unresolved.author.addEventListener("change", () => {
+  const name = unresolved.author.value.trim();
+  if (name) rememberReviewer(name);
+});
+
+function ruleAuthor() {
+  const name = unresolved.author.value.trim();
+  if (!name) {
+    showToast("Add your name — rules are recorded with their author.", true);
+    unresolved.author.focus();
+    return null;
+  }
+  rememberReviewer(name);
+  return name;
+}
+
+async function saveRule({ run }) {
+  if (!currentPopulation) {
+    showToast("Select an unresolved value first.", true);
+    return;
+  }
+  const problem = validateTargetValue();
+  if (problem) {
+    showToast(problem, true);
+    return;
+  }
+  const author = ruleAuthor();
+  if (!author) return;
+  const note = unresolved.noteInput.value.trim() || null;
+
+  unresolved.saveRule.disabled = true;
+  unresolved.saveRunRule.disabled = true;
+  try {
+    const payload = rulePayload();
+    let rule = await api("/v1/match-review/resolution-rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        source_field: currentPopulation.source_field,
+        source_value: currentPopulation.source_value,
+        author,
+        note,
+      }),
+    });
+    if (run) {
+      rule = await api(
+        `/v1/match-review/resolution-rules/${rule.rule_id}/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reviewer: author }),
+        }
+      );
+      showToast(
+        `Resolved ${formatCount(rule.resolved_now)} cars as ` +
+          `${rule.target_field} = ${rule.target_value}.`
+      );
+    } else {
+      showToast(
+        `Rule saved — it would resolve ${formatCount(rule.would_resolve)} cars ` +
+          "when you run it."
+      );
+    }
+    unresolved.noteInput.value = "";
+    await refreshAfterRuleChange();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    unresolved.saveRule.disabled = false;
+    unresolved.saveRunRule.disabled = false;
+  }
+}
+
+unresolved.saveRule.addEventListener("click", () => saveRule({ run: false }));
+unresolved.saveRunRule.addEventListener("click", () => saveRule({ run: true }));
+
+async function runSavedRule(ruleId) {
+  const reviewer = ruleAuthor();
+  if (!reviewer) return;
+  try {
+    const rule = await api(
+      `/v1/match-review/resolution-rules/${ruleId}/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewer }),
+      }
+    );
+    showToast(
+      rule.resolved_now
+        ? `Resolved ${formatCount(rule.resolved_now)} cars as ` +
+            `${rule.target_field} = ${rule.target_value}.`
+        : "Nothing left to resolve — every car this rule covers already has a value."
+    );
+    await refreshAfterRuleChange();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function retireSavedRule(ruleId) {
+  const reviewer = ruleAuthor();
+  if (!reviewer) return;
+  try {
+    const rule = await api(
+      `/v1/match-review/resolution-rules/${ruleId}/retire`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewer }),
+      }
+    );
+    showToast(`Retired — ${formatCount(rule.superseded_rows)} cars reopened.`);
+    await refreshAfterRuleChange();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+// Running a rule moves the very numbers this screen is made of, so the counts,
+// the facets and the worklist are all re-read rather than left stale.
+async function refreshAfterRuleChange() {
+  unresolved.previewResult.hidden = true;
+  await Promise.all([loadSavedRules(), runRefine(), loadPopulations()]);
+  if (currentPopulation) {
+    const key = `${currentPopulation.source_field}=${currentPopulation.source_value}`;
+    for (const card of unresolved.list.children) {
+      card.classList.toggle("selected", card.dataset.key === key);
+    }
+  }
+}
+
+async function loadSavedRules() {
+  if (!currentPopulation || !state.buildId) return;
+  const query =
+    `build_id=${state.buildId}` +
+    `&source_field=${encodeURIComponent(currentPopulation.source_field)}` +
+    `&source_value=${encodeURIComponent(currentPopulation.source_value)}`;
+  let rules;
+  try {
+    rules = await api(`/v1/match-review/resolution-rules?${query}`);
+  } catch (error) {
+    showToast(error.message, true);
+    return;
+  }
+  unresolved.savedPanel.hidden = rules.length === 0;
+  unresolved.savedCount.textContent = rules.length
+    ? `${formatCount(rules.length)} for this value`
+    : "";
+  unresolved.savedList.innerHTML = "";
+  for (const rule of rules) {
+    unresolved.savedList.appendChild(renderSavedRule(rule));
+  }
+}
+
+function renderSavedRule(rule) {
+  const item = document.createElement("li");
+  item.className = `rule-item rule-${rule.status}`;
+
+  const head = document.createElement("div");
+  head.className = "rule-item-head";
+  const statement = document.createElement("strong");
+  statement.textContent =
+    `IF ${rule.conditions.map(conditionLabel).join(" AND ")} ` +
+    `THEN ${rule.target_field} = ${rule.target_value}`;
+  head.appendChild(statement);
+  const status = document.createElement("span");
+  status.className = "pill";
+  status.textContent = rule.status;
+  head.appendChild(status);
+  item.appendChild(head);
+
+  const meta = document.createElement("p");
+  meta.className = "rule-item-meta";
+  const when = new Date(rule.created_at).toLocaleString();
+  meta.textContent =
+    rule.status === "applied"
+      ? `${formatCount(rule.resolved_rows)} cars resolved · run by ` +
+        `${rule.applied_by} · saved by ${rule.author}, ${when}`
+      : rule.status === "retired"
+        ? `retired by ${rule.retired_by} — no cars resolved · saved by ` +
+          `${rule.author}, ${when}`
+        : `would resolve ${formatCount(rule.would_resolve)} cars · saved by ` +
+          `${rule.author}, ${when}`;
+  item.appendChild(meta);
+
+  if (rule.note) {
+    const note = document.createElement("p");
+    note.className = "rule-item-note";
+    note.textContent = rule.note;
+    item.appendChild(note);
+  }
+
+  if (rule.status !== "retired") {
+    const actions = document.createElement("div");
+    actions.className = "rule-item-actions";
+    const run = document.createElement("button");
+    run.type = "button";
+    run.textContent = rule.status === "applied" ? "Run again" : "Run rule";
+    run.addEventListener("click", () => runSavedRule(rule.rule_id));
+    actions.appendChild(run);
+    if (rule.status === "applied") {
+      const retire = document.createElement("button");
+      retire.type = "button";
+      retire.className = "ghost-button";
+      retire.textContent = "Retire";
+      retire.addEventListener("click", () => retireSavedRule(rule.rule_id));
+      actions.appendChild(retire);
+    }
+    item.appendChild(actions);
+  }
+  return item;
+}
+
+function conditionLabel(condition) {
+  const operator =
+    (OPERATORS.find(([value]) => value === condition.operator) || [])[1] ||
+    condition.operator;
+  const values = condition.values && condition.values.length
+    ? condition.values
+    : [condition.value];
+  return `${condition.field} ${operator} ${values.join(" or ")}`;
 }
 
 
@@ -1371,11 +1738,7 @@ async function runRefine() {
         build_id: state.buildId,
         source_field: currentPopulation.source_field,
         source_value: currentPopulation.source_value,
-        conditions: conditions.map(({ field, operator, values }) => ({
-          field,
-          operator: operator || "equals",
-          values,
-        })),
+        conditions: rulePayload().conditions,
       }),
     });
   } catch (error) {
@@ -1533,6 +1896,7 @@ function applyAdvice(advice) {
   conditions = advice.conditions.map((condition, index) => ({
     field: condition.field,
     operator: condition.operator,
+    layer: condition.layer || "source",
     values: condition.values && condition.values.length
       ? condition.values
       : [condition.value],

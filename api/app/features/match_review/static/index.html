@@ -39,10 +39,21 @@
       <div class="stat">
         <span class="stat-label">Rows decided</span>
         <strong id="stat-decided">–</strong>
+        <span class="stat-sub" id="stat-review"></span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Fields resolved</span>
+        <strong id="stat-resolved">–</strong>
+        <span class="stat-sub" id="stat-rules"></span>
       </div>
       <div class="stat stat-wide">
         <span class="stat-label">Coverage</span>
-        <div class="progress"><span id="stat-progress"></span></div>
+        <div class="progress-stack">
+          <div class="progress"><span id="stat-progress"></span></div>
+          <div class="progress progress-resolved">
+            <span id="stat-progress-resolved"></span>
+          </div>
+        </div>
         <strong id="stat-coverage">0%</strong>
       </div>
     </section>
@@ -144,7 +155,8 @@
             <h2>Rule</h2>
             <p class="panel-note">
               Add conditions until the matched cars all mean the same thing,
-              then preview. Nothing is written — this only counts.
+              then preview. Preview and save write no values — only running a
+              saved rule does.
             </p>
             <div class="rule-line">
               <span class="rule-keyword">IF</span>
@@ -183,8 +195,42 @@
               </div>
               <button type="button" id="run-preview">Preview coverage</button>
             </div>
+            <div class="rule-line rule-attribution">
+              <label class="rule-keyword" for="rule-author">BY</label>
+              <input
+                id="rule-author"
+                type="text"
+                placeholder="your name"
+                aria-label="Who is authoring this rule"
+                autocomplete="name"
+              />
+              <input
+                id="rule-note"
+                type="text"
+                class="rule-note-input"
+                placeholder="why this is true (optional, kept with the rule)"
+                aria-label="Why this rule holds"
+              />
+              <button type="button" class="ghost-button" id="save-rule">
+                Save rule
+              </button>
+              <button type="button" id="save-run-rule">Save &amp; run</button>
+            </div>
             <div class="refine-status" id="refine-status" hidden></div>
             <div class="preview-result" id="preview-result" hidden></div>
+          </section>
+
+          <section class="panel" id="saved-rules-panel" hidden>
+            <div class="panel-head">
+              <h2>Saved rules</h2>
+              <span class="soft" id="saved-rules-count"></span>
+            </div>
+            <p class="panel-note">
+              A saved rule is immutable — running it fills only the cars that
+              still lack the field, never overwriting a value normalization
+              already derived. Retiring reopens every car the rule resolved.
+            </p>
+            <ul class="rule-list" id="saved-rule-list"></ul>
           </section>
 
           <section class="panel">

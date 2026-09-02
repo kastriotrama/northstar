@@ -40,6 +40,37 @@ def test_proposals_enforce_target_and_review_state() -> None:
     assert "confidence BETWEEN 0 AND 1" in proposals
 
 
+def test_resolution_rules_are_immutable_once_saved() -> None:
+    statements = dict(MATCH_CHUNK_MIGRATIONS)
+    rules = statements["create_match_resolution_rules_table"]
+    trigger = statements["protect_match_resolution_rule_definitions"]
+
+    assert "status IN ('saved', 'applied', 'retired')" in rules
+    assert "jsonb_typeof(conditions) = 'array'" in rules
+    assert "jsonb_array_length(conditions) > 0" in rules
+    assert "match_resolution_rules_retired_state" in rules
+    # Running and retiring change state; the rule a reviewer approved may not
+    # be rewritten underneath the resolutions it already wrote.
+    assert "NEW.conditions" in trigger
+    assert "NEW.target_value" in trigger
+    assert "BEFORE UPDATE OR DELETE ON core.match_resolution_rules" in trigger
+
+
+def test_field_resolutions_are_append_only_and_one_per_field() -> None:
+    statements = dict(MATCH_CHUNK_MIGRATIONS)
+    resolutions = statements["create_match_field_resolutions_table"]
+    unique = statements["create_match_field_resolutions_active_unique_index"]
+    trigger = statements["protect_match_field_resolutions"]
+
+    assert "REFERENCES core.match_resolution_rules(rule_id)" in resolutions
+    assert "superseded_at TIMESTAMPTZ" in resolutions
+    # Two live rules may not both claim one car's field; a retired rule's rows
+    # step aside so a corrected rule can take their place.
+    assert "(source_record_id, target_field) WHERE superseded_at IS NULL" in unique
+    assert "may not be deleted" in trigger
+    assert "only be superseded" in trigger
+
+
 def test_migration_names_are_unique() -> None:
     names = [name for name, _ in MATCH_CHUNK_MIGRATIONS]
     assert len(names) == len(set(names))

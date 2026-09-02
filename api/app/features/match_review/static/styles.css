@@ -104,6 +104,11 @@ select:focus, input:focus { outline: 2px solid rgba(15, 118, 110, 0.25); border-
   overflow: hidden;
 }
 .progress span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width 320ms ease-out; }
+/* Two lanes, not one stacked bar: a car can be both decided and field-resolved,
+   so the shares must never be read as adding up. */
+.progress-stack { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.progress-resolved span { background: var(--violet); }
+.stat-sub { color: var(--soft-text); font-size: 11px; font-weight: 500; }
 
 /* Workspace */
 .workspace {
@@ -391,6 +396,16 @@ select:focus, input:focus { outline: 2px solid rgba(15, 118, 110, 0.25); border-
 .value-chip.clickable { cursor: pointer; }
 .value-chip.clickable:hover { border-color: var(--accent); background: var(--accent-soft); }
 .spread-item.unusable { opacity: 0.55; border-left-color: var(--line); }
+/* A field the rule already tests: still open, so more values can be OR-ed in */
+.spread-item.in-rule { border-left-color: var(--violet); background: var(--violet-soft); }
+.spread-item.in-rule .spread-count { color: var(--violet); font-weight: 650; }
+.value-chip.selected {
+  border-color: var(--violet);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--violet);
+}
+.value-chip.selected .chip-count { color: var(--violet); font-weight: 700; }
+.value-chip.selected:hover { border-color: var(--red); background: var(--red-soft); }
 
 /* Field status badges */
 .status-tag {
@@ -563,6 +578,47 @@ tr.row-unresolved .compare-field { color: var(--amber); }
 }
 .chip-value { font-weight: 600; }
 .chip-or { color: var(--muted); font-size: 11px; font-style: normal; font-weight: 700; }
+
+/* Attribution sits beside the save buttons: a rule always carries an author */
+.rule-attribution input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13px;
+}
+.rule-attribution input:focus {
+  outline: 2px solid rgba(15, 118, 110, 0.25);
+  border-color: var(--accent);
+}
+.rule-attribution #rule-author { width: 150px; }
+.rule-attribution .rule-note-input { flex: 1 1 260px; min-width: 200px; }
+
+/* Saved rules: what has been kept, and what running it did */
+.rule-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.rule-item {
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 10px;
+  background: var(--canvas);
+}
+.rule-item.rule-saved { border-left-color: var(--violet); }
+.rule-item.rule-applied { border-left-color: var(--accent); background: var(--accent-soft); }
+.rule-item.rule-retired { opacity: 0.62; }
+.rule-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rule-item-head strong {
+  font-size: 12.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.45;
+}
+.rule-item.rule-saved .pill { background: var(--violet-soft); color: var(--violet); }
+.rule-item.rule-applied .pill { background: #fff; color: var(--accent); }
+.rule-item.rule-retired .pill { background: var(--line); color: var(--muted); }
+.rule-item-meta { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.rule-item-note { margin: 4px 0 0; font-size: 12.5px; color: var(--ink); }
+.rule-item-actions { display: flex; gap: 8px; margin-top: 9px; }
 
 .advice-box {
   margin: 4px 0 12px;

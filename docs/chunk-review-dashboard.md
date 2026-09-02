@@ -133,6 +133,10 @@ deferred; the canonical Neo4j graph remains 100% verified.
 | `POST /v1/match-review/chunks/{chunk_id}/oem-samples` | Fetch-or-reuse OEM evidence for one member (idempotent via `request_id`) |
 | `POST /v1/match-review/chunks/{chunk_id}/proposals` | Generate and persist an adjudicator proposal |
 | `POST /v1/match-review/proposals/{proposal_id}/review` | Approve or reject a proposal (chunk-level human decision) |
+| `POST /v1/match-review/resolution-rules` | Save a previewed resolution rule; writes no values (§10a) |
+| `GET /v1/match-review/resolution-rules` | Saved rules for a build, optionally one population |
+| `POST /v1/match-review/resolution-rules/{rule_id}/apply` | Run a saved rule: one resolution per car it still covers |
+| `POST /v1/match-review/resolution-rules/{rule_id}/retire` | Undo a run; the cars it resolved reopen |
 | `GET /match-review` | Dashboard screen |
 
 The chunk builder runs as
@@ -217,11 +221,45 @@ Target values are constrained to a canonical vocabulary (`drive_type` accepts
 only `fwd`/`rwd`/`awd`), so a rule cannot introduce a new spelling. Preview
 writes nothing.
 
-**Not yet implemented:** persisting a previewed rule. That must reuse the
-existing immutable translation-rule machinery — draft → reviewed activation →
-new immutable version → re-normalize with before/after comparison — rather
-than a parallel store, so resolution rules inherit the same auditability. This
-is the next increment.
+### 10a. Saving and running a rule
+
+Preview answers *what would happen*; saving and running are the two separate
+acts that follow, and the screen keeps them separate because they carry
+different weight.
+
+- **Save** (`POST /resolution-rules`) persists the rule in
+  `core.match_resolution_rules` with its author, an optional note, and the
+  preview counts frozen at save time — what the rule promised, kept next to
+  what running it later did. Saving resolves nothing. The row is immutable:
+  a trigger rejects `DELETE` and any `UPDATE` touching the definition, so only
+  `status`, `resolved_rows` and the applied/retired stamps ever change.
+- **Run** (`POST /resolution-rules/{id}/apply`) writes one row per matched car
+  into `core.match_field_resolutions`, attributed to the rule. Two guards make
+  this safe to press: only cars that still lack the field are written, so a
+  rule can never overwrite a value normalization derived; and a partial unique
+  index on `(source_record_id, target_field) WHERE superseded_at IS NULL` makes
+  re-running idempotent — a second run picks up only what the first could not.
+- **Retire** (`POST /resolution-rules/{id}/retire`) supersedes every row the
+  rule wrote. The rows stay — they record what was asserted, by whom and when —
+  but stop counting, so the population reopens. A retired rule cannot be
+  re-run: authoring a corrected rule is the path, which keeps the audit trail
+  a sequence of decisions rather than an edit history.
+
+An applied resolution is a first-class value everywhere the screen counts:
+unresolved populations exclude cars a rule has resolved, and preview reports
+them under `already_resolved`. `_fetch_page` in the chunk builder overlays
+active resolutions onto the normalized payload before computing a signature,
+so the next build groups those cars by the resolved value — this is how a
+dashboard decision reaches the matcher.
+
+Resolution rules deliberately do **not** reuse the translation-rule tables. A
+`TranslationRule` maps source terms in one field to a canonical value; a
+resolution rule is a conjunction over several fields (`is_4wd = 0 AND fab_code
+= VO`), which that shape cannot express. What they inherit is the discipline —
+immutable rows, attributed decisions, dry run before write, supersede rather
+than edit — not the storage. Folding proven resolution rules back into a
+versioned translation rule set, so re-normalization derives the value instead
+of an overlay supplying it, remains open.
 
 ## 10b. Rule expressiveness, attribute picking, and advice
 
@@ -259,7 +297,7 @@ piece of explicit domain knowledge: drive type is a property of the model, so
 identity fields outrank `vehicle_year` even when year scores higher.
 
 `PatternRuleAdvisor` is deterministic and always available. `LlmRuleAdvisor`
-activates only when `OPENAI_API_KEY` is set, sends the same evidence bundle,
+activates only when `GEMINI_API_KEY` is set, sends the same evidence bundle,
 and falls back to the deterministic advisor on any transport or parsing
 failure. Neither writes anything: advice still goes through preview and human
 approval.
@@ -335,13 +373,24 @@ bleed into Toyota and Volvo and need a decision, not a default.
 carries 17,995 distinct spellings where `fab_code` carries ~151 codes — worth
 remembering when choosing which layer a resolution rule should key on (§10).
 
-## 15. Enabling the LLM advisor
+## 15. Enabling AI: the rule advisor and the chunk adjudicator
 
-Set `OPENAI_API_KEY` (optionally `RULE_ADVISOR_MODEL`, `RULE_ADVISOR_BASE_URL`,
-`RULE_ADVISOR_TIMEOUT_SECONDS`) and restart. Nothing else changes:
-`_build_rule_advisor` returns `LlmRuleAdvisor` when a key is present and
-`PatternRuleAdvisor` otherwise. The screen names whichever actually answered,
-so "AI Suggest Rule" never implies a model ran when it did not.
+Set `GEMINI_API_KEY` and restart. One key activates both AI surfaces of the
+workspace, each through the same `JsonLlm` boundary in `integrations.py`
+(`GeminiJsonLlm`, Google's `generateContent` in JSON mode):
+
+- **Unresolved fields — "AI Suggest Rule"**: `_build_rule_advisor` returns
+  `LlmRuleAdvisor` when a key is present and `PatternRuleAdvisor` otherwise
+  (`RULE_ADVISOR_MODEL`, `RULE_ADVISOR_TIMEOUT_SECONDS`).
+- **Chunks — "Generate proposal"**: `_build_adjudicator` returns
+  `LlmAdjudicator` when a key is present and `HeuristicAdjudicator` otherwise
+  (`ADJUDICATOR_MODEL`, `ADJUDICATOR_TIMEOUT_SECONDS`). With a model wired the
+  service records proposals as `agent` rather than `heuristic`.
+
+Both screens name whichever advisor actually answered, so "AI" never implies a
+model ran when it did not: the advice box says `llm:<model>` or "statistical
+advisor", and a proposal's badge says `llm:<model>`, or that the deterministic
+rules answered after the model was unavailable.
 
 **What the model receives**: the task in words, the unresolved field/value, the
 target field with its `allowed_target_values`, the population size,
@@ -350,7 +399,12 @@ condition fields and operators, the top six scored discriminators, real
 `value_distributions` (40 values per field for the three strongest fields, so
 prefixes like `MERCEDES-BENZ 204` are visible), and any cached `oem_evidence`
 for cars in that population — VIN-masked through the same sanitizer the API
-uses. Requests run at `temperature: 0` with a 900-token cap.
+uses. Requests run at `temperature: 0` in JSON mode.
+
+**What the adjudicator receives**: the chunk signature, member count, reason
+profile, `varying_fields` (and which of them are identity fields), the paid OEM
+samples — VIN-masked before they leave the process — the TecDoc candidates, and
+`allowed_ktype_references` drawn from those candidates.
 
 **Model output is untrusted.** A reply is rejected — falling back to the
 deterministic advisor — when it names a field or operator outside the
@@ -358,13 +412,24 @@ allow-lists, uses an unknown layer, returns no usable conditions, is not valid
 JSON, or gives a `target_value` outside the canonical vocabulary. A value
 asserted without any OEM evidence is dropped and `confident` forced false: the
 model cannot talk itself into a fact about cars the evidence does not contain.
-Transport failures degrade the same way. Twelve tests in
-`test_llm_rule_advisor.py` pin this behaviour without a live key.
+Transport failures degrade the same way. The tests in
+`test_llm_rule_advisor.py`, `test_llm_adjudicator.py` and `test_gemini_llm.py`
+pin this behaviour without a live key.
+
+The adjudicator applies the same principle to a chunk-wide decision, and the
+evidence floors are re-checked in code rather than trusted to the prompt: a
+reply is rejected — falling back to `HeuristicAdjudicator` — when the
+recommendation is outside the four allowed values, the reasoning is empty, or
+an `assign_ktype` names a KType reference that was not supplied, rests on fewer
+than `MIN_CONCORDANT_SAMPLES` OEM samples, or covers members whose identity
+fields disagree. A fallback proposal says so in its own reasoning and carries
+`llm_fallback` in its evidence, because the stored `adjudicator_version` names
+the configured adjudicator, not the one that answered.
 
 **Still open**: no OEM evidence exists yet (the provider is unconfigured), so
 `oem_evidence` is empty in practice and `confident` stays false regardless of
-advisor. Rule persistence is also still unbuilt — advice leads to preview, and
-preview writes nothing.
+advisor. Advice therefore still leads to a rule a human has to justify — but
+that rule can now be saved and run (§10a).
 
 ## 16. Target vocabularies: closed sets and free text
 
@@ -398,7 +463,7 @@ whole loop in one call, on every edit:
 
 - **how many** — matched rows, split into would-resolve and already-resolved;
 - **what is left to split on** — facets recomputed against the current
-  predicate, with fields the reviewer has already constrained removed;
+  predicate, including the fields the rule already tests (§17a);
 - **whether to stop** — `homogeneous` is true when no identity-bearing field
   (`brand`, `model`, `model_no`, `variant`, `type_text`) still varies among the
   matched rows. That is the same question the chunk source-spread gate asks;
@@ -418,6 +483,45 @@ Scope note: what the reviewer isolates is a **predicate, not a sub-chunk**. The
 resulting rule resolves matching cars wherever they live, across chunks and
 future imports — which is why the count shown is the population's, not the
 chunk's.
+
+### 17a. A picked field stays open — how OR clauses get built
+
+Facets used to drop a field the moment the rule constrained it. That silently
+made one whole class of rule unreachable: after clicking `model = E 220 CDI`
+the `model` row vanished, so no second model could ever be clicked, and
+
+```text
+IF is_4wd = 0 AND brand starts_with 'MERCEDES-BENZ'
+   AND model = 'E 220 CDI' OR 'C 220 CDI' OR 'C 220 D' THEN drive_type = rwd
+```
+
+could only be written by hand. The condition chip has always OR-ed a repeated
+field — the UI simply removed the values to repeat.
+
+A constrained field is now counted with **its own clause lifted and every other
+clause still applied**: it shows what the rule would additionally cover if that
+one clause were widened. Under `is_4wd = 0 AND brand starts_with
+'MERCEDES-BENZ'`, picking `type_text = 204 K` leaves `245 G` (789), `204` (598)
+and `F2B` (536) on offer, and `brand` — also lifted, but still inside the
+`type_text` narrowing — surfaces its own misspellings (`MERCEDES BENZ`,
+`MERCEDES-BENZ 204K`) rather than every brand in the register. Values already
+in the rule render selected, and clicking one takes it back out.
+
+Two rules keep this honest:
+
+- The **anchor is pinned**. `source_field` defines which cars are in scope at
+  all, so its clause is never lifted and it is never offered as a split —
+  otherwise a `brand = LAND ROVER` population would offer Toyotas.
+- **One scan, not one per field.** The facet query materializes the population
+  once, carries each liftable clause as a boolean column, and adds a `UNION
+  ALL` arm per constrained field with that field's flags masked out. Refine
+  costs what it did before the change (~1.6–3.5 s on the 191,921-row `is_4wd`
+  population, dominated by the members→raw join, not the faceting).
+
+A constrained field's `distinct_count` and `score` therefore describe the
+lifted population, not the matched one — which is why the screen replaces the
+score with `in your rule · n of N values` and never dims such a row as
+"near-constant".
 
 ## 18. Blockers as a lens, chunks as the decision key
 

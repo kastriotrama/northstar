@@ -19,6 +19,7 @@ from ingestion.match_chunk_migrations import (
     MATCH_CHUNK_BUILDS_TABLE,
     MATCH_CHUNK_MEMBERS_TABLE,
     MATCH_CHUNKS_TABLE,
+    MATCH_FIELD_RESOLUTIONS_TABLE,
 )
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 
@@ -248,6 +249,37 @@ def _resume_cursor(connection: Connection[Any], *, build_id: UUID) -> int:
     return int(row[0]) if row is not None else 0
 
 
+_LIST_VALUED_SIGNATURE_FIELDS = frozenset({"energy_sources"})
+
+
+def apply_field_resolutions(
+    normalized_payload: Mapping[str, Any], resolutions: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Overlay reviewer-authored resolutions onto one normalized payload.
+
+    A resolution states what a field means for one car — the gap normalization
+    could not close on its own — so a rebuild must see it, or running a rule in
+    the dashboard would never reach the chunks it was written for. Only empty
+    fields are filled: a resolution never overrides what normalization derived.
+    """
+
+    if not resolutions:
+        return dict(normalized_payload)
+    payload = dict(normalized_payload)
+    normalized = dict(_mapping(payload.get("normalized")))
+    for field_name, value in resolutions.items():
+        existing = normalized.get(field_name)
+        if existing not in (None, "", []):
+            continue
+        normalized[field_name] = (
+            [str(value)]
+            if field_name in _LIST_VALUED_SIGNATURE_FIELDS
+            else str(value)
+        )
+    payload["normalized"] = normalized
+    return payload
+
+
 def _fetch_page(
     connection: Connection[Any],
     *,
@@ -259,8 +291,9 @@ def _fetch_page(
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
-            SELECT source_record_id, source_batch_id, status,
-                   normalized_payload, review_reasons
+            SELECT latest.source_record_id, latest.source_batch_id,
+                   latest.status, latest.normalized_payload,
+                   latest.review_reasons, resolved.fields
             FROM (
                 SELECT DISTINCT ON (source_record_id)
                     source_record_id, source_batch_id, status,
@@ -269,8 +302,14 @@ def _fetch_page(
                 WHERE source_batch_id LIKE %s AND source_record_id > %s
                 ORDER BY source_record_id, updated_at DESC, id DESC
             ) AS latest
-            WHERE status = ANY(%s)
-            ORDER BY source_record_id
+            LEFT JOIN LATERAL (
+                SELECT jsonb_object_agg(target_field, target_value) AS fields
+                FROM {MATCH_FIELD_RESOLUTIONS_TABLE} AS res
+                WHERE res.source_record_id = latest.source_record_id
+                  AND res.superseded_at IS NULL
+            ) AS resolved ON true
+            WHERE latest.status = ANY(%s)
+            ORDER BY latest.source_record_id
             LIMIT %s
             """,
             (
@@ -286,7 +325,9 @@ def _fetch_page(
             "source_record_id": int(row[0]),
             "source_batch_id": str(row[1]),
             "status": str(row[2]),
-            "normalized_payload": dict(row[3] or {}),
+            "normalized_payload": apply_field_resolutions(
+                dict(row[3] or {}), dict(row[5] or {})
+            ),
             "review_reasons": [str(reason) for reason in (row[4] or [])],
         }
         for row in rows

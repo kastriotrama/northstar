@@ -11,6 +11,7 @@ from api.app.features.match_review.adjudicator import (
     MatchAdjudicator,
 )
 from api.app.features.match_review.chunk_schemas import (
+    BuildProgress,
     BuildSummary,
     ChunkDetail,
     ChunkFieldProfile,
@@ -36,6 +37,8 @@ from api.app.features.match_review.chunk_schemas import (
     ProposalSummary,
     RefineRequest,
     RefineResult,
+    ResolutionRule,
+    ResolutionRuleRequest,
     RuleAdvice,
     RuleAdviceRequest,
     RuleCondition,
@@ -103,7 +106,8 @@ class ChunkRepository(Protocol):
         limit: int,
         offset: int,
         chunk_ids: Sequence[UUID] | None = None,
-    ) -> tuple[int, int, list[dict[str, Any]]]: ...
+    ) -> tuple[int, list[dict[str, Any]]]: ...
+    def fetch_build_progress(self, build_id: UUID) -> dict[str, int]: ...
     def fetch_chunk(self, chunk_id: UUID) -> dict[str, Any] | None: ...
     def fetch_pattern_chunks(
         self, *, operation_id: UUID, pattern_key: str, build_id: UUID
@@ -162,6 +166,7 @@ class ChunkRepository(Protocol):
         signature_field: str,
         conditions: list[PredicateTerm],
         candidate_fields: tuple[str, ...],
+        pinned_fields: tuple[str, ...] = (),
         top_values: int = 8,
     ) -> tuple[int, list[dict[str, Any]]]: ...
     def fetch_narrowing_trail(
@@ -189,6 +194,44 @@ class ChunkRepository(Protocol):
         top_values: int = 6,
         sample_limit: int = 20_000,
     ) -> tuple[int, list[dict[str, Any]]]: ...
+    def insert_resolution_rule(
+        self,
+        *,
+        rule_id: UUID,
+        build_id: UUID,
+        source_field: str,
+        source_value: str,
+        target_field: str,
+        target_value: str,
+        conditions: list[dict[str, Any]],
+        author: str,
+        note: str | None,
+        matched_rows: int,
+        would_resolve: int,
+        already_resolved: int,
+    ) -> dict[str, Any]: ...
+    def fetch_resolution_rules(
+        self,
+        build_id: UUID,
+        *,
+        source_field: str | None = None,
+        source_value: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]: ...
+    def fetch_resolution_rule(self, rule_id: UUID) -> dict[str, Any] | None: ...
+    def apply_resolution_rule(
+        self,
+        rule_id: UUID,
+        *,
+        build_id: UUID,
+        conditions: list[PredicateTerm],
+        target_field: str,
+        target_value: str,
+        applied_by: str,
+    ) -> dict[str, Any]: ...
+    def retire_resolution_rule(
+        self, rule_id: UUID, *, retired_by: str
+    ) -> dict[str, Any]: ...
     def fetch_member_vin(
         self, chunk_id: UUID, source_record_id: int
     ) -> str | None: ...
@@ -259,6 +302,26 @@ _OPERATOR_LABELS = {
 def _condition_label(condition: Any) -> str:
     operator = _OPERATOR_LABELS.get(condition.operator, condition.operator)
     return f"{condition.field} {operator} {' or '.join(condition.terms)}"
+
+
+def _predicate_terms(conditions: list[RuleCondition]) -> list[PredicateTerm]:
+    return [
+        PredicateTerm(
+            layer=condition.layer,
+            field=condition.field,
+            operator=condition.operator,
+            values=condition.terms,
+        )
+        for condition in conditions
+    ]
+
+
+def _stored_conditions(rule: dict[str, Any]) -> list[RuleCondition]:
+    return [RuleCondition(**condition) for condition in rule["conditions"]]
+
+
+def _resolution_rule(row: dict[str, Any]) -> ResolutionRule:
+    return ResolutionRule(**{**row, "conditions": _stored_conditions(row)})
 
 
 def _value_counts(field: str, items: list[dict[str, Any]]) -> list[FieldValueCount]:
@@ -396,7 +459,7 @@ class MatchReviewService:
             build = self._repository.fetch_build(build_id)
             if build is None:
                 raise MatchReviewNotFoundError(f"Unknown build {build_id}")
-        total, decided_members, items = self._repository.fetch_chunk_page(
+        total, items = self._repository.fetch_chunk_page(
             build_id=build["build_id"],
             status=status,
             query=query,
@@ -404,10 +467,14 @@ class MatchReviewService:
             offset=offset,
             chunk_ids=chunk_ids,
         )
+        progress = BuildProgress(
+            **self._repository.fetch_build_progress(build["build_id"])
+        )
         return ChunkPage(
             build=BuildSummary(**build),
             total=total,
-            decided_members=decided_members,
+            decided_members=progress.decided_rows,
+            progress=progress,
             items=[ChunkListItem(**item) for item in items],
         )
 
@@ -609,11 +676,17 @@ class MatchReviewService:
             signature_field=signature_field,
             conditions=terms,
             candidate_fields=CANDIDATE_DISCRIMINATORS,
+            # The anchor is what makes these cars a population; its clause is
+            # never lifted, and it is not offered as something to split on.
+            pinned_fields=(request.source_field,),
         )
         constrained = {condition.field for condition in request.conditions}
+        selected: dict[str, list[str]] = {}
+        for condition in request.conditions:
+            selected.setdefault(condition.field, []).extend(condition.terms)
         fields = []
         for entry in breakdown:
-            if entry["field"] in constrained:
+            if entry["field"] == request.source_field:
                 continue
             scored = score_discriminator(
                 field=entry["field"],
@@ -633,13 +706,19 @@ class MatchReviewService:
                     score=scored.score,
                     usable=scored.usable,
                     top_values=_value_counts(entry["field"], entry["top_values"]),
+                    constrained=entry["field"] in constrained,
+                    selected_values=selected.get(entry["field"], []),
                 )
             )
-        fields.sort(key=lambda item: item.score, reverse=True)
+        # Fields the rule already tests come first: they are the dimensions
+        # being edited, and their remaining values are the next click.
+        fields.sort(key=lambda item: (item.constrained, item.score), reverse=True)
 
         # A field the reviewer has already constrained is not an open question:
         # grouping `MERCEDES-BENZ 204` with `204 K` is a deliberate statement
         # that those spellings mean the same car, so it must not keep blocking.
+        # Its `distinct_count` now counts the wider, clause-lifted population,
+        # so the check reads the constrained set rather than the entry.
         varying = sorted(
             entry["field"]
             for entry in breakdown
@@ -673,21 +752,51 @@ class MatchReviewService:
     def preview_rule(self, request: RulePreviewRequest) -> RulePreview:
         """Dry-run a candidate rule. Nothing is written; this only counts."""
 
-        if self._repository.fetch_build(request.build_id) is None:
-            raise MatchReviewNotFoundError(f"Unknown build {request.build_id}")
-        if request.target_field not in RESOLVABLE_TARGETS:
+        result = self._count_rule(
+            build_id=request.build_id,
+            conditions=request.conditions,
+            target_field=request.target_field,
+            target_value=request.target_value,
+        )
+        return RulePreview(
+            conditions=request.conditions,
+            target_field=request.target_field,
+            target_value=request.target_value,
+            matched_rows=result["matched_rows"],
+            would_resolve=result["would_resolve"],
+            already_resolved=result["already_resolved"],
+            sample_plates=result["sample_plates"],
+        )
+
+    def _count_rule(
+        self,
+        *,
+        build_id: UUID,
+        conditions: list[RuleCondition],
+        target_field: str,
+        target_value: str,
+    ) -> dict[str, Any]:
+        """Validate a rule and count what it covers. Writes nothing.
+
+        Saving and running go through the same gate as preview, so a rule can
+        never be persisted — or applied — on terms the dry run would reject.
+        """
+
+        if self._repository.fetch_build(build_id) is None:
+            raise MatchReviewNotFoundError(f"Unknown build {build_id}")
+        if target_field not in RESOLVABLE_TARGETS:
             raise MatchReviewConflictError(
-                f"{request.target_field} is not an authorable target field."
+                f"{target_field} is not an authorable target field."
             )
-        allowed = RESOLVABLE_TARGETS[request.target_field]
-        if allowed and request.target_value not in allowed:
+        allowed = RESOLVABLE_TARGETS[target_field]
+        if allowed and target_value not in allowed:
             raise MatchReviewConflictError(
-                f"{request.target_value} is not a canonical value for "
-                f"{request.target_field}; expected one of {', '.join(allowed)}."
+                f"{target_value} is not a canonical value for "
+                f"{target_field}; expected one of {', '.join(allowed)}."
             )
         unknown = [
             condition.field
-            for condition in request.conditions
+            for condition in conditions
             if (
                 condition.layer == "normalized"
                 and condition.field not in SIGNATURE_FIELDS
@@ -703,28 +812,112 @@ class MatchReviewService:
                 f"Unknown field(s) for the requested layer: "
                 f"{', '.join(sorted(set(unknown)))}"
             )
-        result = self._repository.preview_rule(
-            request.build_id,
-            conditions=[
-                PredicateTerm(
-                    layer=condition.layer,
-                    field=condition.field,
-                    operator=condition.operator,
-                    values=condition.terms,
-                )
-                for condition in request.conditions
-            ],
-            signature_field=request.target_field,
+        return self._repository.preview_rule(
+            build_id,
+            conditions=_predicate_terms(conditions),
+            signature_field=target_field,
         )
-        return RulePreview(
+
+    def save_resolution_rule(self, request: ResolutionRuleRequest) -> ResolutionRule:
+        """Persist a previewed rule without running it.
+
+        The preview counts are frozen onto the row at save time so a reviewer
+        can later see what the rule promised, next to what running it did.
+        """
+
+        counts = self._count_rule(
+            build_id=request.build_id,
             conditions=request.conditions,
             target_field=request.target_field,
             target_value=request.target_value,
-            matched_rows=result["matched_rows"],
-            would_resolve=result["would_resolve"],
-            already_resolved=result["already_resolved"],
-            sample_plates=result["sample_plates"],
         )
+        stored = self._repository.insert_resolution_rule(
+            rule_id=uuid4(),
+            build_id=request.build_id,
+            source_field=request.source_field,
+            source_value=request.source_value,
+            target_field=request.target_field,
+            target_value=request.target_value,
+            conditions=[
+                condition.model_dump(mode="json") for condition in request.conditions
+            ],
+            author=request.author.strip(),
+            note=request.note.strip() if request.note and request.note.strip() else None,
+            matched_rows=counts["matched_rows"],
+            would_resolve=counts["would_resolve"],
+            already_resolved=counts["already_resolved"],
+        )
+        return _resolution_rule(stored)
+
+    def list_resolution_rules(
+        self,
+        build_id: UUID,
+        *,
+        source_field: str | None = None,
+        source_value: str | None = None,
+    ) -> list[ResolutionRule]:
+        if self._repository.fetch_build(build_id) is None:
+            raise MatchReviewNotFoundError(f"Unknown build {build_id}")
+        return [
+            _resolution_rule(row)
+            for row in self._repository.fetch_resolution_rules(
+                build_id, source_field=source_field, source_value=source_value
+            )
+        ]
+
+    def apply_resolution_rule(
+        self, rule_id: UUID, *, reviewer: str
+    ) -> ResolutionRule:
+        """Run a saved rule: write one resolution per car it still covers.
+
+        Re-running is allowed and safe. A rule only ever fills gaps, so a
+        second run picks up rows that were resolved elsewhere in between and
+        nothing else; running one that has already covered its population
+        writes zero rows rather than failing.
+        """
+
+        rule = self._require_resolution_rule(rule_id)
+        if rule["status"] == "retired":
+            raise MatchReviewConflictError(
+                "This rule was retired. Author a new rule instead of re-running it."
+            )
+        conditions = _stored_conditions(rule)
+        # Revalidate against today's vocabulary: a rule saved before a rule-set
+        # change must not write a value the canonical set no longer accepts.
+        self._count_rule(
+            build_id=rule["build_id"],
+            conditions=conditions,
+            target_field=rule["target_field"],
+            target_value=rule["target_value"],
+        )
+        applied = self._repository.apply_resolution_rule(
+            rule_id,
+            build_id=rule["build_id"],
+            conditions=_predicate_terms(conditions),
+            target_field=rule["target_field"],
+            target_value=rule["target_value"],
+            applied_by=reviewer.strip(),
+        )
+        return _resolution_rule(applied)
+
+    def retire_resolution_rule(
+        self, rule_id: UUID, *, reviewer: str
+    ) -> ResolutionRule:
+        """Undo a run: every resolution the rule wrote stops counting."""
+
+        rule = self._require_resolution_rule(rule_id)
+        if rule["status"] == "retired":
+            raise MatchReviewConflictError("This rule is already retired.")
+        retired = self._repository.retire_resolution_rule(
+            rule_id, retired_by=reviewer.strip()
+        )
+        return _resolution_rule(retired)
+
+    def _require_resolution_rule(self, rule_id: UUID) -> dict[str, Any]:
+        rule = self._repository.fetch_resolution_rule(rule_id)
+        if rule is None:
+            raise MatchReviewNotFoundError(f"Unknown resolution rule {rule_id}")
+        return rule
 
     def get_population_attributes(
         self, build_id: UUID, *, source_field: str, source_value: str
@@ -1034,7 +1227,12 @@ class MatchReviewService:
             signature=chunk["signature"],
             reason_profile=chunk["reason_profile"],
             member_count=chunk["member_count"],
-            oem_samples=[sample["response_payload"] for sample in samples],
+            # An adjudicator may be a remote model: mask VINs before the
+            # payloads leave this process, as the member view already does.
+            oem_samples=[
+                _sanitize_payload(sample["response_payload"])
+                for sample in samples
+            ],
             tecdoc_candidates=[],
             varying_fields=profile.varying_fields,
         )

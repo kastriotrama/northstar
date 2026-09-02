@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Read(//Users/valon/Downloads/**)",
+      "Bash(docker info *)",
+      "Bash(python3 -m pip show vehicle-intelligence-api)"
+    ]
+  }
+}

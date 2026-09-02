@@ -17,6 +17,8 @@ from ingestion.match_chunk_migrations import (
     MATCH_CHUNK_PROPOSALS_TABLE,
     MATCH_CHUNK_SAMPLES_TABLE,
     MATCH_CHUNKS_TABLE,
+    MATCH_FIELD_RESOLUTIONS_TABLE,
+    MATCH_RESOLUTION_RULES_TABLE,
     OEM_VIN_EVIDENCE_TABLE,
     run_match_chunk_migrations,
 )
@@ -35,6 +37,24 @@ _PROPOSAL_COLUMNS = (
     "recommendation, target_ktype_reference, confidence, evidence, reasoning, "
     "status, reviewed_by, review_note, reviewed_at, created_at"
 )
+_RESOLUTION_RULE_COLUMNS = (
+    "rule_id, build_id, source_field, source_value, target_field, "
+    "target_value, conditions, author, note, matched_rows, would_resolve, "
+    "already_resolved, status, resolved_rows, created_at, applied_at, "
+    "applied_by, retired_at, retired_by"
+)
+
+# A row counts as still unresolved only while nothing has filled the gap: not
+# the signature, and not a rule a reviewer has already run. Without the second
+# half, applying a rule would leave the screen reporting the same population it
+# just resolved.
+_UNRESOLVED_ROW = f"""nullif(btrim(chunks.signature ->> %s), '') IS NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {MATCH_FIELD_RESOLUTIONS_TABLE} AS res
+                      WHERE res.source_record_id = mem.source_record_id
+                        AND res.target_field = %s
+                        AND res.superseded_at IS NULL
+                  )"""
 
 
 class ConnectionFactory(Protocol):
@@ -70,6 +90,30 @@ def _proposal_row(row: tuple[Any, ...]) -> dict[str, Any]:
         "review_note": str(row[11]) if row[11] is not None else None,
         "reviewed_at": row[12],
         "created_at": row[13],
+    }
+
+
+def _resolution_rule_row(row: tuple[Any, ...]) -> dict[str, Any]:
+    return {
+        "rule_id": row[0],
+        "build_id": row[1],
+        "source_field": str(row[2]),
+        "source_value": str(row[3]),
+        "target_field": str(row[4]),
+        "target_value": str(row[5]),
+        "conditions": list(row[6]),
+        "author": str(row[7]),
+        "note": str(row[8]) if row[8] is not None else None,
+        "matched_rows": int(row[9]),
+        "would_resolve": int(row[10]),
+        "already_resolved": int(row[11]),
+        "status": str(row[12]),
+        "resolved_rows": int(row[13]),
+        "created_at": row[14],
+        "applied_at": row[15],
+        "applied_by": str(row[16]) if row[16] is not None else None,
+        "retired_at": row[17],
+        "retired_by": str(row[18]) if row[18] is not None else None,
     }
 
 
@@ -120,12 +164,12 @@ class MatchReviewRepository:
         limit: int,
         offset: int,
         chunk_ids: Sequence[UUID] | None = None,
-    ) -> tuple[int, int, list[dict[str, Any]]]:
+    ) -> tuple[int, list[dict[str, Any]]]:
         conditions = ["build_id = %s"]
         parameters: list[object] = [build_id]
         if chunk_ids is not None:
             if not chunk_ids:
-                return 0, 0, []
+                return 0, []
             conditions.append("chunk_id = ANY(%s)")
             parameters.append(list(chunk_ids))
         if status is not None:
@@ -140,15 +184,11 @@ class MatchReviewRepository:
         where_clause = " AND ".join(conditions)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT count(*), "
-                f"coalesce(sum(member_count) FILTER "
-                f"(WHERE status IN ('approved', 'rejected', 'split')), 0) "
-                f"FROM {MATCH_CHUNKS_TABLE} WHERE {where_clause}",
+                f"SELECT count(*) FROM {MATCH_CHUNKS_TABLE} WHERE {where_clause}",
                 parameters,
             )
             count_row = cursor.fetchone()
             total = int(count_row[0]) if count_row is not None else 0
-            decided_members = int(count_row[1]) if count_row is not None else 0
             cursor.execute(
                 f"""
                 SELECT chunk_id, signature, member_count, reason_profile, status
@@ -172,7 +212,48 @@ class MatchReviewRepository:
             }
             for row in rows
         ]
-        return total, decided_members, items
+        return total, items
+
+    def fetch_build_progress(self, build_id: UUID) -> dict[str, int]:
+        """How much of one build has actually been worked, build-wide.
+
+        Deliberately independent of the list's filters: a search box narrowing
+        the worklist must not appear to undo the progress made. The two kinds
+        of work are counted apart because they are different claims — a chunk
+        decision settles what a group of cars *matches*, a resolution rule
+        fills a field the register left uninterpretable.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT coalesce(sum(member_count) FILTER (
+                           WHERE status IN ('approved', 'split')), 0),
+                       coalesce(sum(member_count) FILTER (
+                           WHERE status = 'proposed'), 0),
+                       coalesce(sum(member_count), 0)
+                FROM {MATCH_CHUNKS_TABLE}
+                WHERE build_id = %s
+                """,
+                (build_id,),
+            )
+            chunk_row = cursor.fetchone()
+            cursor.execute(
+                f"""
+                SELECT count(*), count(DISTINCT rule_id)
+                FROM {MATCH_FIELD_RESOLUTIONS_TABLE}
+                WHERE build_id = %s AND superseded_at IS NULL
+                """,
+                (build_id,),
+            )
+            resolution_row = cursor.fetchone()
+        return {
+            "decided_rows": int(chunk_row[0]) if chunk_row else 0,
+            "in_review_rows": int(chunk_row[1]) if chunk_row else 0,
+            "member_rows": int(chunk_row[2]) if chunk_row else 0,
+            "resolved_rows": int(resolution_row[0]) if resolution_row else 0,
+            "applied_rules": int(resolution_row[1]) if resolution_row else 0,
+        }
 
     def fetch_chunk(self, chunk_id: UUID) -> dict[str, Any] | None:
         with self._connection_factory() as connection, connection.cursor() as cursor:
@@ -255,13 +336,20 @@ class MatchReviewRepository:
                 JOIN staging.transportstyrelsen_raw AS raw
                     ON raw.id = mem.source_record_id
                 WHERE chunks.build_id = %s
-                  AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
+                  AND {_UNRESOLVED_ROW}
                   AND nullif(btrim(raw.raw_record ->> %s), '') IS NOT NULL
                 GROUP BY 1
                 ORDER BY 2 DESC
                 LIMIT %s
                 """,
-                (source_field, build_id, signature_field, source_field, limit),
+                (
+                    source_field,
+                    build_id,
+                    signature_field,
+                    signature_field,
+                    source_field,
+                    limit,
+                ),
             )
             rows = cursor.fetchall()
         return [
@@ -333,6 +421,7 @@ class MatchReviewRepository:
                 PredicateTerm("source", source_field, "equals", (source_value,))
             ],
             candidate_fields=candidate_fields,
+            pinned_fields=(source_field,),
             top_values=top_values,
         )
 
@@ -343,54 +432,132 @@ class MatchReviewRepository:
         signature_field: str,
         conditions: list[PredicateTerm],
         candidate_fields: tuple[str, ...],
+        pinned_fields: tuple[str, ...] = (),
         top_values: int = 8,
     ) -> tuple[int, list[dict[str, Any]]]:
         """Break down the rows matching a predicate, by each candidate field.
 
-        Recomputed against the *current* predicate so the counts a reviewer
-        clicks on describe the population they have actually narrowed to, not
-        the one they started from.
+        Counts are recomputed against the *current* predicate, so the numbers a
+        reviewer clicks on describe the population they have actually narrowed
+        to. One exception makes multi-value rules possible: a field the rule
+        already constrains is counted with **its own clause lifted**, every
+        other clause still applied. Picking `model = E 220 D` therefore leaves
+        the other Mercedes models visible and clickable — they are what the
+        rule would cover if that clause were widened — instead of collapsing
+        the field to the single value already chosen, which is a facet that can
+        never be widened again.
+
+        `pinned_fields` are exempt: the population's own anchor field defines
+        which cars are in scope at all, so lifting its clause would offer
+        values from outside the population being resolved.
         """
 
-        clauses, parameters = self._condition_sql(conditions)
+        pinned = set(pinned_fields)
+        # Clauses that always apply: the anchor's, and anything keyed on a
+        # field with no facet of its own. Filtering on them early keeps the
+        # scanned set as small as the old single-predicate query did.
+        early_terms = [
+            term
+            for term in conditions
+            if term.field in pinned or term.field not in candidate_fields
+        ]
+        # Clauses that one facet each must ignore, carried as boolean columns.
+        liftable_terms = [
+            term
+            for term in conditions
+            if term.field not in pinned and term.field in candidate_fields
+        ]
+
+        early_sql, early_parameters = (
+            self._condition_sql(early_terms) if early_terms else ("true", [])
+        )
+        flag_columns: list[str] = []
+        flag_parameters: list[object] = []
+        for position, term in enumerate(liftable_terms, start=1):
+            clause, clause_parameters = self._condition_sql([term])
+            flag_columns.append(f"({clause}) AS c{position}")
+            flag_parameters.extend(clause_parameters)
+
+        def mask(*, lifted_field: str | None) -> str:
+            """AND of every flag except the ones keyed on `lifted_field`."""
+
+            flags = [
+                f"c{position}"
+                for position, term in enumerate(liftable_terms, start=1)
+                if term.field != lifted_field
+            ]
+            return " AND ".join(flags) if flags else "true"
+
+        value_expressions = ", ".join(
+            ["nullif(btrim(raw.raw_record ->> %s), '')"] * len(candidate_fields)
+        )
+        constrained_fields = {term.field for term in liftable_terms}
+        open_indexes = [
+            index
+            for index, field in enumerate(candidate_fields, start=1)
+            if field not in constrained_fields
+        ]
+        # One arm per constrained field, each reading the shared scan with its
+        # own clause lifted. There are at most a handful; the rule builder caps
+        # conditions at six.
+        lifted_arms = "".join(
+            f"""
+                    UNION ALL
+                    SELECT {index}, base.field_values[{index}]
+                    FROM base
+                    WHERE base.field_values[{index}] IS NOT NULL
+                      AND {mask(lifted_field=candidate_fields[index - 1])}"""
+            for index, field in enumerate(candidate_fields, start=1)
+            if field in constrained_fields
+        )
+
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 f"""
-                WITH population AS (
-                    SELECT raw.raw_record AS record
+                WITH base AS MATERIALIZED (
+                    SELECT ARRAY[{value_expressions}] AS field_values
+                           {"," if flag_columns else ""}
+                           {", ".join(flag_columns)}
                     FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
                     JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
                     JOIN staging.transportstyrelsen_raw AS raw
                         ON raw.id = mem.source_record_id
                     WHERE chunks.build_id = %s
-                      AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
-                      AND {clauses}
+                      AND {_UNRESOLVED_ROW}
+                      AND {early_sql}
+                ), matched AS (
+                    SELECT field_values FROM base WHERE {mask(lifted_field=None)}
                 ), total AS (
-                    SELECT count(*) AS population FROM population
+                    SELECT count(*) AS population FROM matched
                 ), pairs AS (
-                    SELECT field.name AS field,
-                           nullif(btrim(population.record ->> field.name), '')
-                               AS value
-                    FROM population, unnest(%s::text[]) AS field(name)
+                    SELECT term.field_index, term.value
+                    FROM matched,
+                         unnest(matched.field_values)
+                             WITH ORDINALITY AS term(value, field_index)
+                    WHERE term.value IS NOT NULL
+                      AND term.field_index = ANY(%s::int[]){lifted_arms}
                 ), counted AS (
-                    SELECT field, value, count(*) AS occurrences
-                    FROM pairs WHERE value IS NOT NULL
-                    GROUP BY field, value
+                    SELECT field_index, value, count(*) AS occurrences
+                    FROM pairs
+                    GROUP BY field_index, value
                 )
                 SELECT (SELECT population FROM total),
-                       field,
+                       field_index,
                        count(*) AS distinct_count,
                        sum(occurrences) AS present_count,
                        (array_agg(value ORDER BY occurrences DESC, value))[1:%s],
                        (array_agg(occurrences ORDER BY occurrences DESC, value))[1:%s]
                 FROM counted
-                GROUP BY field
+                GROUP BY field_index
                 """,
                 (
+                    *candidate_fields,
+                    *flag_parameters,
                     build_id,
                     signature_field,
-                    *parameters,
-                    list(candidate_fields),
+                    signature_field,
+                    *early_parameters,
+                    open_indexes,
                     top_values,
                     top_values,
                 ),
@@ -401,9 +568,11 @@ class MatchReviewRepository:
         population = int(rows[0][0])
         breakdown = [
             {
-                "field": str(row[1]),
+                "field": candidate_fields[int(row[1]) - 1],
                 "distinct_count": int(row[2]),
                 "present_count": int(row[3]),
+                "constrained": candidate_fields[int(row[1]) - 1]
+                in constrained_fields,
                 "top_values": [
                     {"value": str(value), "count": int(count)}
                     for value, count in zip(row[4], row[5], strict=True)
@@ -443,9 +612,9 @@ class MatchReviewRepository:
                 JOIN staging.transportstyrelsen_raw AS raw
                     ON raw.id = mem.source_record_id
                 WHERE chunks.build_id = %s
-                  AND nullif(btrim(chunks.signature ->> %s), '') IS NULL
+                  AND {_UNRESOLVED_ROW}
                 """,
-                (*parameters, build_id, signature_field),
+                (*parameters, build_id, signature_field, signature_field),
             )
             row = cursor.fetchone()
         return [int(value) for value in row] if row else []
@@ -654,8 +823,9 @@ class MatchReviewRepository:
     ) -> dict[str, Any]:
         """Count what a candidate rule would resolve, and what it would contradict.
 
-        `already_resolved` rows already carry a signature value, so the rule
-        would be asserting over an existing decision rather than filling a gap.
+        `already_resolved` rows already carry a value — from the signature, or
+        from a resolution rule someone has already run — so the rule would be
+        asserting over an existing decision rather than filling a gap.
         """
 
         clauses, parameters = self._condition_sql(conditions)
@@ -664,12 +834,18 @@ class MatchReviewRepository:
                 f"""
                 WITH matched AS (
                     SELECT raw.raw_record ->> 'plate' AS plate,
-                           nullif(btrim(chunks.signature ->> %s), '')
-                               AS existing_value
+                           coalesce(
+                               nullif(btrim(chunks.signature ->> %s), ''),
+                               applied.target_value
+                           ) AS existing_value
                     FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
                     JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
                     JOIN staging.transportstyrelsen_raw AS raw
                         ON raw.id = mem.source_record_id
+                    LEFT JOIN {MATCH_FIELD_RESOLUTIONS_TABLE} AS applied
+                        ON applied.source_record_id = mem.source_record_id
+                       AND applied.target_field = %s
+                       AND applied.superseded_at IS NULL
                     WHERE chunks.build_id = %s AND {clauses}
                 )
                 SELECT count(*),
@@ -678,7 +854,13 @@ class MatchReviewRepository:
                        (array_agg(plate) FILTER (WHERE plate IS NOT NULL))[1:%s]
                 FROM matched
                 """,
-                (signature_field, build_id, *parameters, sample_limit),
+                (
+                    signature_field,
+                    signature_field,
+                    build_id,
+                    *parameters,
+                    sample_limit,
+                ),
             )
             row = cursor.fetchone()
         if row is None:
@@ -694,6 +876,201 @@ class MatchReviewRepository:
             "already_resolved": int(row[2]),
             "sample_plates": [str(plate) for plate in (row[3] or [])],
         }
+
+    def insert_resolution_rule(
+        self,
+        *,
+        rule_id: UUID,
+        build_id: UUID,
+        source_field: str,
+        source_value: str,
+        target_field: str,
+        target_value: str,
+        conditions: list[dict[str, Any]],
+        author: str,
+        note: str | None,
+        matched_rows: int,
+        would_resolve: int,
+        already_resolved: int,
+    ) -> dict[str, Any]:
+        """Persist a saved rule. Definition columns are immutable thereafter."""
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                INSERT INTO {MATCH_RESOLUTION_RULES_TABLE}
+                    (rule_id, build_id, source_field, source_value,
+                     target_field, target_value, conditions, author, note,
+                     matched_rows, would_resolve, already_resolved)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING {_RESOLUTION_RULE_COLUMNS}
+                """,
+                (
+                    rule_id,
+                    build_id,
+                    source_field,
+                    source_value,
+                    target_field,
+                    target_value,
+                    Jsonb(conditions),
+                    author,
+                    note,
+                    matched_rows,
+                    would_resolve,
+                    already_resolved,
+                ),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        if row is None:
+            raise RuntimeError("resolution rule row missing after insert")
+        return _resolution_rule_row(row)
+
+    def fetch_resolution_rules(
+        self,
+        build_id: UUID,
+        *,
+        source_field: str | None = None,
+        source_value: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        filters = ["build_id = %s"]
+        parameters: list[object] = [build_id]
+        if source_field is not None:
+            filters.append("source_field = %s")
+            parameters.append(source_field)
+        if source_value is not None:
+            filters.append("source_value = %s")
+            parameters.append(source_value)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {_RESOLUTION_RULE_COLUMNS} "
+                f"FROM {MATCH_RESOLUTION_RULES_TABLE} "
+                f"WHERE {' AND '.join(filters)} "
+                f"ORDER BY created_at DESC LIMIT %s",
+                (*parameters, limit),
+            )
+            rows = cursor.fetchall()
+        return [_resolution_rule_row(row) for row in rows]
+
+    def fetch_resolution_rule(self, rule_id: UUID) -> dict[str, Any] | None:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {_RESOLUTION_RULE_COLUMNS} "
+                f"FROM {MATCH_RESOLUTION_RULES_TABLE} WHERE rule_id = %s",
+                (rule_id,),
+            )
+            row = cursor.fetchone()
+        return None if row is None else _resolution_rule_row(row)
+
+    def apply_resolution_rule(
+        self,
+        rule_id: UUID,
+        *,
+        build_id: UUID,
+        conditions: list[PredicateTerm],
+        target_field: str,
+        target_value: str,
+        applied_by: str,
+    ) -> dict[str, Any]:
+        """Write one resolution per matched car that still lacks the field.
+
+        Rows whose signature already carries a value are skipped, so running a
+        rule can only fill gaps — never overwrite a decision normalization
+        already made. Re-running is idempotent: the partial unique index makes
+        a second pass insert only rows the first pass did not reach.
+        """
+
+        clauses, parameters = self._condition_sql(conditions)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                WITH matched AS (
+                    SELECT DISTINCT mem.source_record_id
+                    FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
+                    JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
+                    JOIN staging.transportstyrelsen_raw AS raw
+                        ON raw.id = mem.source_record_id
+                    WHERE chunks.build_id = %s
+                      AND {_UNRESOLVED_ROW}
+                      AND {clauses}
+                )
+                INSERT INTO {MATCH_FIELD_RESOLUTIONS_TABLE}
+                    (rule_id, build_id, source_record_id, target_field,
+                     target_value)
+                SELECT %s, %s, source_record_id, %s, %s FROM matched
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    build_id,
+                    target_field,
+                    target_field,
+                    *parameters,
+                    rule_id,
+                    build_id,
+                    target_field,
+                    target_value,
+                ),
+            )
+            resolved_now = cursor.rowcount
+            cursor.execute(
+                f"""
+                UPDATE {MATCH_RESOLUTION_RULES_TABLE}
+                SET status = 'applied',
+                    resolved_rows = resolved_rows + %s,
+                    applied_at = now(),
+                    applied_by = %s
+                WHERE rule_id = %s
+                RETURNING {_RESOLUTION_RULE_COLUMNS}
+                """,
+                (resolved_now, applied_by, rule_id),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        if row is None:
+            raise RuntimeError(f"resolution rule {rule_id} vanished while applying")
+        applied = _resolution_rule_row(row)
+        applied["resolved_now"] = max(resolved_now, 0)
+        return applied
+
+    def retire_resolution_rule(
+        self, rule_id: UUID, *, retired_by: str
+    ) -> dict[str, Any]:
+        """Supersede every resolution this rule wrote, and close the rule.
+
+        The rows stay — they record what was asserted and when — but they stop
+        counting as resolved, so the population they came from reopens.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                UPDATE {MATCH_FIELD_RESOLUTIONS_TABLE}
+                SET superseded_at = now()
+                WHERE rule_id = %s AND superseded_at IS NULL
+                """,
+                (rule_id,),
+            )
+            superseded = cursor.rowcount
+            cursor.execute(
+                f"""
+                UPDATE {MATCH_RESOLUTION_RULES_TABLE}
+                SET status = 'retired',
+                    resolved_rows = 0,
+                    retired_at = now(),
+                    retired_by = %s
+                WHERE rule_id = %s
+                RETURNING {_RESOLUTION_RULE_COLUMNS}
+                """,
+                (retired_by, rule_id),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        if row is None:
+            raise RuntimeError(f"resolution rule {rule_id} vanished while retiring")
+        retired = _resolution_rule_row(row)
+        retired["superseded_rows"] = max(superseded, 0)
+        return retired
 
     def fetch_field_profile(
         self,

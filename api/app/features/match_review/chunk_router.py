@@ -13,7 +13,11 @@ from fastapi.responses import FileResponse
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
-from api.app.features.match_review.adjudicator import HeuristicAdjudicator
+from api.app.features.match_review.adjudicator import (
+    HeuristicAdjudicator,
+    LlmAdjudicator,
+    MatchAdjudicator,
+)
 from api.app.features.match_review.chunk_repository import MatchReviewRepository
 from api.app.features.match_review.chunk_schemas import (
     BuildSummary,
@@ -31,6 +35,9 @@ from api.app.features.match_review.chunk_schemas import (
     ProposalSummary,
     RefineRequest,
     RefineResult,
+    ResolutionRule,
+    ResolutionRuleActionRequest,
+    ResolutionRuleRequest,
     RuleAdvice,
     RuleAdviceRequest,
     RulePreview,
@@ -45,7 +52,9 @@ from api.app.features.match_review.chunk_service import (
     MemberVinUnavailableError,
 )
 from api.app.features.match_review.integrations import (
+    GeminiJsonLlm,
     HttpOemVinProvider,
+    JsonLlm,
     OemProviderError,
     OemProviderNotConfiguredError,
     OemVinProvider,
@@ -79,18 +88,43 @@ def _build_oem_provider(settings: Settings) -> OemVinProvider:
     return UnconfiguredOemVinProvider()
 
 
+def _build_llm(settings: Settings, *, model: str, timeout_seconds: float) -> JsonLlm | None:
+    """No key, no model: both screens then run on their deterministic path."""
+
+    if not settings.gemini_api_key:
+        return None
+    return GeminiJsonLlm(
+        api_key=settings.gemini_api_key,
+        model=model,
+        base_url=settings.gemini_base_url,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def _build_rule_advisor(settings: Settings) -> RuleAdvisor:
     """Use the LLM advisor only when a key is configured; heuristics otherwise."""
 
-    if settings.openai_api_key:
-        return LlmRuleAdvisor(
-            api_key=settings.openai_api_key,
-            model=settings.rule_advisor_model,
-            base_url=settings.rule_advisor_base_url,
-            timeout_seconds=settings.rule_advisor_timeout_seconds,
-            fallback=PatternRuleAdvisor(),
-        )
-    return PatternRuleAdvisor()
+    llm = _build_llm(
+        settings,
+        model=settings.rule_advisor_model,
+        timeout_seconds=settings.rule_advisor_timeout_seconds,
+    )
+    if llm is None:
+        return PatternRuleAdvisor()
+    return LlmRuleAdvisor(llm=llm, fallback=PatternRuleAdvisor())
+
+
+def _build_adjudicator(settings: Settings) -> MatchAdjudicator:
+    """Same rule for chunk proposals: the model advises, the heuristic backs it."""
+
+    llm = _build_llm(
+        settings,
+        model=settings.adjudicator_model,
+        timeout_seconds=settings.adjudicator_timeout_seconds,
+    )
+    if llm is None:
+        return HeuristicAdjudicator()
+    return LlmAdjudicator(llm=llm, fallback=HeuristicAdjudicator())
 
 
 @lru_cache(maxsize=1)
@@ -99,11 +133,17 @@ def _cached_service() -> MatchReviewService:
     repository = MatchReviewRepository(
         connection_factory=lambda: get_postgres_connection(settings)
     )
+    adjudicator = _build_adjudicator(settings)
     return MatchReviewService(
         repository,
         oem_provider=_build_oem_provider(settings),
-        adjudicator=HeuristicAdjudicator(),
+        adjudicator=adjudicator,
         rule_advisor=_build_rule_advisor(settings),
+        # `agent` records that a model was asked, even on a fallback answer;
+        # the proposal's reasoning says which one actually replied.
+        proposal_source=(
+            "agent" if isinstance(adjudicator, LlmAdjudicator) else "heuristic"
+        ),
     )
 
 
@@ -310,6 +350,77 @@ def preview_rule(
         raise HTTPException(status_code=404, detail=str(error)) from error
     except MatchReviewConflictError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.post(
+    "/resolution-rules", response_model=ResolutionRule, status_code=201
+)
+def save_resolution_rule(
+    request: ResolutionRuleRequest, service: ServiceDependency
+) -> ResolutionRule:
+    """Keep a previewed rule. Saving alone resolves nothing; running does."""
+
+    try:
+        return service.save_resolution_rule(request)
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except MatchReviewConflictError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.get("/resolution-rules", response_model=list[ResolutionRule])
+def list_resolution_rules(
+    build_id: UUID,
+    service: ServiceDependency,
+    source_field: str | None = None,
+    source_value: str | None = None,
+) -> list[ResolutionRule]:
+    try:
+        return service.list_resolution_rules(
+            build_id, source_field=source_field, source_value=source_value
+        )
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.post("/resolution-rules/{rule_id}/apply", response_model=ResolutionRule)
+def apply_resolution_rule(
+    rule_id: UUID,
+    request: ResolutionRuleActionRequest,
+    service: ServiceDependency,
+) -> ResolutionRule:
+    """Run a saved rule over the build: one resolution per car it still covers."""
+
+    try:
+        return service.apply_resolution_rule(rule_id, reviewer=request.reviewer)
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except MatchReviewConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.post("/resolution-rules/{rule_id}/retire", response_model=ResolutionRule)
+def retire_resolution_rule(
+    rule_id: UUID,
+    request: ResolutionRuleActionRequest,
+    service: ServiceDependency,
+) -> ResolutionRule:
+    """Undo a run: the rows it resolved reopen, the record of it stays."""
+
+    try:
+        return service.retire_resolution_rule(rule_id, reviewer=request.reviewer)
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except MatchReviewConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except psycopg.Error as error:
         raise _unavailable() from error
 

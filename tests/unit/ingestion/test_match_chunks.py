@@ -125,3 +125,33 @@ def test_signature_falls_back_when_the_row_has_no_matcher_key() -> None:
     assert signature["manufacturer"] == "VOLVO"
     assert signature["model_family"] == "V70"
     assert "evaluation_key" not in signature
+
+
+def test_resolutions_fill_only_the_gaps_a_rebuild_still_has() -> None:
+    """A rule run in the dashboard must reach the next build's signatures."""
+
+    from ingestion.match_chunks import apply_field_resolutions
+
+    payload = _payload(manufacturer="VOLVO", model_family="V70", drive_type=None)
+
+    resolved = apply_field_resolutions(
+        payload, {"drive_type": "fwd", "manufacturer": "SAAB"}
+    )
+
+    assert resolved["normalized"]["drive_type"] == "fwd"
+    # Normalization already derived the manufacturer; a resolution fills gaps,
+    # it does not overrule a value the pipeline produced.
+    assert resolved["normalized"]["manufacturer"] == "VOLVO"
+    assert compute_signature(resolved)["drive_type"] == "fwd"
+
+
+def test_a_resolved_fuel_stays_a_list_in_the_signature() -> None:
+    """`energy_sources` is list-valued; a scalar there would vanish silently."""
+
+    from ingestion.match_chunks import apply_field_resolutions
+
+    resolved = apply_field_resolutions(
+        _payload(manufacturer="VOLVO"), {"energy_sources": "petrol"}
+    )
+
+    assert compute_signature(resolved)["energy_sources"] == ["petrol"]

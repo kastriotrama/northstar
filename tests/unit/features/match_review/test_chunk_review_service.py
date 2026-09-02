@@ -10,6 +10,7 @@ from api.app.features.match_review.chunk_schemas import (
     OemSampleRequest,
     ProposalReviewRequest,
     RefineRequest,
+    ResolutionRuleRequest,
     RuleCondition,
     RulePreviewRequest,
 )
@@ -31,6 +32,10 @@ class FakeRepository:
         self.brand_variants = 1
         self.model_no_variants = 1
         self.previewed_conditions: list[PredicateTerm] = []
+        self.applied_conditions: list[PredicateTerm] = []
+        self.pinned_fields: tuple[str, ...] = ()
+        self.rules: dict[UUID, dict[str, Any]] = {}
+        self.resolves_rows = 44_253
         self.population_oem: list[dict[str, Any]] = []
         self.member_source: dict[str, Any] = {
             "plate": "ABC123",
@@ -105,9 +110,18 @@ class FakeRepository:
         limit: int,
         offset: int,
         chunk_ids: Sequence[UUID] | None = None,
-    ) -> tuple[int, int, list[dict[str, Any]]]:
+    ) -> tuple[int, list[dict[str, Any]]]:
         self.chunk_page_chunk_ids = None if chunk_ids is None else list(chunk_ids)
-        return 0, 0, []
+        return 0, []
+
+    def fetch_build_progress(self, build_id: UUID) -> dict[str, int]:
+        return {
+            "decided_rows": 1_564,
+            "in_review_rows": 938,
+            "member_rows": 226_529,
+            "resolved_rows": 2_294,
+            "applied_rules": 4,
+        }
 
     def fetch_chunk(self, chunk_id: UUID) -> dict[str, Any] | None:
         if chunk_id != CHUNK_ID:
@@ -216,6 +230,103 @@ class FakeRepository:
             "sample_plates": ["ABS229"],
         }
 
+    def insert_resolution_rule(
+        self,
+        *,
+        rule_id: UUID,
+        build_id: UUID,
+        source_field: str,
+        source_value: str,
+        target_field: str,
+        target_value: str,
+        conditions: list[dict[str, Any]],
+        author: str,
+        note: str | None,
+        matched_rows: int,
+        would_resolve: int,
+        already_resolved: int,
+    ) -> dict[str, Any]:
+        stored = {
+            "rule_id": rule_id,
+            "build_id": build_id,
+            "source_field": source_field,
+            "source_value": source_value,
+            "target_field": target_field,
+            "target_value": target_value,
+            "conditions": conditions,
+            "author": author,
+            "note": note,
+            "matched_rows": matched_rows,
+            "would_resolve": would_resolve,
+            "already_resolved": already_resolved,
+            "status": "saved",
+            "resolved_rows": 0,
+            "created_at": NOW,
+            "applied_at": None,
+            "applied_by": None,
+            "retired_at": None,
+            "retired_by": None,
+        }
+        self.rules[rule_id] = stored
+        return dict(stored)
+
+    def fetch_resolution_rules(
+        self,
+        build_id: UUID,
+        *,
+        source_field: str | None = None,
+        source_value: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return [
+            dict(rule)
+            for rule in self.rules.values()
+            if rule["build_id"] == build_id
+            and (source_field is None or rule["source_field"] == source_field)
+            and (source_value is None or rule["source_value"] == source_value)
+        ]
+
+    def fetch_resolution_rule(self, rule_id: UUID) -> dict[str, Any] | None:
+        rule = self.rules.get(rule_id)
+        return None if rule is None else dict(rule)
+
+    def apply_resolution_rule(
+        self,
+        rule_id: UUID,
+        *,
+        build_id: UUID,
+        conditions: list[PredicateTerm],
+        target_field: str,
+        target_value: str,
+        applied_by: str,
+    ) -> dict[str, Any]:
+        self.applied_conditions = conditions
+        rule = self.rules[rule_id]
+        rule.update(
+            {
+                "status": "applied",
+                "resolved_rows": rule["resolved_rows"] + self.resolves_rows,
+                "applied_at": NOW,
+                "applied_by": applied_by,
+            }
+        )
+        return {**rule, "resolved_now": self.resolves_rows}
+
+    def retire_resolution_rule(
+        self, rule_id: UUID, *, retired_by: str
+    ) -> dict[str, Any]:
+        rule = self.rules[rule_id]
+        superseded = rule["resolved_rows"]
+        rule.update(
+            {
+                "status": "retired",
+                "resolved_rows": 0,
+                "retired_at": NOW,
+                "retired_by": retired_by,
+            }
+        )
+        return {**rule, "superseded_rows": superseded}
+
     def fetch_population_attributes(
         self,
         build_id: UUID,
@@ -242,19 +353,31 @@ class FakeRepository:
         signature_field: str,
         conditions: list[PredicateTerm],
         candidate_fields: tuple[str, ...],
+        pinned_fields: tuple[str, ...] = (),
         top_values: int = 8,
     ) -> tuple[int, list[dict[str, Any]]]:
+        self.pinned_fields = pinned_fields
+        constrained = {
+            term.field for term in conditions if term.field not in pinned_fields
+        }
         return 938, [
             {
                 "field": "brand",
                 "distinct_count": 2,
                 "present_count": 938,
-                "top_values": [{"value": "MERCEDES-BENZ 204 K", "count": 493}],
+                "constrained": "brand" in constrained,
+                # With its own clause lifted, `brand` offers the spelling the
+                # rule covers and the sibling it does not yet.
+                "top_values": [
+                    {"value": "MERCEDES-BENZ 204 K", "count": 493},
+                    {"value": "MERCEDES-BENZ 212", "count": 244},
+                ],
             },
             {
                 "field": "model_no",
                 "distinct_count": self.model_no_variants,
                 "present_count": 938,
+                "constrained": "model_no" in constrained,
                 "top_values": [{"value": "000731", "count": 938}],
             },
         ]
@@ -608,6 +731,129 @@ def test_rule_preview_rejects_unknown_source_field() -> None:
         )
 
 
+def _saved_rule(
+    service: MatchReviewService, build_id: UUID, *, target_value: str = "fwd"
+) -> Any:
+    return service.save_resolution_rule(
+        ResolutionRuleRequest(
+            build_id=build_id,
+            source_field="is_4wd",
+            source_value="0",
+            conditions=[
+                RuleCondition(field="is_4wd", value="0"),
+                RuleCondition(field="fab_code", value="VO"),
+            ],
+            target_field="drive_type",
+            target_value=target_value,
+            author="valon",
+            note="Volvo is front-wheel drive unless flagged 4wd.",
+        )
+    )
+
+
+def test_saving_a_rule_freezes_what_the_preview_promised() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    build_id = uuid4()
+
+    rule = _saved_rule(service, build_id)
+
+    assert rule.status == "saved"
+    assert rule.would_resolve == 44_253
+    # Saving is not running: nothing is resolved until the rule is applied.
+    assert rule.resolved_rows == 0
+    assert repository.rules[rule.rule_id]["author"] == "valon"
+
+
+def test_saving_a_rule_refuses_a_non_canonical_value() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+
+    with pytest.raises(MatchReviewConflictError):
+        _saved_rule(service, uuid4(), target_value="front-wheel")
+
+    assert not repository.rules
+
+
+def test_running_a_saved_rule_reports_what_it_resolved() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4())
+
+    applied = service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+
+    assert applied.status == "applied"
+    assert applied.resolved_now == 44_253
+    assert applied.applied_by == "valon"
+    assert repository.applied_conditions == [
+        PredicateTerm("source", "is_4wd", "equals", ("0",)),
+        PredicateTerm("source", "fab_code", "equals", ("VO",)),
+    ]
+
+
+def test_running_the_same_rule_twice_only_reports_new_rows() -> None:
+    """Re-running is a safe no-op once the population is covered."""
+
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4())
+
+    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+    repository.resolves_rows = 0
+    again = service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+
+    assert again.resolved_now == 0
+    assert again.resolved_rows == 44_253
+
+
+def test_retiring_a_rule_reopens_the_cars_it_resolved() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4())
+    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+
+    retired = service.retire_resolution_rule(rule.rule_id, reviewer="valon")
+
+    assert retired.status == "retired"
+    assert retired.superseded_rows == 44_253
+    assert retired.resolved_rows == 0
+
+
+def test_a_retired_rule_cannot_be_run_again() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4())
+    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+    service.retire_resolution_rule(rule.rule_id, reviewer="valon")
+
+    with pytest.raises(MatchReviewConflictError):
+        service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+
+
+def test_running_an_unknown_rule_is_not_found() -> None:
+    service, _, _ = _service()
+
+    with pytest.raises(MatchReviewNotFoundError):
+        service.apply_resolution_rule(uuid4(), reviewer="valon")
+
+
+def test_saved_rules_are_listed_for_their_population() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    build_id = uuid4()
+    _saved_rule(service, build_id)
+
+    listed = service.list_resolution_rules(
+        build_id, source_field="is_4wd", source_value="0"
+    )
+    elsewhere = service.list_resolution_rules(
+        build_id, source_field="body_code", source_value="AB"
+    )
+
+    assert [rule.target_value for rule in listed] == ["fwd"]
+    assert elsewhere == []
+
+
 def test_comparison_marks_unresolved_versus_missing() -> None:
     service, _, _ = _service()
 
@@ -730,7 +976,38 @@ def test_refine_ignores_fields_the_reviewer_already_constrained() -> None:
 
     assert "brand" not in result.varying_identity_fields
     assert result.homogeneous is True
-    assert all(field.field != "brand" for field in result.fields)
+
+
+def test_a_constrained_field_stays_open_so_values_can_be_or_ed_in() -> None:
+    """Picking one value must not close the field that produced it.
+
+    A rule like `model = E 220 D or C 220 D` is only reachable if the field
+    keeps offering its other values after the first click.
+    """
+
+    repository = FakeRepository()
+    result = _refine(repository)
+
+    brand = next(field for field in result.fields if field.field == "brand")
+    assert brand.constrained is True
+    assert brand.selected_values == ["MERCEDES-BENZ 204"]
+    assert "MERCEDES-BENZ 212" in [entry.value for entry in brand.top_values]
+    # The anchor is what defines the population, so its clause is never lifted.
+    assert repository.pinned_fields == ("is_4wd",)
+
+
+def test_the_anchor_field_is_never_offered_as_a_split() -> None:
+    result = _refine(FakeRepository())
+
+    assert all(field.field != "is_4wd" for field in result.fields)
+
+
+def test_constrained_fields_lead_the_facet_list() -> None:
+    """They are the dimensions being edited, so the next click is at the top."""
+
+    result = _refine(FakeRepository())
+
+    assert result.fields[0].constrained is True
 
 
 def test_refine_blocks_while_an_unconstrained_identity_field_varies() -> None:
@@ -887,6 +1164,37 @@ def test_chunk_listing_passes_the_pattern_scope_through() -> None:
     )
 
     assert repository.chunk_page_chunk_ids == [CHUNK_ID]
+
+
+def test_progress_counts_rule_work_and_ignores_the_list_filter() -> None:
+    """The header reports the build, not the page being looked at.
+
+    Both were wrong before: resolution rules resolved 2,294 cars while the
+    header read 0, and a search box narrowing the worklist changed the number
+    as if the work had been undone.
+    """
+
+    service, _repository, _provider = _service()
+
+    filtered = service.list_chunks(
+        build_id=BUILD_ID,
+        status="approved",
+        query="volvo",
+        limit=10,
+        offset=0,
+    )
+    unfiltered = service.list_chunks(
+        build_id=BUILD_ID, status=None, query="", limit=10, offset=0
+    )
+
+    assert filtered.progress == unfiltered.progress
+    assert filtered.progress.resolved_rows == 2_294
+    assert filtered.progress.applied_rules == 4
+    # A chunk carrying an unruled proposal is reported as pending, never as
+    # decided: generating a proposal is not a decision.
+    assert filtered.progress.decided_rows == 1_564
+    assert filtered.progress.in_review_rows == 938
+    assert filtered.decided_members == filtered.progress.decided_rows
 
 
 def test_missing_blocker_tables_yield_an_empty_bridge() -> None:
