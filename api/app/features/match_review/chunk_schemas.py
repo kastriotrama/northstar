@@ -52,6 +52,45 @@ class MemberSummary(BaseModel):
     label: str
 
 
+class PatternChunkRef(BaseModel):
+    """One chunk a blocker pattern reaches, and how much of it the pattern covers."""
+
+    chunk_id: UUID
+    signature: dict[str, Any]
+    member_count: int
+    status: ChunkStatus
+    overlap_rows: int
+
+
+class PatternDecisionRecord(BaseModel):
+    """A historical pattern-level ruling, shown read-only.
+
+    Pattern decisions are superseded by chunk decisions: `pattern_key` groups
+    rows by a hand-built evidence hash, which carries no guarantee that the
+    matcher evaluates its members alike. These are kept visible as context, not
+    as a decision surface.
+    """
+
+    decision_id: str
+    action: str
+    reviewer: str
+    reason: str
+    created_at: datetime
+
+
+class PatternBridge(BaseModel):
+    """A blocker pattern resolved onto the chunks that can act on it."""
+
+    operation_id: UUID
+    pattern_key: str
+    build_id: UUID
+    pattern_rows: int
+    matched_rows: int
+    unmatched_rows: int
+    chunks: list[PatternChunkRef]
+    history: list[PatternDecisionRecord]
+
+
 class UnresolvedPopulation(BaseModel):
     source_field: str
     source_value: str

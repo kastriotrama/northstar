@@ -14,6 +14,7 @@
         <span>NorthStar <em>Match Review</em></span>
       </div>
       <nav class="top-nav">
+        <button type="button" class="nav-tab" data-view="blockers">Blockers</button>
         <button type="button" class="nav-tab active" data-view="chunks">Chunks</button>
         <button type="button" class="nav-tab" data-view="unresolved">
           Unresolved fields
@@ -45,6 +46,73 @@
         <strong id="stat-coverage">0%</strong>
       </div>
     </section>
+
+    <main class="workspace" id="view-blockers" hidden>
+      <section class="list-pane">
+        <div class="list-controls">
+          <select id="blocker-category" aria-label="Blocker category">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <p class="list-meta" id="blocker-meta">Loading blockers…</p>
+        <ol class="chunk-list" id="blocker-list"></ol>
+      </section>
+
+      <section class="detail-pane">
+        <div class="detail-empty" id="blocker-empty">
+          <strong>Select a blocker</strong>
+          <p>
+            Blockers name what is stopping the run. Choosing one selects the
+            rows it covers; the ruling is still made on a chunk, which is the
+            only key aligned with the matcher's evaluation key.
+          </p>
+        </div>
+        <div class="detail" id="blocker-detail" hidden>
+          <header class="detail-head">
+            <div>
+              <h1 id="blocker-title"></h1>
+              <p class="detail-sub" id="blocker-sub"></p>
+            </div>
+            <span class="pill" id="blocker-coverage"></span>
+          </header>
+
+          <section class="panel">
+            <div class="panel-head"><h2>Why this is blocked</h2></div>
+            <p class="panel-note" id="blocker-why"></p>
+            <dl class="signature-grid" id="blocker-evidence"></dl>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><h2>The decision</h2></div>
+            <p class="panel-note" id="blocker-question"></p>
+            <ul class="spread-list" id="blocker-gaps"></ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Chunks holding these rows</h2>
+            </div>
+            <p class="panel-note" id="blocker-bridge-note">
+              Resolving against the selected build…
+            </p>
+            <ul class="spread-list" id="blocker-chunk-list"></ul>
+            <button type="button" id="blocker-open-chunks" hidden>
+              Review these chunks
+            </button>
+          </section>
+
+          <section class="panel" id="blocker-history-panel" hidden>
+            <div class="panel-head"><h2>Earlier pattern rulings</h2></div>
+            <p class="panel-note">
+              Recorded before rulings moved to chunks. Shown as context only —
+              a pattern key carries no guarantee that the matcher evaluates its
+              rows alike.
+            </p>
+            <ul class="spread-list" id="blocker-history"></ul>
+          </section>
+        </div>
+      </section>
+    </main>
 
     <main class="workspace" id="view-unresolved" hidden>
       <section class="list-pane">
@@ -134,6 +202,17 @@
         </div>
       </section>
     </main>
+
+    <div class="pattern-banner" id="pattern-banner" hidden>
+      <div class="pattern-banner-body">
+        <span class="eyebrow">Scoped to blocker</span>
+        <strong id="pattern-banner-title"></strong>
+        <p id="pattern-banner-meta"></p>
+      </div>
+      <button type="button" class="ghost-button" id="pattern-banner-clear">
+        Clear filter
+      </button>
+    </div>
 
     <main class="workspace" id="view-chunks">
       <section class="list-pane">

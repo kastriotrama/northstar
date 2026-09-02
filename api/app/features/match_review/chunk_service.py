@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -25,6 +26,9 @@ from api.app.features.match_review.chunk_schemas import (
     NarrowingStep,
     OemSampleRequest,
     OemSampleSummary,
+    PatternBridge,
+    PatternChunkRef,
+    PatternDecisionRecord,
     PatternReport,
     PopulationAttribute,
     PopulationAttributes,
@@ -98,8 +102,15 @@ class ChunkRepository(Protocol):
         query: str,
         limit: int,
         offset: int,
+        chunk_ids: Sequence[UUID] | None = None,
     ) -> tuple[int, int, list[dict[str, Any]]]: ...
     def fetch_chunk(self, chunk_id: UUID) -> dict[str, Any] | None: ...
+    def fetch_pattern_chunks(
+        self, *, operation_id: UUID, pattern_key: str, build_id: UUID
+    ) -> dict[str, Any]: ...
+    def fetch_pattern_decisions(
+        self, *, operation_id: UUID, pattern_key: str
+    ) -> list[dict[str, Any]]: ...
     def fetch_members(
         self, chunk_id: UUID, *, limit: int = 25
     ) -> list[dict[str, Any]]: ...
@@ -373,6 +384,7 @@ class MatchReviewService:
         query: str,
         limit: int,
         offset: int,
+        chunk_ids: Sequence[UUID] | None = None,
     ) -> ChunkPage:
         if build_id is None:
             build = self._repository.fetch_latest_build()
@@ -390,12 +402,55 @@ class MatchReviewService:
             query=query,
             limit=limit,
             offset=offset,
+            chunk_ids=chunk_ids,
         )
         return ChunkPage(
             build=BuildSummary(**build),
             total=total,
             decided_members=decided_members,
             items=[ChunkListItem(**item) for item in items],
+        )
+
+    def resolve_pattern(
+        self, *, operation_id: UUID, pattern_key: str, build_id: UUID | None
+    ) -> PatternBridge:
+        """Resolve a blocker pattern onto the chunks that can act on it.
+
+        The pattern selects a population; the chunk is still what a ruling
+        attaches to. Rows the build never chunked are reported as
+        ``unmatched_rows`` rather than silently dropped.
+        """
+
+        if build_id is None:
+            build = self._repository.fetch_latest_build()
+            if build is None:
+                raise MatchReviewNotFoundError(
+                    "No completed chunk build exists yet; run build-match-chunks."
+                )
+        else:
+            build = self._repository.fetch_build(build_id)
+            if build is None:
+                raise MatchReviewNotFoundError(f"Unknown build {build_id}")
+        resolved_build_id = build["build_id"]
+        bridge = self._repository.fetch_pattern_chunks(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            build_id=resolved_build_id,
+        )
+        history = self._repository.fetch_pattern_decisions(
+            operation_id=operation_id, pattern_key=pattern_key
+        )
+        pattern_rows = int(bridge["pattern_rows"])
+        matched_rows = int(bridge["matched_rows"])
+        return PatternBridge(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            build_id=resolved_build_id,
+            pattern_rows=pattern_rows,
+            matched_rows=matched_rows,
+            unmatched_rows=max(pattern_rows - matched_rows, 0),
+            chunks=[PatternChunkRef(**chunk) for chunk in bridge["chunks"]],
+            history=[PatternDecisionRecord(**record) for record in history],
         )
 
     def get_chunk(self, chunk_id: UUID) -> ChunkDetail:

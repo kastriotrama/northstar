@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -43,14 +44,44 @@ class FakeRepository:
         self.samples: list[dict[str, Any]] = []
         self.proposals: dict[UUID, dict[str, Any]] = {}
         self.evidence_inserts = 0
+        self.build_exists = True
+        self.chunk_page_chunk_ids: list[UUID] | None = None
+        self.bridge_calls: list[tuple[UUID, str, UUID]] = []
+        self.pattern_decisions: list[dict[str, Any]] = []
+        self.bridge: dict[str, Any] = {
+            "pattern_rows": 412,
+            "matched_rows": 400,
+            "chunks": [
+                {
+                    "chunk_id": CHUNK_ID,
+                    "signature": {"manufacturer": "VOLVO", "model_family": "XC60"},
+                    "member_count": 500,
+                    "status": "open",
+                    "overlap_rows": 400,
+                }
+            ],
+        }
 
     def ensure_schema(self) -> None:
         return None
+
+    def fetch_pattern_chunks(
+        self, *, operation_id: UUID, pattern_key: str, build_id: UUID
+    ) -> dict[str, Any]:
+        self.bridge_calls.append((operation_id, pattern_key, build_id))
+        return self.bridge
+
+    def fetch_pattern_decisions(
+        self, *, operation_id: UUID, pattern_key: str
+    ) -> list[dict[str, Any]]:
+        return self.pattern_decisions
 
     def fetch_builds(self, *, limit: int = 20) -> list[dict[str, Any]]:
         return []
 
     def fetch_build(self, build_id: UUID) -> dict[str, Any] | None:
+        if not self.build_exists:
+            return None
         return {
             "build_id": build_id,
             "source_batch_id": "batch-1",
@@ -73,7 +104,9 @@ class FakeRepository:
         query: str,
         limit: int,
         offset: int,
+        chunk_ids: Sequence[UUID] | None = None,
     ) -> tuple[int, int, list[dict[str, Any]]]:
+        self.chunk_page_chunk_ids = None if chunk_ids is None else list(chunk_ids)
         return 0, 0, []
 
     def fetch_chunk(self, chunk_id: UUID) -> dict[str, Any] | None:
@@ -765,3 +798,111 @@ def test_closed_chunk_refuses_new_proposals() -> None:
 
     with pytest.raises(MatchReviewConflictError):
         service.create_proposal(CHUNK_ID)
+
+
+OPERATION_ID = UUID("22222222-2222-2222-2222-222222222222")
+BUILD_ID = UUID("33333333-3333-3333-3333-333333333333")
+
+
+def test_pattern_resolves_to_chunks_and_counts_rows_outside_the_build() -> None:
+    """A blocker selects a population; the chunk stays the unit of decision."""
+
+    service, repository, _provider = _service()
+
+    bridge = service.resolve_pattern(
+        operation_id=OPERATION_ID, pattern_key="bodywork:ac-suv", build_id=BUILD_ID
+    )
+
+    assert bridge.pattern_rows == 412
+    assert bridge.matched_rows == 400
+    # The 12 rows the build never chunked are reported, not silently dropped.
+    assert bridge.unmatched_rows == 12
+    assert [chunk.chunk_id for chunk in bridge.chunks] == [CHUNK_ID]
+    assert bridge.chunks[0].overlap_rows == 400
+    assert repository.bridge_calls == [(OPERATION_ID, "bodywork:ac-suv", BUILD_ID)]
+
+
+def test_pattern_without_members_resolves_to_no_chunks() -> None:
+    """An un-backfilled pattern yields an empty bridge rather than a false scope."""
+
+    repository = FakeRepository()
+    repository.bridge = {"pattern_rows": 0, "matched_rows": 0, "chunks": []}
+    service, _repository, _provider = _service(repository)
+
+    bridge = service.resolve_pattern(
+        operation_id=OPERATION_ID, pattern_key="unknown", build_id=BUILD_ID
+    )
+
+    assert bridge.chunks == []
+    assert bridge.pattern_rows == 0
+    assert bridge.unmatched_rows == 0
+
+
+def test_pattern_history_is_surfaced_read_only() -> None:
+    """Prior pattern rulings stay visible as context after the decision moves."""
+
+    repository = FakeRepository()
+    repository.pattern_decisions = [
+        {
+            "decision_id": "d1",
+            "action": "accept_top_candidate",
+            "reviewer": "kastriot",
+            "reason": "TS AC is an estate code, not an SUV class.",
+            "created_at": NOW,
+        }
+    ]
+    service, _repository, _provider = _service(repository)
+
+    bridge = service.resolve_pattern(
+        operation_id=OPERATION_ID, pattern_key="bodywork:ac-suv", build_id=BUILD_ID
+    )
+
+    assert len(bridge.history) == 1
+    assert bridge.history[0].reviewer == "kastriot"
+
+
+def test_unknown_build_is_rejected_before_resolving_a_pattern() -> None:
+    repository = FakeRepository()
+    repository.build_exists = False
+    service, _repository, _provider = _service(repository)
+
+    with pytest.raises(MatchReviewNotFoundError):
+        service.resolve_pattern(
+            operation_id=OPERATION_ID, pattern_key="x", build_id=BUILD_ID
+        )
+
+
+def test_chunk_listing_passes_the_pattern_scope_through() -> None:
+    """The banner's scope must reach SQL, not be filtered in the page."""
+
+    service, repository, _provider = _service()
+
+    service.list_chunks(
+        build_id=BUILD_ID,
+        status=None,
+        query="",
+        limit=10,
+        offset=0,
+        chunk_ids=[CHUNK_ID],
+    )
+
+    assert repository.chunk_page_chunk_ids == [CHUNK_ID]
+
+
+def test_missing_blocker_tables_yield_an_empty_bridge() -> None:
+    """The blocker tables migrate on the matcher's path, not this one.
+
+    A database that has only ever built chunks must still serve the screen.
+    """
+
+    repository = FakeRepository()
+    repository.bridge = {"pattern_rows": 0, "matched_rows": 0, "chunks": []}
+    repository.pattern_decisions = []
+    service, _repository, _provider = _service(repository)
+
+    bridge = service.resolve_pattern(
+        operation_id=OPERATION_ID, pattern_key="anything", build_id=BUILD_ID
+    )
+
+    assert bridge.chunks == []
+    assert bridge.history == []

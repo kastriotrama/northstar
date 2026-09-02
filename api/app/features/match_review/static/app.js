@@ -9,6 +9,7 @@ const state = {
   total: 0,
   maxMembers: 1,
   selectedChunkId: null,
+  patternFilter: null,
   selectedMemberId: null,
   members: [],
 };
@@ -142,6 +143,11 @@ async function loadChunks() {
   if (state.buildId) params.set("build_id", state.buildId);
   if (state.status) params.set("status", state.status);
   if (state.query) params.set("query", state.query);
+  if (state.patternFilter) {
+    for (const chunkId of state.patternFilter.chunkIds) {
+      params.append("chunk_id", chunkId);
+    }
+  }
   const page = await api(`/v1/match-review/chunks?${params.toString()}`);
   state.total = page.total;
 
@@ -163,7 +169,9 @@ async function loadChunks() {
   for (const item of page.items) {
     elements.chunkList.appendChild(renderChunkCard(item));
   }
-  elements.listMeta.textContent = `${formatCount(page.total)} chunks, largest first`;
+  elements.listMeta.textContent = state.patternFilter
+    ? `${formatCount(page.total)} chunks in this blocker, largest first`
+    : `${formatCount(page.total)} chunks, largest first`;
   const pageIndex = Math.floor(state.offset / state.limit) + 1;
   const pageCount = Math.max(1, Math.ceil(page.total / state.limit));
   elements.pageLabel.textContent = `Page ${pageIndex} of ${pageCount}`;
@@ -816,12 +824,20 @@ let loadedPopulations = false;
 function switchView(view) {
   state.view = view;
   if (view === "unresolved") history.replaceState(null, "", "#unresolved");
+  if (view === "blockers") history.replaceState(null, "", "#blockers");
   document.getElementById("view-chunks").hidden = view !== "chunks";
   document.getElementById("view-unresolved").hidden = view !== "unresolved";
+  document.getElementById("view-blockers").hidden = view !== "blockers";
+  // The scope banner belongs to the chunk list, so it travels with that view.
+  document.getElementById("pattern-banner").hidden =
+    view !== "chunks" || !state.patternFilter;
   for (const tab of document.querySelectorAll(".nav-tab")) {
     tab.classList.toggle("active", tab.dataset.view === view);
   }
   if (view === "unresolved" && !loadedPopulations) loadPopulations();
+  if (view === "blockers" && !blockerState.loaded) {
+    loadBlockers().catch((error) => showToast(error.message, true));
+  }
 }
 
 for (const tab of document.querySelectorAll(".nav-tab")) {
@@ -1554,12 +1570,335 @@ function applyAdvice(advice) {
   unresolved.adviceBox.appendChild(reasoning);
 }
 
+
+// ---------------------------------------------------------------------------
+// Blockers: the front door. A blocker names what is stopping the run and how
+// often it recurs; selecting one scopes the chunk list to the rows it covers.
+// The ruling is still made on a chunk, which is the only key aligned with the
+// matcher's own evaluation key -- a pattern key is a hand-built hash over
+// evidence fields and guarantees nothing about how the matcher groups rows.
+// ---------------------------------------------------------------------------
+
+const blockers = {
+  categorySelect: document.getElementById("blocker-category"),
+  meta: document.getElementById("blocker-meta"),
+  list: document.getElementById("blocker-list"),
+  empty: document.getElementById("blocker-empty"),
+  detail: document.getElementById("blocker-detail"),
+  title: document.getElementById("blocker-title"),
+  sub: document.getElementById("blocker-sub"),
+  coverage: document.getElementById("blocker-coverage"),
+  why: document.getElementById("blocker-why"),
+  evidence: document.getElementById("blocker-evidence"),
+  question: document.getElementById("blocker-question"),
+  gaps: document.getElementById("blocker-gaps"),
+  bridgeNote: document.getElementById("blocker-bridge-note"),
+  chunkList: document.getElementById("blocker-chunk-list"),
+  openChunks: document.getElementById("blocker-open-chunks"),
+  historyPanel: document.getElementById("blocker-history-panel"),
+  history: document.getElementById("blocker-history"),
+  banner: document.getElementById("pattern-banner"),
+  bannerTitle: document.getElementById("pattern-banner-title"),
+  bannerMeta: document.getElementById("pattern-banner-meta"),
+  bannerClear: document.getElementById("pattern-banner-clear"),
+};
+
+const blockerState = {
+  operationId: null,
+  patterns: [],
+  category: "",
+  selectedKey: null,
+  bridge: null,
+  loaded: false,
+};
+
+function describeEntries(container, entries) {
+  container.innerHTML = "";
+  const pairs = Object.entries(entries || {});
+  if (!pairs.length) {
+    const cell = document.createElement("div");
+    const term = document.createElement("dt");
+    term.textContent = "Evidence";
+    const value = document.createElement("dd");
+    value.className = "absent";
+    value.textContent = "None recorded";
+    cell.append(term, value);
+    container.appendChild(cell);
+    return;
+  }
+  for (const [field, value] of pairs) {
+    const cell = document.createElement("div");
+    const term = document.createElement("dt");
+    term.textContent = field.replace(/_/g, " ");
+    const shown = document.createElement("dd");
+    const text = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+    shown.textContent = text || "—";
+    if (!text) shown.className = "absent";
+    cell.append(term, shown);
+    container.appendChild(cell);
+  }
+}
+
+async function loadBlockers() {
+  blockers.meta.textContent = "Loading blockers…";
+  let summary;
+  try {
+    summary = await api("/v1/match-review/summary");
+  } catch (error) {
+    blockers.meta.textContent =
+      "No matcher run is available yet, so there are no blockers to show.";
+    return;
+  }
+  if (!summary.operation_id) {
+    blockers.meta.textContent =
+      "No matcher run is pinned yet. Run the matcher to populate blockers.";
+    return;
+  }
+  blockerState.operationId = summary.operation_id;
+
+  blockers.categorySelect.innerHTML = '<option value="">All categories</option>';
+  for (const category of summary.blockers || []) {
+    const option = document.createElement("option");
+    option.value = category.code;
+    option.textContent = `${category.title} (${formatCount(category.count)})`;
+    option.title = category.guidance;
+    blockers.categorySelect.appendChild(option);
+  }
+  blockers.categorySelect.value = blockerState.category;
+  await loadBlockerPatterns();
+}
+
+async function loadBlockerPatterns() {
+  if (!blockerState.operationId) return;
+  const params = new URLSearchParams({ operation_id: blockerState.operationId });
+  if (blockerState.category) params.set("category", blockerState.category);
+  const page = await api(`/v1/match-review/patterns?${params.toString()}`);
+  blockerState.patterns = page.patterns || [];
+
+  blockers.list.innerHTML = "";
+  for (const pattern of blockerState.patterns) {
+    blockers.list.appendChild(renderBlockerCard(pattern));
+  }
+  const exhaustive = blockerState.patterns.some(
+    (pattern) => pattern.coverage === "exhaustive",
+  );
+  blockers.meta.textContent = blockerState.patterns.length
+    ? `${formatCount(blockerState.patterns.length)} recurring patterns, most frequent first` +
+      (exhaustive ? "" : " — from a bounded evidence sample")
+    : "No recurring patterns recorded for this run yet.";
+  blockerState.loaded = true;
+}
+
+function renderBlockerCard(pattern) {
+  const card = document.createElement("li");
+  card.className = "chunk-card";
+  card.dataset.patternKey = pattern.pattern_key;
+  if (pattern.pattern_key === blockerState.selectedKey) {
+    card.classList.add("selected");
+  }
+
+  const top = document.createElement("div");
+  top.className = "chunk-card-top";
+  const title = document.createElement("span");
+  title.className = "chunk-title";
+  title.textContent = pattern.title;
+  top.appendChild(title);
+  const pill = document.createElement("span");
+  pill.className = "pill";
+  pill.textContent = (pattern.category || "").replace(/_/g, " ");
+  top.appendChild(pill);
+  card.appendChild(top);
+
+  const meta = document.createElement("p");
+  meta.className = "chunk-meta";
+  meta.textContent = pattern.summary || "";
+  card.appendChild(meta);
+
+  const count = document.createElement("div");
+  count.className = "chunk-leverage";
+  const rows = document.createElement("span");
+  rows.className = "chunk-count";
+  rows.textContent =
+    pattern.coverage === "exhaustive"
+      ? `${formatCount(pattern.sample_occurrences)} rows`
+      : `${formatCount(pattern.sample_occurrences)} sampled rows`;
+  count.appendChild(rows);
+  card.appendChild(count);
+
+  card.addEventListener("click", () => selectBlocker(pattern));
+  return card;
+}
+
+async function selectBlocker(pattern) {
+  blockerState.selectedKey = pattern.pattern_key;
+  for (const card of blockers.list.children) {
+    card.classList.toggle(
+      "selected",
+      card.dataset.patternKey === pattern.pattern_key,
+    );
+  }
+
+  blockers.empty.hidden = true;
+  blockers.detail.hidden = false;
+  blockers.title.textContent = pattern.title;
+  blockers.sub.textContent = pattern.summary || "";
+  blockers.coverage.textContent =
+    pattern.coverage === "exhaustive" ? "exhaustive" : "sample";
+  blockers.why.textContent =
+    pattern.why_blocked || "No explanation recorded for this pattern.";
+  describeEntries(blockers.evidence, {
+    ...pattern.source_values,
+    ...Object.fromEntries(
+      Object.entries(pattern.candidate_values || {}).map(([key, value]) => [
+        `tecdoc ${key}`,
+        value,
+      ]),
+    ),
+  });
+  blockers.question.textContent =
+    pattern.decision_question || "No decision question recorded.";
+  blockers.gaps.innerHTML = "";
+  for (const gap of pattern.evidence_gaps || []) {
+    const item = document.createElement("li");
+    item.className = "spread-item";
+    item.textContent = gap;
+    blockers.gaps.appendChild(item);
+  }
+
+  await loadPatternBridge(pattern);
+}
+
+async function loadPatternBridge(pattern) {
+  blockers.chunkList.innerHTML = "";
+  blockers.openChunks.hidden = true;
+  blockers.historyPanel.hidden = true;
+  blockers.bridgeNote.textContent = "Resolving against the selected build…";
+  blockerState.bridge = null;
+
+  if (!state.buildId) {
+    blockers.bridgeNote.textContent =
+      "No chunk build is selected, so these rows cannot be resolved to chunks yet.";
+    return;
+  }
+
+  const params = new URLSearchParams({
+    operation_id: blockerState.operationId,
+    build_id: state.buildId,
+  });
+  let bridge;
+  try {
+    bridge = await api(
+      `/v1/match-review/patterns/${encodeURIComponent(pattern.pattern_key)}/chunks?${params.toString()}`,
+    );
+  } catch (error) {
+    blockers.bridgeNote.textContent = error.message;
+    return;
+  }
+  blockerState.bridge = bridge;
+
+  if (bridge.history.length) {
+    blockers.historyPanel.hidden = false;
+    blockers.history.innerHTML = "";
+    for (const record of bridge.history) {
+      const item = document.createElement("li");
+      item.className = "spread-item";
+      const when = new Date(record.created_at).toISOString().slice(0, 10);
+      item.textContent = `${when} · ${record.action.replace(/_/g, " ")} · ${record.reviewer} — ${record.reason}`;
+      blockers.history.appendChild(item);
+    }
+  }
+
+  if (!bridge.chunks.length) {
+    blockers.bridgeNote.textContent = bridge.pattern_rows
+      ? `None of this pattern's ${formatCount(bridge.pattern_rows)} rows are in the selected build. Pick the build that covers them, or rebuild chunks.`
+      : "This pattern has no persisted members yet, so it cannot be resolved to chunks. Run the pattern inventory backfill.";
+    return;
+  }
+
+  const note = [
+    `${formatCount(bridge.matched_rows)} of ${formatCount(bridge.pattern_rows)} rows land in ${formatCount(bridge.chunks.length)} chunks.`,
+  ];
+  if (bridge.unmatched_rows) {
+    note.push(
+      `${formatCount(bridge.unmatched_rows)} rows are not in this build and stay out of scope.`,
+    );
+  }
+  blockers.bridgeNote.textContent = note.join(" ");
+
+  for (const chunk of bridge.chunks.slice(0, 12)) {
+    const item = document.createElement("li");
+    item.className = "spread-item";
+    const label = document.createElement("span");
+    label.textContent = `${signatureTitle(chunk.signature)} — ${formatCount(chunk.overlap_rows)} of ${formatCount(chunk.member_count)} rows`;
+    item.appendChild(label);
+    item.appendChild(statusPill(chunk.status));
+    item.addEventListener("click", () => {
+      applyPatternFilter(blockerState.bridge, pattern);
+      selectChunk(chunk.chunk_id);
+    });
+    blockers.chunkList.appendChild(item);
+  }
+  if (bridge.chunks.length > 12) {
+    const more = document.createElement("li");
+    more.className = "spread-item";
+    more.textContent = `…and ${formatCount(bridge.chunks.length - 12)} more`;
+    blockers.chunkList.appendChild(more);
+  }
+
+  blockers.openChunks.hidden = false;
+  blockers.openChunks.onclick = () => applyPatternFilter(bridge, pattern);
+}
+
+function applyPatternFilter(bridge, pattern) {
+  if (!bridge || !bridge.chunks.length) return;
+  state.patternFilter = {
+    patternKey: pattern.pattern_key,
+    title: pattern.title,
+    chunkIds: bridge.chunks.map((chunk) => chunk.chunk_id),
+    matchedRows: bridge.matched_rows,
+    unmatchedRows: bridge.unmatched_rows,
+  };
+  state.offset = 0;
+  switchView("chunks");
+  renderPatternBanner();
+  loadChunks().catch((error) => showToast(error.message, true));
+}
+
+function clearPatternFilter() {
+  state.patternFilter = null;
+  state.offset = 0;
+  renderPatternBanner();
+  loadChunks().catch((error) => showToast(error.message, true));
+}
+
+function renderPatternBanner() {
+  const filter = state.patternFilter;
+  blockers.banner.hidden = !filter;
+  if (!filter) return;
+  blockers.bannerTitle.textContent = filter.title;
+  const parts = [
+    `${formatCount(filter.chunkIds.length)} chunks, ${formatCount(filter.matchedRows)} rows`,
+  ];
+  if (filter.unmatchedRows) {
+    parts.push(`${formatCount(filter.unmatchedRows)} rows outside this build`);
+  }
+  blockers.bannerMeta.textContent = parts.join(" · ");
+}
+
+blockers.bannerClear.addEventListener("click", clearPatternFilter);
+blockers.categorySelect.addEventListener("change", () => {
+  blockerState.category = blockers.categorySelect.value;
+  loadBlockerPatterns().catch((error) => showToast(error.message, true));
+});
+
 (async function start() {
   try {
     const hasBuilds = await loadBuilds();
     if (hasBuilds) await loadChunks();
     const linked = decodeURIComponent(window.location.hash.slice(1));
-    if (linked.startsWith("unresolved")) {
+    if (linked === "blockers") {
+      switchView("blockers");
+    } else if (linked.startsWith("unresolved")) {
       switchView("unresolved");
       const target = linked.slice("unresolved".length).replace(/^:/, "");
       const split = target.indexOf("=");

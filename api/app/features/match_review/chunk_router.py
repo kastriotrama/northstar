@@ -24,6 +24,7 @@ from api.app.features.match_review.chunk_schemas import (
     MemberComparison,
     OemSampleRequest,
     OemSampleSummary,
+    PatternBridge,
     PatternReport,
     PopulationAttributes,
     ProposalReviewRequest,
@@ -132,6 +133,7 @@ def list_chunks(
     query: str = Query(default="", max_length=120),
     limit: int = Query(default=100, ge=1, le=300),
     offset: int = Query(default=0, ge=0),
+    chunk_id: Annotated[list[UUID] | None, Query()] = None,
 ) -> ChunkPage:
     try:
         return service.list_chunks(
@@ -140,6 +142,7 @@ def list_chunks(
             query=query,
             limit=limit,
             offset=offset,
+            chunk_ids=chunk_id,
         )
     except MatchReviewNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -151,6 +154,35 @@ def list_chunks(
 def get_chunk(chunk_id: UUID, service: ServiceDependency) -> ChunkDetail:
     try:
         return service.get_chunk(chunk_id)
+    except MatchReviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@api_router.get(
+    "/patterns/{pattern_key}/chunks",
+    response_model=PatternBridge,
+)
+def resolve_pattern_chunks(
+    pattern_key: str,
+    service: ServiceDependency,
+    operation_id: Annotated[UUID, Query()],
+    build_id: UUID | None = None,
+) -> PatternBridge:
+    """Resolve a blocker pattern onto the chunks that hold its rows.
+
+    The pattern is a lens for choosing what to work on; the ruling still
+    attaches to a chunk, which is the only key aligned with the matcher's own
+    evaluation key.
+    """
+
+    try:
+        return service.resolve_pattern(
+            operation_id=operation_id,
+            pattern_key=pattern_key,
+            build_id=build_id,
+        )
     except MatchReviewNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except psycopg.Error as error:

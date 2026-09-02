@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 from uuid import UUID
@@ -19,6 +19,10 @@ from ingestion.match_chunk_migrations import (
     MATCH_CHUNKS_TABLE,
     OEM_VIN_EVIDENCE_TABLE,
     run_match_chunk_migrations,
+)
+from ingestion.match_run_migrations import (
+    MATCH_REVIEW_RULE_DECISIONS_TABLE,
+    MATCH_RUN_PATTERN_MEMBERS_TABLE,
 )
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 
@@ -115,9 +119,15 @@ class MatchReviewRepository:
         query: str,
         limit: int,
         offset: int,
+        chunk_ids: Sequence[UUID] | None = None,
     ) -> tuple[int, int, list[dict[str, Any]]]:
         conditions = ["build_id = %s"]
         parameters: list[object] = [build_id]
+        if chunk_ids is not None:
+            if not chunk_ids:
+                return 0, 0, []
+            conditions.append("chunk_id = ANY(%s)")
+            parameters.append(list(chunk_ids))
         if status is not None:
             conditions.append("status = %s")
             parameters.append(status)
@@ -961,6 +971,103 @@ class MatchReviewRepository:
             )
             row = cursor.fetchone()
         return _proposal_row(row) if row is not None else None
+
+    def fetch_pattern_chunks(
+        self, *, operation_id: UUID, pattern_key: str, build_id: UUID
+    ) -> dict[str, Any]:
+        """Resolve a blocker pattern to the chunks holding its rows.
+
+        Both sides key members on ``source_record_id`` in
+        ``staging.transportstyrelsen_raw``, so the pattern is a lens over
+        chunks rather than a second grouping. Rows the build never chunked are
+        counted, not hidden: a pattern is only fully actionable here when
+        ``matched_rows`` equals ``pattern_rows``.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            # The blocker workspace owns these tables and migrates them on its
+            # own path. Until a matcher run has created them there is nothing
+            # to bridge, and that is a state to report, not a server error.
+            cursor.execute(
+                "SELECT to_regclass(%s)", (MATCH_RUN_PATTERN_MEMBERS_TABLE,)
+            )
+            if (cursor.fetchone() or (None,))[0] is None:
+                return {"pattern_rows": 0, "matched_rows": 0, "chunks": []}
+            cursor.execute(
+                f"""
+                SELECT count(*)
+                FROM {MATCH_RUN_PATTERN_MEMBERS_TABLE}
+                WHERE operation_id = %s AND pattern_key = %s
+                """,
+                (operation_id, pattern_key),
+            )
+            pattern_rows = int((cursor.fetchone() or (0,))[0])
+            cursor.execute(
+                f"""
+                SELECT chunks.chunk_id, chunks.signature, chunks.member_count,
+                       chunks.status, count(*) AS overlap
+                FROM {MATCH_RUN_PATTERN_MEMBERS_TABLE} AS pattern
+                JOIN {MATCH_CHUNK_MEMBERS_TABLE} AS members
+                  ON members.source_record_id = pattern.source_record_id
+                JOIN {MATCH_CHUNKS_TABLE} AS chunks
+                  ON chunks.chunk_id = members.chunk_id
+                WHERE pattern.operation_id = %s
+                  AND pattern.pattern_key = %s
+                  AND chunks.build_id = %s
+                GROUP BY chunks.chunk_id, chunks.signature, chunks.member_count,
+                         chunks.status
+                ORDER BY overlap DESC, chunks.chunk_id
+                """,
+                (operation_id, pattern_key, build_id),
+            )
+            rows = cursor.fetchall()
+        chunks = [
+            {
+                "chunk_id": row[0],
+                "signature": dict(row[1]),
+                "member_count": int(row[2]),
+                "status": str(row[3]),
+                "overlap_rows": int(row[4]),
+            }
+            for row in rows
+        ]
+        return {
+            "pattern_rows": pattern_rows,
+            "matched_rows": sum(chunk["overlap_rows"] for chunk in chunks),
+            "chunks": chunks,
+        }
+
+    def fetch_pattern_decisions(
+        self, *, operation_id: UUID, pattern_key: str
+    ) -> list[dict[str, Any]]:
+        """Prior pattern-level rulings, newest first, for read-only history."""
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s)", (MATCH_REVIEW_RULE_DECISIONS_TABLE,)
+            )
+            if (cursor.fetchone() or (None,))[0] is None:
+                return []
+            cursor.execute(
+                f"""
+                SELECT decision_id, action, reviewer, reason, created_at
+                FROM {MATCH_REVIEW_RULE_DECISIONS_TABLE}
+                WHERE operation_id = %s AND pattern_key = %s
+                ORDER BY created_at DESC, decision_id DESC
+                """,
+                (operation_id, pattern_key),
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "decision_id": str(row[0]),
+                "action": str(row[1]),
+                "reviewer": str(row[2]),
+                "reason": str(row[3]),
+                "created_at": row[4],
+            }
+            for row in rows
+        ]
 
     def fetch_proposals(self, chunk_id: UUID) -> list[dict[str, Any]]:
         with self._connection_factory() as connection, connection.cursor() as cursor:

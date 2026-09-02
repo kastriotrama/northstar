@@ -723,3 +723,36 @@ button.status-tag-action:hover { background: var(--amber); color: #fff; }
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* Blocker scope banner: names the population the chunk list is filtered to. */
+.pattern-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--blue-soft);
+  border-bottom: 1px solid var(--line);
+}
+.pattern-banner-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pattern-banner .eyebrow {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pattern-banner strong { font-size: 14px; font-weight: 600; }
+.pattern-banner p { margin: 0; color: var(--muted); font-size: 12px; }
+
+/* Blocker detail reuses the chunk panels; only the evidence list differs. */
+#blocker-chunk-list .spread-item,
+#blocker-history .spread-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+#blocker-chunk-list .spread-item { cursor: pointer; }
+#blocker-chunk-list .spread-item:hover { background: var(--accent-soft); }
+#blocker-open-chunks { margin-top: 10px; }

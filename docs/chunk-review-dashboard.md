@@ -418,3 +418,54 @@ Scope note: what the reviewer isolates is a **predicate, not a sub-chunk**. The
 resulting rule resolves matching cars wherever they live, across chunks and
 future imports — which is why the count shown is the population's, not the
 chunk's.
+
+## 18. Blockers as a lens, chunks as the decision key
+
+`develop` gained a blocker review workspace (SCRUM-101) at the same
+`api/app/features/match_review/` path. It answers a question this dashboard
+never did — *what is stopping this run, and what recurs* — by grouping matcher
+audit items into **patterns** keyed on `pattern_key`, a hash over evidence
+fields, and recording rulings against that key.
+
+Two grouping keys over the same rows, both claiming "one decision covers every
+member", is not a duplicated feature — it is a correctness hazard. `chunk_id`
+earns that claim: since `SIGNATURE_VERSION` 2 the signature is derived from
+`TecDocDryRunEvaluator.evaluation_key`, so chunk grouping equals match grouping
+by construction. `pattern_key` mirrors matcher semantics by hand — the same
+shape of mirror that over-grouped 143 chunks across 726 rows before the
+signature was aligned. A ruling recorded against a pattern key inherits no
+guarantee that the matcher evaluates its members alike.
+
+The resolution keeps both and orders them:
+
+- **A blocker selects. A chunk decides.** Patterns stay as the triage front
+  door — the taxonomy (`why_blocked`, `decision_question`, `evidence_gaps`) and
+  the category rollup are how a reviewer picks what to work on. They no longer
+  terminate in a decision.
+- **The bridge is a join, not a translation.** Both sides key members on
+  `source_record_id` in `staging.transportstyrelsen_raw`, so
+  `GET /v1/match-review/patterns/{pattern_key}/chunks` resolves a pattern onto
+  the chunks holding its rows, ordered by overlap. No second grouping is
+  computed and nothing is re-derived.
+- **Partial coverage is reported, not hidden.** Rows the selected build never
+  chunked are returned as `unmatched_rows`. A pattern is only fully actionable
+  when `matched_rows == pattern_rows`; the screen says so rather than showing a
+  scope that silently omits rows.
+- **Pattern rulings are soft-retired.** `POST /patterns/{pattern_key}/decision`
+  is marked `deprecated` and still serves the blocker workspace. Existing
+  decisions are surfaced read-only in the blocker inspector as history. Nothing
+  is migrated or deleted; making chunk decisions the only path is a team
+  decision, and this change makes it reversible.
+
+On the screen this is a third view, `Blockers`, beside `Chunks` and
+`Unresolved fields`. Choosing a blocker scopes the chunk list to the chunks it
+reaches — a dismissable banner names the population and its row counts — and
+the reviewer continues into the rule builder, OEM sampling and proposal review
+already described above. The scope travels to SQL as repeated `chunk_id`
+parameters on `GET /chunks`; an empty scope returns zero chunks rather than
+falling back to the full build.
+
+The blocker tables (`core.match_run_*`) are migrated on the matcher's own path,
+not this one. Where they do not exist yet the bridge returns an empty result
+instead of failing, so the dashboard runs against a database that has only ever
+built chunks.
