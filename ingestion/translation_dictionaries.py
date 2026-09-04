@@ -930,6 +930,18 @@ _DRIVE_RULES = (
         "awd",
         display="All-wheel drive",
     ),
+    # The registry asserts the negative on 5.5M rows. It does not say whether
+    # drive is front or rear, so drive_type stays unset and only the fact the
+    # registry actually states is recorded.
+    _rule(
+        "DRV-009",
+        "drive_flag",
+        "is_4wd",
+        "0",
+        "all_wheel_drive",
+        "no",
+        display="Not all-wheel drive",
+    ),
 )
 _V5_RULE_SET = TranslationRuleSet(
     version=RULE_SET_VERSION_V5,

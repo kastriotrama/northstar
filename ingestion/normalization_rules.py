@@ -36,7 +36,7 @@ MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
 # The decomposed type approval adds normalized fields; do not reuse the old
 # normalization identity when the same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v8"
+PIPELINE_VERSION = "normalization-pipeline-v9"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2015,6 +2015,109 @@ _TYPE_APPROVAL = re.compile(
 )
 
 
+# Registry tyre text is free-form and only 86% is the modern metric code.
+# Legacy shapes are kept rather than dropped: 5.60-15 is imperial, 175SR14 is
+# pre-1980 alpha with the speed symbol inside and no aspect ratio at all, and a
+# missing aspect ratio must stay missing -- the old 82-series default is wrong
+# for most of these.
+_TYRE_METRIC = re.compile(
+    r"^(?P<p>P|LT)?\s*(?P<width>\d{3})\s*/\s*(?P<aspect>\d{2})\s*"
+    r"(?P<construction>ZR|R|B|D|-)?\s*(?P<rim>\d{2}(?:\.\d)?)\s*(?P<commercial>C)?\s*"
+    r"(?:\(\s*(?P<load_paren>\d{2,3})\s*\)|(?P<load>\d{2,3}))?\s*"
+    r"(?P<speed>[A-Z]{1,2})?\s*(?P<rest>.*)$"
+)
+_TYRE_ALPHA = re.compile(r"^(?P<width>\d{3})\s*(?P<speed>[A-Z])?R\s*(?P<rim>\d{2})$")
+_TYRE_IMPERIAL = re.compile(r"^(?P<width>\d(?:\.\d{2})?)\s*-\s*(?P<rim>\d{2})$")
+_TYRE_DASH = re.compile(r"^(?P<width>\d{3})\s*-\s*(?P<rim>\d{2})$")
+_TYRE_CONSTRUCTION = {"R": "radial", "ZR": "radial", "B": "belted_bias", "D": "bias", "-": "bias"}
+
+
+def _parse_tyre(value: object) -> dict[str, Any] | None:
+    """Decompose one registry tyre string, keeping the shape it was written in."""
+
+    text = normalize_text(value)
+    if text is None:
+        return None
+    cleaned = re.sub(r"\s+", " ", text.upper().replace(",", ".")).strip()
+    spec: dict[str, Any] = {"raw": text}
+
+    match = _TYRE_METRIC.match(cleaned)
+    if match is not None:
+        rest = (match.group("rest") or "").strip()
+        spec["size_system"] = {"P": "p_metric", "LT": "lt_metric"}.get(match.group("p"), "metric")
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["aspect_ratio"] = int(match.group("aspect"))
+        spec["construction"] = _TYRE_CONSTRUCTION.get(match.group("construction") or "R", "radial")
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        load = match.group("load") or match.group("load_paren")
+        if load:
+            spec["load_index"] = int(load)
+        if match.group("speed"):
+            spec["speed_symbol"] = match.group("speed")
+        if match.group("commercial"):
+            spec["load_range"] = "c"
+        if "XL" in rest or "REINF" in rest:
+            spec["load_range"] = "xl"
+        if "M+S" in rest or "M+ S" in rest or "MS" in rest.split():
+            spec["mud_snow"] = True
+        return spec
+
+    match = _TYRE_ALPHA.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "alpha"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["construction"] = "radial"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        if match.group("speed"):
+            spec["speed_symbol"] = match.group("speed")
+        return spec
+
+    match = _TYRE_IMPERIAL.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "imperial"
+        spec["section_width_in"] = float(match.group("width"))
+        spec["construction"] = "bias"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+
+    match = _TYRE_DASH.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "metric"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["construction"] = "bias"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+    return None
+
+
+def _apply_tyres(context: NormalizationContext) -> None:
+    """Decompose the per-axle tyre sizes the registry records."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    specs: dict[str, dict[str, Any]] = {}
+    for axle, field_name in (("front", "tyre_front"), ("rear", "tyre_rear")):
+        value = raw.get(field_name)
+        if normalize_text(value) is None:
+            continue
+        spec = _parse_tyre(value)
+        if spec is None:
+            context.candidates[field_name] = normalize_text(value)
+            context.review_reasons.append("tyre_size_unrecognized")
+            continue
+        specs[axle] = spec
+        normalized[field_name] = spec
+
+    if len(specs) == 2:
+        front, rear = specs["front"], specs["rear"]
+        normalized["tyre_staggered"] = {
+            k: front.get(k) for k in ("section_width_mm", "aspect_ratio", "rim_diameter_in")
+        } != {k: rear.get(k) for k in ("section_width_mm", "aspect_ratio", "rim_diameter_in")}
+    rims = {spec.get("rim_diameter_in") for spec in specs.values() if spec.get("rim_diameter_in")}
+    if len(rims) == 1:
+        normalized["rim_diameter_in"] = rims.pop()
+
+
 def _apply_type_approval(context: NormalizationContext) -> None:
     """Decompose the EC type approval into its reviewed parts."""
 
@@ -2593,7 +2696,7 @@ def _normalize_drive(context: NormalizationContext) -> None:
     normalized = context.normalized
     flag = normalize_text(raw.get("is_4wd"))
     flag_rule: TranslationRule | None = None
-    if flag == "1":
+    if flag in {"0", "1"}:
         matches = _rule_set(context).match("drive_flag", flag)
         if matches:
             flag_rule = matches[0]
@@ -2605,7 +2708,7 @@ def _normalize_drive(context: NormalizationContext) -> None:
             )
             normalized[flag_rule.canonical_field] = flag_rule.canonical_value
             context.applied_rule_ids.append(flag_rule.rule_id)
-    elif flag not in {None, "0"}:
+    elif flag is not None:
         context.review_reasons.append("is_4wd_malformed")
 
     marketing = _marketing_match(context, "drive_marketing")
@@ -2918,6 +3021,15 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             source_fields=("manufacturer", "brand", "base_manufacturer"),
             normalized_confidence_effect=0.2,
             candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.tyres",
+            order=36,
+            default_rule_id="TYRE-SIZE-V1",
+            handler=_apply_tyres,
+            source_fields=("tyre_front", "tyre_rear"),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
         ),
         _RuleTransformer(
             transformer_id="ts.type-approval",

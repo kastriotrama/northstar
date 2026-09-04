@@ -140,7 +140,7 @@ def test_reviewed_fuel_corrections_refresh_comparison_tokens_and_identity() -> N
         }},
     )
     assert outcome.normalized["fuel_match_tokens"] == ["hydrogen"]
-    assert outcome.pipeline_version == "normalization-pipeline-v8"
+    assert outcome.pipeline_version == "normalization-pipeline-v9"
     assert normalization_uuid(1, "map", "rule", outcome.pipeline_version) != normalization_uuid(
         1, "map", "rule", "normalization-pipeline-v5"
     )
