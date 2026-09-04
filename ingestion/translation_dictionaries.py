@@ -19,6 +19,7 @@ RuleArea = Literal[
     "drive_marketing",
     "model_family",
     "type_approval_country",
+    "emission_class",
 ]
 RuleDecision = Literal["accepted", "proposed"]
 
@@ -4711,6 +4712,39 @@ _TYPE_APPROVAL_COUNTRY_RULES = tuple(
     )
 )
 
+
+# The registry packs two concepts into emission_class: a Euro standard, or an
+# electrification type. The electrification values repeat what ev_config already
+# says on 95-99% of rows, so they are applied only where ev_config was silent.
+_EMISSION_CLASS_RULES = (
+    _rule("EMI-001", "emission_class", "emission_class", "EURO 6", "emission_standard", "Euro 6"),
+    _rule("EMI-002", "emission_class", "emission_class", "EURO 5", "emission_standard", "Euro 5"),
+    _rule("EMI-003", "emission_class", "emission_class", "EURO 4", "emission_standard", "Euro 4"),
+    _rule("EMI-004", "emission_class", "emission_class", "EURO IV", "emission_standard", "Euro 4"),
+    _rule("EMI-005", "emission_class", "emission_class", "EURO III", "emission_standard", "Euro 3"),
+    _rule("EMI-006", "emission_class", "emission_class", "EURO II", "emission_standard", "Euro 2"),
+    _rule("EMI-007", "emission_class", "emission_class", "EEV", "emission_standard", "EEV"),
+    _rule(
+        "EMI-008",
+        "emission_class",
+        "emission_class",
+        "EL",
+        "electrification_type",
+        "battery_electric",
+    ),
+    _rule(
+        "EMI-009", "emission_class", "emission_class", "ELHYBRID", "electrification_type", "hybrid"
+    ),
+    _rule(
+        "EMI-010",
+        "emission_class",
+        "emission_class",
+        "LADDHYBRID",
+        "electrification_type",
+        "plug_in_hybrid",
+    ),
+)
+
 _REVIEWED_RULE_SET = TranslationRuleSet(
     version=REVIEWED_RULE_SET_VERSION,
     rules=tuple(
@@ -4721,6 +4755,7 @@ _REVIEWED_RULE_SET = TranslationRuleSet(
                 *_MODEL_FAMILY_RULES,
                 *_MODEL_FAMILY_PHASE_2_RULES,
                 *_TYPE_APPROVAL_COUNTRY_RULES,
+                *_EMISSION_CLASS_RULES,
             ),
             key=lambda rule: rule.rule_id,
         )

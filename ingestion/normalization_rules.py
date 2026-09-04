@@ -36,7 +36,7 @@ MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
 # The decomposed type approval adds normalized fields; do not reuse the old
 # normalization identity when the same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v9"
+PIPELINE_VERSION = "normalization-pipeline-v10"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2090,6 +2090,65 @@ def _parse_tyre(value: object) -> dict[str, Any] | None:
     return None
 
 
+# Scaling is per field and inconsistent, so each is stated rather than inferred:
+# co2_mixed is tenths of a gram (median 1440 = 144.0 g/km) while co2_wltp_mixed1
+# is already grams (median 149). Reading either with the other's scale is a
+# tenfold error, and both fields are populated on millions of rows.
+_MEASUREMENTS: tuple[tuple[str, str, float, bool], ...] = (
+    ("wheelbase1", "wheelbase_mm", 1.0, True),
+    ("ev_max_power", "ev_power_kw", 0.1, False),
+    ("ev_30min_power", "ev_power_30min_kw", 0.1, False),
+    ("co2_mixed", "co2_nedc_g_km", 0.1, False),
+    ("co2_wltp_mixed1", "co2_wltp_g_km", 1.0, True),
+    ("consumption_mixed", "consumption_nedc_l_100km", 0.1, False),
+    ("range_wltp1", "electric_range_km", 1.0, True),
+    ("ev_consumption_wltp1", "ev_consumption_wh_km", 1.0, True),
+)
+
+
+def _apply_measurements(context: NormalizationContext) -> None:
+    """Convert the registry's scaled integer measurements into stated units."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    for field_name, target, scale, keep_integer in _MEASUREMENTS:
+        source = raw.get(field_name)
+        # The registry dump is inconsistent about JSON types: wheelbase1 arrives
+        # as a number, co2_mixed as a string. Both are measurements.
+        if isinstance(source, bool):
+            continue
+        if isinstance(source, int):
+            magnitude = source
+        else:
+            text = normalize_text(source)
+            if text is None or not text.isdigit():
+                continue
+            magnitude = int(text)
+        value = magnitude * scale
+        normalized[target] = int(value) if keep_integer else round(value, 1)
+
+
+def _apply_emission_class(context: NormalizationContext) -> None:
+    """Resolve the Euro standard, and electrification only where ev_config was silent."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    text = normalize_text(raw.get("emission_class"))
+    if text is None:
+        return
+    matches = _rule_set(context).match("emission_class", text.upper())
+    if not matches:
+        context.candidates["emission_class"] = text
+        context.review_reasons.append("emission_class_unknown")
+        return
+    rule = matches[0]
+    if rule.canonical_field == "electrification_type" and normalized.get("electrification_type"):
+        return
+    normalized[rule.canonical_field] = rule.canonical_value
+    context.applied_rule_ids.append(rule.rule_id)
+    _record_dictionary_match(context, rule, source_field="emission_class", source_term=text)
+
+
 def _apply_tyres(context: NormalizationContext) -> None:
     """Decompose the per-axle tyre sizes the registry records."""
 
@@ -3021,6 +3080,24 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             source_fields=("manufacturer", "brand", "base_manufacturer"),
             normalized_confidence_effect=0.2,
             candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.measurements",
+            order=37,
+            default_rule_id="MEASUREMENT-SCALE-V1",
+            handler=_apply_measurements,
+            source_fields=("wheelbase1", "co2_mixed", "consumption_mixed"),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.emission-class",
+            order=38,
+            default_rule_id="EMISSION-CLASS-V1",
+            handler=_apply_emission_class,
+            source_fields=("emission_class",),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
         ),
         _RuleTransformer(
             transformer_id="ts.tyres",
