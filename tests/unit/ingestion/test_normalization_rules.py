@@ -461,7 +461,7 @@ def test_model_candidate_is_extracted_from_composite_or_duplicated_brand_text() 
 
     assert composite.normalized["model_family"] == "5 Series"
     assert "model_family" not in composite.candidates
-    assert duplicated.candidates["model_family"] == "SPACE STAR"
+    assert duplicated.normalized["model_family"] == "Space Star"
 
 
 def test_missing_manufacturer_accepts_brand_only_with_corroborating_model() -> None:
