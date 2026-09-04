@@ -39600,13 +39600,12 @@
       "expected": {
         "applied_rule_ids": [
           "MFR-102",
+          "MOD-505",
           "BDY-009"
         ],
         "candidate_rule_ids": [],
-        "candidates": {
-          "model_family": "Transit Cargo Van"
-        },
-        "confidence": 0.8,
+        "candidates": {},
+        "confidence": 0.95,
         "decision_trace": [
           {
             "after": [
@@ -39699,27 +39698,15 @@
             "transformer_id": "ts.manufacturer"
           },
           {
-            "after": true,
+            "after": "Transit",
             "before": "Transit Cargo Van",
             "confidence_effect": 0.1,
-            "field": "model_family_candidate",
+            "field": "model_family",
             "rule_ids": [
-              "MODEL-CANDIDATE-V1"
+              "MOD-505"
             ],
             "sequence": 8,
             "target": "normalized",
-            "transformer_id": "ts.model-family"
-          },
-          {
-            "after": "Transit Cargo Van",
-            "before": "Transit Cargo Van",
-            "confidence_effect": 0.05,
-            "field": "model_family",
-            "rule_ids": [
-              "MODEL-CANDIDATE-V1"
-            ],
-            "sequence": 9,
-            "target": "candidate",
             "transformer_id": "ts.model-family"
           },
           {
@@ -39733,7 +39720,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 10,
+            "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -39748,7 +39735,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 11,
+            "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -39763,7 +39750,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 12,
+            "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           }
@@ -39786,11 +39773,20 @@
             "SE"
           ],
           "marketing_body_style": "van",
-          "model_family_candidate": true
+          "model_family": "Transit"
         },
         "pipeline_version": "normalization-pipeline-v6",
         "review_reasons": [],
         "rule_matches": [
+          {
+            "canonical_value": "Transit",
+            "decision": "accepted",
+            "rule_id": "MOD-505",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "TRANSIT",
+            "target_field": "model_family"
+          },
           {
             "canonical_value": "van",
             "decision": "accepted",
@@ -39801,7 +39797,7 @@
             "target_field": "bodywork_form"
           }
         ],
-        "status": "provisional"
+        "status": "resolved"
       },
       "id": "bodywork-goods-van",
       "input": {
