@@ -34,9 +34,9 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-# The engine badge adds a normalized field; do not reuse the old normalization
-# identity when the same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v7"
+# The decomposed type approval adds normalized fields; do not reuse the old
+# normalization identity when the same source/rule version is reprocessed.
+PIPELINE_VERSION = "normalization-pipeline-v8"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2003,6 +2003,58 @@ def _engine_badge(canonical_family: object, source_term: str, model_key: str) ->
     return badge or None
 
 
+# "e1*2007/46*0480*12" is an EC whole-vehicle type approval: approving country,
+# framework directive, approval number, then the extension. The extension is an
+# amendment of the same approval, so the base identifies the type and the full
+# string identifies the revision -- joins should prefer the base.
+_TYPE_APPROVAL = re.compile(
+    r"^\s*(?P<country>[eE]\d{1,2})"
+    r"\s*\*\s*(?P<directive>[0-9]{2,4}/[0-9]{1,3})"
+    r"\s*\*\s*(?P<number>[0-9A-Za-z]+)"
+    r"(?:\s*\*\s*(?P<extension>[0-9A-Za-z]+))?\s*$"
+)
+
+
+def _apply_type_approval(context: NormalizationContext) -> None:
+    """Decompose the EC type approval into its reviewed parts."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    approval = normalize_text(raw.get("eeg_type_approval"))
+    if approval is None:
+        return
+    match = _TYPE_APPROVAL.match(approval)
+    if match is None:
+        context.review_reasons.append("type_approval_format_unrecognized")
+        context.candidates["type_approval"] = approval
+        return
+
+    country_token = match.group("country").lower()
+    directive = match.group("directive")
+    number = match.group("number").upper()
+    extension = match.group("extension")
+
+    base = f"{country_token}*{directive}*{number}"
+    normalized["type_approval_base"] = base
+    normalized["type_approval"] = f"{base}*{extension.upper()}" if extension else base
+    normalized["type_approval_directive"] = directive
+    normalized["type_approval_number"] = number
+    if extension is not None:
+        normalized["type_approval_extension"] = extension.upper()
+
+    matches = _rule_set(context).match("type_approval_country", country_token)
+    if not matches:
+        context.review_reasons.append("type_approval_country_unknown")
+        context.candidates["type_approval_country"] = country_token
+        return
+    rule = matches[0]
+    normalized[rule.canonical_field] = rule.canonical_value
+    context.applied_rule_ids.append(rule.rule_id)
+    _record_dictionary_match(
+        context, rule, source_field="eeg_type_approval", source_term=country_token
+    )
+
+
 def _normalize_model_family(context: NormalizationContext) -> None:
     raw = context.canonical_record
     normalized = context.normalized
@@ -2866,6 +2918,15 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             source_fields=("manufacturer", "brand", "base_manufacturer"),
             normalized_confidence_effect=0.2,
             candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.type-approval",
+            order=35,
+            default_rule_id="TYPE-APPROVAL-V1",
+            handler=_apply_type_approval,
+            source_fields=("eeg_type_approval",),
+            normalized_confidence_effect=0.05,
+            candidate_confidence_effect=0.0,
         ),
         _RuleTransformer(
             transformer_id="ts.model-family",

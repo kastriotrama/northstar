@@ -30,7 +30,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.normalized["model_family"] == "V60"
     assert "model_family" not in outcome.candidates
-    assert outcome.pipeline_version == "normalization-pipeline-v7"
+    assert outcome.pipeline_version == "normalization-pipeline-v8"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )

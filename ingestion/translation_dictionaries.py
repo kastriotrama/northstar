@@ -18,6 +18,7 @@ RuleArea = Literal[
     "drive_flag",
     "drive_marketing",
     "model_family",
+    "type_approval_country",
 ]
 RuleDecision = Literal["accepted", "proposed"]
 
@@ -4643,6 +4644,61 @@ _MODEL_FAMILY_PHASE_2_RULES = tuple(
     )
     for rule_id, manufacturer, terms, canonical_value in _MODEL_FAMILY_PHASE_2_SPECS
 )
+
+# EC whole-vehicle type approvals carry the approving authority in their
+# first field: the e-number in "e1*2007/46*0480*12" is Germany. The numbering
+# is the UNECE country list, so it is a translation like any other.
+_TYPE_APPROVAL_COUNTRY_RULES = tuple(
+    _rule(
+        f"TAC-{code:0>3}",
+        "type_approval_country",
+        "eeg_type_approval",
+        term,
+        "type_approval_country",
+        country,
+    )
+    for code, term, country in (
+        ("1", "e1", "DE"),
+        ("2", "e2", "FR"),
+        ("3", "e3", "IT"),
+        ("4", "e4", "NL"),
+        ("5", "e5", "SE"),
+        ("6", "e6", "BE"),
+        ("7", "e7", "HU"),
+        ("8", "e8", "CZ"),
+        ("9", "e9", "ES"),
+        ("10", "e10", "RS"),
+        ("11", "e11", "GB"),
+        ("12", "e12", "AT"),
+        ("13", "e13", "LU"),
+        ("14", "e14", "CH"),
+        ("16", "e16", "NO"),
+        ("17", "e17", "FI"),
+        ("18", "e18", "DK"),
+        ("19", "e19", "RO"),
+        ("20", "e20", "PL"),
+        ("21", "e21", "PT"),
+        ("22", "e22", "RU"),
+        ("23", "e23", "GR"),
+        ("24", "e24", "IE"),
+        ("25", "e25", "HR"),
+        ("26", "e26", "SI"),
+        ("27", "e27", "SK"),
+        ("29", "e29", "EE"),
+        ("31", "e31", "BA"),
+        ("32", "e32", "LV"),
+        ("34", "e34", "BG"),
+        ("36", "e36", "LT"),
+        ("37", "e37", "TR"),
+        ("43", "e43", "JP"),
+        ("45", "e45", "AU"),
+        ("46", "e46", "UA"),
+        ("47", "e47", "ZA"),
+        ("49", "e49", "CY"),
+        ("50", "e50", "MT"),
+    )
+)
+
 _REVIEWED_RULE_SET = TranslationRuleSet(
     version=REVIEWED_RULE_SET_VERSION,
     rules=tuple(
@@ -4652,6 +4708,7 @@ _REVIEWED_RULE_SET = TranslationRuleSet(
                 *_DRIVE_RULES,
                 *_MODEL_FAMILY_RULES,
                 *_MODEL_FAMILY_PHASE_2_RULES,
+                *_TYPE_APPROVAL_COUNTRY_RULES,
             ),
             key=lambda rule: rule.rule_id,
         )
