@@ -50,7 +50,7 @@ def test_stakeholder_changes_are_captured_without_concept_conflation() -> None:
     assert rules.get("DRV-002").manufacturers == ("BMW",)
     assert rules.get("DRV-003").manufacturers == ("Audi",)
     assert rules.get("DRV-004").manufacturers == ("Volkswagen",)
-    assert len([rule for rule in rules.rules if rule.area == "model_family"]) == 127
+    assert len([rule for rule in rules.rules if rule.area == "model_family"]) == 1108
     assert rules.get("MOD-003").canonical_value == "XC60"
     assert rules.get("MOD-024").canonical_value == "Model Y"
 

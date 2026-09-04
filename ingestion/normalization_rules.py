@@ -34,9 +34,9 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-# Fuel comparison tokens change persisted output; do not reuse the old
+# The decomposed type approval adds normalized fields; do not reuse the old
 # normalization identity when the same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v6"
+PIPELINE_VERSION = "normalization-pipeline-v10"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -424,16 +424,143 @@ _VIN_WMI_MANUFACTURERS: dict[str, str] = {
     "ZAR": "Alfa Romeo",
 }
 
+# Transportstyrelsen publishes karosseri-, text- and dispenskoder but no
+# fabrikatkod list, so this catalogue is DERIVED from the production register:
+# for each code, the normalized manufacturer it resolves to, kept only where a
+# single manufacturer covers >=95% of that code's rows (>=20 rows). Across the
+# 688,828 rows covered, fab_code disagrees with the normalized
+# manufacturer on 145 rows (0.021%) — the corroborator is meant to surface
+# exactly those.
+#
+# Excluded as ambiguous, and why: ÖV (17.8%), DQ (85.2%), MG (92.1%), LQ (72.3%), POL (77.7%), BC (91.7%), AN (93.6%), RO (92.2%), CUA (81.9%), LL (92.5%), HB (90.7%), IF (80%), KB (70%).
+# `ÖV` is Övrigt (a catch-all), not a make. Lexus/Polestar bleed into
+# Toyota/Volvo, so their codes need a decision rather than a default.
+#
+# NOTE: `SA` here is the fabrikatkod for Saab. The same string is a
+# karosserikod meaning Campingbil. Codes are only meaningful per field.
 _FAB_CODE_MANUFACTURERS: dict[str, str] = {
-    "AR": "Alfa Romeo",
-    "CI": "Citroën",
-    "HK": "Hyundai",
-    "MB": "Mercedes-Benz",
-    "NA": "Nissan",
-    "OP": "Opel",
-    "VW": "Volkswagen",
+    "VO": "Volvo",  # 152,810 rows, 100% pure
+    "VW": "Volkswagen",  # 84,403 rows, 100% pure
+    "TO": "Toyota",  # 42,601 rows, 100% pure
+    "FO": "Ford",  # 34,709 rows, 100% pure
+    "MB": "Mercedes-Benz",  # 34,614 rows, 100% pure
+    "BW": "BMW",  # 33,217 rows, 100% pure
+    "KG": "Kia",  # 29,761 rows, 100% pure
+    "AU": "Audi",  # 29,531 rows, 100% pure
+    "SA": "Saab",  # 23,702 rows, 100% pure
+    "SK": "Škoda",  # 22,553 rows, 100% pure
+    "OP": "Opel",  # 18,839 rows, 100% pure
+    "PG": "Peugeot",  # 16,740 rows, 100% pure
+    "RN": "Renault",  # 16,684 rows, 100% pure
+    "HK": "Hyundai",  # 14,145 rows, 100% pure
+    "NA": "Nissan",  # 12,964 rows, 100% pure
+    "CI": "Citroën",  # 10,733 rows, 99.8% pure
+    "CV": "Chevrolet",  # 9,651 rows, 100% pure
+    "MZ": "Mazda",  # 9,628 rows, 100% pure
+    "SH": "Subaru",  # 7,765 rows, 100% pure
+    "S4": "SEAT",  # 7,012 rows, 100% pure
+    "HO": "Honda",  # 6,584 rows, 100% pure
+    "MH": "Mitsubishi",  # 6,240 rows, 99.6% pure
+    "T-": "Tesla",  # 5,843 rows, 100% pure
+    "FI": "Fiat",  # 5,209 rows, 100% pure
+    "SZ": "Suzuki",  # 4,557 rows, 100% pure
+    "PR": "Porsche",  # 4,479 rows, 100% pure
+    "M5": "MINI",  # 3,220 rows, 100% pure
+    "CR": "Chrysler",  # 2,878 rows, 99.9% pure
+    "AR": "Alfa Romeo",  # 2,715 rows, 99.9% pure
+    "JA": "Jaguar",  # 2,418 rows, 97.8% pure
+    "CA": "Cadillac",  # 2,286 rows, 100% pure
+    "DD": "Dodge",  # 2,141 rows, 100% pure
+    "PO": "Pontiac",  # 1,851 rows, 100% pure
+    "JP": "Jeep",  # 1,746 rows, 100% pure
+    "LR": "Land Rover",  # 1,636 rows, 99.9% pure
+    "OL": "Oldsmobile",  # 1,290 rows, 100% pure
+    "LA": "Lancia",  # 1,215 rows, 99.8% pure
+    "MS": "Maserati",  # 1,208 rows, 100% pure
+    "BU": "Buick",  # 1,163 rows, 100% pure
+    "TR": "Triumph",  # 1,029 rows, 100% pure
+    "PL": "Plymouth",  # 952 rows, 100% pure
+    "DT": "Datsun",  # 835 rows, 100% pure
+    "LO": "Lotus",  # 828 rows, 100% pure
+    "NZ": "Nilsson",  # 761 rows, 98% pure
+    "M6": "Morgan",  # 727 rows, 100% pure
+    "MO": "Morris",  # 632 rows, 99.8% pure
+    "GM": "GMC",  # 597 rows, 100% pure
+    "LYO": "Lynk & Co",  # 509 rows, 100% pure
+    "WI": "Willys",  # 445 rows, 99.6% pure
+    "DU": "Daihatsu",  # 438 rows, 100% pure
+    "ST": "Studebaker",  # 404 rows, 100% pure
+    "BYD": "BYD",  # 399 rows, 100% pure
+    "VH": "Vauxhall",  # 393 rows, 100% pure
+    "AÖ": "Aston Martin",  # 392 rows, 100% pure
+    "DK": "DKW",  # 391 rows, 100% pure
+    "LI": "Lincoln",  # 363 rows, 100% pure
+    "MR": "Mercury",  # 351 rows, 100% pure
+    "LÄ": "Lada",  # 306 rows, 100% pure
+    "FR": "Ferrari",  # 278 rows, 100% pure
+    "M+": "McLaren",  # 260 rows, 100% pure
+    "RA": "Rambler",  # 256 rows, 100% pure
+    "LG": "Lamborghini",  # 246 rows, 100% pure
+    "AZ": "AMC",  # 241 rows, 100% pure
+    "ZEK": "Zeekr",  # 241 rows, 100% pure
+    "I2": "Infiniti",  # 239 rows, 100% pure
+    "AIS": "Aiways",  # 212 rows, 100% pure
+    "XS": "Smart",  # 211 rows, 98.6% pure
+    "T1": "TVR",  # 208 rows, 100% pure
+    "SI": "Simca",  # 198 rows, 100% pure
+    "HI": "Hillman",  # 194 rows, 100% pure
+    "SU": "Sunbeam",  # 191 rows, 100% pure
+    "FAW": "FAW",  # 187 rows, 100% pure
+    "GEE": "Geely",  # 185 rows, 100% pure
+    "M-": "Mercedes-Benz",  # 183 rows, 100% pure
+    "BE": "Bentley",  # 181 rows, 100% pure
+    "DP": "De Tomaso",  # 181 rows, 100% pure
+    "JE": "Jensen",  # 167 rows, 100% pure
+    "VZ": "VAZ",  # 153 rows, 100% pure
+    "RR": "Rolls-Royce",  # 152 rows, 100% pure
+    "NS": "NSU",  # 150 rows, 100% pure
+    "QU": "Audi",  # 149 rows, 100% pure
+    "A5": "Alpina",  # 145 rows, 99.3% pure
+    "H+": "Hummer",  # 141 rows, 100% pure
+    "DA": "DAF",  # 139 rows, 99.3% pure
+    "TB": "Talbot",  # 127 rows, 100% pure
+    "BO": "Borgward",  # 127 rows, 100% pure
+    "WL": "Wolseley",  # 126 rows, 100% pure
+    "LE": "Leyland",  # 123 rows, 100% pure
+    "DSS": "DS",  # 118 rows, 100% pure
+    "GRO": "ORA",  # 102 rows, 100% pure
+    "RI": "Riley",  # 98 rows, 100% pure
+    "DFK": "DFSK",  # 96 rows, 100% pure
+    "SD": "SsangYong",  # 94 rows, 100% pure
+    "CC": "Checker",  # 76 rows, 100% pure
+    "XPE": "XPENG",  # 73 rows, 100% pure
+    "C/": "Caterham",  # 72 rows, 100% pure
+    "GT": "Galloper",  # 71 rows, 100% pure
+    "INS": "INEOS",  # 70 rows, 100% pure
+    "F1": "Ford",  # 69 rows, 100% pure
+    "WA": "Wartburg",  # 68 rows, 100% pure
+    "T2": "Tri-Star",  # 57 rows, 100% pure
+    "ALL": "Alpine",  # 52 rows, 100% pure
+    "KE": "Kewet",  # 51 rows, 100% pure
+    "MXU": "Maxus",  # 48 rows, 100% pure
+    "MV": "Moskvitch",  # 45 rows, 100% pure
+    "DW": "Daewoo",  # 42 rows, 100% pure
+    "BX": "Bertone",  # 38 rows, 100% pure
+    "JAC": "JAC",  # 37 rows, 100% pure
+    "NE": "Neckar",  # 37 rows, 100% pure
+    "N1": "NIO",  # 36 rows, 100% pure
+    "GZ": "GAZ",  # 34 rows, 100% pure
+    "IN": "International",  # 33 rows, 100% pure
+    "GG": "Goggomobil",  # 31 rows, 100% pure
+    "T4": "Think",  # 27 rows, 100% pure
+    "AB": "Autobianchi",  # 27 rows, 100% pure
+    "IS": "Isuzu",  # 27 rows, 100% pure
+    "GL": "Glas",  # 26 rows, 100% pure
+    "HA": "Hanomag",  # 25 rows, 100% pure
+    "SR": "Steyr-Puch",  # 22 rows, 95.5% pure
+    "AD": "Acadian",  # 22 rows, 95.5% pure
+    "VG": "Volga",  # 20 rows, 100% pure
 }
-
 _PRIMARY_SPECIAL_PURPOSE_CODES: dict[str, tuple[str, str]] = {
     "75": ("fire_rescue_vehicle", "Brandfordon"),
     "88": ("customs_vehicle", "Tull"),
@@ -455,6 +582,21 @@ _SECONDARY_PURPOSE_CODES: dict[str, tuple[str, str, str]] = {
     "SD": ("special_purpose_type", "hearse", "Likbil"),
     "SG": ("special_purpose_type", "other_special_purpose", "Annat särskilt ändamål"),
     "SH": ("special_purpose_type", "wheelchair_accessible", "Rullstolsanpassat fordon"),
+    # Remaining codes from Transportstyrelsen's "Fordon för särskilda ändamål"
+    # list. Rare on passenger cars, recorded so the register's own vocabulary
+    # is represented rather than silently dropped.
+    "SF": ("special_purpose_type", "mobile_crane", "Mobilkran"),
+    "SK": (
+        "special_purpose_type",
+        "exceptional_load_trailer",
+        "Släpvagn för transport av exceptionell last",
+    ),
+    "SL": (
+        "special_purpose_type",
+        "exceptional_load_vehicle",
+        "Motorfordon för transport av exceptionell last",
+    ),
+    "SM": ("special_purpose_type", "implement_carrier", "Redskapsbärare"),
 }
 
 _TEXT_CODE_DEFINITIONS: dict[str, tuple[str, str, str]] = {
@@ -468,31 +610,103 @@ _TEXT_CODE_DEFINITIONS: dict[str, tuple[str, str, str]] = {
     "T12C": ("Amatörbyggd bil, byggsats", "Amateur-built kit car", "amateur_built_kit"),
     "T12E": ("Provbil", "Test vehicle", "test_vehicle"),
     "T12S": ("Provfordon", "Trial vehicle", "trial_vehicle"),
-    "T12D": ("Tidigare EEG-typgodkänt importfordon", "Previously EEG-approved import", "imported_vehicle"),
-    "T13A": ("Sammansatt av delar från flera fordon", "Built from parts from multiple vehicles", "composite_vehicle"),
-    "T13K": ("Första datum i trafik uppskattat", "Estimated first-use date", "estimated_registration_history"),
-    "T14D": ("Tidigare EES-typgodkänt fordon", "Previously EEA type-approved vehicle", "imported_vehicle"),
-    "T14F": ("Etappvis typgodkänt fordon", "Multi-stage type-approved vehicle", "multi_stage_vehicle"),
-    "T14G": ("Ändrat fordon med grundfordon", "Modified vehicle with a base vehicle", "modified_vehicle"),
+    "T12D": (
+        "Tidigare EEG-typgodkänt importfordon",
+        "Previously EEG-approved import",
+        "imported_vehicle",
+    ),
+    "T13A": (
+        "Sammansatt av delar från flera fordon",
+        "Built from parts from multiple vehicles",
+        "composite_vehicle",
+    ),
+    "T13K": (
+        "Första datum i trafik uppskattat",
+        "Estimated first-use date",
+        "estimated_registration_history",
+    ),
+    "T14D": (
+        "Tidigare EES-typgodkänt fordon",
+        "Previously EEA type-approved vehicle",
+        "imported_vehicle",
+    ),
+    "T14F": (
+        "Etappvis typgodkänt fordon",
+        "Multi-stage type-approved vehicle",
+        "multi_stage_vehicle",
+    ),
+    "T14G": (
+        "Ändrat fordon med grundfordon",
+        "Modified vehicle with a base vehicle",
+        "modified_vehicle",
+    ),
     "T16X": ("Identitetsbärare ersatt", "Identity carrier replaced", "identity_modified"),
     "T17A": ("Taxibil utan mellanvägg", "Taxi without partition", "taxi_equipment"),
     "T17B": ("Taxibil utan taxameter", "Taxi without taximeter", "taxi_equipment"),
     "T17BA": ("Taxibil med särskild utrustning", "Taxi with special equipment", "taxi_equipment"),
-    "T17C": ("Särskild karosserikod i textfält", "Special body code carried in text", "special_body_code_carrier"),
+    "T17C": (
+        "Särskild karosserikod i textfält",
+        "Special body code carried in text",
+        "special_body_code_carrier",
+    ),
     "T17U": ("Rallybil med utbytt karosseri", "Rally car with replaced body", "rally_modified"),
-    "T20A": ("Sjukbil med bårutrustning", "Medical vehicle with stretcher equipment", "medical_transport"),
-    "T20F": ("Baksäte ej för personbefordran", "Rear seat unavailable for passengers", "occupant_safety_modified"),
-    "T20G": ("Sjuktransport med bårplatser", "Medical transport with stretcher positions", "medical_transport"),
+    "T20A": (
+        "Sjukbil med bårutrustning",
+        "Medical vehicle with stretcher equipment",
+        "medical_transport",
+    ),
+    "T20F": (
+        "Baksäte ej för personbefordran",
+        "Rear seat unavailable for passengers",
+        "occupant_safety_modified",
+    ),
+    "T20G": (
+        "Sjuktransport med bårplatser",
+        "Medical transport with stretcher positions",
+        "medical_transport",
+    ),
     "T31A": ("Motorn utbytt", "Engine replaced", "engine_replaced"),
-    "T31AX": ("Motorn utbytt med särskilda utsläppskrav", "Engine replaced under specific emissions requirements", "engine_replaced"),
-    "T31AY": ("Motorn modifierad med särskilda utsläppskrav", "Engine modified under specific emissions requirements", "engine_modified"),
+    "T31AX": (
+        "Motorn utbytt med särskilda utsläppskrav",
+        "Engine replaced under specific emissions requirements",
+        "engine_replaced",
+    ),
+    "T31AY": (
+        "Motorn modifierad med särskilda utsläppskrav",
+        "Engine modified under specific emissions requirements",
+        "engine_modified",
+    ),
     "T31B": ("Motorn ändrad", "Engine output modified", "engine_modified"),
-    "T31EA": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
-    "T31EB": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
-    "T31EC": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
-    "T31ED": ("Konverterad för etanoldrift", "Converted to ethanol operation", "fuel_converted_ethanol"),
-    "T31EE": ("Konverterad för metangasdrift", "Converted to methane operation", "fuel_converted_methane"),
-    "T31EF": ("Konverterad för metangasdrift", "Converted to methane operation", "fuel_converted_methane"),
+    "T31EA": (
+        "Konverterad för etanoldrift",
+        "Converted to ethanol operation",
+        "fuel_converted_ethanol",
+    ),
+    "T31EB": (
+        "Konverterad för etanoldrift",
+        "Converted to ethanol operation",
+        "fuel_converted_ethanol",
+    ),
+    "T31EC": (
+        "Konverterad för etanoldrift",
+        "Converted to ethanol operation",
+        "fuel_converted_ethanol",
+    ),
+    "T31ED": (
+        "Konverterad för etanoldrift",
+        "Converted to ethanol operation",
+        "fuel_converted_ethanol",
+    ),
+    "T31EE": (
+        "Konverterad för metangasdrift",
+        "Converted to methane operation",
+        "fuel_converted_methane",
+    ),
+    "T31EF": (
+        "Konverterad för metangasdrift",
+        "Converted to methane operation",
+        "fuel_converted_methane",
+    ),
     "T71R": ("Rallybil av specialtyp", "Special-type rally car", "rally_vehicle"),
     "T71ZO": ("Rallybil av standardtyp", "Standard-type rally car", "rally_vehicle"),
 }
@@ -595,11 +809,7 @@ def _text_code_descriptions(raw: Mapping[str, Any]) -> tuple[str, ...]:
     if not isinstance(configured, list):
         return ()
     return tuple(
-        dict.fromkeys(
-            text
-            for value in configured
-            if (text := normalize_text(value)) is not None
-        )
+        dict.fromkeys(text for value in configured if (text := normalize_text(value)) is not None)
     )
 
 
@@ -633,9 +843,7 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
         evidence: dict[str, Any] = {"code": code, "source": "transportstyrelsen"}
         if definition is not None:
             description_sv, description_en, classification = definition
-            evidence.update(
-                {"description_sv": description_sv, "description_en": description_en}
-            )
+            evidence.update({"description_sv": description_sv, "description_en": description_en})
             modification_types.append(classification)
         if code in text_code_flags:
             flags.append(text_code_flags[code])
@@ -676,9 +884,11 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
             descriptive_text,
         )
     ) or bool(re.search(r"(?:HEM+ABYGG|REPLIK|REPLICA|\bREPL\b)", descriptive_text))
-    special_modified = bool(special_modified_codes.intersection(codes)) or any(
-        _normalized_entity(description) == "AMATÖR" for description in descriptions
-    ) or descriptive_special_modified
+    special_modified = (
+        bool(special_modified_codes.intersection(codes))
+        or any(_normalized_entity(description) == "AMATÖR" for description in descriptions)
+        or descriptive_special_modified
+    )
     if special_modified:
         flags.append("special_modified")
         normalized["vehicle_classification"] = "special_modified"
@@ -706,8 +916,7 @@ def _apply_special_vehicle_classification(context: NormalizationContext) -> None
             or raw.get("base_manufacturer") not in (None, "")
             or (_normalized_entity(raw.get("body_code")) or "") == "AF"
             or _resolve_vin_manufacturer(raw.get("vin")) is not None
-            or (_normalized_entity(raw.get("fab_code")) or "")
-            in _MOTORHOME_MARQUE_FAB_CODES
+            or (_normalized_entity(raw.get("fab_code")) or "") in _MOTORHOME_MARQUE_FAB_CODES
         )
     ):
         normalized["record_route"] = "exclude_from_passenger_car_dataset"
@@ -958,15 +1167,10 @@ def _manufacturer_entity_rule(
     return best[0] if len(canonical_names) == 1 else None
 
 
-def _manufacturer_entity_evidence_matches(
-    rule: Mapping[str, Any], raw: dict[str, Any]
-) -> bool:
+def _manufacturer_entity_evidence_matches(rule: Mapping[str, Any], raw: dict[str, Any]) -> bool:
     required_model_manufacturer = rule.get("requires_model_manufacturer")
     if isinstance(required_model_manufacturer, str) and (
-        (
-            _resolve_model_manufacturer(raw.get("model"))
-            or _resolve_manufacturer(raw.get("model"))
-        )
+        (_resolve_model_manufacturer(raw.get("model")) or _resolve_manufacturer(raw.get("model")))
         != required_model_manufacturer
     ):
         return False
@@ -988,14 +1192,16 @@ def _manufacturer_entity_evidence_matches(
     ]
     evidence_text = " ".join(evidence_values)
     required_regex = rule.get("requires_any_field_regex")
-    if isinstance(required_regex, str) and re.search(
-        required_regex, evidence_text, flags=re.IGNORECASE
-    ) is None:
+    if (
+        isinstance(required_regex, str)
+        and re.search(required_regex, evidence_text, flags=re.IGNORECASE) is None
+    ):
         return False
     excluded_regex = rule.get("excludes_text_regex")
-    if isinstance(excluded_regex, str) and re.search(
-        excluded_regex, evidence_text, flags=re.IGNORECASE
-    ) is not None:
+    if (
+        isinstance(excluded_regex, str)
+        and re.search(excluded_regex, evidence_text, flags=re.IGNORECASE) is not None
+    ):
         return False
     required_fab_code = rule.get("requires_fab_code")
     if isinstance(required_fab_code, str) and (
@@ -1008,9 +1214,10 @@ def _manufacturer_entity_evidence_matches(
         if year is None or not int(year_range[0]) <= year <= int(year_range[1]):
             return False
     required_vin_regex = rule.get("requires_vin_regex")
-    if isinstance(required_vin_regex, str) and re.search(
-        required_vin_regex, str(raw.get("vin") or ""), flags=re.IGNORECASE
-    ) is None:
+    if (
+        isinstance(required_vin_regex, str)
+        and re.search(required_vin_regex, str(raw.get("vin") or ""), flags=re.IGNORECASE) is None
+    ):
         return False
     if rule.get("requires_no_manufacturer_conflict") is True:
         canonical = rule.get("canonical_name")
@@ -1686,6 +1893,330 @@ def _normalize_manufacturer(
     applied.append("MFR-102")
 
 
+# Engine-badge qualifiers that follow the designation number in registry text.
+# Body and drivetrain words are deliberately absent: the registry body code and
+# the is_4wd flag already resolve those, so appending them here would restate
+# a fact another field owns.
+_ENGINE_QUALIFIER_PHRASES: tuple[str, ...] = (
+    "TWIN ENGINE",
+    "E TRON",
+    "E HYBRID",
+    "PLUG IN HYBRID",
+    "BLUE EFFICIENCY",
+)
+# Volvo writes T8/B5, Audi writes "55 TFSI e", and BMW glues the drivetrain to
+# the badge in "xDrive30d". A trailing token joins the badge when it carries a
+# number; a purely alphabetic word such as AVANT or CROSS ends it.
+_BADGE_CODE = re.compile(r"^(?:[A-Z]{1,2}\d{1,3}[A-Z]?|\d{2,3})$")
+_GLUED_DRIVE_BADGE = re.compile(r"^[XS]DRIVE(\d{2,3}[A-Z]?)\b")
+_ENGINE_QUALIFIER_WORDS = frozenset(
+    {
+        "D",
+        "E",
+        "DE",
+        "S",
+        "T",
+        "H",
+        "CDI",
+        "CGI",
+        "CDTI",
+        "TDI",
+        "TSI",
+        "TFSI",
+        "FSI",
+        "HDI",
+        "DCI",
+        "CRDI",
+        "BLUETEC",
+        "BLUEEFFICIENCY",
+        "BLUEMOTION",
+        "KOMPRESSOR",
+        "K",
+        "HYBRID",
+        "PHEV",
+        "MHEV",
+        "TWINAIR",
+        "ECOBOOST",
+        "SKYACTIV",
+    }
+)
+
+
+def _engine_badge(canonical_family: object, source_term: str, model_key: str) -> str | None:
+    """Recover the marketing engine badge from the matched model term.
+
+    The badge straddles two places. "E 220 D" matches the family rule on the
+    term "E 220", so the designation number sits inside the matched term while
+    its qualifier is left in the trailing text. The family's own designator is
+    stripped -- "E 220" under E-Class yields "220" -- except where the marque
+    glues them, as BMW does in "320D", which stays whole.
+    """
+
+    term_key = _normalized_entity(source_term)
+    family_key = _normalized_entity(canonical_family)
+    if term_key is None:
+        return None
+
+    core = term_key
+    if family_key is not None:
+        # "I 30" and "i30" are the same family spelled differently; a spacing
+        # variant is not a badge.
+        if term_key.replace(" ", "") == family_key.replace(" ", ""):
+            core = ""
+        elif term_key.startswith(f"{family_key} "):
+            core = term_key[len(family_key) + 1 :]
+        else:
+            parts = term_key.split(" ")
+            if len(parts) > 1 and parts[0] == family_key.split(" ")[0]:
+                core = " ".join(parts[1:])
+
+    remainder = model_key[len(term_key) :].strip() if model_key.startswith(term_key) else ""
+    # "X5 xDrive30d" glues the badge to the drivetrain name, which the is_4wd
+    # flag already records, so only the designation survives.
+    glued = _GLUED_DRIVE_BADGE.match(remainder)
+    if glued is not None and not core:
+        core = glued.group(1)
+        remainder = remainder[glued.end() :].strip()
+
+    qualifiers: list[str] = []
+    while remainder:
+        phrase = next(
+            (
+                candidate
+                for candidate in _ENGINE_QUALIFIER_PHRASES
+                if remainder == candidate or remainder.startswith(f"{candidate} ")
+            ),
+            None,
+        )
+        if phrase is not None:
+            qualifiers.append(phrase)
+            remainder = remainder[len(phrase) :].strip()
+            continue
+        word = remainder.split(" ")[0]
+        if word in _ENGINE_QUALIFIER_WORDS or _BADGE_CODE.fullmatch(word):
+            qualifiers.append(word)
+            remainder = remainder[len(word) :].strip()
+            continue
+        break
+
+    badge = " ".join(part for part in (core, *qualifiers) if part)
+    return badge or None
+
+
+# "e1*2007/46*0480*12" is an EC whole-vehicle type approval: approving country,
+# framework directive, approval number, then the extension. The extension is an
+# amendment of the same approval, so the base identifies the type and the full
+# string identifies the revision -- joins should prefer the base.
+_TYPE_APPROVAL = re.compile(
+    r"^\s*(?P<country>[eE]\d{1,2})"
+    r"\s*\*\s*(?P<directive>[0-9]{2,4}/[0-9]{1,3})"
+    r"\s*\*\s*(?P<number>[0-9A-Za-z]+)"
+    r"(?:\s*\*\s*(?P<extension>[0-9A-Za-z]+))?\s*$"
+)
+
+
+# Registry tyre text is free-form and only 86% is the modern metric code.
+# Legacy shapes are kept rather than dropped: 5.60-15 is imperial, 175SR14 is
+# pre-1980 alpha with the speed symbol inside and no aspect ratio at all, and a
+# missing aspect ratio must stay missing -- the old 82-series default is wrong
+# for most of these.
+_TYRE_METRIC = re.compile(
+    r"^(?P<p>P|LT)?\s*(?P<width>\d{3})\s*/\s*(?P<aspect>\d{2})\s*"
+    r"(?P<construction>ZR|R|B|D|-)?\s*(?P<rim>\d{2}(?:\.\d)?)\s*(?P<commercial>C)?\s*"
+    r"(?:\(\s*(?P<load_paren>\d{2,3})\s*\)|(?P<load>\d{2,3}))?\s*"
+    r"(?P<speed>[A-Z]{1,2})?\s*(?P<rest>.*)$"
+)
+_TYRE_ALPHA = re.compile(r"^(?P<width>\d{3})\s*(?P<speed>[A-Z])?R\s*(?P<rim>\d{2})$")
+_TYRE_IMPERIAL = re.compile(r"^(?P<width>\d(?:\.\d{2})?)\s*-\s*(?P<rim>\d{2})$")
+_TYRE_DASH = re.compile(r"^(?P<width>\d{3})\s*-\s*(?P<rim>\d{2})$")
+_TYRE_CONSTRUCTION = {"R": "radial", "ZR": "radial", "B": "belted_bias", "D": "bias", "-": "bias"}
+
+
+def _parse_tyre(value: object) -> dict[str, Any] | None:
+    """Decompose one registry tyre string, keeping the shape it was written in."""
+
+    text = normalize_text(value)
+    if text is None:
+        return None
+    cleaned = re.sub(r"\s+", " ", text.upper().replace(",", ".")).strip()
+    spec: dict[str, Any] = {"raw": text}
+
+    match = _TYRE_METRIC.match(cleaned)
+    if match is not None:
+        rest = (match.group("rest") or "").strip()
+        spec["size_system"] = {"P": "p_metric", "LT": "lt_metric"}.get(match.group("p"), "metric")
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["aspect_ratio"] = int(match.group("aspect"))
+        spec["construction"] = _TYRE_CONSTRUCTION.get(match.group("construction") or "R", "radial")
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        load = match.group("load") or match.group("load_paren")
+        if load:
+            spec["load_index"] = int(load)
+        if match.group("speed"):
+            spec["speed_symbol"] = match.group("speed")
+        if match.group("commercial"):
+            spec["load_range"] = "c"
+        if "XL" in rest or "REINF" in rest:
+            spec["load_range"] = "xl"
+        if "M+S" in rest or "M+ S" in rest or "MS" in rest.split():
+            spec["mud_snow"] = True
+        return spec
+
+    match = _TYRE_ALPHA.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "alpha"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["construction"] = "radial"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        if match.group("speed"):
+            spec["speed_symbol"] = match.group("speed")
+        return spec
+
+    match = _TYRE_IMPERIAL.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "imperial"
+        spec["section_width_in"] = float(match.group("width"))
+        spec["construction"] = "bias"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+
+    match = _TYRE_DASH.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "metric"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["construction"] = "bias"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+    return None
+
+
+# Scaling is per field and inconsistent, so each is stated rather than inferred:
+# co2_mixed is tenths of a gram (median 1440 = 144.0 g/km) while co2_wltp_mixed1
+# is already grams (median 149). Reading either with the other's scale is a
+# tenfold error, and both fields are populated on millions of rows.
+_MEASUREMENTS: tuple[tuple[str, str, float, bool], ...] = (
+    ("wheelbase1", "wheelbase_mm", 1.0, True),
+    ("ev_max_power", "ev_power_kw", 0.1, False),
+    ("ev_30min_power", "ev_power_30min_kw", 0.1, False),
+    ("co2_mixed", "co2_nedc_g_km", 0.1, False),
+    ("co2_wltp_mixed1", "co2_wltp_g_km", 1.0, True),
+    ("consumption_mixed", "consumption_nedc_l_100km", 0.1, False),
+    ("range_wltp1", "electric_range_km", 1.0, True),
+    ("ev_consumption_wltp1", "ev_consumption_wh_km", 1.0, True),
+)
+
+
+def _apply_measurements(context: NormalizationContext) -> None:
+    """Convert the registry's scaled integer measurements into stated units."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    for field_name, target, scale, keep_integer in _MEASUREMENTS:
+        source = raw.get(field_name)
+        # The registry dump is inconsistent about JSON types: wheelbase1 arrives
+        # as a number, co2_mixed as a string. Both are measurements.
+        if isinstance(source, bool):
+            continue
+        if isinstance(source, int):
+            magnitude = source
+        else:
+            text = normalize_text(source)
+            if text is None or not text.isdigit():
+                continue
+            magnitude = int(text)
+        value = magnitude * scale
+        normalized[target] = int(value) if keep_integer else round(value, 1)
+
+
+def _apply_emission_class(context: NormalizationContext) -> None:
+    """Resolve the Euro standard, and electrification only where ev_config was silent."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    text = normalize_text(raw.get("emission_class"))
+    if text is None:
+        return
+    matches = _rule_set(context).match("emission_class", text.upper())
+    if not matches:
+        context.candidates["emission_class"] = text
+        context.review_reasons.append("emission_class_unknown")
+        return
+    rule = matches[0]
+    if rule.canonical_field == "electrification_type" and normalized.get("electrification_type"):
+        return
+    normalized[rule.canonical_field] = rule.canonical_value
+    context.applied_rule_ids.append(rule.rule_id)
+    _record_dictionary_match(context, rule, source_field="emission_class", source_term=text)
+
+
+def _apply_tyres(context: NormalizationContext) -> None:
+    """Decompose the per-axle tyre sizes the registry records."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    specs: dict[str, dict[str, Any]] = {}
+    for axle, field_name in (("front", "tyre_front"), ("rear", "tyre_rear")):
+        value = raw.get(field_name)
+        if normalize_text(value) is None:
+            continue
+        spec = _parse_tyre(value)
+        if spec is None:
+            context.candidates[field_name] = normalize_text(value)
+            context.review_reasons.append("tyre_size_unrecognized")
+            continue
+        specs[axle] = spec
+        normalized[field_name] = spec
+
+    if len(specs) == 2:
+        front, rear = specs["front"], specs["rear"]
+        normalized["tyre_staggered"] = {
+            k: front.get(k) for k in ("section_width_mm", "aspect_ratio", "rim_diameter_in")
+        } != {k: rear.get(k) for k in ("section_width_mm", "aspect_ratio", "rim_diameter_in")}
+    rims = {spec.get("rim_diameter_in") for spec in specs.values() if spec.get("rim_diameter_in")}
+    if len(rims) == 1:
+        normalized["rim_diameter_in"] = rims.pop()
+
+
+def _apply_type_approval(context: NormalizationContext) -> None:
+    """Decompose the EC type approval into its reviewed parts."""
+
+    raw = context.canonical_record
+    normalized = context.normalized
+    approval = normalize_text(raw.get("eeg_type_approval"))
+    if approval is None:
+        return
+    match = _TYPE_APPROVAL.match(approval)
+    if match is None:
+        context.review_reasons.append("type_approval_format_unrecognized")
+        context.candidates["type_approval"] = approval
+        return
+
+    country_token = match.group("country").lower()
+    directive = match.group("directive")
+    number = match.group("number").upper()
+    extension = match.group("extension")
+
+    base = f"{country_token}*{directive}*{number}"
+    normalized["type_approval_base"] = base
+    normalized["type_approval"] = f"{base}*{extension.upper()}" if extension else base
+    normalized["type_approval_directive"] = directive
+    normalized["type_approval_number"] = number
+    if extension is not None:
+        normalized["type_approval_extension"] = extension.upper()
+
+    matches = _rule_set(context).match("type_approval_country", country_token)
+    if not matches:
+        context.review_reasons.append("type_approval_country_unknown")
+        context.candidates["type_approval_country"] = country_token
+        return
+    rule = matches[0]
+    normalized[rule.canonical_field] = rule.canonical_value
+    context.applied_rule_ids.append(rule.rule_id)
+    _record_dictionary_match(
+        context, rule, source_field="eeg_type_approval", source_term=country_token
+    )
+
+
 def _normalize_model_family(context: NormalizationContext) -> None:
     raw = context.canonical_record
     normalized = context.normalized
@@ -1729,6 +2260,9 @@ def _normalize_model_family(context: NormalizationContext) -> None:
     if matches:
         _, rule, source_term = max(matches, key=lambda match: (match[0], match[1].rule_id))
         normalized[rule.canonical_field] = rule.canonical_value
+        badge = _engine_badge(rule.canonical_value, source_term, model_key or "")
+        if badge is not None:
+            normalized["engine_badge"] = badge
         context.applied_rule_ids.append(rule.rule_id)
         _record_dictionary_match(
             context,
@@ -2189,10 +2723,9 @@ def _normalize_bodywork(context: NormalizationContext) -> None:
     if rule.rule_id == "BDY-013" and (
         code_rule is None or code_rule.rule_id not in {"BDY-118", "BDY-SA"}
     ):
-        if (
-            normalized.get("manufacturer") == "Volkswagen"
-            and (_normalized_entity(raw.get("model")) or "").startswith("CALIFORNIA")
-        ):
+        if normalized.get("manufacturer") == "Volkswagen" and (
+            _normalized_entity(raw.get("model")) or ""
+        ).startswith("CALIFORNIA"):
             context.candidates["marketing_body_style"] = rule.canonical_value
             context.candidate_rule_ids.append(rule.rule_id)
             return
@@ -2222,7 +2755,7 @@ def _normalize_drive(context: NormalizationContext) -> None:
     normalized = context.normalized
     flag = normalize_text(raw.get("is_4wd"))
     flag_rule: TranslationRule | None = None
-    if flag == "1":
+    if flag in {"0", "1"}:
         matches = _rule_set(context).match("drive_flag", flag)
         if matches:
             flag_rule = matches[0]
@@ -2234,7 +2767,7 @@ def _normalize_drive(context: NormalizationContext) -> None:
             )
             normalized[flag_rule.canonical_field] = flag_rule.canonical_value
             context.applied_rule_ids.append(flag_rule.rule_id)
-    elif flag not in {None, "0"}:
+    elif flag is not None:
         context.review_reasons.append("is_4wd_malformed")
 
     marketing = _marketing_match(context, "drive_marketing")
@@ -2547,6 +3080,42 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             source_fields=("manufacturer", "brand", "base_manufacturer"),
             normalized_confidence_effect=0.2,
             candidate_confidence_effect=0.05,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.measurements",
+            order=37,
+            default_rule_id="MEASUREMENT-SCALE-V1",
+            handler=_apply_measurements,
+            source_fields=("wheelbase1", "co2_mixed", "consumption_mixed"),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.emission-class",
+            order=38,
+            default_rule_id="EMISSION-CLASS-V1",
+            handler=_apply_emission_class,
+            source_fields=("emission_class",),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.tyres",
+            order=36,
+            default_rule_id="TYRE-SIZE-V1",
+            handler=_apply_tyres,
+            source_fields=("tyre_front", "tyre_rear"),
+            normalized_confidence_effect=0.0,
+            candidate_confidence_effect=0.0,
+        ),
+        _RuleTransformer(
+            transformer_id="ts.type-approval",
+            order=35,
+            default_rule_id="TYPE-APPROVAL-V1",
+            handler=_apply_type_approval,
+            source_fields=("eeg_type_approval",),
+            normalized_confidence_effect=0.05,
+            candidate_confidence_effect=0.0,
         ),
         _RuleTransformer(
             transformer_id="ts.model-family",

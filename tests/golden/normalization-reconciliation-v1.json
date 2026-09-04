@@ -230,7 +230,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -485,7 +485,7 @@
           "production_year": 2023,
           "registration_date": "2024-01-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -843,7 +843,7 @@
           "power_kw": 81,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -1101,7 +1101,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1370,7 +1370,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1581,7 +1581,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1806,7 +1806,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -1952,7 +1952,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -2204,7 +2204,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -2459,7 +2459,7 @@
           "production_year": 2023,
           "registration_date": "2024-02-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -2817,7 +2817,7 @@
           "power_kw": 82,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -3075,7 +3075,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3344,7 +3344,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3555,7 +3555,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3780,7 +3780,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -3926,7 +3926,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -4178,7 +4178,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -4433,7 +4433,7 @@
           "production_year": 2023,
           "registration_date": "2024-03-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -4791,7 +4791,7 @@
           "power_kw": 83,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -5049,7 +5049,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5318,7 +5318,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5529,7 +5529,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5754,7 +5754,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -5900,7 +5900,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -6152,7 +6152,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -6407,7 +6407,7 @@
           "production_year": 2023,
           "registration_date": "2024-04-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -6765,7 +6765,7 @@
           "power_kw": 84,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -7023,7 +7023,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7292,7 +7292,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7505,7 +7505,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7730,7 +7730,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -7876,7 +7876,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -8128,7 +8128,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -8383,7 +8383,7 @@
           "production_year": 2023,
           "registration_date": "2024-05-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -8741,7 +8741,7 @@
           "power_kw": 85,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -8999,7 +8999,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9268,7 +9268,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9479,7 +9479,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9704,7 +9704,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -9850,7 +9850,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -10102,7 +10102,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -10357,7 +10357,7 @@
           "production_year": 2023,
           "registration_date": "2024-06-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10715,7 +10715,7 @@
           "power_kw": 86,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10973,7 +10973,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11242,7 +11242,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11453,7 +11453,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11678,7 +11678,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -11824,7 +11824,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -12076,7 +12076,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -12331,7 +12331,7 @@
           "production_year": 2023,
           "registration_date": "2024-07-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12689,7 +12689,7 @@
           "power_kw": 87,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12947,7 +12947,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13216,7 +13216,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13427,7 +13427,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13652,7 +13652,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -13798,7 +13798,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -14050,7 +14050,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -14305,7 +14305,7 @@
           "production_year": 2023,
           "registration_date": "2024-08-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -14663,7 +14663,7 @@
           "power_kw": 88,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -14921,7 +14921,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15190,7 +15190,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15401,7 +15401,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15626,7 +15626,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -15772,7 +15772,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -16024,7 +16024,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -16279,7 +16279,7 @@
           "production_year": 2023,
           "registration_date": "2024-09-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16637,7 +16637,7 @@
           "power_kw": 89,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16895,7 +16895,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17164,7 +17164,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17375,7 +17375,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17600,7 +17600,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -17746,7 +17746,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -17998,7 +17998,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -18253,7 +18253,7 @@
           "production_year": 2023,
           "registration_date": "2024-10-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -18611,7 +18611,7 @@
           "power_kw": 90,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -18869,7 +18869,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19138,7 +19138,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19349,7 +19349,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19574,7 +19574,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -19720,7 +19720,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -19972,7 +19972,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -20227,7 +20227,7 @@
           "production_year": 2023,
           "registration_date": "2024-11-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20585,7 +20585,7 @@
           "power_kw": 91,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20843,7 +20843,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21112,7 +21112,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21323,7 +21323,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21548,7 +21548,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -21694,7 +21694,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -21901,7 +21901,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22113,7 +22113,7 @@
           "production_year": 2023,
           "registration_date": "2024-12-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22428,7 +22428,7 @@
           "power_kw": 92,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22643,7 +22643,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22869,7 +22869,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23037,7 +23037,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23218,7 +23218,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown",
           "build_date_malformed",
@@ -23365,7 +23365,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23617,7 +23617,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -23872,7 +23872,7 @@
           "production_year": 2023,
           "registration_date": "2024-01-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24230,7 +24230,7 @@
           "power_kw": 93,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24488,7 +24488,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -24757,7 +24757,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -24968,7 +24968,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25193,7 +25193,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -25339,7 +25339,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -25591,7 +25591,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25846,7 +25846,7 @@
           "production_year": 2023,
           "registration_date": "2024-02-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26204,7 +26204,7 @@
           "power_kw": 94,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26462,7 +26462,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26731,7 +26731,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26942,7 +26942,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27167,7 +27167,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -27313,7 +27313,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -27565,7 +27565,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27820,7 +27820,7 @@
           "production_year": 2023,
           "registration_date": "2024-03-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28178,7 +28178,7 @@
           "power_kw": 95,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28436,7 +28436,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28705,7 +28705,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28916,7 +28916,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -29141,7 +29141,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -29287,7 +29287,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -29539,7 +29539,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -29794,7 +29794,7 @@
           "production_year": 2023,
           "registration_date": "2024-04-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -30152,7 +30152,7 @@
           "power_kw": 96,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -30410,7 +30410,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30679,7 +30679,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30890,7 +30890,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31115,7 +31115,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -31261,7 +31261,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -31513,7 +31513,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31768,7 +31768,7 @@
           "production_year": 2023,
           "registration_date": "2024-05-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -32126,7 +32126,7 @@
           "power_kw": 97,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -32384,7 +32384,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32653,7 +32653,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32864,7 +32864,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -33089,7 +33089,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -33235,7 +33235,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -33487,7 +33487,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -33742,7 +33742,7 @@
           "production_year": 2023,
           "registration_date": "2024-06-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -34100,7 +34100,7 @@
           "power_kw": 98,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -34358,7 +34358,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -34627,7 +34627,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -34838,7 +34838,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -35063,7 +35063,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -35209,7 +35209,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -35461,7 +35461,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -35716,7 +35716,7 @@
           "production_year": 2023,
           "registration_date": "2024-07-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -36074,7 +36074,7 @@
           "power_kw": 99,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -36332,7 +36332,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -36601,7 +36601,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -36812,7 +36812,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -37037,7 +37037,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -37183,7 +37183,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -37435,7 +37435,7 @@
           "model_family_candidate": true,
           "transmission_type": "automatic"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -37690,7 +37690,7 @@
           "production_year": 2023,
           "registration_date": "2024-08-15"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -38048,7 +38048,7 @@
           "power_kw": 100,
           "power_source_unit": "kw"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -38306,7 +38306,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -38575,7 +38575,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -38786,7 +38786,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39011,7 +39011,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -39157,7 +39157,7 @@
           ],
           "model_family_candidate": true
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -39357,7 +39357,7 @@
             "SE"
           ]
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39565,7 +39565,7 @@
             "SE"
           ]
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39600,13 +39600,12 @@
       "expected": {
         "applied_rule_ids": [
           "MFR-102",
+          "MOD-505",
           "BDY-009"
         ],
         "candidate_rule_ids": [],
-        "candidates": {
-          "model_family": "Transit Cargo Van"
-        },
-        "confidence": 0.8,
+        "candidates": {},
+        "confidence": 0.95,
         "decision_trace": [
           {
             "after": [
@@ -39699,27 +39698,15 @@
             "transformer_id": "ts.manufacturer"
           },
           {
-            "after": true,
+            "after": "Transit",
             "before": "Transit Cargo Van",
             "confidence_effect": 0.1,
-            "field": "model_family_candidate",
+            "field": "model_family",
             "rule_ids": [
-              "MODEL-CANDIDATE-V1"
+              "MOD-505"
             ],
             "sequence": 8,
             "target": "normalized",
-            "transformer_id": "ts.model-family"
-          },
-          {
-            "after": "Transit Cargo Van",
-            "before": "Transit Cargo Van",
-            "confidence_effect": 0.05,
-            "field": "model_family",
-            "rule_ids": [
-              "MODEL-CANDIDATE-V1"
-            ],
-            "sequence": 9,
-            "target": "candidate",
             "transformer_id": "ts.model-family"
           },
           {
@@ -39733,7 +39720,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 10,
+            "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -39748,7 +39735,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 11,
+            "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           },
@@ -39763,7 +39750,7 @@
             "rule_ids": [
               "BDY-009"
             ],
-            "sequence": 12,
+            "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
           }
@@ -39786,11 +39773,20 @@
             "SE"
           ],
           "marketing_body_style": "van",
-          "model_family_candidate": true
+          "model_family": "Transit"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
+          {
+            "canonical_value": "Transit",
+            "decision": "accepted",
+            "rule_id": "MOD-505",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "TRANSIT",
+            "target_field": "model_family"
+          },
           {
             "canonical_value": "van",
             "decision": "accepted",
@@ -39801,7 +39797,7 @@
             "target_field": "bodywork_form"
           }
         ],
-        "status": "provisional"
+        "status": "resolved"
       },
       "id": "bodywork-goods-van",
       "input": {
@@ -39998,7 +39994,7 @@
           "marketing_body_style": "passenger_van",
           "model_family": "Multivan"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -40260,7 +40256,7 @@
           "marketing_body_style": "passenger_van",
           "model_family": "Multivan"
         },
-        "pipeline_version": "normalization-pipeline-v6",
+        "pipeline_version": "normalization-pipeline-v10",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -45638,6 +45634,4158 @@
         "reconciliation",
         "ambiguous",
         "review"
+      ]
+    },
+    {
+      "description": "Staggered front/rear metric tyres decompose per axle",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 20.0,
+            "before": {
+              "tyre_front": "235/45 R20 100W XL",
+              "tyre_rear": "255/40 R20 101W XL"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 45,
+              "construction": "radial",
+              "load_index": 100,
+              "load_range": "xl",
+              "raw": "235/45 R20 100W XL",
+              "rim_diameter_in": 20.0,
+              "section_width_mm": 235,
+              "size_system": "metric",
+              "speed_symbol": "W"
+            },
+            "before": {
+              "tyre_front": "235/45 R20 100W XL",
+              "tyre_rear": "255/40 R20 101W XL"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 40,
+              "construction": "radial",
+              "load_index": 101,
+              "load_range": "xl",
+              "raw": "255/40 R20 101W XL",
+              "rim_diameter_in": 20.0,
+              "section_width_mm": 255,
+              "size_system": "metric",
+              "speed_symbol": "W"
+            },
+            "before": {
+              "tyre_front": "235/45 R20 100W XL",
+              "tyre_rear": "255/40 R20 101W XL"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": true,
+            "before": {
+              "tyre_front": "235/45 R20 100W XL",
+              "tyre_rear": "255/40 R20 101W XL"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 20.0,
+          "tyre_front": {
+            "aspect_ratio": 45,
+            "construction": "radial",
+            "load_index": 100,
+            "load_range": "xl",
+            "raw": "235/45 R20 100W XL",
+            "rim_diameter_in": 20.0,
+            "section_width_mm": 235,
+            "size_system": "metric",
+            "speed_symbol": "W"
+          },
+          "tyre_rear": {
+            "aspect_ratio": 40,
+            "construction": "radial",
+            "load_index": 101,
+            "load_range": "xl",
+            "raw": "255/40 R20 101W XL",
+            "rim_diameter_in": 20.0,
+            "section_width_mm": 255,
+            "size_system": "metric",
+            "speed_symbol": "W"
+          },
+          "tyre_staggered": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-metric-staggered",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "235/45 R20 100W XL",
+          "tyre_rear": "255/40 R20 101W XL"
+        }
+      },
+      "tags": [
+        "tyre"
+      ]
+    },
+    {
+      "description": "The C in R16C is a commercial casing, not part of the rim diameter",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 16.0,
+            "before": {
+              "tyre_front": "195/60 R16C 99H",
+              "tyre_rear": "195/60 R16C 99H"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 60,
+              "construction": "radial",
+              "load_index": 99,
+              "load_range": "c",
+              "raw": "195/60 R16C 99H",
+              "rim_diameter_in": 16.0,
+              "section_width_mm": 195,
+              "size_system": "metric",
+              "speed_symbol": "H"
+            },
+            "before": {
+              "tyre_front": "195/60 R16C 99H",
+              "tyre_rear": "195/60 R16C 99H"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 60,
+              "construction": "radial",
+              "load_index": 99,
+              "load_range": "c",
+              "raw": "195/60 R16C 99H",
+              "rim_diameter_in": 16.0,
+              "section_width_mm": 195,
+              "size_system": "metric",
+              "speed_symbol": "H"
+            },
+            "before": {
+              "tyre_front": "195/60 R16C 99H",
+              "tyre_rear": "195/60 R16C 99H"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": false,
+            "before": {
+              "tyre_front": "195/60 R16C 99H",
+              "tyre_rear": "195/60 R16C 99H"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 16.0,
+          "tyre_front": {
+            "aspect_ratio": 60,
+            "construction": "radial",
+            "load_index": 99,
+            "load_range": "c",
+            "raw": "195/60 R16C 99H",
+            "rim_diameter_in": 16.0,
+            "section_width_mm": 195,
+            "size_system": "metric",
+            "speed_symbol": "H"
+          },
+          "tyre_rear": {
+            "aspect_ratio": 60,
+            "construction": "radial",
+            "load_index": 99,
+            "load_range": "c",
+            "raw": "195/60 R16C 99H",
+            "rim_diameter_in": 16.0,
+            "section_width_mm": 195,
+            "size_system": "metric",
+            "speed_symbol": "H"
+          },
+          "tyre_staggered": false
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-commercial-casing",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "195/60 R16C 99H",
+          "tyre_rear": "195/60 R16C 99H"
+        }
+      },
+      "tags": [
+        "tyre"
+      ]
+    },
+    {
+      "description": "A parenthesised load index still resolves",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 15.0,
+            "before": {
+              "tyre_front": "185/65 R15 (88)T",
+              "tyre_rear": "185/65 R15 (88)T"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 65,
+              "construction": "radial",
+              "load_index": 88,
+              "raw": "185/65 R15 (88)T",
+              "rim_diameter_in": 15.0,
+              "section_width_mm": 185,
+              "size_system": "metric",
+              "speed_symbol": "T"
+            },
+            "before": {
+              "tyre_front": "185/65 R15 (88)T",
+              "tyre_rear": "185/65 R15 (88)T"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 65,
+              "construction": "radial",
+              "load_index": 88,
+              "raw": "185/65 R15 (88)T",
+              "rim_diameter_in": 15.0,
+              "section_width_mm": 185,
+              "size_system": "metric",
+              "speed_symbol": "T"
+            },
+            "before": {
+              "tyre_front": "185/65 R15 (88)T",
+              "tyre_rear": "185/65 R15 (88)T"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": false,
+            "before": {
+              "tyre_front": "185/65 R15 (88)T",
+              "tyre_rear": "185/65 R15 (88)T"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 15.0,
+          "tyre_front": {
+            "aspect_ratio": 65,
+            "construction": "radial",
+            "load_index": 88,
+            "raw": "185/65 R15 (88)T",
+            "rim_diameter_in": 15.0,
+            "section_width_mm": 185,
+            "size_system": "metric",
+            "speed_symbol": "T"
+          },
+          "tyre_rear": {
+            "aspect_ratio": 65,
+            "construction": "radial",
+            "load_index": 88,
+            "raw": "185/65 R15 (88)T",
+            "rim_diameter_in": 15.0,
+            "section_width_mm": 185,
+            "size_system": "metric",
+            "speed_symbol": "T"
+          },
+          "tyre_staggered": false
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-parenthesised-load",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "185/65 R15 (88)T",
+          "tyre_rear": "185/65 R15 (88)T"
+        }
+      },
+      "tags": [
+        "tyre"
+      ]
+    },
+    {
+      "description": "215/55R1794W is a rim and a load index with no separator",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 17.0,
+            "before": {
+              "tyre_front": "215/55R1794W",
+              "tyre_rear": "215/55R1794W"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 55,
+              "construction": "radial",
+              "load_index": 94,
+              "raw": "215/55R1794W",
+              "rim_diameter_in": 17.0,
+              "section_width_mm": 215,
+              "size_system": "metric",
+              "speed_symbol": "W"
+            },
+            "before": {
+              "tyre_front": "215/55R1794W",
+              "tyre_rear": "215/55R1794W"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "aspect_ratio": 55,
+              "construction": "radial",
+              "load_index": 94,
+              "raw": "215/55R1794W",
+              "rim_diameter_in": 17.0,
+              "section_width_mm": 215,
+              "size_system": "metric",
+              "speed_symbol": "W"
+            },
+            "before": {
+              "tyre_front": "215/55R1794W",
+              "tyre_rear": "215/55R1794W"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": false,
+            "before": {
+              "tyre_front": "215/55R1794W",
+              "tyre_rear": "215/55R1794W"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 17.0,
+          "tyre_front": {
+            "aspect_ratio": 55,
+            "construction": "radial",
+            "load_index": 94,
+            "raw": "215/55R1794W",
+            "rim_diameter_in": 17.0,
+            "section_width_mm": 215,
+            "size_system": "metric",
+            "speed_symbol": "W"
+          },
+          "tyre_rear": {
+            "aspect_ratio": 55,
+            "construction": "radial",
+            "load_index": 94,
+            "raw": "215/55R1794W",
+            "rim_diameter_in": 17.0,
+            "section_width_mm": 215,
+            "size_system": "metric",
+            "speed_symbol": "W"
+          },
+          "tyre_staggered": false
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-glued-rim-and-load",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "215/55R1794W",
+          "tyre_rear": "215/55R1794W"
+        }
+      },
+      "tags": [
+        "tyre"
+      ]
+    },
+    {
+      "description": "Pre-1980 alpha sizing carries the speed symbol and no aspect ratio",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 14.0,
+            "before": {
+              "tyre_front": "175SR14",
+              "tyre_rear": "175SR14"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "construction": "radial",
+              "raw": "175SR14",
+              "rim_diameter_in": 14.0,
+              "section_width_mm": 175,
+              "size_system": "alpha",
+              "speed_symbol": "S"
+            },
+            "before": {
+              "tyre_front": "175SR14",
+              "tyre_rear": "175SR14"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "construction": "radial",
+              "raw": "175SR14",
+              "rim_diameter_in": 14.0,
+              "section_width_mm": 175,
+              "size_system": "alpha",
+              "speed_symbol": "S"
+            },
+            "before": {
+              "tyre_front": "175SR14",
+              "tyre_rear": "175SR14"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": false,
+            "before": {
+              "tyre_front": "175SR14",
+              "tyre_rear": "175SR14"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 14.0,
+          "tyre_front": {
+            "construction": "radial",
+            "raw": "175SR14",
+            "rim_diameter_in": 14.0,
+            "section_width_mm": 175,
+            "size_system": "alpha",
+            "speed_symbol": "S"
+          },
+          "tyre_rear": {
+            "construction": "radial",
+            "raw": "175SR14",
+            "rim_diameter_in": 14.0,
+            "section_width_mm": 175,
+            "size_system": "alpha",
+            "speed_symbol": "S"
+          },
+          "tyre_staggered": false
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-legacy-alpha",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "175SR14",
+          "tyre_rear": "175SR14"
+        }
+      },
+      "tags": [
+        "tyre",
+        "legacy"
+      ]
+    },
+    {
+      "description": "Imperial sizing keeps its width in inches",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 15.0,
+            "before": {
+              "tyre_front": "5.60-15",
+              "tyre_rear": "5.60-15"
+            },
+            "confidence_effect": 0.0,
+            "field": "rim_diameter_in",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "construction": "bias",
+              "raw": "5.60-15",
+              "rim_diameter_in": 15.0,
+              "section_width_in": 5.6,
+              "size_system": "imperial"
+            },
+            "before": {
+              "tyre_front": "5.60-15",
+              "tyre_rear": "5.60-15"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": {
+              "construction": "bias",
+              "raw": "5.60-15",
+              "rim_diameter_in": 15.0,
+              "section_width_in": 5.6,
+              "size_system": "imperial"
+            },
+            "before": {
+              "tyre_front": "5.60-15",
+              "tyre_rear": "5.60-15"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": false,
+            "before": {
+              "tyre_front": "5.60-15",
+              "tyre_rear": "5.60-15"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_staggered",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "rim_diameter_in": 15.0,
+          "tyre_front": {
+            "construction": "bias",
+            "raw": "5.60-15",
+            "rim_diameter_in": 15.0,
+            "section_width_in": 5.6,
+            "size_system": "imperial"
+          },
+          "tyre_rear": {
+            "construction": "bias",
+            "raw": "5.60-15",
+            "rim_diameter_in": 15.0,
+            "section_width_in": 5.6,
+            "size_system": "imperial"
+          },
+          "tyre_staggered": false
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "tyre-legacy-imperial",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "5.60-15",
+          "tyre_rear": "5.60-15"
+        }
+      },
+      "tags": [
+        "tyre",
+        "legacy"
+      ]
+    },
+    {
+      "description": "An unparseable tyre reaches candidates rather than being dropped",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01",
+          "tyre_front": "NOT A TYRE",
+          "tyre_rear": "NOT A TYRE"
+        },
+        "confidence": 0.55,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "NOT A TYRE",
+            "before": {
+              "tyre_front": "NOT A TYRE",
+              "tyre_rear": "NOT A TYRE"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_front",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 10,
+            "target": "candidate",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "NOT A TYRE",
+            "before": {
+              "tyre_front": "NOT A TYRE",
+              "tyre_rear": "NOT A TYRE"
+            },
+            "confidence_effect": 0.0,
+            "field": "tyre_rear",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 11,
+            "target": "candidate",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "tyre_size_unrecognized",
+            "before": {
+              "tyre_front": "NOT A TYRE",
+              "tyre_rear": "NOT A TYRE"
+            },
+            "confidence_effect": -0.2,
+            "field": "review_reason",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 12,
+            "target": "review",
+            "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "tyre_size_unrecognized",
+            "before": {
+              "tyre_front": "NOT A TYRE",
+              "tyre_rear": "NOT A TYRE"
+            },
+            "confidence_effect": -0.2,
+            "field": "review_reason",
+            "rule_ids": [
+              "TYRE-SIZE-V1"
+            ],
+            "sequence": 13,
+            "target": "review",
+            "transformer_id": "ts.tyres"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [
+          "tyre_size_unrecognized"
+        ],
+        "rule_matches": [],
+        "status": "review_required"
+      },
+      "id": "tyre-unrecognized",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "tyre_front": "NOT A TYRE",
+          "tyre_rear": "NOT A TYRE"
+        }
+      },
+      "tags": [
+        "tyre"
+      ]
+    },
+    {
+      "description": "A full EC type approval decomposes and resolves its country",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "TAC-001"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "e1*2007/46*0480*12",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "e1*2007/46*0480",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval_base",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "DE",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval_country",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "2007/46",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval_directive",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "12",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval_extension",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "0480",
+            "before": "e1*2007/46*0480*12",
+            "confidence_effect": 0.05,
+            "field": "type_approval_number",
+            "rule_ids": [
+              "TAC-001"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "type_approval": "e1*2007/46*0480*12",
+          "type_approval_base": "e1*2007/46*0480",
+          "type_approval_country": "DE",
+          "type_approval_directive": "2007/46",
+          "type_approval_extension": "12",
+          "type_approval_number": "0480"
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "DE",
+            "decision": "accepted",
+            "rule_id": "TAC-001",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "eeg_type_approval",
+            "source_term": "e1",
+            "target_field": "type_approval_country"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "type-approval-with-extension",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eeg_type_approval": "e1*2007/46*0480*12",
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "type-approval"
+      ]
+    },
+    {
+      "description": "An approval issued without an extension is complete, not truncated",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "TAC-004"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "e4*2001/116*0077",
+            "before": "e4*2001/116*0077",
+            "confidence_effect": 0.05,
+            "field": "type_approval",
+            "rule_ids": [
+              "TAC-004"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "e4*2001/116*0077",
+            "before": "e4*2001/116*0077",
+            "confidence_effect": 0.05,
+            "field": "type_approval_base",
+            "rule_ids": [
+              "TAC-004"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "NL",
+            "before": "e4*2001/116*0077",
+            "confidence_effect": 0.05,
+            "field": "type_approval_country",
+            "rule_ids": [
+              "TAC-004"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "2001/116",
+            "before": "e4*2001/116*0077",
+            "confidence_effect": 0.05,
+            "field": "type_approval_directive",
+            "rule_ids": [
+              "TAC-004"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "0077",
+            "before": "e4*2001/116*0077",
+            "confidence_effect": 0.05,
+            "field": "type_approval_number",
+            "rule_ids": [
+              "TAC-004"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.type-approval"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "type_approval": "e4*2001/116*0077",
+          "type_approval_base": "e4*2001/116*0077",
+          "type_approval_country": "NL",
+          "type_approval_directive": "2001/116",
+          "type_approval_number": "0077"
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "NL",
+            "decision": "accepted",
+            "rule_id": "TAC-004",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "eeg_type_approval",
+            "source_term": "e4",
+            "target_field": "type_approval_country"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "type-approval-without-extension",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eeg_type_approval": "e4*2001/116*0077",
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "type-approval"
+      ]
+    },
+    {
+      "description": "A national scheme reaches candidates with a reason",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01",
+          "type_approval": "e5*NKS*9994*00"
+        },
+        "confidence": 0.55,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "e5*NKS*9994*00",
+            "before": "e5*NKS*9994*00",
+            "confidence_effect": 0.0,
+            "field": "type_approval",
+            "rule_ids": [
+              "TYPE-APPROVAL-V1"
+            ],
+            "sequence": 10,
+            "target": "candidate",
+            "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "type_approval_format_unrecognized",
+            "before": "e5*NKS*9994*00",
+            "confidence_effect": -0.2,
+            "field": "review_reason",
+            "rule_ids": [
+              "TYPE-APPROVAL-V1"
+            ],
+            "sequence": 11,
+            "target": "review",
+            "transformer_id": "ts.type-approval"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [
+          "type_approval_format_unrecognized"
+        ],
+        "rule_matches": [],
+        "status": "review_required"
+      },
+      "id": "type-approval-national-scheme",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eeg_type_approval": "e5*NKS*9994*00",
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "type-approval"
+      ]
+    },
+    {
+      "description": "co2_mixed is tenths of a gram while co2_wltp_mixed1 is grams",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 144.0,
+            "before": {
+              "co2_mixed": "1440",
+              "consumption_mixed": "58"
+            },
+            "confidence_effect": 0.0,
+            "field": "co2_nedc_g_km",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          },
+          {
+            "after": 149,
+            "before": {
+              "co2_mixed": "1440",
+              "consumption_mixed": "58"
+            },
+            "confidence_effect": 0.0,
+            "field": "co2_wltp_g_km",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          },
+          {
+            "after": 5.8,
+            "before": {
+              "co2_mixed": "1440",
+              "consumption_mixed": "58"
+            },
+            "confidence_effect": 0.0,
+            "field": "consumption_nedc_l_100km",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          },
+          {
+            "after": 458,
+            "before": {
+              "co2_mixed": "1440",
+              "consumption_mixed": "58"
+            },
+            "confidence_effect": 0.0,
+            "field": "electric_range_km",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          },
+          {
+            "after": 90.8,
+            "before": {
+              "co2_mixed": "1440",
+              "consumption_mixed": "58"
+            },
+            "confidence_effect": 0.0,
+            "field": "ev_power_kw",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "co2_nedc_g_km": 144.0,
+          "co2_wltp_g_km": 149,
+          "consumption_nedc_l_100km": 5.8,
+          "electric_range_km": 458,
+          "ev_power_kw": 90.8,
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "measurement-scaling",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "co2_mixed": "1440",
+          "co2_wltp_mixed1": "149",
+          "consumption_mixed": "58",
+          "eu_category": "M1",
+          "ev_max_power": "908",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "range_wltp1": "458"
+        }
+      },
+      "tags": [
+        "measurement"
+      ]
+    },
+    {
+      "description": "wheelbase1 arrives as a JSON number rather than a string",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": 2865,
+            "before": 2865,
+            "confidence_effect": 0.0,
+            "field": "wheelbase_mm",
+            "rule_ids": [
+              "MEASUREMENT-SCALE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.measurements"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true,
+          "wheelbase_mm": 2865
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [],
+        "status": "provisional"
+      },
+      "id": "measurement-numeric-json",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01",
+          "wheelbase1": 2865
+        }
+      },
+      "tags": [
+        "measurement"
+      ]
+    },
+    {
+      "description": "A Euro standard resolves from emission_class",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "EMI-001"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Euro 6",
+            "before": "EURO 6",
+            "confidence_effect": 0.0,
+            "field": "emission_standard",
+            "rule_ids": [
+              "EMI-001"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.emission-class"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "emission_standard": "Euro 6",
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "Euro 6",
+            "decision": "accepted",
+            "rule_id": "EMI-001",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "emission_class",
+            "source_term": "EURO 6",
+            "target_field": "emission_standard"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "emission-euro-standard",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "emission_class": "EURO 6",
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "emission"
+      ]
+    },
+    {
+      "description": "emission_class supplies electrification when ev_config is silent",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "EMI-010"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "plug_in_hybrid",
+            "before": "LADDHYBRID",
+            "confidence_effect": 0.0,
+            "field": "electrification_type",
+            "rule_ids": [
+              "EMI-010"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.emission-class"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "electrification_type": "plug_in_hybrid",
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "plug_in_hybrid",
+            "decision": "accepted",
+            "rule_id": "EMI-010",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "emission_class",
+            "source_term": "LADDHYBRID",
+            "target_field": "electrification_type"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "emission-electrification-fallback",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "emission_class": "LADDHYBRID",
+          "eu_category": "M1",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "emission"
+      ]
+    },
+    {
+      "description": "emission_class does not override an electrification ev_config already gave",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "EMI-009",
+          "FUEL-001",
+          "FUEL-005",
+          "ELEC-003"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "hybrid",
+            "before": "ELHYBRID",
+            "confidence_effect": 0.0,
+            "field": "electrification_type",
+            "rule_ids": [
+              "EMI-009"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.emission-class"
+          },
+          {
+            "after": "plug_in_hybrid",
+            "before": "hybrid",
+            "confidence_effect": 0.0,
+            "field": "electrification_type",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-005",
+              "ELEC-003"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "lpg",
+              "electricity"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "1",
+              "fuel2": "5",
+              "model": "Model 01"
+            },
+            "confidence_effect": 0.0,
+            "field": "energy_sources",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-005",
+              "ELEC-003"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
+          },
+          {
+            "after": [
+              "petrol",
+              "lpg",
+              "electricity",
+              "hybrid_petrol"
+            ],
+            "before": {
+              "ev_config": "LADDHYBRID",
+              "fuel1": "1",
+              "fuel2": "5",
+              "model": "Model 01"
+            },
+            "confidence_effect": 0.0,
+            "field": "fuel_match_tokens",
+            "rule_ids": [
+              "FUEL-001",
+              "FUEL-005",
+              "ELEC-003"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.fuel"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "electrification_type": "plug_in_hybrid",
+          "energy_sources": [
+            "petrol",
+            "lpg",
+            "electricity"
+          ],
+          "fuel_match_tokens": [
+            "petrol",
+            "lpg",
+            "electricity",
+            "hybrid_petrol"
+          ],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "hybrid",
+            "decision": "accepted",
+            "rule_id": "EMI-009",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "emission_class",
+            "source_term": "ELHYBRID",
+            "target_field": "electrification_type"
+          },
+          {
+            "canonical_value": "petrol",
+            "decision": "accepted",
+            "rule_id": "FUEL-001",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "fuel1",
+            "source_term": "1",
+            "target_field": "energy_sources"
+          },
+          {
+            "canonical_value": "lpg",
+            "decision": "accepted",
+            "rule_id": "FUEL-005",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "fuel2",
+            "source_term": "5",
+            "target_field": "energy_sources"
+          },
+          {
+            "canonical_value": "plug_in_hybrid",
+            "decision": "accepted",
+            "rule_id": "ELEC-003",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "ev_config",
+            "source_term": "LADDHYBRID",
+            "target_field": "electrification_type"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "emission-defers-to-ev-config",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "emission_class": "ELHYBRID",
+          "eu_category": "M1",
+          "ev_config": "LADDHYBRID",
+          "fuel1": "1",
+          "fuel2": "5",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "emission"
+      ]
+    },
+    {
+      "description": "is_4wd of 0 asserts the negative without guessing front or rear",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "DRV-009"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {
+          "model_family": "Model 01"
+        },
+        "confidence": 0.8,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo Car Corporation",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Volvo",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Volvo Car Corporation",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": true,
+            "before": "Model 01",
+            "confidence_effect": 0.1,
+            "field": "model_family_candidate",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "Model 01",
+            "before": "Model 01",
+            "confidence_effect": 0.05,
+            "field": "model_family",
+            "rule_ids": [
+              "MODEL-CANDIDATE-V1"
+            ],
+            "sequence": 9,
+            "target": "candidate",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "no",
+            "before": {
+              "is_4wd": "0",
+              "model": "Model 01"
+            },
+            "confidence_effect": 0.05,
+            "field": "all_wheel_drive",
+            "rule_ids": [
+              "DRV-009"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.drive"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "all_wheel_drive": "no",
+          "builder_converter_names": [],
+          "legal_manufacturer": "Volvo Car Corporation",
+          "manufacturer": "Volvo",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family_candidate": true
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "no",
+            "decision": "accepted",
+            "rule_id": "DRV-009",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "is_4wd",
+            "source_term": "0",
+            "target_field": "all_wheel_drive"
+          }
+        ],
+        "status": "provisional"
+      },
+      "id": "drive-not-all-wheel",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "is_4wd": "0",
+          "manufacturer": "Volvo Car Corporation",
+          "model": "Model 01"
+        }
+      },
+      "tags": [
+        "drive"
+      ]
+    },
+    {
+      "description": "The badge keeps its engine qualifier and drops the drivetrain",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "MOD-212",
+          "DRV-001"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {},
+        "confidence": 0.95,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "Mercedes-Benz",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Mercedes-Benz",
+            "before": "Mercedes-Benz",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "Mercedes-Benz",
+            "before": "Mercedes-Benz",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "Mercedes-Benz",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "Mercedes-Benz",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "220 D",
+            "before": "E 220 D 4MATIC",
+            "confidence_effect": 0.1,
+            "field": "engine_badge",
+            "rule_ids": [
+              "MOD-212"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "E-Class",
+            "before": "E 220 D 4MATIC",
+            "confidence_effect": 0.1,
+            "field": "model_family",
+            "rule_ids": [
+              "MOD-212"
+            ],
+            "sequence": 9,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "awd",
+            "before": "E 220 D 4MATIC",
+            "confidence_effect": 0.05,
+            "field": "drive_type",
+            "rule_ids": [
+              "DRV-001"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.drive"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "drive_type": "awd",
+          "engine_badge": "220 D",
+          "legal_manufacturer": "Mercedes-Benz",
+          "manufacturer": "Mercedes-Benz",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family": "E-Class"
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "E-Class",
+            "decision": "accepted",
+            "rule_id": "MOD-212",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "E 220",
+            "target_field": "model_family"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-001",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "4MATIC",
+            "target_field": "drive_type"
+          }
+        ],
+        "status": "resolved"
+      },
+      "id": "badge-mercedes-suffix",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "Mercedes-Benz",
+          "model": "E 220 D 4MATIC"
+        }
+      },
+      "tags": [
+        "badge"
+      ]
+    },
+    {
+      "description": "xDrive30d yields the designation with the drivetrain removed",
+      "expected": {
+        "applied_rule_ids": [
+          "MFR-102",
+          "MOD-247",
+          "DRV-002"
+        ],
+        "candidate_rule_ids": [],
+        "candidates": {},
+        "confidence": 0.95,
+        "decision_trace": [
+          {
+            "after": [
+              "model_name"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "alias_types_present",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 1,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [
+              "SE"
+            ],
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "market",
+            "rule_ids": [
+              "SYS-TS-INIT"
+            ],
+            "sequence": 2,
+            "target": "normalized",
+            "transformer_id": "ts.initialize"
+          },
+          {
+            "after": [],
+            "before": "BMW",
+            "confidence_effect": 0.2,
+            "field": "builder_converter_names",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 3,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "BMW",
+            "before": "BMW",
+            "confidence_effect": 0.2,
+            "field": "legal_manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 4,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "BMW",
+            "before": "BMW",
+            "confidence_effect": 0.2,
+            "field": "manufacturer",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 5,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": [
+              "manufacturer"
+            ],
+            "before": "BMW",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_evidence",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 6,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "vehicle_manufacturer",
+            "before": "BMW",
+            "confidence_effect": 0.2,
+            "field": "manufacturer_role",
+            "rule_ids": [
+              "MFR-102"
+            ],
+            "sequence": 7,
+            "target": "normalized",
+            "transformer_id": "ts.manufacturer"
+          },
+          {
+            "after": "30D",
+            "before": "X5 XDRIVE30D",
+            "confidence_effect": 0.1,
+            "field": "engine_badge",
+            "rule_ids": [
+              "MOD-247"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "X5",
+            "before": "X5 XDRIVE30D",
+            "confidence_effect": 0.1,
+            "field": "model_family",
+            "rule_ids": [
+              "MOD-247"
+            ],
+            "sequence": 9,
+            "target": "normalized",
+            "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "awd",
+            "before": "X5 XDRIVE30D",
+            "confidence_effect": 0.05,
+            "field": "drive_type",
+            "rule_ids": [
+              "DRV-002"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.drive"
+          }
+        ],
+        "kind": "normalization",
+        "normalized": {
+          "alias_types_present": [
+            "model_name"
+          ],
+          "builder_converter_names": [],
+          "drive_type": "awd",
+          "engine_badge": "30D",
+          "legal_manufacturer": "BMW",
+          "manufacturer": "BMW",
+          "manufacturer_evidence": [
+            "manufacturer"
+          ],
+          "manufacturer_role": "vehicle_manufacturer",
+          "market": [
+            "SE"
+          ],
+          "model_family": "X5"
+        },
+        "pipeline_version": "normalization-pipeline-v10",
+        "review_reasons": [],
+        "rule_matches": [
+          {
+            "canonical_value": "X5",
+            "decision": "accepted",
+            "rule_id": "MOD-247",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "X5",
+            "target_field": "model_family"
+          },
+          {
+            "canonical_value": "awd",
+            "decision": "accepted",
+            "rule_id": "DRV-002",
+            "rule_set_version": "ts-translation-v7",
+            "source_field": "model",
+            "source_term": "xDrive",
+            "target_field": "drive_type"
+          }
+        ],
+        "status": "resolved"
+      },
+      "id": "badge-bmw-glued-drive",
+      "input": {
+        "kind": "normalization",
+        "raw_record": {
+          "eu_category": "M1",
+          "manufacturer": "BMW",
+          "model": "X5 XDRIVE30D"
+        }
+      },
+      "tags": [
+        "badge"
       ]
     }
   ],

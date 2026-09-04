@@ -30,7 +30,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.normalized["model_family"] == "V60"
     assert "model_family" not in outcome.candidates
-    assert outcome.pipeline_version == "normalization-pipeline-v6"
+    assert outcome.pipeline_version == "normalization-pipeline-v10"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -461,7 +461,7 @@ def test_model_candidate_is_extracted_from_composite_or_duplicated_brand_text() 
 
     assert composite.normalized["model_family"] == "5 Series"
     assert "model_family" not in composite.candidates
-    assert duplicated.candidates["model_family"] == "SPACE STAR"
+    assert duplicated.normalized["model_family"] == "Space Star"
 
 
 def test_missing_manufacturer_accepts_brand_only_with_corroborating_model() -> None:
