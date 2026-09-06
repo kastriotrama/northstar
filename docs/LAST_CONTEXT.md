@@ -2,6 +2,14 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-06 — Corrected unresolved-fields ownership
+
+- Confirmed from historical implementation `25cc983` that the intended rule generator is the population-first **Unresolved fields** workflow: unresolved field/value populations, discriminators, rule preview, save, and save-and-run. Corrected Angular navigation and copy so `/coverage` is **Unresolved fields** and `/chunks` is **Match review** for TS-to-TecDoc blockers. The population-first backend endpoints (`/v1/match-review/unresolved`, `/discriminators`, `/rule-preview`, resolution-rule save/apply) are not yet present in the current backend branch; only the coverage shell is currently wired. Angular build passes.
+
+## 2026-09-06 — Completed Angular unresolved-pattern rule review
+
+- Replaced the non-existent Angular advisor/chunk endpoints with the live match-review contract: operation summary, blocker patterns, evidence, and versioned `accept_pattern` / `keep_blocked` / `change_rule` decisions. The Angular Match review page now owns the unresolved TS-to-TecDoc rule-proposal workflow; the Rules page remains the catalog browser. Validation: Nx Angular development build and backend compile pass. The current local API reports no active match-review operation, so pattern data remains empty until an audit run is started.
+
 ## 2026-09-06 — Angular agent and MCP standards
 
 - Added repository-level Angular frontend guidance covering standalone components, signals, strict typing, modern template control flow, DI, observable lifetimes, accessibility, focused tests, and CLI validation. Added tracked `.vscode/mcp.json` to start the installed Angular CLI MCP server from `apps/northstar-web`, with `.vscode` otherwise remaining local-only. Validation: confirmed the installed CLI contains the `mcp` command; Angular build/test remain blocked by local Node 18 versus Angular CLI 22's Node 22.22.3 minimum.

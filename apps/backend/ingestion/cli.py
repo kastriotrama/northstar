@@ -2,9 +2,10 @@ import argparse
 import json
 import logging
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 from ingestion.active_rules import load_active_rules
@@ -16,9 +17,11 @@ from ingestion.context_comparison import (
 from ingestion.datastores import DatastoreClients
 from ingestion.jobs import get_job, list_jobs
 from ingestion.logging import configure_logging
+from ingestion.match_chunk_migrations import run_match_chunk_migrations
+from ingestion.match_chunks import DEFAULT_STATUS_FILTER, build_match_chunks
 from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
-from ingestion.match_run_service import run_dry_match_audit
+from ingestion.match_run_service import MatchSourceRecord, run_dry_match_audit
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_delta import export_rule_delta
 from ingestion.tecdoc.match_run_adapters import (
@@ -130,6 +133,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply the seed and write the graph. Omitted means dry run.",
     )
 
+    chunk_parser = subparsers.add_parser(
+        "build-match-chunks",
+        help="Group latest normalization results into signature chunks for review.",
+    )
+    chunk_parser.add_argument("--build-id", type=UUID, required=True)
+    chunk_parser.add_argument("--batch-prefix", required=True)
+    chunk_parser.add_argument(
+        "--status",
+        action="append",
+        default=None,
+        choices=["resolved", "provisional", "review_required", "failed"],
+        help="Normalization status to include; repeatable. Default: review_required.",
+    )
+    chunk_parser.add_argument("--page-size", type=int, default=25_000)
+    chunk_parser.add_argument(
+        "--align-to-matcher",
+        action="store_true",
+        help=(
+            "Group by the matcher's own evaluation key instead of the normalized "
+            "fields. Requires the KType catalog, so the build reads Neo4j. Without "
+            "it a chunk can hold rows the matcher evaluates apart."
+        ),
+    )
+    chunk_parser.add_argument(
+        "--expected-ktype-count",
+        type=int,
+        default=None,
+        help="Assert the catalog size when --align-to-matcher is used.",
+    )
+
     match_parser = subparsers.add_parser(
         "match-ts-tecdoc",
         help="Run a version-pinned, write-free TS-to-TecDoc matching audit.",
@@ -235,6 +268,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "match-ts-tecdoc\tTransportstyrelsen+TecDoc\t"
             "Run a version-pinned, write-free TS-to-TecDoc matching audit."
+        )
+        print(
+            "build-match-chunks\tnormalization_results\t"
+            "Group latest normalization results into signature chunks for review."
         )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
@@ -388,6 +425,51 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+
+    if args.command == "build-match-chunks":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_match_chunk_migrations(connection)
+                resolver = None
+                if args.align_to_matcher:
+                    # Chunk membership only means "one decision covers all of
+                    # these" while every member evaluates identically, so the
+                    # matcher's own key is used rather than a second definition
+                    # of equivalence that can drift away from it.
+                    with datastores.neo4j.driver() as driver:
+                        catalog = load_ktype_catalog(driver)
+                    if (
+                        args.expected_ktype_count is not None
+                        and len(catalog) != args.expected_ktype_count
+                    ):
+                        raise ValueError(
+                            "TecDoc KType count mismatch: "
+                            f"expected {args.expected_ktype_count}, found {len(catalog)}"
+                        )
+                    _, chunk_manufacturer_rules = load_active_rules(connection)
+                    evaluator = TecDocDryRunEvaluator(catalog, chunk_manufacturer_rules)
+
+                    def resolver(payload: Mapping[str, Any]) -> object | None:
+                        # source_record_id is irrelevant to the key; only the
+                        # payload decides how a row evaluates.
+                        return evaluator.evaluation_key(MatchSourceRecord(1, dict(payload)))
+
+                chunk_summary = build_match_chunks(
+                    connection,
+                    build_id=args.build_id,
+                    source_batch_prefix=args.batch_prefix,
+                    statuses=tuple(args.status) if args.status else DEFAULT_STATUS_FILTER,
+                    page_size=args.page_size,
+                    evaluation_key=resolver,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Match chunk build stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(chunk_summary), sort_keys=True))
         return 0
 
     if args.command == "match-ts-tecdoc":

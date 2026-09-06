@@ -8,7 +8,7 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'coverage' },
   {
     path: 'coverage',
-    title: 'Unresolved / coverage',
+    title: 'Unresolved fields',
     loadComponent: () => import('./pages/coverage/coverage').then((m) => m.CoveragePage),
   },
   {

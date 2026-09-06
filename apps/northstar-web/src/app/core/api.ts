@@ -5,16 +5,28 @@ import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api-config';
 import type {
   CoverageBatch,
-  MatchChunkPage,
+  DiscriminatorReport,
+  MatchChunkBuild,
+  MatchReviewPatternPage,
+  MatchRunSummary,
+  PatternReport,
+  PopulationAttributes,
+  RefineResult,
+  ResolutionRule,
+  RuleAdvice,
   RuleCatalogResponse,
+  RuleCondition,
+  RulePreview,
   SourceBatch,
   SourceFieldInventory,
   SourceRecordDetail,
   SourceRecordPage,
+  TargetVocabulary,
   TecDocCoverageReport,
   TecDocEntityPage,
   TecDocPage,
   TsCoverageReport,
+  UnresolvedOverview,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -125,17 +137,6 @@ export class Api {
     );
   }
 
-  /** Rule smart creator: asks the match-review advisor to propose rules for a blocker. */
-  adviseRules(body: Record<string, unknown>): Observable<unknown> {
-    return this.http.post<unknown>(`${this.base}/v1/match-review/unresolved/advise`, body);
-  }
-
-  listUnresolvedPatterns(options: { limit?: number }): Observable<unknown> {
-    return this.http.get<unknown>(`${this.base}/v1/match-review/unresolved/patterns`, {
-      params: params({ limit: options.limit ?? 50 }),
-    });
-  }
-
   // --- Page 4: coverage ----------------------------------------------------------------
   listCoverageBatches(): Observable<{ items: CoverageBatch[] }> {
     return this.http.get<{ items: CoverageBatch[] }>(`${this.base}/v1/coverage/batches`);
@@ -152,20 +153,168 @@ export class Api {
   }
 
   // --- Page 5: chunks ------------------------------------------------------------------
-  listChunks(options: {
-    limit?: number;
-    offset?: number;
-    [key: string]: unknown;
-  }): Observable<MatchChunkPage> {
-    return this.http.get<MatchChunkPage>(`${this.base}/v1/match-review/chunks`, {
+  matchReviewSummary(): Observable<MatchRunSummary> {
+    return this.http.get<MatchRunSummary>(`${this.base}/v1/match-review/summary`);
+  }
+
+  listMatchReviewPatterns(operationId: string, category?: string | null): Observable<MatchReviewPatternPage> {
+    return this.http.get<MatchReviewPatternPage>(`${this.base}/v1/match-review/patterns`, {
+      params: params({ operation_id: operationId, category }),
+    });
+  }
+
+  decideMatchReviewPattern(
+    operationId: string,
+    patternKey: string,
+    body: { action: string; reviewer: string; reason: string; selected_values: string[] },
+  ): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${this.base}/v1/match-review/patterns/${encodeURIComponent(patternKey)}/decision`,
+      body,
+      { params: params({ operation_id: operationId }) },
+    );
+  }
+
+  // --- Unresolved fields: population-first rule authoring ------------------------------
+  // The screen drives itself from `refineRule`: one call returns the counts, the facets
+  // and whether the population is coherent yet, so every edit needs exactly one request.
+
+  listMatchChunkBuilds(): Observable<MatchChunkBuild[]> {
+    return this.http.get<MatchChunkBuild[]>(`${this.base}/v1/match-review/builds`);
+  }
+
+  unresolvedOverview(buildId: string): Observable<UnresolvedOverview> {
+    return this.http.get<UnresolvedOverview>(`${this.base}/v1/match-review/unresolved`, {
+      params: params({ build_id: buildId }),
+    });
+  }
+
+  unresolvedDiscriminators(options: {
+    buildId: string;
+    sourceField: string;
+    sourceValue: string;
+  }): Observable<DiscriminatorReport> {
+    return this.http.get<DiscriminatorReport>(
+      `${this.base}/v1/match-review/unresolved/discriminators`,
+      {
+        params: params({
+          build_id: options.buildId,
+          source_field: options.sourceField,
+          source_value: options.sourceValue,
+        }),
+      },
+    );
+  }
+
+  unresolvedAttributes(options: {
+    buildId: string;
+    sourceField: string;
+    sourceValue: string;
+  }): Observable<PopulationAttributes> {
+    return this.http.get<PopulationAttributes>(
+      `${this.base}/v1/match-review/unresolved/attributes`,
+      {
+        params: params({
+          build_id: options.buildId,
+          source_field: options.sourceField,
+          source_value: options.sourceValue,
+        }),
+      },
+    );
+  }
+
+  unresolvedValuePatterns(options: {
+    buildId: string;
+    sourceField: string;
+    sourceValue: string;
+    fieldName: string;
+  }): Observable<PatternReport> {
+    return this.http.get<PatternReport>(`${this.base}/v1/match-review/unresolved/patterns`, {
       params: params({
-        limit: (options.limit as number) ?? 50,
-        offset: (options.offset as number) ?? 0,
+        build_id: options.buildId,
+        source_field: options.sourceField,
+        source_value: options.sourceValue,
+        field_name: options.fieldName,
       }),
     });
   }
 
-  getChunk(chunkId: string): Observable<unknown> {
-    return this.http.get<unknown>(`${this.base}/v1/match-review/chunks/${chunkId}`);
+  /** Suggests a rule. Writes nothing -- the proposal still has to be previewed. */
+  adviseRule(body: {
+    build_id: string;
+    source_field: string;
+    source_value: string;
+  }): Observable<RuleAdvice> {
+    return this.http.post<RuleAdvice>(`${this.base}/v1/match-review/unresolved/advise`, body);
+  }
+
+  targetVocabulary(buildId: string, targetField: string): Observable<TargetVocabulary> {
+    return this.http.get<TargetVocabulary>(`${this.base}/v1/match-review/target-vocabulary`, {
+      params: params({ build_id: buildId, target_field: targetField }),
+    });
+  }
+
+  /** Live counts and facets for the predicate as it stands. Writes nothing. */
+  refineRule(body: {
+    build_id: string;
+    source_field: string;
+    source_value: string;
+    conditions: RuleCondition[];
+  }): Observable<RefineResult> {
+    return this.http.post<RefineResult>(`${this.base}/v1/match-review/unresolved/refine`, body);
+  }
+
+  /** Dry run: counts what the rule would resolve. Writes nothing. */
+  previewRule(body: {
+    build_id: string;
+    conditions: RuleCondition[];
+    target_field: string;
+    target_value: string;
+  }): Observable<RulePreview> {
+    return this.http.post<RulePreview>(`${this.base}/v1/match-review/rule-preview`, body);
+  }
+
+  /** Keeps a previewed rule. Saving alone resolves nothing; running it does. */
+  saveResolutionRule(body: {
+    build_id: string;
+    source_field: string;
+    source_value: string;
+    conditions: RuleCondition[];
+    target_field: string;
+    target_value: string;
+    author: string;
+    note: string | null;
+  }): Observable<ResolutionRule> {
+    return this.http.post<ResolutionRule>(`${this.base}/v1/match-review/resolution-rules`, body);
+  }
+
+  listResolutionRules(options: {
+    buildId: string;
+    sourceField?: string | null;
+    sourceValue?: string | null;
+  }): Observable<ResolutionRule[]> {
+    return this.http.get<ResolutionRule[]>(`${this.base}/v1/match-review/resolution-rules`, {
+      params: params({
+        build_id: options.buildId,
+        source_field: options.sourceField,
+        source_value: options.sourceValue,
+      }),
+    });
+  }
+
+  /** Runs a saved rule over the build: one resolution per car it still covers. */
+  applyResolutionRule(ruleId: string, reviewer: string): Observable<ResolutionRule> {
+    return this.http.post<ResolutionRule>(
+      `${this.base}/v1/match-review/resolution-rules/${encodeURIComponent(ruleId)}/apply`,
+      { reviewer },
+    );
+  }
+
+  /** Undoes a run: the rows it resolved reopen, the record of the rule stays. */
+  retireResolutionRule(ruleId: string, reviewer: string): Observable<ResolutionRule> {
+    return this.http.post<ResolutionRule>(
+      `${this.base}/v1/match-review/resolution-rules/${encodeURIComponent(ruleId)}/retire`,
+      { reviewer },
+    );
   }
 }

@@ -82,16 +82,24 @@ describe('pages render real data', () => {
     expect(rows.length).toBeGreaterThan(0);
   });
 
-  it('Coverage reports field gaps for a batch', async () => {
+  it('Unresolved fields ranks populations by how many cars they block', async () => {
     if (!apiUp) return;
     configure();
     const fixture = TestBed.createComponent(CoveragePage);
     fixture.detectChanges();
     await settle(fixture, 10);
     const host = fixture.nativeElement as HTMLElement;
-    const text = host.textContent ?? '';
-    expect(text).toContain('Unresolved / coverage');
-    expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
+    expect(host.textContent ?? '').toContain('Unresolved fields');
+
+    // The worklist is the entry point, and it is ranked: the leverage ordering is the
+    // reason the screen is population-first, so a wrongly ordered list is a real failure.
+    const rows = Array.from(host.querySelectorAll('.pop'));
+    expect(rows.length).toBeGreaterThan(0);
+    const counts = rows.map((row) =>
+      Number((row.querySelector('.pop__count')?.textContent ?? '').replace(/[^0-9]/g, '')),
+    );
+    expect(counts[0]).toBeGreaterThan(0);
+    expect([...counts]).toEqual([...counts].sort((a, b) => b - a));
   });
 
   it('TecDoc lists promoted ktypes', async () => {
@@ -116,13 +124,18 @@ describe('pages render real data', () => {
     expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
   });
 
-  it('Chunks renders the match-review build', async () => {
+  // Match review stays the TS-to-TecDoc blocker screen; unresolved-field rule authoring
+  // lives on its own page and must not leak in here.
+  it('Match review renders TS-to-TecDoc blocker patterns', async () => {
     if (!apiUp) return;
     configure();
     const fixture = TestBed.createComponent(ChunksPage);
     fixture.detectChanges();
     await settle(fixture);
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent ?? '').toContain('Chunks');
+    const text = host.textContent ?? '';
+    expect(text).toContain('Match review');
+    expect(text).toContain('blocker patterns');
+    expect(text).not.toContain('Unresolved fields');
   });
 });

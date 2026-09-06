@@ -1,3 +1,590 @@
 :host {
   display: block;
 }
+
+/* Worklist beside the authoring pane: the ranked population list stays visible while a
+   rule is built, so leverage is never more than a glance away. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- worklist ---------------------------------------------------------------------- */
+
+.worklist {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.7rem;
+  position: sticky;
+  top: 0.5rem;
+  max-height: calc(100vh - 8rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.worklist__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.worklist__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.worklist__meta {
+  font-size: 0.72rem;
+}
+
+.worklist__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.worklist__empty {
+  font-size: 0.8rem;
+  padding: 0.6rem 0.2rem;
+}
+
+.pop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+  text-align: left;
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 7px;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.pop:hover {
+  border-color: var(--p-primary-color);
+}
+
+.pop:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.pop--selected {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50, #eef4ff);
+}
+
+.pop__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.pop__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pop__why {
+  font-size: 0.72rem;
+}
+
+.pop__leverage {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.pop__leverage .bar {
+  flex: 1;
+}
+
+.pop__count {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+/* --- authoring pane ---------------------------------------------------------------- */
+
+.author-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.pane__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pane__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.pane__sub {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.card {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.card__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.card__hint {
+  font-weight: 400;
+  font-size: 0.72rem;
+  margin-left: 0.4rem;
+}
+
+.empty {
+  background: var(--p-surface-0);
+  border: 1px dashed var(--p-surface-300, var(--p-surface-200));
+  border-radius: 8px;
+  padding: 2rem 1.2rem;
+  text-align: center;
+}
+
+.empty__title {
+  margin: 0 0 0.3rem;
+  font-weight: 650;
+}
+
+/* --- condition chips --------------------------------------------------------------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chips__and {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--p-text-muted-color);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  background: var(--p-surface-50);
+  font-size: 0.78rem;
+}
+
+.chip--locked {
+  background: var(--p-primary-50, #eef4ff);
+  border-color: var(--p-primary-color);
+}
+
+.chip__field {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.chip__op {
+  color: var(--p-text-muted-color);
+}
+
+.chip__op-select {
+  font: inherit;
+  border: 1px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 5px;
+  background: var(--p-surface-0);
+  padding: 0 0.15rem;
+  cursor: pointer;
+}
+
+.chip__or {
+  font-size: 0.68rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+.chip__value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+
+.chip__remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  color: var(--p-text-muted-color);
+}
+
+.chip__remove:hover {
+  color: #8a2020;
+}
+
+/* --- live refinement --------------------------------------------------------------- */
+
+.refine {
+  border: 1px solid var(--p-surface-200);
+  border-left: 3px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  background: var(--p-surface-50);
+}
+
+/* A coherent block is the signal that a value may safely be assigned, so it is the one
+   state the panel calls out in colour. */
+.refine--coherent {
+  border-left-color: #3f9a52;
+  background: #f2faf4;
+}
+
+.refine__headline {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.refine__verdict {
+  margin: 0.2rem 0 0;
+  font-size: 0.79rem;
+}
+
+.refine__trail {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+}
+
+/* --- advisor ----------------------------------------------------------------------- */
+
+.advice {
+  border: 1px solid #f5c86a;
+  background: #fff8e8;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+
+.advice--confident {
+  border-color: #9ccfa8;
+  background: #f2faf4;
+}
+
+.advice__head {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.advice__reasoning {
+  margin: 0.25rem 0 0;
+  font-size: 0.79rem;
+}
+
+/* --- discriminator facets ---------------------------------------------------------- */
+
+.spread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.spread__item {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 7px;
+  padding: 0.5rem 0.6rem;
+}
+
+/* Near-constant fields cannot split the population; dimmed rather than hidden so the
+   reviewer can see that they were considered. */
+.spread__item--unusable {
+  opacity: 0.55;
+}
+
+.spread__item--in-rule {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50, #eef4ff);
+}
+
+.spread__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.spread__stats {
+  font-size: 0.72rem;
+}
+
+.spread__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.spread__empty {
+  font-size: 0.82rem;
+}
+
+.vchip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  border: 1px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 999px;
+  background: var(--p-surface-0);
+  padding: 0.14rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.vchip:hover {
+  border-color: var(--p-primary-color);
+}
+
+.vchip:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.vchip--selected {
+  background: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+  color: var(--p-primary-contrast-color, #fff);
+}
+
+.vchip__value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+
+.vchip__meaning {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.vchip__count {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* --- target + authoring fields ----------------------------------------------------- */
+
+.target {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 180px;
+}
+
+.field--grow {
+  flex: 1;
+  min-width: 260px;
+}
+
+.field__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.field__hint {
+  margin: 0;
+  font-size: 0.7rem;
+}
+
+.field__error {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #8a2020;
+}
+
+.field input,
+.field textarea,
+.field :is(p-autocomplete, .p-autocomplete) {
+  width: 100%;
+}
+
+/* --- preview ----------------------------------------------------------------------- */
+
+.preview {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  background: var(--p-surface-50);
+}
+
+.preview__headline {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.preview__detail {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+}
+
+.preview__note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+/* --- saved rules ------------------------------------------------------------------- */
+
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rule {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 7px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.rule--retired {
+  opacity: 0.6;
+}
+
+.rule__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.rule__statement {
+  font-size: 0.78rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.rule__meta {
+  margin: 0;
+  font-size: 0.73rem;
+}
+
+.rule__note {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+/* --- flash + dialog ---------------------------------------------------------------- */
+
+.flash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.flash__close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: inherit;
+  padding: 0 0.2rem;
+}
+
+.dialog__note {
+  margin: 0 0 0.5rem;
+  font-size: 0.76rem;
+}
+
+.dialog__search {
+  width: 100%;
+  margin-bottom: 0.6rem;
+}
+
+.dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.attr__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+}
