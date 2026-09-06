@@ -1,0 +1,43 @@
+{
+  "name": "backend",
+  "projectType": "application",
+  "root": "apps/backend",
+  "sourceRoot": "apps/backend",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "uvicorn api.main:app --reload",
+        "cwd": "apps/backend"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python -m pytest",
+        "cwd": "apps/backend"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "ruff check .",
+        "cwd": "apps/backend"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "mypy api ingestion northstar",
+        "cwd": "apps/backend"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python -m compileall -q api ingestion northstar",
+        "cwd": "apps/backend"
+      }
+    }
+  }
+}

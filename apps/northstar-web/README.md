@@ -27,7 +27,7 @@ Five is the budget. New capability belongs inside one of these pages, not in a s
 
 ## Requirements
 
-**Node ≥ 20.19** (Angular 22 refuses older). The machine's default `node` was v18.20.8 with
+**Node ≥ 22.22.3** (Angular CLI 22 refuses older). The machine's default `node` was v18.20.8 with
 npm 6, which cannot build this app. Node 24.20.0 LTS is installed at
 `~/.nvm/versions/node/v24.20.0`; put it on `PATH` first:
 
@@ -38,9 +38,7 @@ export PATH="$HOME/.nvm/versions/node/v24.20.0/bin:$PATH"
 ## Running
 
 ```bash
-cd web/northstar-web
-npm install
-npm start            # http://127.0.0.1:4200
+nx serve northstar-web            # http://127.0.0.1:4200
 ```
 
 The API base URL defaults to `http://127.0.0.1:8010` (see `src/app/core/api-config.ts`) and
@@ -59,7 +57,7 @@ CORS_ORIGINS=http://localhost:4200,http://127.0.0.1:4200
 ## Tests
 
 ```bash
-npm test
+nx test northstar-web
 ```
 
 `src/app/pages/pages.integration.spec.ts` renders each page against a **live** API and

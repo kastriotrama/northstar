@@ -3,22 +3,23 @@ FROM python:3.11-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/apps/backend
 
 WORKDIR /app
 
 # Dependencies in their own layer: code changes must not re-download packages.
-COPY pyproject.toml ./
-RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))" \
+COPY apps/backend/pyproject.toml ./apps/backend/
+RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('apps/backend/pyproject.toml','rb'))['project']['dependencies']))" \
     > /tmp/requirements.txt \
     && pip install -r /tmp/requirements.txt
 
-COPY api ./api
-COPY ingestion ./ingestion
-COPY northstar ./northstar
-COPY scripts ./scripts
+COPY apps/backend/api ./apps/backend/api
+COPY apps/backend/ingestion ./apps/backend/ingestion
+COPY apps/backend/northstar ./apps/backend/northstar
+COPY apps/backend/scripts ./apps/backend/scripts
 
-RUN pip install --no-deps . \
+RUN pip install --no-deps ./apps/backend \
     && useradd --create-home appuser
 
 USER appuser

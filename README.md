@@ -6,8 +6,8 @@ FastAPI backend foundation for vehicle intelligence, ingestion, graph data, sear
 
 1. Copy `.env.example` to `.env`.
 2. Run `docker compose up -d`.
-3. Run `uvicorn api.main:app --reload`.
-4. Run `pytest`.
+3. Run `cd apps/backend && uvicorn api.main:app --reload`.
+4. Run `cd apps/backend && pytest`.
 
 To populate an isolated test database from the portable normalization workbook
 and verify the generated results immediately, run:
@@ -31,7 +31,7 @@ For a fresh Python environment:
 ```sh
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e "apps/backend[dev]"
 ```
 
 ## Services
@@ -45,14 +45,14 @@ pip install -e ".[dev]"
 
 ## Development Rules
 
-- New backend features go under `api/app/features/<feature>/`.
+- New backend features go under `apps/backend/api/app/features/<feature>/`.
 - Every feature must include tests.
 - Routers own HTTP concerns.
 - Services own business logic.
 - Repositories own database access.
 - Integrations own external APIs.
-- API environment variables are read only from `api/app/core/settings.py`.
-- Ingestion environment variables are read only from `ingestion/config.py`.
+- API environment variables are read only from `apps/backend/api/app/core/settings.py`.
+- Ingestion environment variables are read only from `apps/backend/ingestion/config.py`.
 - No secrets in repo files.
 
 ## Health Check

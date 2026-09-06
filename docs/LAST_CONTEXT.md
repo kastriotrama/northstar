@@ -2,6 +2,10 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-06 — Angular agent and MCP standards
+
+- Added repository-level Angular frontend guidance covering standalone components, signals, strict typing, modern template control flow, DI, observable lifetimes, accessibility, focused tests, and CLI validation. Added tracked `.vscode/mcp.json` to start the installed Angular CLI MCP server from `apps/northstar-web`, with `.vscode` otherwise remaining local-only. Validation: confirmed the installed CLI contains the `mcp` command; Angular build/test remain blocked by local Node 18 versus Angular CLI 22's Node 22.22.3 minimum.
+
 ## 2026-08-31 — Exhaustive blocker-pattern inventory
 
 - Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, idempotent batch markers, and a paginated `core.match_run_pattern_members` drill-down. Local and remote audit batches now record every blocker pattern with occurrence totals, safe manufacturer/model/KType examples, and source-row membership; the API/frontend label persisted entries `exhaustive` and let stakeholders page through every member vehicle while retaining plates only in the restricted local view. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 23 focused/API tests pass. The audit and historical backfill remain active; no rules, decisions, aliases, Neo4j state, or push changed.

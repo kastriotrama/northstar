@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate normalization review JavaScript
-        run: node --check api/app/features/normalization_review/static/app.js
+        run: node --check apps/backend/api/app/features/normalization_review/static/app.js
 
       - name: Build API image
         run: docker build --target api -t northstar-api:ci .
@@ -37,6 +37,10 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/backend
 
     services:
       postgres:

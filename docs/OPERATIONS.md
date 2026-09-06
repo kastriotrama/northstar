@@ -5,7 +5,7 @@
 ```sh
 cp .env.example .env
 docker compose up -d
-uvicorn api.main:app --reload
+cd apps/backend && uvicorn api.main:app --reload
 ```
 
 ## Local Shutdown
@@ -29,7 +29,7 @@ curl http://localhost:8000/health
 ## Test Validation
 
 ```sh
-pytest
+cd apps/backend && pytest
 ```
 
 ## Logs
