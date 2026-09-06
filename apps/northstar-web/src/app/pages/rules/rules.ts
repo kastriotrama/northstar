@@ -42,17 +42,6 @@ export class RulesPage {
   protected readonly detail = signal<RuleCatalogEntry | null>(null);
   protected readonly detailOpen = signal(false);
 
-  // --- Rule smart creator -------------------------------------------------------------
-  // Folded into this page rather than given its own screen: proposing a rule is part of
-  // working on rules. Backed by the match-review advisor.
-  protected readonly creatorOpen = signal(false);
-  protected readonly buildId = signal('');
-  protected readonly sourceField = signal('');
-  protected readonly sourceValue = signal('');
-  protected readonly advice = signal<unknown>(null);
-  protected readonly adviceError = signal<string | null>(null);
-  protected readonly advising = signal(false);
-
   protected readonly areaOptions = computed(() =>
     (this.catalog()?.areas ?? []).map((area) => ({ label: area, value: area })),
   );
@@ -118,36 +107,6 @@ export class RulesPage {
   protected open(rule: RuleCatalogEntry): void {
     this.detail.set(rule);
     this.detailOpen.set(true);
-  }
-
-  protected askAdvisor(): void {
-    this.advising.set(true);
-    this.advice.set(null);
-    this.adviceError.set(null);
-    this.api
-      .adviseRules({
-        build_id: this.buildId(),
-        source_field: this.sourceField(),
-        source_value: this.sourceValue(),
-      })
-      .subscribe({
-        next: (result) => {
-          this.advice.set(result);
-          this.advising.set(false);
-        },
-        error: (err) => {
-          this.advising.set(false);
-          this.adviceError.set(
-            err?.status === 404
-              ? 'The advisor endpoint is not available on this API build.'
-              : (err?.error?.detail ?? 'The advisor could not produce a proposal.'),
-          );
-        },
-      });
-  }
-
-  protected adviceJson(): string {
-    return JSON.stringify(this.advice(), null, 2);
   }
 
   protected decisionSeverity(decision: string): 'success' | 'warn' {

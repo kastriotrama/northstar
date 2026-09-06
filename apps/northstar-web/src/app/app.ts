@@ -9,10 +9,10 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 })
 export class App {
   protected readonly links = [
-    { path: '/coverage', label: 'Unresolved', hint: 'Field coverage and gaps' },
+    { path: '/coverage', label: 'Unresolved fields', hint: 'Author rules for unresolved values' },
     { path: '/ts-records', label: 'TS records', hint: 'Raw Transportstyrelsen rows' },
     { path: '/tecdoc', label: 'TecDoc', hint: 'Promoted TecDoc catalogue' },
     { path: '/rules', label: 'Rules', hint: 'Normalization rules' },
-    { path: '/chunks', label: 'Chunks', hint: 'Match review' },
+    { path: '/chunks', label: 'Match review', hint: 'TS-to-TecDoc blocker evidence' },
   ];
 }

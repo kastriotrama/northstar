@@ -1,87 +1,43 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { DialogModule } from '@openng/optimus-ui/dialog';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
+import { SelectModule } from '@openng/optimus-ui/select';
 import { TableModule } from '@openng/optimus-ui/table';
-import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
-
-interface ChunkBuild {
-  build_id: string;
-  source_batch_id: string;
-  status: string;
-  row_count: number;
-  chunk_count: number;
-  finished_at: string | null;
-}
-
-interface ChunkProgress {
-  decided_rows: number;
-  in_review_rows: number;
-  member_rows: number;
-  resolved_rows: number;
-  applied_rules: number;
-}
-
-interface ChunkListItem {
-  chunk_id: string;
-  signature: Record<string, unknown>;
-  member_count: number;
-  reason_profile: Record<string, unknown>;
-  status: string;
-}
-
-interface ChunkPage {
-  build: ChunkBuild | null;
-  total: number;
-  decided_members: number;
-  progress: ChunkProgress | null;
-  items: ChunkListItem[];
-}
+import type { MatchReviewPattern, MatchRunSummary } from '../../core/models';
 
 @Component({
   selector: 'ns-chunks',
-  imports: [
-    FormsModule,
-    DecimalPipe,
-    ButtonModule,
-    DialogModule,
-    InputTextModule,
-    TableModule,
-    TagModule,
-  ],
+  imports: [FormsModule, DecimalPipe, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule],
   templateUrl: './chunks.html',
 })
 export class ChunksPage {
   private readonly api = inject(Api);
-
-  protected readonly page = signal<ChunkPage | null>(null);
+  protected readonly summary = signal<MatchRunSummary | null>(null);
+  protected readonly patterns = signal<MatchReviewPattern[]>([]);
+  protected readonly selected = signal<MatchReviewPattern | null>(null);
   protected readonly loading = signal(false);
+  protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly query = signal('');
-  protected readonly rows = 50;
-  protected readonly first = signal(0);
+  protected readonly decisionOpen = signal(false);
+  protected readonly reviewer = signal('');
+  protected readonly action = signal<'accept_pattern' | 'keep_blocked' | 'change_rule'>('accept_pattern');
+  protected readonly selectedValues = signal('');
+  protected readonly reason = signal('');
+  protected readonly category = signal<string | null>(null);
 
-  protected readonly detail = signal<unknown>(null);
-  protected readonly detailOpen = signal(false);
-
-  /** Signature keys present across the visible chunks — the matcher's grouping key. */
-  protected readonly signatureColumns = computed(() => {
-    const items = this.page()?.items ?? [];
-    const keys = new Set<string>();
-    for (const item of items) {
-      Object.keys(item.signature ?? {}).forEach((key) => {
-        if (key !== 'signature_version') {
-          keys.add(key);
-        }
-      });
-    }
-    return [...keys];
-  });
+  protected readonly categoryOptions = [
+    { label: 'All blocker patterns', value: null },
+    { label: 'Bodywork conflicts', value: 'bodywork_conflict' },
+    { label: 'Hard technical conflicts', value: 'hard_technical_conflict' },
+    { label: 'Candidate margin', value: 'candidate_margin' },
+    { label: 'Model source conflicts', value: 'model_source_conflict' },
+  ];
 
   constructor() {
     this.load();
@@ -90,59 +46,79 @@ export class ChunksPage {
   protected load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.listChunks({ limit: this.rows, offset: this.first() }).subscribe({
-      next: (response) => {
-        this.page.set(response as unknown as ChunkPage);
-        this.loading.set(false);
+    this.api.matchReviewSummary().subscribe({
+      next: (summary) => {
+        this.summary.set(summary);
+        if (!summary.operation_id) {
+          this.patterns.set([]);
+          this.loading.set(false);
+          return;
+        }
+        this.loadPatterns(summary.operation_id);
       },
-      error: (err) => {
+      error: () => {
         this.loading.set(false);
-        this.page.set(null);
-        this.error.set(
-          err?.status === 404
-            ? 'The chunk endpoints are not present on this API build.'
-            : 'Chunks could not be loaded.',
-        );
+        this.error.set('Match review could not be loaded.');
       },
     });
   }
 
-  protected onLazyLoad(event: TableLazyLoadEvent): void {
-    this.first.set(event.first ?? 0);
-    this.load();
-  }
-
-  protected open(chunk: ChunkListItem): void {
-    this.detail.set(null);
-    this.detailOpen.set(true);
-    this.api.getChunk(chunk.chunk_id).subscribe({
-      next: (result) => this.detail.set(result),
-      error: () => this.detail.set({ error: 'Chunk detail unavailable.' }),
+  protected loadPatterns(operationId = this.summary()?.operation_id): void {
+    if (!operationId) return;
+    this.loading.set(true);
+    this.api.listMatchReviewPatterns(operationId, this.category()).subscribe({
+      next: (page) => {
+        this.patterns.set(page.patterns);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.error.set('Review patterns could not be loaded.');
+      },
     });
   }
 
-  protected signatureCell(chunk: ChunkListItem, column: string): string {
-    const value = chunk.signature?.[column];
-    if (value === null || value === undefined) {
-      return '—';
-    }
-    return Array.isArray(value) ? value.join(', ') : String(value);
+  protected openDecision(pattern: MatchReviewPattern): void {
+    this.selected.set(pattern);
+    this.reviewer.set('');
+    this.action.set('accept_pattern');
+    this.selectedValues.set('');
+    this.reason.set('');
+    this.decisionOpen.set(true);
   }
 
-  protected statusSeverity(status: string): 'success' | 'info' | 'warn' | 'secondary' {
-    switch (status) {
-      case 'resolved':
-        return 'success';
-      case 'proposed':
-        return 'info';
-      case 'open':
-        return 'warn';
-      default:
-        return 'secondary';
-    }
+  protected saveDecision(): void {
+    const operationId = this.summary()?.operation_id;
+    const pattern = this.selected();
+    const reviewer = this.reviewer().trim();
+    const reason = this.reason().trim();
+    const values = this.selectedValues().split(',').map((value) => value.trim()).filter(Boolean);
+    if (!operationId || !pattern || !reviewer || reason.length < 5) return;
+    this.saving.set(true);
+    this.api.decideMatchReviewPattern(operationId, pattern.pattern_key, {
+      action: this.action(), reviewer, reason, selected_values: values,
+    }).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.decisionOpen.set(false);
+        this.loadPatterns(operationId);
+      },
+      error: (error: { error?: { detail?: string } }) => {
+        this.saving.set(false);
+        this.error.set(error.error?.detail ?? 'The rule choice could not be saved.');
+      },
+    });
   }
 
-  protected detailJson(): string {
-    return JSON.stringify(this.detail(), null, 2);
+  protected statusSeverity(pattern: MatchReviewPattern): 'success' | 'warn' | 'secondary' {
+    return pattern.decision ? 'success' : pattern.coverage === 'exhaustive' ? 'warn' : 'secondary';
+  }
+
+  protected statusLabel(pattern: MatchReviewPattern): string {
+    return pattern.decision ? 'Decided' : pattern.coverage === 'exhaustive' ? 'Needs review' : 'Sample';
+  }
+
+  protected values(values: Record<string, unknown>): string {
+    return Object.entries(values).map(([key, value]) => `${key}: ${String(value)}`).join(' · ');
   }
 }

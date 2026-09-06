@@ -3,8 +3,8 @@
     <div>
       <h1 class="page__title">Rules</h1>
       <p class="page__subtitle">
-        Every normalization rule, browsable for the first time. The smart creator asks the
-        match-review advisor to propose a rule for a value the pipeline cannot resolve.
+        Every normalization rule, browsable for the first time. Unresolved values and
+        versioned rule proposals live in Match review.
       </p>
     </div>
     @if (catalog(); as catalog) {
@@ -68,12 +68,6 @@
     <p-button label="Search" [loading]="loading()" (onClick)="search()" />
     <p-button label="Clear" severity="secondary" [text]="true" (onClick)="clear()" />
     <span style="margin-left: auto">
-      <p-button
-        label="Smart creator"
-        severity="help"
-        [outlined]="true"
-        (onClick)="creatorOpen.set(true)"
-      />
     </span>
   </div>
 
@@ -131,7 +125,6 @@
     </ng-template>
   </p-table>
 </section>
-
 <!-- Rule detail -->
 <p-dialog
   header="Rule"
@@ -195,67 +188,3 @@
   }
 </p-dialog>
 
-<!-- Rule smart creator -->
-<p-dialog
-  header="Rule smart creator"
-  [visible]="creatorOpen()"
-  (visibleChange)="creatorOpen.set($event)"
-  [modal]="true"
-  [style]="{ width: '820px', maxWidth: '95vw' }"
-  [dismissableMask]="true"
->
-  <p class="page__subtitle" style="margin-top: 0">
-    Give the advisor a value the pipeline could not resolve and it proposes a rule. The build id
-    comes from a match-review chunk build — the Chunks page shows the current one.
-  </p>
-
-  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; margin: 0.8rem 0">
-    <label style="display: flex; flex-direction: column; gap: 0.25rem">
-      <span class="muted" style="font-size: 0.75rem">build_id</span>
-      <input pInputText [ngModel]="buildId()" (ngModelChange)="buildId.set($event)" placeholder="uuid" />
-    </label>
-    <label style="display: flex; flex-direction: column; gap: 0.25rem">
-      <span class="muted" style="font-size: 0.75rem">source_field</span>
-      <input
-        pInputText
-        [ngModel]="sourceField()"
-        (ngModelChange)="sourceField.set($event)"
-        placeholder="e.g. model_family"
-      />
-    </label>
-    <label style="display: flex; flex-direction: column; gap: 0.25rem">
-      <span class="muted" style="font-size: 0.75rem">source_value</span>
-      <input
-        pInputText
-        [ngModel]="sourceValue()"
-        (ngModelChange)="sourceValue.set($event)"
-        placeholder="the unresolved value"
-      />
-    </label>
-  </div>
-
-  <p-button
-    label="Propose a rule"
-    [loading]="advising()"
-    [disabled]="!buildId() || !sourceField() || !sourceValue()"
-    (onClick)="askAdvisor()"
-  />
-
-  @if (adviceError(); as message) {
-    <div class="notice notice--error" style="margin-top: 0.8rem">{{ message }}</div>
-  }
-  @if (advice()) {
-    <pre
-      class="mono"
-      style="
-        margin-top: 0.8rem;
-        background: var(--p-surface-100);
-        padding: 0.7rem;
-        border-radius: 8px;
-        max-height: 320px;
-        overflow: auto;
-      "
-      >{{ adviceJson() }}</pre
-    >
-  }
-</p-dialog>

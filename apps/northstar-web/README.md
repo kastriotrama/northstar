@@ -8,11 +8,11 @@ lines across ten tabs) with **five pages**.
 
 | Route | Page | Backing endpoints |
 | --- | --- | --- |
-| `/coverage` | **Unresolved / coverage** — which fields the rules do not reach | `GET /v1/coverage/batches`, `/v1/coverage/ts`, `/v1/coverage/tecdoc` *(new)* |
+| `/coverage` | **Unresolved fields** — population-first rule authoring and coverage | `GET /v1/match-review/unresolved`, `/discriminators`, `/rule-preview` *(backend port still required)* |
 | `/ts-records` | **TS records** — all 7.25M raw Transportstyrelsen rows | `GET /v1/source-records/ts`, `/ts/{id}`, `/ts/batches`, `/ts/fields` *(new)* |
 | `/tecdoc` | **TecDoc** — promoted catalogue, every field | `GET /v1/normalization-review/tecdoc/vehicles`, `/tecdoc/entities` |
-| `/rules` | **Rules** — all normalization rules + smart creator | `GET /v1/normalization-review/rules/catalog` *(new)*, `POST /v1/match-review/unresolved/advise` |
-| `/chunks` | **Chunks** — match review | `GET /v1/match-review/chunks`, `/chunks/{id}` |
+| `/rules` | **Rules** — all normalization rules | `GET /v1/normalization-review/rules/catalog` *(new)* |
+| `/chunks` | **Match review** — unresolved patterns and versioned rule proposals | `GET /v1/match-review/summary`, `/patterns`, `POST /patterns/{key}/decision` |
 
 Five is the budget. New capability belongs inside one of these pages, not in a sixth.
 
