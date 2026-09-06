@@ -22,6 +22,8 @@ from ingestion.match_chunks import DEFAULT_STATUS_FILTER, build_match_chunks
 from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
 from ingestion.match_run_service import MatchSourceRecord, run_dry_match_audit
+from ingestion.vehicle_facts import DEFAULT_PAGE_SIZE, refresh_vehicle_facts
+from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_delta import export_rule_delta
 from ingestion.tecdoc.match_run_adapters import (
@@ -131,6 +133,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--commit",
         action="store_true",
         help="Apply the seed and write the graph. Omitted means dry run.",
+    )
+
+    facts_parser = subparsers.add_parser(
+        "refresh-vehicle-facts",
+        help="Project every vehicle into the flat, indexed facts table.",
+    )
+    facts_parser.add_argument(
+        "--since",
+        type=int,
+        default=0,
+        help="Resume from this source_record_id. Default 0 walks everything.",
+    )
+    facts_parser.add_argument("--page-size", type=int, default=DEFAULT_PAGE_SIZE)
+    facts_parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=None,
+        help="Stop after this many pages, for a sampled trial run.",
     )
 
     chunk_parser = subparsers.add_parser(
@@ -272,6 +292,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "build-match-chunks\tnormalization_results\t"
             "Group latest normalization results into signature chunks for review."
+        )
+        print(
+            "refresh-vehicle-facts\tnormalization_results+transportstyrelsen_raw\t"
+            "Project every vehicle into the flat, indexed facts table."
         )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
@@ -425,6 +449,36 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+
+    if args.command == "refresh-vehicle-facts":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_vehicle_facts_migrations(connection)
+
+                def report(rows: int, cursor: int) -> None:
+                    # A backfill over millions of rows is worth watching, and a
+                    # resumable job is only resumable if its cursor is visible.
+                    logger.info(
+                        "Vehicle facts refresh progress",
+                        extra={"rows_written": rows, "cursor": cursor},
+                    )
+
+                summary = refresh_vehicle_facts(
+                    connection,
+                    since_source_record_id=args.since,
+                    page_size=args.page_size,
+                    max_pages=args.max_pages,
+                    progress=report,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle facts refresh stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(summary), sort_keys=True))
+        return 0
 
     if args.command == "build-match-chunks":
         datastores = DatastoreClients.from_settings(settings)
