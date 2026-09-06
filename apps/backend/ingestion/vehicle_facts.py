@@ -145,7 +145,14 @@ def build_refresh_statement() -> str:
                 WHERE source_record_id = nr.source_record_id
                   AND superseded_at IS NULL
             ) AS res ON true
-            WHERE nr.source_record_id > %s
+            -- source_table is pinned so the keyset read can use the composite
+            -- index on (source_table, source_record_id). Without it Postgres
+            -- has no index for this ordering and falls back to a parallel seq
+            -- scan plus a sort of every remaining row to take the top page --
+            -- quadratic across a backfill, and the sort spills to temp files
+            -- large enough to fill the volume.
+            WHERE nr.source_table = %s
+              AND nr.source_record_id > %s
             ORDER BY nr.source_record_id
             LIMIT %s
         ),
@@ -209,7 +216,7 @@ def refresh_vehicle_facts(
             stopped_for_disk = True
             break
         with connection.cursor() as cursor:
-            cursor.execute(statement, (cursor_position, page_size))
+            cursor.execute(statement, (STAGING_TABLE, cursor_position, page_size))
             row = cursor.fetchone()
         connection.commit()
 

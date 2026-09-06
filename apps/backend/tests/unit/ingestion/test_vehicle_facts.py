@@ -64,27 +64,31 @@ def test_absent_values_normalize_to_null_rather_than_empty_string() -> None:
 def test_refresh_pages_forward_by_source_record_id() -> None:
     connection = _FakeConnection([(50_000, 812), (17, 999), (0, 0)])
 
-    summary = refresh_vehicle_facts(connection, page_size=50_000)  # type: ignore[arg-type]
+    summary = refresh_vehicle_facts(connection, page_size=50_000, free_bytes=None)  # type: ignore[arg-type]
 
     assert summary == RefreshSummary(
         rows_written=50_017, pages=2, highest_source_record_id=999
     )
-    cursors = [parameters[0] for _, parameters in connection.executed]
+    cursors = [parameters[1] for _, parameters in connection.executed]
     assert cursors == [0, 812, 999], "each page must resume after the last one"
 
 
 def test_refresh_resumes_from_a_supplied_cursor() -> None:
     connection = _FakeConnection([(5, 1_200), (0, 0)])
 
-    refresh_vehicle_facts(connection, since_source_record_id=1_000)  # type: ignore[arg-type]
+    refresh_vehicle_facts(
+        connection,  # type: ignore[arg-type]
+        since_source_record_id=1_000,
+        free_bytes=None,
+    )
 
-    assert connection.executed[0][1][0] == 1_000
+    assert connection.executed[0][1][1] == 1_000
 
 
 def test_refresh_commits_every_page_so_a_backfill_is_resumable() -> None:
     connection = _FakeConnection([(10, 1), (10, 2), (0, 0)])
 
-    refresh_vehicle_facts(connection)  # type: ignore[arg-type]
+    refresh_vehicle_facts(connection, free_bytes=None)  # type: ignore[arg-type]
 
     assert connection.commits == 3
 
@@ -92,7 +96,7 @@ def test_refresh_commits_every_page_so_a_backfill_is_resumable() -> None:
 def test_max_pages_bounds_a_trial_run() -> None:
     connection = _FakeConnection([(10, 1), (10, 2), (10, 3), (0, 0)])
 
-    summary = refresh_vehicle_facts(connection, max_pages=2)  # type: ignore[arg-type]
+    summary = refresh_vehicle_facts(connection, max_pages=2, free_bytes=None)  # type: ignore[arg-type]
 
     assert summary.pages == 2
     assert summary.rows_written == 20
@@ -100,7 +104,7 @@ def test_max_pages_bounds_a_trial_run() -> None:
 
 def test_page_size_must_be_positive() -> None:
     with pytest.raises(ValueError):
-        refresh_vehicle_facts(_FakeConnection([]), page_size=0)  # type: ignore[arg-type]
+        refresh_vehicle_facts(_FakeConnection([]), page_size=0, free_bytes=None)  # type: ignore[arg-type]
 
 
 def test_upsert_refreshes_every_column_but_the_key() -> None:
@@ -166,3 +170,17 @@ def test_disk_guard_can_be_switched_off() -> None:
 
     assert summary.stopped_for_disk is False
     assert summary.rows_written == 10
+
+
+def test_page_read_is_pinned_to_the_indexed_source_table() -> None:
+    """Without this the keyset read seq-scans and sorts every remaining row."""
+
+    from ingestion.vehicle_facts import STAGING_TABLE
+
+    statement = build_refresh_statement()
+    assert "nr.source_table = %s" in statement
+
+    connection = _FakeConnection([(10, 1), (0, 0)])
+    refresh_vehicle_facts(connection, free_bytes=None)  # type: ignore[arg-type]
+
+    assert connection.executed[0][1][0] == STAGING_TABLE
