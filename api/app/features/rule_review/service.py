@@ -13,6 +13,8 @@ from api.app.features.rule_review.schemas import (
     ManufacturerEntityView,
     ReprocessResponse,
     RuleActivationResponse,
+    RuleCatalogEntry,
+    RuleCatalogResponse,
     RuleDraftRequest,
     RuleListResponse,
     RuleView,
@@ -66,6 +68,110 @@ class RuleReviewService:
             rules=rules,
             manufacturer_entities=entities,
             review_reason_summary=self._repository.fetch_review_reason_summary(),
+        )
+
+    def list_rule_catalog(
+        self,
+        *,
+        query: str = "",
+        area: str | None = None,
+        canonical_field: str | None = None,
+        decision: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> RuleCatalogResponse:
+        """Paginated rule browsing.
+
+        Deliberately avoids the two aggregates that make ``list_rules`` expensive --
+        ``fetch_review_reason_summary`` and ``fetch_discovered_manufacturer_entities``
+        both scan the newest normalization batch, which measured at ~25s end to end for
+        an 11.9MB response. This path touches only the draft and version tables plus the
+        in-process rule set, and pages the result.
+        """
+        self._repository.ensure_schema()
+        drafts = self._repository.fetch_drafts()
+        active = self._repository.fetch_active_version()
+        active_overrides = active["overrides"] if active is not None else {}
+
+        entries: list[RuleCatalogEntry] = []
+        for rule in self._base.rules:
+            override = active_overrides.get(rule.rule_id)
+            draft = drafts.get(rule.rule_id)
+            active_value = (
+                override.get("canonical_value")
+                if override is not None
+                else rule.canonical_value
+            )
+            active_decision = (
+                override.get("decision") if override is not None else rule.decision
+            )
+            active_display = (
+                override.get("display_value")
+                if override is not None
+                else rule.display_value
+            )
+            entries.append(
+                RuleCatalogEntry(
+                    rule_id=rule.rule_id,
+                    area=rule.area,
+                    source_fields=list(rule.source_fields),
+                    source_terms=list(rule.source_terms),
+                    canonical_field=rule.canonical_field,
+                    base_canonical_value=rule.canonical_value,
+                    effective_canonical_value=(
+                        draft.get("canonical_value") if draft is not None else active_value
+                    ),
+                    effective_decision=str(
+                        draft.get("decision") if draft is not None else active_decision
+                    ),
+                    effective_display_value=(
+                        draft.get("display_value") if draft is not None else active_display
+                    ),
+                    vehicle_scopes=list(rule.vehicle_scopes),
+                    manufacturers=list(rule.manufacturers),
+                    has_draft=draft is not None,
+                    change_note=str(draft["change_note"]) if draft is not None else None,
+                )
+            )
+
+        total = len(entries)
+        term = query.strip().lower()
+        if term:
+            entries = [
+                entry
+                for entry in entries
+                if term in entry.rule_id.lower()
+                or term in entry.canonical_field.lower()
+                or (entry.effective_canonical_value or "").lower().find(term) >= 0
+                or any(term in value.lower() for value in entry.source_terms)
+                or any(term in value.lower() for value in entry.manufacturers)
+            ]
+        if area:
+            entries = [entry for entry in entries if entry.area == area]
+        if canonical_field:
+            entries = [
+                entry for entry in entries if entry.canonical_field == canonical_field
+            ]
+        if decision:
+            entries = [entry for entry in entries if entry.effective_decision == decision]
+
+        filtered_total = len(entries)
+        page = entries[offset : offset + limit]
+
+        return RuleCatalogResponse(
+            base_version=self._base.version,
+            active_version=(
+                str(active["version"]) if active is not None else self._base.version
+            ),
+            draft_count=len(drafts),
+            total=total,
+            filtered_total=filtered_total,
+            limit=limit,
+            offset=offset,
+            areas=sorted({rule.area for rule in self._base.rules}),
+            canonical_fields=sorted({rule.canonical_field for rule in self._base.rules}),
+            canonical_options_by_field=self._canonical_options(),
+            items=page,
         )
 
     def save_draft(self, rule_id: str, request: RuleDraftRequest) -> RuleListResponse:

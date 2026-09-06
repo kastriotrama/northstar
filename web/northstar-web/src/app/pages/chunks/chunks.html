@@ -1,0 +1,111 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Chunks</h1>
+      <p class="page__subtitle">
+        Match review grouped by the matcher's own signature. One decision covers every member
+        of a chunk.
+      </p>
+    </div>
+    @if (page()?.progress; as progress) {
+      <div class="stats" style="min-width: 520px">
+        <div class="stat">
+          <div class="stat__label">Chunks</div>
+          <div class="stat__value">{{ page()?.total | number }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Member rows</div>
+          <div class="stat__value">{{ progress.member_rows | number }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Resolved rows</div>
+          <div class="stat__value">{{ progress.resolved_rows | number }}</div>
+          <div class="stat__hint">{{ progress.in_review_rows | number }} in review</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Applied rules</div>
+          <div class="stat__value">{{ progress.applied_rules | number }}</div>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (page()?.build; as build) {
+    <div class="notice">
+      Build <span class="mono">{{ build.build_id }}</span> · batch
+      <span class="mono">{{ build.source_batch_id }}</span> · {{ build.chunk_count | number }} chunks
+      over {{ build.row_count | number }} rows · {{ build.status }}
+    </div>
+  }
+
+  @if (error(); as message) {
+    <div class="notice notice--error">{{ message }}</div>
+  }
+
+  <p-table
+    [value]="page()?.items ?? []"
+    [lazy]="true"
+    (onLazyLoad)="onLazyLoad($event)"
+    [paginator]="true"
+    [rows]="rows"
+    [first]="first()"
+    [totalRecords]="page()?.total ?? 0"
+    [loading]="loading()"
+    [scrollable]="true"
+    scrollHeight="calc(100vh - 380px)"
+    [rowHover]="true"
+    size="small"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="{first}–{last} of {totalRecords}"
+    dataKey="chunk_id"
+  >
+    <ng-template #header>
+      <tr>
+        <th style="width: 110px">Status</th>
+        <th class="num" style="width: 110px">Members</th>
+        @for (column of signatureColumns(); track column) {
+          <th class="nowrap">{{ column }}</th>
+        }
+        <th style="width: 70px"></th>
+      </tr>
+    </ng-template>
+    <ng-template #body let-chunk>
+      <tr>
+        <td><p-tag [severity]="statusSeverity(chunk.status)" [value]="chunk.status" /></td>
+        <td class="num">{{ chunk.member_count | number }}</td>
+        @for (column of signatureColumns(); track column) {
+          <td class="truncate mono" [title]="signatureCell(chunk, column)">
+            {{ signatureCell(chunk, column) }}
+          </td>
+        }
+        <td><p-button label="Open" [text]="true" size="small" (onClick)="open(chunk)" /></td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage>
+      <tr>
+        <td [attr.colspan]="signatureColumns().length + 3" class="muted" style="padding: 1rem">
+          No chunks to review.
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</section>
+
+<p-dialog
+  header="Chunk"
+  [visible]="detailOpen()"
+  (visibleChange)="detailOpen.set($event)"
+  [modal]="true"
+  [style]="{ width: '900px', maxWidth: '95vw' }"
+  [dismissableMask]="true"
+>
+  @if (detail()) {
+    <pre
+      class="mono"
+      style="background: var(--p-surface-100); padding: 0.7rem; border-radius: 8px; max-height: 460px; overflow: auto"
+      >{{ detailJson() }}</pre
+    >
+  } @else {
+    <p class="muted">Loading…</p>
+  }
+</p-dialog>

@@ -2,7 +2,7 @@ from contextlib import AbstractContextManager
 from typing import Annotated, Any
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
@@ -14,6 +14,7 @@ from api.app.features.rule_review.schemas import (
     ReprocessResponse,
     RuleActivationRequest,
     RuleActivationResponse,
+    RuleCatalogResponse,
     RuleDraftRequest,
     RuleListResponse,
 )
@@ -42,6 +43,29 @@ def list_rules(
         return service.list_rules()
     except psycopg.Error as error:
         raise HTTPException(status_code=503, detail="Rule review data is unavailable.") from error
+
+
+@router.get("/catalog", response_model=RuleCatalogResponse)
+def list_rule_catalog(
+    service: Annotated[RuleReviewService, Depends(get_rule_review_service)],
+    query: str = Query(default="", max_length=120),
+    area: str | None = Query(default=None, max_length=80),
+    canonical_field: str | None = Query(default=None, max_length=80),
+    decision: str | None = Query(default=None, max_length=40),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> RuleCatalogResponse:
+    try:
+        return service.list_rule_catalog(
+            query=query,
+            area=area,
+            canonical_field=canonical_field,
+            decision=decision,
+            limit=limit,
+            offset=offset,
+        )
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail="Rule catalog is unavailable.") from error
 
 
 @router.put("/{rule_id}/draft", response_model=RuleListResponse)

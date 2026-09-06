@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.app.core.settings import get_settings
+from api.app.features.coverage.router import router as coverage_router
 from api.app.features.health.router import router as health_router
 from api.app.features.match_review.router import router as match_review_router
 from api.app.features.normalization_review.router import (
@@ -17,6 +18,7 @@ from api.app.features.normalization_review.router import (
 from api.app.features.resolve.router import router as resolve_router
 from api.app.features.review_queue.router import router as review_queue_router
 from api.app.features.rule_review.router import router as rule_review_router
+from api.app.features.source_records.router import router as source_records_router
 from api.app.features.tecdoc_connections.router import router as tecdoc_connections_router
 from api.app.features.tecdoc_review.router import router as tecdoc_review_router
 
@@ -46,6 +48,8 @@ def create_app() -> FastAPI:
     app.include_router(rule_review_router)
     app.include_router(tecdoc_review_router)
     app.include_router(tecdoc_connections_router)
+    app.include_router(source_records_router)
+    app.include_router(coverage_router)
     app.mount(
         "/normalization-review/assets",
         StaticFiles(directory=NORMALIZATION_REVIEW_STATIC_DIRECTORY),

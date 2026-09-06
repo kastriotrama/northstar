@@ -99,3 +99,40 @@ class ReprocessResponse(BaseModel):
     rule_version: str
     before: BatchSummaryView
     after: BatchSummaryView
+
+
+class RuleCatalogEntry(BaseModel):
+    """A rule without its canonical vocabulary.
+
+    ``canonical_options`` is identical for every rule sharing a ``canonical_field`` and is
+    the bulk of the full rule payload, so the catalog returns it once per field in
+    ``canonical_options_by_field`` instead of repeating it on all ~1.26k rules.
+    """
+
+    rule_id: str
+    area: str
+    source_fields: list[str] = Field(default_factory=list)
+    source_terms: list[str] = Field(default_factory=list)
+    canonical_field: str
+    base_canonical_value: str | None = None
+    effective_canonical_value: str | None = None
+    effective_decision: str
+    effective_display_value: str | None = None
+    vehicle_scopes: list[str] = Field(default_factory=list)
+    manufacturers: list[str] = Field(default_factory=list)
+    has_draft: bool = False
+    change_note: str | None = None
+
+
+class RuleCatalogResponse(BaseModel):
+    base_version: str
+    active_version: str
+    draft_count: int
+    total: int
+    filtered_total: int
+    limit: int
+    offset: int
+    areas: list[str] = Field(default_factory=list)
+    canonical_fields: list[str] = Field(default_factory=list)
+    canonical_options_by_field: dict[str, list[str]] = Field(default_factory=dict)
+    items: list[RuleCatalogEntry] = Field(default_factory=list)

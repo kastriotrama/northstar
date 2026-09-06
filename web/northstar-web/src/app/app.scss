@@ -1,0 +1,74 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--p-surface-50);
+}
+
+.shell__bar {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0 1.25rem;
+  height: 52px;
+  background: var(--p-surface-0);
+  border-bottom: 1px solid var(--p-surface-200);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+}
+
+.shell__mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.shell__name {
+  font-size: 0.95rem;
+  color: var(--p-text-color);
+}
+
+.shell__nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.shell__link {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--p-surface-100);
+    color: var(--p-text-color);
+  }
+}
+
+.shell__link--active {
+  background: var(--p-highlight-background);
+  color: var(--p-highlight-color);
+  font-weight: 600;
+}
+
+.shell__body {
+  flex: 1;
+  padding: 1.25rem;
+  min-width: 0;
+}

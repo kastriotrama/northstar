@@ -1,0 +1,166 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">TecDoc</h1>
+      <p class="page__subtitle">
+        The promoted TecDoc catalogue. Every field each row carries is shown — open a row for
+        the full payload.
+      </p>
+    </div>
+    @if (vehiclePage()?.summary; as summary) {
+      <div class="stats" style="min-width: 520px">
+        <div class="stat">
+          <div class="stat__label">Promoted ktypes</div>
+          <div class="stat__value">{{ summary.promoted_ktypes | number }}</div>
+          <div class="stat__hint">of {{ summary.source_rows | number }} source rows</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Manufacturers</div>
+          <div class="stat__value">{{ summary.manufacturers | number }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Model families</div>
+          <div class="stat__value">{{ summary.model_families | number }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Engines</div>
+          <div class="stat__value">{{ summary.engines | number }}</div>
+          <div class="stat__hint">{{ summary.engine_linked_ktypes | number }} linked ktypes</div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="toolbar">
+    <p-select
+      [options]="viewOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="view()"
+      (ngModelChange)="onViewChange($event)"
+      [style]="{ minWidth: '180px' }"
+    />
+    @if (view() === 'entities') {
+      <p-select
+        [options]="kindOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="kind()"
+        (ngModelChange)="onKindChange($event)"
+        [style]="{ minWidth: '170px' }"
+      />
+    }
+    <input
+      pInputText
+      placeholder="Search…"
+      [ngModel]="query()"
+      (ngModelChange)="query.set($event)"
+      (keyup.enter)="search()"
+      style="min-width: 280px"
+    />
+    <p-button label="Search" [loading]="loading()" (onClick)="search()" />
+  </div>
+
+  @if (view() === 'vehicles') {
+    <p-table
+      [value]="vehiclePage()?.items ?? []"
+      [lazy]="true"
+      (onLazyLoad)="onLazyLoad($event)"
+      [paginator]="true"
+      [rows]="rows"
+      [first]="first()"
+      [totalRecords]="total()"
+      [loading]="loading()"
+      [scrollable]="true"
+      scrollHeight="calc(100vh - 380px)"
+      [rowHover]="true"
+      size="small"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="{first}–{last} of {totalRecords}"
+      dataKey="ktype"
+    >
+      <ng-template #header>
+        <tr>
+          @for (column of vehicleColumns(); track column) {
+            <th class="nowrap">{{ column }}</th>
+          }
+          <th style="width: 70px"></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-row>
+        <tr>
+          @for (column of vehicleColumns(); track column) {
+            <td class="truncate" [title]="cell(row, column)">{{ cell(row, column) }}</td>
+          }
+          <td><p-button label="Open" [text]="true" size="small" (onClick)="open(row)" /></td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td [attr.colspan]="vehicleColumns().length + 1" class="muted" style="padding: 1rem">
+            No TecDoc vehicles matched.
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  } @else {
+    <p-table
+      [value]="entityPage()?.items ?? []"
+      [lazy]="true"
+      (onLazyLoad)="onLazyLoad($event)"
+      [paginator]="true"
+      [rows]="rows"
+      [first]="first()"
+      [totalRecords]="total()"
+      [loading]="loading()"
+      [scrollable]="true"
+      scrollHeight="calc(100vh - 380px)"
+      [rowHover]="true"
+      size="small"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="{first}–{last} of {totalRecords}"
+    >
+      <ng-template #header>
+        <tr>
+          @for (column of entityColumns(); track column) {
+            <th class="nowrap">{{ column }}</th>
+          }
+          <th style="width: 70px"></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-row>
+        <tr>
+          @for (column of entityColumns(); track column) {
+            <td class="truncate" [title]="cell(row, column)">{{ cell(row, column) }}</td>
+          }
+          <td><p-button label="Open" [text]="true" size="small" (onClick)="open(row)" /></td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td [attr.colspan]="entityColumns().length + 1" class="muted" style="padding: 1rem">
+            No entities matched.
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
+</section>
+
+<p-dialog
+  header="TecDoc row"
+  [visible]="detailOpen()"
+  (visibleChange)="detailOpen.set($event)"
+  [modal]="true"
+  [style]="{ width: '820px', maxWidth: '95vw' }"
+  [dismissableMask]="true"
+>
+  <table class="kv">
+    @for (entry of entries(detail()); track entry[0]) {
+      <tr>
+        <td class="kv__key mono">{{ entry[0] }}</td>
+        <td class="mono">{{ entry[1] }}</td>
+      </tr>
+    }
+  </table>
+</p-dialog>

@@ -1,0 +1,217 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Unresolved / coverage</h1>
+      <p class="page__subtitle">
+        Which fields the normalization rules do not yet reach. Coverage is computed for one
+        batch at a time — collapsing all 261 parts of a run scans 6.5M rows and times out.
+      </p>
+    </div>
+    <div class="toolbar">
+      <p-select
+        [options]="batches()"
+        optionLabel="batch_id"
+        optionValue="batch_id"
+        [ngModel]="batchId()"
+        (ngModelChange)="onBatchChange($event)"
+        [filter]="true"
+        filterBy="batch_id"
+        placeholder="Select a batch"
+        [style]="{ minWidth: '360px' }"
+      />
+      <p-button
+        label="Reload"
+        severity="secondary"
+        [outlined]="true"
+        [loading]="loading()"
+        (onClick)="batchId() && load(batchId()!)"
+      />
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div class="notice notice--error">{{ message }}</div>
+  }
+
+  <p-tabs value="ts">
+    <p-tablist>
+      <p-tab value="ts">TS records</p-tab>
+      <p-tab value="tecdoc">TecDoc</p-tab>
+    </p-tablist>
+
+    <p-tabpanels>
+      <!-- ---------------------------------------------------------------- TS records -->
+      <p-tabpanel value="ts">
+        @if (report(); as report) {
+          <div class="stats">
+            <div class="stat">
+              <div class="stat__label">Records in batch</div>
+              <div class="stat__value">{{ report.rows | number }}</div>
+              <div class="stat__hint mono">{{ report.batch_id }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Not fully resolved</div>
+              <div class="stat__value">{{ unresolvedRecords() | number }}</div>
+              <div class="stat__hint">
+                {{ report.status.provisional | number }} provisional ·
+                {{ report.status.review_required | number }} review ·
+                {{ report.status.failed | number }} failed
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Fields with gaps</div>
+              <div class="stat__value">{{ report.partial_fields | number }}</div>
+              <div class="stat__hint">
+                of {{ report.partial_fields + report.fully_normalized_fields | number }} fields seen
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Fields fully normalized</div>
+              <div class="stat__value">{{ report.fully_normalized_fields | number }}</div>
+              <div class="stat__hint">present on every record</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <p-toggleswitch [ngModel]="onlyActionable()" (ngModelChange)="onlyActionable.set($event)" inputId="actionable" />
+            <label for="actionable" class="muted" style="font-size: 0.82rem">
+              Only fields the rules partly reach — hides fields present on under 2% of the
+              batch, which are optional rather than unresolved
+            </label>
+            <span class="muted" style="font-size: 0.82rem; margin-left: auto">
+              {{ fields().length | number }} fields shown · {{ gapCount() | number }} with gaps
+            </span>
+          </div>
+
+          <p-table
+            [value]="fields()"
+            [scrollable]="true"
+            scrollHeight="440px"
+            [rowHover]="true"
+            size="small"
+            [loading]="loading()"
+            dataKey="field"
+          >
+            <ng-template #header>
+              <tr>
+                <th pSortableColumn="field" style="min-width: 260px">Field</th>
+                <th pSortableColumn="coverage" style="width: 190px">Coverage</th>
+                <th pSortableColumn="normalized" class="num" style="width: 120px">Normalized</th>
+                <th pSortableColumn="candidates_only" class="num" style="width: 140px">
+                  Candidate only
+                </th>
+                <th pSortableColumn="missing" class="num" style="width: 120px">Missing</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-field>
+              <tr>
+                <td class="mono">{{ field.field }}</td>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 0.5rem">
+                    <span class="bar">
+                      <span [class]="barClass(field.coverage)" [style.width]="percent(field.coverage)"></span>
+                    </span>
+                    <span class="num muted" style="min-width: 48px">{{ percent(field.coverage) }}</span>
+                  </div>
+                </td>
+                <td class="num">{{ field.normalized | number }}</td>
+                <td class="num">
+                  @if (field.candidates_only > 0) {
+                    <p-tag severity="warn" [value]="(field.candidates_only | number) ?? '0'" />
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td class="num">{{ field.missing | number }}</td>
+              </tr>
+            </ng-template>
+            <ng-template #emptymessage>
+              <tr>
+                <td colspan="5" class="muted" style="padding: 1rem">
+                  No fields match the current view.
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+
+          @if (report.review_reasons.length) {
+            <div>
+              <h2 class="page__title" style="font-size: 0.95rem; margin-bottom: 0.5rem">
+                Why records were held for review
+              </h2>
+              <p-table [value]="report.review_reasons" size="small" [rowHover]="true">
+                <ng-template #header>
+                  <tr>
+                    <th>Reason</th>
+                    <th class="num" style="width: 140px">Records</th>
+                  </tr>
+                </ng-template>
+                <ng-template #body let-reason>
+                  <tr>
+                    <td class="mono">{{ reason.reason }}</td>
+                    <td class="num">{{ reason.records | number }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </div>
+          }
+        } @else if (!loading()) {
+          <div class="notice">Pick a batch to compute coverage.</div>
+        }
+      </p-tabpanel>
+
+      <!-- -------------------------------------------------------------------- TecDoc -->
+      <p-tabpanel value="tecdoc">
+        @if (tecdoc(); as report) {
+          <p class="page__subtitle" style="margin-bottom: 0.75rem">
+            Attribute fill rates per entity type in the promoted TecDoc batch
+            <span class="mono">{{ report.batch_id }}</span
+            >.
+          </p>
+          @for (entity of report.entities; track entity.entity_type) {
+            <div style="margin-bottom: 1.25rem">
+              <h2 class="page__title" style="font-size: 0.9rem; margin-bottom: 0.4rem">
+                {{ entity.entity_type }}
+                <span class="muted" style="font-weight: 400">
+                  · {{ entity.rows | number }} rows · {{ entity.fields.length }} fields
+                </span>
+              </h2>
+              <p-table [value]="entity.fields" size="small" [rowHover]="true">
+                <ng-template #header>
+                  <tr>
+                    <th style="min-width: 260px">Field</th>
+                    <th style="width: 190px">Coverage</th>
+                    <th class="num" style="width: 120px">Present</th>
+                    <th class="num" style="width: 120px">Missing</th>
+                  </tr>
+                </ng-template>
+                <ng-template #body let-field>
+                  <tr>
+                    <td class="mono">{{ field.field }}</td>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <span class="bar">
+                          <span
+                            [class]="barClass(field.coverage)"
+                            [style.width]="percent(field.coverage)"
+                          ></span>
+                        </span>
+                        <span class="num muted" style="min-width: 48px">
+                          {{ percent(field.coverage) }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="num">{{ field.present | number }}</td>
+                    <td class="num">{{ field.missing | number }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </div>
+          }
+        } @else if (!tecdocLoading()) {
+          <div class="notice">TecDoc coverage is unavailable.</div>
+        }
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
+</section>
