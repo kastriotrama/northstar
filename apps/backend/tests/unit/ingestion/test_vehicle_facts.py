@@ -130,3 +130,39 @@ def test_cursor_comes_from_the_upsert_rather_than_a_second_scan() -> None:
 
     assert "RETURNING source_record_id" in statement
     assert statement.count("ORDER BY nr.source_record_id") == 1
+
+
+def test_free_space_probe_reports_plenty_when_it_cannot_read_the_path() -> None:
+    """A guard that throws is worse than no guard: the refresh must still run."""
+
+    from ingestion.vehicle_facts import DEFAULT_MIN_FREE_BYTES, _free_space
+
+    assert _free_space("/nonexistent-path-for-this-test") > DEFAULT_MIN_FREE_BYTES
+
+
+def test_refresh_stops_and_reports_a_resumable_cursor_when_disk_runs_low(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A backfill that dies on DiskFull takes the whole database down with it."""
+
+    import ingestion.vehicle_facts as module
+
+    connection = _FakeConnection([(10, 4_242), (10, 9_999)])
+    readings = iter([10**12, 0])
+    monkeypatch.setattr(module, "_free_space", lambda _: next(readings))
+
+    summary = refresh_vehicle_facts(connection, free_bytes=1_000)  # type: ignore[arg-type]
+
+    assert summary.stopped_for_disk is True
+    assert summary.pages == 1
+    # The cursor is exactly what the operator passes to --since once there is room.
+    assert summary.highest_source_record_id == 4_242
+
+
+def test_disk_guard_can_be_switched_off() -> None:
+    connection = _FakeConnection([(10, 1), (0, 0)])
+
+    summary = refresh_vehicle_facts(connection, free_bytes=None)  # type: ignore[arg-type]
+
+    assert summary.stopped_for_disk is False
+    assert summary.rows_written == 10

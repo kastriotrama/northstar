@@ -83,13 +83,16 @@ RESOLVABLE_FIELDS: tuple[str, ...] = (
 # rest are under 6% and are served well enough by the plain dimension indexes.
 _PARTIAL_INDEX_FIELDS: tuple[str, ...] = ("drive_type", "model_family")
 
+# Trimmed to what the measured workload actually used. The two partial indexes
+# below did nearly all the work (faceting went 197s -> 87ms on them); these
+# three serve filters that do not mention an unresolved field. type_text,
+# fab_code and vehicle_year earned indexes in the first draft and cost ~0.6 GB
+# between them, which is not affordable on the current disk -- add them back
+# when there is room, since CREATE INDEX needs no reload.
 _DIMENSION_INDEX_COLUMNS: tuple[str, ...] = (
     "brand",
     "model",
     "variant",
-    "type_text",
-    "fab_code",
-    "vehicle_year",
 )
 
 
@@ -157,15 +160,6 @@ def _migrations() -> tuple[tuple[str, str], ...]:
                 f"WHERE {unresolved_predicate(field)}",
             )
         )
-    # Refreshes page by primary key, and the resolution job needs to find the
-    # rows one rule covers without scanning; both are keyset reads.
-    statements.append(
-        (
-            "create_vehicle_facts_batch_index",
-            f"CREATE INDEX IF NOT EXISTS vehicle_facts_batch_idx "
-            f"ON {VEHICLE_FACTS_TABLE} (source_batch_id, source_record_id)",
-        )
-    )
     return tuple(statements)
 
 

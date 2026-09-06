@@ -11,6 +11,7 @@ backfill over 7.26M rows is resumable rather than one enormous transaction.
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -31,6 +32,12 @@ STAGING_TABLE = "staging.transportstyrelsen_raw"
 
 DEFAULT_PAGE_SIZE = 50_000
 
+# A backfill of this table once filled the host disk and died mid-page. The data
+# was derived so nothing was lost, but a full disk is a database-wide problem,
+# not a problem for the job that happens to hit it first. So the job now stops
+# while there is still room to breathe rather than taking Postgres down with it.
+DEFAULT_MIN_FREE_BYTES = 700 * 1024 * 1024
+
 
 @dataclass(frozen=True)
 class RefreshSummary:
@@ -39,6 +46,7 @@ class RefreshSummary:
     rows_written: int
     pages: int
     highest_source_record_id: int
+    stopped_for_disk: bool = False
 
 
 def _text(expression: str) -> str:
@@ -156,6 +164,19 @@ def build_refresh_statement() -> str:
 ProgressCallback = Callable[[int, int], None]
 
 
+def _free_space(path: str) -> int:
+    """Free bytes on the volume holding `path`, or "plenty" if unknowable.
+
+    A refresh must not fail because the free-space probe did; the guard is a
+    safety net, and a net that throws is worse than no net.
+    """
+
+    try:
+        return shutil.disk_usage(path).free
+    except OSError:
+        return DEFAULT_MIN_FREE_BYTES + 1
+
+
 def refresh_vehicle_facts(
     connection: Connection,
     *,
@@ -163,6 +184,8 @@ def refresh_vehicle_facts(
     page_size: int = DEFAULT_PAGE_SIZE,
     max_pages: int | None = None,
     progress: ProgressCallback | None = None,
+    free_bytes: int | None = DEFAULT_MIN_FREE_BYTES,
+    disk_path: str = "/",
 ) -> RefreshSummary:
     """Project rows into the facts table, resuming from a cursor.
 
@@ -177,8 +200,14 @@ def refresh_vehicle_facts(
     cursor_position = since_source_record_id
     rows_written = 0
     pages = 0
+    stopped_for_disk = False
 
     while max_pages is None or pages < max_pages:
+        if free_bytes is not None and _free_space(disk_path) < free_bytes:
+            # Stopping is safe and resumable: the cursor below is the caller's
+            # `--since` for the next attempt, once there is room.
+            stopped_for_disk = True
+            break
         with connection.cursor() as cursor:
             cursor.execute(statement, (cursor_position, page_size))
             row = cursor.fetchone()
@@ -198,4 +227,5 @@ def refresh_vehicle_facts(
         rows_written=rows_written,
         pages=pages,
         highest_source_record_id=cursor_position,
+        stopped_for_disk=stopped_for_disk,
     )
