@@ -34,6 +34,8 @@ import type {
   VehicleFacet,
   VehicleFilterRequest,
   VehiclePage,
+  GapGroupingMode,
+  GapGroupReport,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -383,5 +385,23 @@ export class Api {
 
   vehicleDetail(sourceRecordId: number): Observable<VehicleDetail> {
     return this.http.get<VehicleDetail>(`${this.base}/v1/vehicles/${sourceRecordId}`);
+  }
+  /**
+   * Where a gap lives, grouped by the shape of the value rather than its text.
+   *
+   * "Which cars are these" and "where is the leverage" are different questions, and an
+   * exact-value list can only answer the first.
+   */
+  gapGroups(
+    filter: VehicleFilterRequest,
+    options: { field: string; mode?: GapGroupingMode; limit?: number },
+  ): Observable<GapGroupReport> {
+    return this.http.post<GapGroupReport>(`${this.base}/v1/vehicles/gap-groups`, filter, {
+      params: params({
+        field: options.field,
+        mode: options.mode ?? 'leading_token',
+        limit: options.limit ?? 25,
+      }),
+    });
   }
 }

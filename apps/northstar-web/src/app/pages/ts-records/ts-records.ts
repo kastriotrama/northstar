@@ -16,6 +16,9 @@ import { ResolverPanel } from '../../components/resolver-panel';
 import { FilterState, OPERATORS } from '../../core/filter-state';
 import type { EditableCondition } from '../../core/filter-state';
 import type {
+  GapGroup,
+  GapGroupReport,
+  GapGroupingMode,
   RuleOperator,
   UnresolvedFieldCount,
   VehicleDetail,
@@ -94,6 +97,27 @@ export class TsRecordsPage {
   protected readonly draftField = signal<string>('brand');
   protected readonly draftOperator = signal<RuleOperator>('equals');
   protected readonly draftValue = signal<string>('');
+
+  // --- where the gap lives, as opposed to which cars are in it ---------------------------
+  // Two different questions. An exact-value list can only answer the second, and
+  // answering only the second is how a structural problem across 608,251 cars read as
+  // six thousand unrelated populations.
+  protected readonly view = signal<'cars' | 'gaps'>('cars');
+  protected readonly groupField = signal<string>('brand');
+  protected readonly groupMode = signal<GapGroupingMode>('leading_token');
+  protected readonly groups = signal<GapGroupReport | null>(null);
+  protected readonly groupsLoading = signal(false);
+
+  protected readonly groupModes: ReadonlyArray<{ value: GapGroupingMode; label: string }> = [
+    { value: 'leading_token', label: 'first word' },
+    { value: 'character_shape', label: 'character shape' },
+    { value: 'exact', label: 'exact value' },
+  ];
+
+  /** Grouping needs a gap to group; without one the question has no subject. */
+  protected readonly groupTarget = computed(
+    () => this.unresolvedField() ?? this.unresolved()[0]?.field ?? null,
+  );
 
   // --- the resolver, as a panel rather than a page ---------------------------------------
   protected readonly resolving = signal<string | null>(null);
@@ -213,6 +237,77 @@ export class TsRecordsPage {
   protected reload(): void {
     this.requests.next();
     this.summaryRequests.next();
+    if (this.view() === 'gaps') {
+      this.loadGroups();
+    }
+  }
+
+  protected showView(view: 'cars' | 'gaps'): void {
+    this.view.set(view);
+    if (view === 'gaps') {
+      this.loadGroups();
+    }
+  }
+
+  protected onGroupField(field: string): void {
+    this.groupField.set(field);
+    this.loadGroups();
+  }
+
+  protected onGroupMode(mode: GapGroupingMode): void {
+    this.groupMode.set(mode);
+    this.loadGroups();
+  }
+
+  private loadGroups(): void {
+    const target = this.groupTarget();
+    if (!target) {
+      this.groups.set(null);
+      return;
+    }
+    this.groupsLoading.set(true);
+    this.api
+      .gapGroups(
+        { conditions: this.filter.payload(), unresolved_field: target },
+        { field: this.groupField(), mode: this.groupMode(), limit: 25 },
+      )
+      .subscribe({
+        next: (report) => {
+          this.groups.set(report);
+          this.groupsLoading.set(false);
+        },
+        error: (err: unknown) => {
+          this.groupsLoading.set(false);
+          this.groups.set(null);
+          this.error.set(TsRecordsPage.describe(err, 'Could not group this gap.'));
+        },
+      });
+  }
+
+  /**
+   * Take a group into the filter and go back to the cars.
+   *
+   * A shape becomes a `starts_with`, since that is what the grouping means; an exact
+   * group becomes an equality, since that is what it means instead.
+   */
+  protected drillInto(group: GapGroup): void {
+    const conditions = [...this.filter.conditions()];
+    conditions.push({
+      field: this.groupField(),
+      operator: this.groupMode() === 'exact' ? 'equals' : 'starts_with',
+      layer: 'source',
+      values: [group.label],
+      locked: false,
+    });
+    this.filter.conditions.set(conditions);
+    this.unresolvedField.set(this.groupTarget());
+    this.view.set('cars');
+    this.reload();
+  }
+
+  protected groupShare(group: GapGroup): number {
+    const total = this.groups()?.total_rows ?? 0;
+    return total ? (group.rows / total) * 100 : 0;
   }
 
   // --- filter editing -------------------------------------------------------------------

@@ -21,6 +21,7 @@ from ingestion.vehicle_facts_migrations import (
 from ingestion.vehicle_facts_query import (
     CompiledPredicate,
     UnknownFieldError,
+    group_statement,
     compile_predicate,
     count_statement,
     facet_statement,
@@ -309,3 +310,36 @@ class VehicleFilterRepository:
             if distinct == 1 and value is not None:
                 profile[field] = value
         return profile
+
+
+    def gap_groups(
+        self,
+        conditions: Sequence[Any],
+        unresolved_field: str,
+        *,
+        field: str,
+        mode: str,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        """Where the gap actually lives, grouped by the shape of the value.
+
+        Answers "where is the leverage" rather than "which cars are these", which
+        is a different question and the one an exact-value list cannot answer.
+        """
+
+        predicate = self._predicate(conditions, unresolved_field)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                group_statement(predicate, field, mode, limit=limit),
+                predicate.parameters,
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "label": str(row[0]),
+                "rows": int(row[1]),
+                "distinct_values": int(row[2]),
+                "samples": [str(value) for value in (row[3] or [])],
+            }
+            for row in rows
+        ]

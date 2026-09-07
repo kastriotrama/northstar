@@ -222,6 +222,94 @@
 
     <!-- ---------------------------------------------------------------------- list -->
     <div class="results">
+      <!-- Two questions, not two renderings of one: which cars are these, and where
+           does the gap actually live. -->
+      <div class="viewswitch" role="tablist" aria-label="What to list">
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="view() === 'cars'"
+          [class.viewswitch__on]="view() === 'cars'"
+          (click)="showView('cars')"
+        >
+          Cars
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="view() === 'gaps'"
+          [class.viewswitch__on]="view() === 'gaps'"
+          [disabled]="!groupTarget()"
+          (click)="showView('gaps')"
+        >
+          Where the gap is
+        </button>
+        @if (view() === 'gaps' && groupTarget(); as target) {
+          <span class="muted viewswitch__ctx">
+            grouping the <span class="mono">{{ target }}</span> gap by
+          </span>
+          <p-select
+            [options]="facetFields"
+            [ngModel]="groupField()"
+            (ngModelChange)="onGroupField($event)"
+            [filter]="true"
+            ariaLabel="Field to group by"
+            [style]="{ minWidth: '130px' }"
+          />
+          <select
+            class="chip__op-select"
+            aria-label="How to group values"
+            [value]="groupMode()"
+            (change)="onGroupMode($any($event.target).value)"
+          >
+            @for (mode of groupModes; track mode.value) {
+              <option [value]="mode.value">{{ mode.label }}</option>
+            }
+          </select>
+        }
+      </div>
+
+      @if (view() === 'gaps') {
+        @if (groupsLoading()) {
+          <p class="muted">Grouping…</p>
+        }
+        @if (groups(); as report) {
+          <p class="muted groups__intro">
+            {{ report.total_rows | number }} cars lack
+            <span class="mono">{{ report.unresolved_field }}</span>. Grouped by
+            <span class="mono">{{ report.field }}</span>, the biggest shapes are where one
+            rule reaches furthest.
+          </p>
+          <ul class="groups">
+            @for (group of report.groups; track group.label) {
+              <li>
+                <button type="button" class="group" (click)="drillInto(group)">
+                  <span class="group__head">
+                    <strong class="mono">{{ group.label || '(blank)' }}</strong>
+                    <span class="num">{{ group.rows | number }}</span>
+                  </span>
+                  <span class="bar">
+                    <span class="bar__fill" [style.width.%]="groupShare(group)"></span>
+                  </span>
+                  <span class="group__meta muted">
+                    {{ group.distinct_values | number }} distinct values ·
+                    {{ groupShare(group) | number: '1.0-1' }}% of the gap
+                  </span>
+                  @if (group.distinct_values > 1) {
+                    <span class="group__samples mono muted">{{
+                      group.samples.join(' · ')
+                    }}</span>
+                  }
+                </button>
+              </li>
+            } @empty {
+              @if (!groupsLoading()) {
+                <li class="muted">Nothing to group — this gap is empty.</li>
+              }
+            }
+          </ul>
+        }
+      } @else {
       <p-table [value]="rows()" [scrollable]="true" scrollHeight="60vh" styleClass="p-datatable-sm">
         <ng-template pTemplate="header">
           <tr>
@@ -284,6 +372,7 @@
           (onClick)="next()"
         />
       </div>
+      }
     </div>
 
     <!-- ------------------------------------------------------- resolver / record -->

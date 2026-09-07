@@ -91,6 +91,38 @@ describe('pages render real data', () => {
     expect(host.querySelectorAll('.gap__set').length).toBeGreaterThan(0);
   }, INTEGRATION_TIMEOUT);
 
+  it('the gap view groups by shape, not by exact value', async () => {
+    if (!apiUp) return;
+    configure();
+    const filter = TestBed.inject(FilterState);
+    filter.reset();
+
+    const fixture = TestBed.createComponent(TsRecordsPage);
+    fixture.detectChanges();
+    await settle(fixture, 12);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const gapTab = tabs.find((tab) => (tab.textContent ?? '').includes('Where the gap'));
+    expect(gapTab).toBeTruthy();
+    gapTab?.click();
+    fixture.detectChanges();
+    await settle(fixture, 12);
+
+    const groups = [...fixture.nativeElement.querySelectorAll('.group')];
+    expect(groups.length).toBeGreaterThan(0);
+
+    // Grouping by shape is the whole point: an exact-value list of this gap runs to
+    // tens of thousands of rows, and one leading token covers a fifth of it. A group
+    // must therefore stand for many distinct values, not one.
+    const distinct = groups
+      .map((group) => (group.textContent ?? '').match(/([\d,]+) distinct values/)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Number(value.replace(/,/g, '')));
+    expect(distinct.length).toBeGreaterThan(0);
+    expect(Math.max(...distinct)).toBeGreaterThan(1);
+  }, INTEGRATION_TIMEOUT);
+
   it('TS data resolves a field without leaving the screen', async () => {
     if (!apiUp) return;
     configure();

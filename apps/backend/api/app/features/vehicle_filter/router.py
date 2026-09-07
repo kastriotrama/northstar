@@ -26,6 +26,8 @@ from api.app.features.match_review.rule_advisor import (
 from api.app.features.vehicle_filter.repository import VehicleFilterRepository
 from api.app.features.vehicle_filter.schemas import (
     AdviseRequest,
+    GapGroup,
+    GapGroupReport,
     UnresolvedField,
     UnresolvedSummary,
     VehicleCount,
@@ -244,4 +246,46 @@ def advise_for_filter(
         # value" rather than inventing one.
         oem_samples=[],
         resolved_profile=profile,
+    )
+
+
+@router.post("/gap-groups", response_model=GapGroupReport)
+def gap_groups(
+    request: VehicleFilter,
+    repository: RepositoryDependency,
+    field: str = Query(max_length=60),
+    mode: str = Query(default="leading_token"),
+    limit: int = Query(default=25, ge=1, le=100),
+) -> GapGroupReport:
+    """Where a gap lives, grouped by the shape of the value rather than its text.
+
+    An exact-value list of the model_family gap runs to 97,063 rows and reads as
+    noise. Grouped by leading token it is a short list, and the first entry says
+    that the registry is carrying brand and model in one column.
+    """
+
+    if not request.unresolved_field:
+        raise HTTPException(
+            status_code=422, detail="Choose which field's gap to group."
+        )
+    try:
+        groups = repository.gap_groups(
+            request.conditions,
+            request.unresolved_field,
+            field=field,
+            mode=mode,
+            limit=limit,
+        )
+        total = repository.count(request.conditions, request.unresolved_field)
+    except (UnknownFieldError, ValueError) as error:
+        raise _bad_field(error) from error  # type: ignore[arg-type]
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+    return GapGroupReport(
+        field=field,
+        mode=mode,  # type: ignore[arg-type]
+        unresolved_field=request.unresolved_field,
+        total_rows=total,
+        groups=[GapGroup(**group) for group in groups],
     )

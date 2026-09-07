@@ -485,3 +485,27 @@ export interface ResolutionRuleApplication {
   finished_at: string | null;
   error_summary: string | null;
 }
+
+/**
+ * Populations of a gap collapsed by the shape of their value.
+ *
+ * Grouping by exact value is what the original worklist did, and it hid the largest
+ * finding in the data: three Volvo spellings read as three unrelated populations among
+ * 97,063, when one leading token accounts for 608,251 cars.
+ */
+export type GapGroupingMode = 'leading_token' | 'character_shape' | 'exact';
+
+export interface GapGroup {
+  label: string;
+  rows: number;
+  distinct_values: number;
+  samples: string[];
+}
+
+export interface GapGroupReport {
+  field: string;
+  mode: GapGroupingMode;
+  unresolved_field: string;
+  total_rows: number;
+  groups: GapGroup[];
+}

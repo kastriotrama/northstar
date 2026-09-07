@@ -413,3 +413,98 @@
 .next-step__hint {
   font-size: 0.72rem !important;
 }
+
+/* --- view switch and gap groups ------------------------------------------------------ */
+
+.viewswitch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.viewswitch button[role='tab'] {
+  border: 1px solid var(--p-surface-200);
+  background: var(--p-surface-0);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.viewswitch button[role='tab']:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.viewswitch__on {
+  background: var(--p-primary-color) !important;
+  border-color: var(--p-primary-color) !important;
+  color: var(--p-primary-contrast-color, #fff) !important;
+  font-weight: 600;
+}
+
+.viewswitch__ctx {
+  font-size: 0.74rem;
+  margin-left: 0.3rem;
+}
+
+.groups__intro {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 7px;
+  padding: 0.5rem 0.65rem;
+}
+
+.group:hover {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50, #eef4ff);
+}
+
+.group:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.group__meta,
+.group__samples {
+  font-size: 0.71rem;
+}
+
+.group__samples {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
