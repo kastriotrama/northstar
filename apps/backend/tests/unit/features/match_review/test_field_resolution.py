@@ -1,4 +1,5 @@
 from api.app.features.match_review.field_resolution import (
+    RESOLVABLE_TARGETS,
     FieldStatus,
     field_status,
     score_discriminator,
@@ -79,3 +80,24 @@ def test_empty_population_does_not_divide_by_zero() -> None:
 
     assert score.usable is False
     assert score.coverage == 0.0
+
+
+def test_every_field_the_projection_can_resolve_is_authorable() -> None:
+    """These were two hand-maintained lists and they drifted apart both ways.
+
+    The screen offered engine_code, power_kw, displacement_cc and production_year
+    because the projection carries them, while rule authoring rejected them on
+    save; and authoring allowed energy_sources and transmission_type, which the
+    projection cannot store, so such a rule would save and then fail when run.
+    """
+
+    from ingestion.vehicle_facts_migrations import RESOLVABLE_FIELDS
+
+    assert set(RESOLVABLE_TARGETS) == set(RESOLVABLE_FIELDS)
+
+
+def test_a_field_without_a_closed_vocabulary_accepts_any_value() -> None:
+    """engine_code has no canonical set, so a rule may assert OM654."""
+
+    assert RESOLVABLE_TARGETS["engine_code"] == ()
+    assert RESOLVABLE_TARGETS["drive_type"] == ("fwd", "rwd", "awd")
