@@ -1,0 +1,64 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Match review</h1>
+      <p class="page__subtitle">Review unresolved TS-to-TecDoc patterns and record a versioned rule proposal without activating the matcher.</p>
+    </div>
+    @if (summary(); as run) {
+      <div class="stats" style="min-width: 520px">
+        <div class="stat"><div class="stat__label">Processed</div><div class="stat__value">{{ run.processed | number }}</div></div>
+        <div class="stat"><div class="stat__label">Progress</div><div class="stat__value">{{ run.progress_percent | number: '1.1-1' }}%</div></div>
+        <div class="stat"><div class="stat__label">Review required</div><div class="stat__value">{{ run.counts['review_required'] | number }}</div></div>
+        <div class="stat"><div class="stat__label">Run</div><div class="stat__hint mono">{{ run.operation_id ?? 'none active' }}</div></div>
+      </div>
+    }
+  </div>
+
+  @if (error(); as message) { <div class="notice notice--error">{{ message }}</div> }
+  @if (!summary()?.operation_id && !loading()) {
+    <div class="notice">No active match-review run is available. Start or resume the full audit before recording pattern-level rule proposals.</div>
+  }
+
+  <div class="toolbar">
+    <p-select [options]="categoryOptions" optionLabel="label" optionValue="value" [ngModel]="category()" (ngModelChange)="category.set($event); loadPatterns()" placeholder="Filter blocker category" [style]="{ minWidth: '260px' }" />
+    <p-button label="Reload" severity="secondary" [outlined]="true" [loading]="loading()" (onClick)="load()" />
+    <span class="muted" style="margin-left: auto">{{ patterns().length | number }} patterns</span>
+  </div>
+
+  <p-table [value]="patterns()" [loading]="loading()" [scrollable]="true" scrollHeight="calc(100vh - 360px)" [rowHover]="true" size="small">
+    <ng-template #header><tr><th>Pattern</th><th>TS evidence</th><th>TecDoc evidence</th><th class="num">Occurrences</th><th>Status</th><th style="width: 90px"></th></tr></ng-template>
+    <ng-template #body let-pattern>
+      <tr>
+        <td><strong>{{ pattern.title }}</strong><div class="muted mono">{{ pattern.category }}</div></td>
+        <td class="truncate" [title]="values(pattern.source_values)">{{ values(pattern.source_values) }}</td>
+        <td class="truncate" [title]="values(pattern.candidate_values)">{{ values(pattern.candidate_values) }}</td>
+        <td class="num">{{ pattern.category_occurrences | number }}</td>
+        <td><p-tag [severity]="statusSeverity(pattern)" [value]="statusLabel(pattern)" /></td>
+        <td><p-button label="Review" [text]="true" size="small" (onClick)="openDecision(pattern)" /></td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage><tr><td colspan="6" class="muted" style="padding: 1rem">No unresolved patterns are available.</td></tr></ng-template>
+  </p-table>
+</section>
+
+<p-dialog header="Pattern review and rule proposal" [visible]="decisionOpen()" (visibleChange)="decisionOpen.set($event)" [modal]="true" [style]="{ width: '820px', maxWidth: '95vw' }" [dismissableMask]="true">
+  @if (selected(); as pattern) {
+    <h2 style="font-size: 1rem; margin-top: 0">{{ pattern.title }}</h2>
+    <p>{{ pattern.summary }}</p>
+    <p class="muted">{{ pattern.why_blocked }}</p>
+    <table class="kv">
+      <tr><td class="kv__key">TS evidence</td><td class="mono">{{ values(pattern.source_values) }}</td></tr>
+      <tr><td class="kv__key">TecDoc evidence</td><td class="mono">{{ values(pattern.candidate_values) }}</td></tr>
+      <tr><td class="kv__key">Evidence still needed</td><td>{{ pattern.evidence_gaps.join('; ') || 'None recorded' }}</td></tr>
+    </table>
+    <div style="display: grid; gap: 0.7rem; margin-top: 1rem">
+      <label style="display: grid; gap: 0.25rem"><span class="muted">Reviewer</span><input pInputText [ngModel]="reviewer()" (ngModelChange)="reviewer.set($event)" /></label>
+      <label style="display: grid; gap: 0.25rem"><span class="muted">Choice</span><p-select [options]="[{label: 'Accept mapping as rule proposal', value: 'accept_pattern'}, {label: 'Keep pattern blocked', value: 'keep_blocked'}, {label: 'Change target value', value: 'change_rule'}]" optionLabel="label" optionValue="value" [ngModel]="action()" (ngModelChange)="action.set($event)" /></label>
+      @if (action() === 'change_rule') {
+        <label style="display: grid; gap: 0.25rem"><span class="muted">Correct target values, comma separated</span><input pInputText [ngModel]="selectedValues()" (ngModelChange)="selectedValues.set($event)" /></label>
+      }
+      <label style="display: grid; gap: 0.25rem"><span class="muted">Evidence note</span><textarea pInputText rows="4" [ngModel]="reason()" (ngModelChange)="reason.set($event)"></textarea></label>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 1rem"><p-button label="Record rule choice" [loading]="saving()" [disabled]="!reviewer() || reason().trim().length < 5 || (action() === 'change_rule' && !selectedValues().trim())" (onClick)="saveDecision()" /></div>
+  }
+</p-dialog>

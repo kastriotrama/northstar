@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "angular-cli": {
+      "command": "npx",
+      "args": ["ng", "mcp"],
+      "cwd": "${workspaceFolder}/apps/northstar-web"
+    }
+  }
+}

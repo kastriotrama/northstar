@@ -1,0 +1,190 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Rules</h1>
+      <p class="page__subtitle">
+        Every normalization rule, browsable for the first time. Unresolved values and
+        versioned rule proposals live in Match review.
+      </p>
+    </div>
+    @if (catalog(); as catalog) {
+      <div class="stats" style="min-width: 420px">
+        <div class="stat">
+          <div class="stat__label">Rules</div>
+          <div class="stat__value">{{ catalog.total | number }}</div>
+          <div class="stat__hint mono">{{ catalog.base_version }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Matching filter</div>
+          <div class="stat__value">{{ catalog.filtered_total | number }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Drafts</div>
+          <div class="stat__value">{{ catalog.draft_count | number }}</div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="toolbar">
+    <input
+      pInputText
+      placeholder="Search rule id, term, manufacturer…"
+      [ngModel]="query()"
+      (ngModelChange)="query.set($event)"
+      (keyup.enter)="search()"
+      style="min-width: 300px"
+    />
+    <p-select
+      [options]="areaOptions()"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="area()"
+      (ngModelChange)="area.set($event); search()"
+      [showClear]="true"
+      placeholder="Any area"
+      [style]="{ minWidth: '200px' }"
+    />
+    <p-select
+      [options]="fieldOptions()"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="canonicalField()"
+      (ngModelChange)="canonicalField.set($event); search()"
+      [showClear]="true"
+      placeholder="Any canonical field"
+      [style]="{ minWidth: '200px' }"
+    />
+    <p-select
+      [options]="decisionOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="decision()"
+      (ngModelChange)="decision.set($event); search()"
+      [showClear]="true"
+      placeholder="Any decision"
+      [style]="{ minWidth: '160px' }"
+    />
+    <p-button label="Search" [loading]="loading()" (onClick)="search()" />
+    <p-button label="Clear" severity="secondary" [text]="true" (onClick)="clear()" />
+    <span style="margin-left: auto">
+    </span>
+  </div>
+
+  <p-table
+    [value]="catalog()?.items ?? []"
+    [lazy]="true"
+    (onLazyLoad)="onLazyLoad($event)"
+    [paginator]="true"
+    [rows]="rows"
+    [first]="first()"
+    [totalRecords]="catalog()?.filtered_total ?? 0"
+    [loading]="loading()"
+    [scrollable]="true"
+    scrollHeight="calc(100vh - 340px)"
+    [rowHover]="true"
+    size="small"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="{first}–{last} of {totalRecords}"
+    dataKey="rule_id"
+  >
+    <ng-template #header>
+      <tr>
+        <th style="width: 110px">Rule</th>
+        <th style="width: 170px">Area</th>
+        <th style="min-width: 200px">Source terms</th>
+        <th style="width: 160px">Canonical field</th>
+        <th style="width: 160px">Value</th>
+        <th style="width: 110px">Decision</th>
+        <th style="min-width: 140px">Manufacturers</th>
+        <th style="width: 70px"></th>
+      </tr>
+    </ng-template>
+    <ng-template #body let-rule>
+      <tr>
+        <td class="mono">{{ rule.rule_id }}</td>
+        <td class="mono muted">{{ rule.area }}</td>
+        <td class="truncate" [title]="rule.source_terms.join(', ')">
+          {{ rule.source_terms.join(', ') }}
+        </td>
+        <td class="mono">{{ rule.canonical_field }}</td>
+        <td class="mono">{{ rule.effective_canonical_value ?? '—' }}</td>
+        <td>
+          <p-tag [severity]="decisionSeverity(rule.effective_decision)" [value]="rule.effective_decision" />
+        </td>
+        <td class="truncate muted" [title]="rule.manufacturers.join(', ')">
+          {{ rule.manufacturers.length ? rule.manufacturers.join(', ') : 'any' }}
+        </td>
+        <td><p-button label="Open" [text]="true" size="small" (onClick)="open(rule)" /></td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="8" class="muted" style="padding: 1rem">No rules matched.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+</section>
+<!-- Rule detail -->
+<p-dialog
+  header="Rule"
+  [visible]="detailOpen()"
+  (visibleChange)="detailOpen.set($event)"
+  [modal]="true"
+  [style]="{ width: '760px', maxWidth: '95vw' }"
+  [dismissableMask]="true"
+>
+  @if (detail(); as rule) {
+    <table class="kv">
+      <tr><td class="kv__key mono">rule_id</td><td class="mono">{{ rule.rule_id }}</td></tr>
+      <tr><td class="kv__key mono">area</td><td class="mono">{{ rule.area }}</td></tr>
+      <tr>
+        <td class="kv__key mono">source_fields</td>
+        <td class="mono">{{ rule.source_fields.join(', ') }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">source_terms</td>
+        <td class="mono">{{ rule.source_terms.join(', ') }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">canonical_field</td>
+        <td class="mono">{{ rule.canonical_field }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">base value</td>
+        <td class="mono">{{ rule.base_canonical_value ?? '—' }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">effective value</td>
+        <td class="mono">{{ rule.effective_canonical_value ?? '—' }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">decision</td>
+        <td class="mono">{{ rule.effective_decision }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">vehicle_scopes</td>
+        <td class="mono">{{ rule.vehicle_scopes.join(', ') || 'any' }}</td>
+      </tr>
+      <tr>
+        <td class="kv__key mono">manufacturers</td>
+        <td class="mono">{{ rule.manufacturers.join(', ') || 'any' }}</td>
+      </tr>
+      @if (rule.change_note) {
+        <tr><td class="kv__key mono">change note</td><td>{{ rule.change_note }}</td></tr>
+      }
+    </table>
+
+    <h3 style="font-size: 0.85rem; margin: 1rem 0 0.35rem">
+      Allowed values for <span class="mono">{{ rule.canonical_field }}</span>
+    </h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.3rem">
+      @for (option of optionsForDetail(); track option) {
+        <span class="mono" style="background: var(--p-surface-100); padding: 0.1rem 0.4rem; border-radius: 4px">
+          {{ option }}
+        </span>
+      }
+    </div>
+  }
+</p-dialog>
+

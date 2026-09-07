@@ -112,3 +112,19 @@
 - Prioritize correctness, regressions, data integrity, authentication, unsafe write paths, and credential exposure.
 - Treat accidental credential persistence as a high-priority issue.
 - Prefer small, verifiable changes over large rewrites.
+
+## Angular Frontend Pattern
+
+- Angular frontend work lives in `apps/northstar-web/` and uses Angular 22 with standalone components.
+- Use Angular CLI commands and keep generated project structure, strict TypeScript, and compiler diagnostics enabled.
+- Use standalone components and route-level lazy loading; do not introduce NgModules for new code.
+- Use signals for local component state, `computed` for derived state, and `effect` only for genuine side effects. Do not use effects to propagate state.
+- Prefer signal-based `input()` and `output()` APIs for component contracts. Use typed models and avoid `any`; use `unknown` at untrusted API boundaries and narrow it before rendering.
+- Prefer `inject()` and Angular DI over constructor-only service wiring. Keep HTTP and business orchestration in injectable services rather than components.
+- Prefer Angular template control flow (`@if`, `@for`, `@switch`) and track stable identities in loops. Keep templates declarative and move transformations into typed component methods, computed signals, or pipes.
+- Prefer `OnPush` change detection for components and avoid manual change-detection calls. Preserve signal-driven updates when adding it to existing screens.
+- Manage observable lifetimes with Angular-supported interop or template bindings; do not create unmanaged subscriptions. Keep API loading, error, and empty states explicit.
+- Keep components focused on presentation and user interaction. Put reusable API access in `src/app/core/`, page-specific UI in `src/app/pages/`, and avoid duplicating backend URL or request-building logic.
+- Use accessible native controls and semantic headings, labels, tables, and dialogs. Preserve keyboard and screen-reader behavior when using Optimus UI components.
+- Add or update focused Angular tests for new behavior. Run `nx build northstar-web` and `nx test northstar-web` from the repository root after frontend changes.
+- Use the Angular CLI MCP server configured in `.vscode/mcp.json` for Angular-aware project inspection and guidance when available.

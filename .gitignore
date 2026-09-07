@@ -11,6 +11,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.nx/
+.angular/
 .coverage
 htmlcov/
 dist/
@@ -19,7 +21,10 @@ build/
 
 .DS_Store
 .idea/
-.vscode/
+**/.vscode/
+!.vscode/
+.vscode/*
+!.vscode/mcp.json
 
 node_modules/
 .next/

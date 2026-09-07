@@ -1,0 +1,318 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">TS records</h1>
+      <p class="page__subtitle">
+        Filter every car in the register, see what the matched set still cannot say about
+        itself, then hand that filter straight to a rule. One row per car.
+      </p>
+    </div>
+    <div class="stats" style="min-width: 340px">
+      <div class="stat">
+        <div class="stat__label">Matched</div>
+        <div class="stat__value">
+          @if (matched() !== null) {
+            {{ matched() | number }}
+          } @else {
+            —
+          }
+        </div>
+        <div class="stat__hint">of {{ total() ?? 0 | number }} cars</div>
+      </div>
+      @if (unresolvedField(); as field) {
+        <div class="stat">
+          <div class="stat__label">Restricted to</div>
+          <div class="stat__value" style="font-size: 0.95rem">unresolved {{ field }}</div>
+          <div class="stat__hint">
+            <button type="button" class="linkish" (click)="onUnresolvedField(null)">
+              show all matched cars
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div class="notice notice--error" role="alert">{{ message }}</div>
+  }
+
+  <!-- ------------------------------------------------------------------- the filter -->
+  <section class="card" aria-labelledby="filter-heading">
+    <div class="card__head">
+      <h2 id="filter-heading" class="card__title">Filter</h2>
+      <span class="muted mono filter-summary">{{ filterLabel() }}</span>
+    </div>
+
+    <div class="chips" role="group" aria-label="Active filter conditions">
+      @for (condition of filter.conditions(); track condition.field + ':' + $index; let i = $index) {
+        @if (i > 0) {
+          <span class="chips__and" aria-hidden="true">AND</span>
+        }
+        <span class="chip">
+          <b class="chip__field">{{ condition.field }}</b>
+          <select
+            class="chip__op-select"
+            [attr.aria-label]="'Operator for ' + condition.field"
+            [value]="condition.operator"
+            (change)="setOperator(condition, $any($event.target).value)"
+          >
+            @for (operator of operators; track operator.value) {
+              <option [value]="operator.value" [selected]="operator.value === condition.operator">
+                {{ operator.label }}
+              </option>
+            }
+          </select>
+          @for (value of condition.values; track value; let v = $index) {
+            @if (v > 0) {
+              <i class="chip__or" aria-hidden="true">or</i>
+            }
+            <span class="chip__value">{{ value }}</span>
+          }
+          <button
+            type="button"
+            class="chip__remove"
+            [attr.aria-label]="'Remove ' + condition.field + ' condition'"
+            (click)="removeCondition(condition)"
+          >
+            ×
+          </button>
+        </span>
+      } @empty {
+        <span class="muted">No conditions — every car in the register.</span>
+      }
+    </div>
+
+    <div class="toolbar">
+      <p-select
+        [options]="facetFields"
+        [ngModel]="draftField()"
+        (ngModelChange)="draftField.set($event)"
+        [filter]="true"
+        ariaLabel="Field to filter on"
+        [style]="{ minWidth: '160px' }"
+      />
+      <select
+        class="chip__op-select"
+        aria-label="Operator for the new condition"
+        [value]="draftOperator()"
+        (change)="draftOperator.set($any($event.target).value)"
+      >
+        @for (operator of operators; track operator.value) {
+          <option [value]="operator.value">{{ operator.label }}</option>
+        }
+      </select>
+      <input
+        pInputText
+        placeholder="value"
+        [ngModel]="draftValue()"
+        (ngModelChange)="draftValue.set($event)"
+        (keyup.enter)="addDraft()"
+        aria-label="Value for the new condition"
+        style="min-width: 190px"
+      />
+      <p-button label="Add condition" size="small" [outlined]="true" (onClick)="addDraft()" />
+      @if (!filter.isEmpty() || unresolvedField()) {
+        <p-button
+          label="Clear"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          (onClick)="clearFilter()"
+        />
+      }
+    </div>
+  </section>
+
+  <div class="explorer">
+    <!-- ------------------------------------------------------------------- sidebar -->
+    <aside class="sidebar">
+      <section class="card" aria-labelledby="gaps-heading">
+        <h2 id="gaps-heading" class="card__title">What this set can't say</h2>
+        <p class="muted card__hint">
+          Fields the matched cars still lack. Pick one to author a rule for it.
+        </p>
+        @if (summaryLoading() && !unresolved().length) {
+          <p class="muted">Counting gaps across the matched set…</p>
+        }
+        <ul class="gaps">
+          @for (gap of unresolved(); track gap.field) {
+            <li class="gap">
+              <div class="gap__head">
+                <strong class="mono">{{ gap.field }}</strong>
+                <span class="num muted">{{ gap.unresolved | number }}</span>
+              </div>
+              <div class="bar">
+                <span class="bar__fill" [style.width.%]="gap.share * 100"></span>
+              </div>
+              <div class="gap__actions">
+                <button
+                  type="button"
+                  class="linkish"
+                  (click)="onUnresolvedField(gap.field)"
+                >
+                  show only these
+                </button>
+                <button type="button" class="linkish linkish--strong" (click)="resolve(gap.field)">
+                  Resolve →
+                </button>
+              </div>
+            </li>
+          } @empty {
+            @if (!summaryLoading()) {
+              <li class="muted">Every resolvable field is filled for this set.</li>
+            }
+          }
+        </ul>
+      </section>
+
+      <section class="card" aria-labelledby="facet-heading">
+        <div class="card__head">
+          <h2 id="facet-heading" class="card__title">What varies</h2>
+          <p-select
+            [options]="facetFields"
+            [ngModel]="facetField()"
+            (ngModelChange)="onFacetField($event)"
+            [filter]="true"
+            ariaLabel="Field to break down by"
+            [style]="{ minWidth: '130px' }"
+          />
+        </div>
+        @if (facet(); as breakdown) {
+          <div class="spread__values">
+            @for (entry of breakdown.values; track entry.value) {
+              <button
+                type="button"
+                class="vchip"
+                [class.vchip--selected]="covers(entry.value)"
+                [attr.aria-pressed]="covers(entry.value)"
+                (click)="toggleFacetValue(entry.value)"
+              >
+                <span class="vchip__value">{{ entry.value }}</span>
+                <span class="vchip__count num">{{ entry.count | number }}</span>
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="muted">—</p>
+        }
+      </section>
+    </aside>
+
+    <!-- ---------------------------------------------------------------------- list -->
+    <div class="results">
+      <p-table [value]="rows()" [scrollable]="true" scrollHeight="60vh" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Plate</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>Variant</th>
+            <th class="num">Year</th>
+            <th class="num">kW</th>
+            <th>Status</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
+          <tr
+            (click)="open(row)"
+            [class.row--active]="detail()?.source_record_id === row.source_record_id"
+            style="cursor: pointer"
+          >
+            <td class="mono">{{ row.plate }}</td>
+            <td class="truncate">{{ row.brand }}</td>
+            <td class="truncate">{{ row.model }}</td>
+            <td class="truncate">{{ row.variant }}</td>
+            <td class="num">{{ row.vehicle_year }}</td>
+            <td class="num">{{ row.kw }}</td>
+            <td>
+              <p-tag
+                [value]="row.norm_status ?? '—'"
+                [severity]="row.norm_status === 'resolved' ? 'success' : 'warn'"
+              />
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="7" class="muted" style="padding: 1rem">
+              @if (loading()) {
+                Loading…
+              } @else {
+                No cars match this filter.
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+
+      <div class="toolbar">
+        <p-button
+          label="Previous"
+          size="small"
+          [outlined]="true"
+          [disabled]="!canPrevious() || loading()"
+          (onClick)="previous()"
+        />
+        <span class="muted">Page {{ pageIndex() + 1 }}</span>
+        <p-button
+          label="Next"
+          size="small"
+          [outlined]="true"
+          [disabled]="!hasMore() || loading()"
+          (onClick)="next()"
+        />
+      </div>
+    </div>
+
+    <!-- -------------------------------------------------------------- record panel -->
+    @if (detail(); as record) {
+      <aside class="record" aria-label="Vehicle detail">
+        <div class="record__head">
+          <div>
+            <strong class="mono">{{ record.plate }}</strong>
+            <span class="muted mono record__vin">{{ record.vin }}</span>
+          </div>
+          <div class="record__nav">
+            <button type="button" aria-label="Previous car" (click)="step(-1)">←</button>
+            <button type="button" aria-label="Next car" (click)="step(1)">→</button>
+            <button type="button" aria-label="Close" (click)="closeDetail()">×</button>
+          </div>
+        </div>
+        <p class="muted mono record__batch">{{ record.source_batch_id }}</p>
+
+        <table class="record__fields">
+          <tbody>
+            @for (field of record.fields; track field.field) {
+              <tr>
+                <td class="mono muted">{{ field.source_field ?? '—' }}</td>
+                <td class="mono">{{ field.source_value ?? '—' }}</td>
+                <td class="record__arrow" aria-hidden="true">→</td>
+                <td class="mono">{{ field.field }}</td>
+                <td>
+                  @if (field.status === 'unresolved') {
+                    <button
+                      type="button"
+                      class="linkish linkish--strong"
+                      (click)="resolveFrom(field.field, field.source_field, field.source_value)"
+                    >
+                      Resolve →
+                    </button>
+                  } @else {
+                    <span class="mono">{{
+                      field.normalized_value ?? field.resolved_value
+                    }}</span>
+                    <p-tag
+                      [value]="field.status === 'rule_resolved' ? 'by rule' : 'ok'"
+                      [severity]="statusSeverity(field.status)"
+                    />
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </aside>
+    }
+  </div>
+</section>
