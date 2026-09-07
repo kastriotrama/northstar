@@ -13,6 +13,7 @@ from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.normalization_migrations import run_normalization_migrations
 from ingestion.normalization_service import normalize_batch
 from ingestion.review_queue_migrations import run_review_queue_migrations
+from ingestion.rule_definition_migrations import run_rule_definition_migrations
 from ingestion.staging_migrations import run_staging_migrations
 from ingestion.tecdoc.extraction import extract_vehicle_tree
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
@@ -299,6 +300,7 @@ class NormalizeTransportstyrelsenJob:
                 run_review_queue_migrations(connection)
                 run_job_bookkeeping_migrations(connection)
                 run_normalization_migrations(connection)
+                run_rule_definition_migrations(connection)
                 rule_set, manufacturer_entity_rules = load_active_rules(connection)
                 summary = normalize_batch(
                     connection,
