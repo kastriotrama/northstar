@@ -28,6 +28,12 @@ from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_definition_migrations import run_rule_definition_migrations
 from ingestion.rule_delta import export_rule_delta
+from ingestion.tecdoc.canonical_rule_migrations import run_tecdoc_rule_migrations
+from ingestion.tecdoc.canonical_rule_proposals import (
+    generate_rules,
+    scan_observations,
+    store_rules,
+)
 from ingestion.tecdoc.match_run_adapters import (
     TecDocDryRunEvaluator,
     fetch_normalized_ts_page,
@@ -135,6 +141,40 @@ def build_parser() -> argparse.ArgumentParser:
         "--commit",
         action="store_true",
         help="Apply the seed and write the graph. Omitted means dry run.",
+    )
+
+    tecdoc_rule_parser = subparsers.add_parser(
+        "generate-tecdoc-rules",
+        help=(
+            "Scan a promoted TecDoc batch for every distinct value it holds and "
+            "generate one reviewable rule per value. Writes nothing without "
+            "--commit. Generation never accepts a rule it did not read from a "
+            "reviewed mapping."
+        ),
+    )
+    tecdoc_rule_parser.add_argument(
+        "--batch-id", required=True, help="Promoted TecDoc batch to scan."
+    )
+    tecdoc_rule_parser.add_argument(
+        "--tecdoc-release",
+        required=True,
+        help="The catalog release the batch came from, e.g. tecdoc-0326.",
+    )
+    tecdoc_rule_parser.add_argument(
+        "--rule-version",
+        required=True,
+        help="Name for the sealed version this scan produces.",
+    )
+    tecdoc_rule_parser.add_argument(
+        "--generated-by", required=True, help="Actor accountable for the generation."
+    )
+    tecdoc_rule_parser.add_argument(
+        "--source-note", required=True, help="Why this version was generated."
+    )
+    tecdoc_rule_parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="Seal the generated version. Omitted means dry run.",
     )
 
     dedupe_parser = subparsers.add_parser(
@@ -462,6 +502,55 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+
+    if args.command == "generate-tecdoc-rules":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_tecdoc_rule_migrations(connection)
+                observations = scan_observations(connection, batch_id=args.batch_id)
+                report = generate_rules(observations)
+                stored = (
+                    store_rules(
+                        connection,
+                        report.rules,
+                        rule_version=args.rule_version,
+                        tecdoc_release=args.tecdoc_release,
+                        generated_by=args.generated_by,
+                        source_note=args.source_note,
+                    )
+                    if args.commit
+                    else {"dry_run": 1}
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "TecDoc rule generation stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "rule_version": args.rule_version,
+                    "tecdoc_release": args.tecdoc_release,
+                    "committed": bool(args.commit),
+                    "observed_values": len(observations),
+                    "rules": len(report.rules),
+                    "accepted": len(report.accepted),
+                    "proposed": len(report.proposed),
+                    "unmapped": len(report.unmapped),
+                    "coverage": round(report.coverage(), 6),
+                    "coverage_by_field": {
+                        canonical_field: round(value, 6)
+                        for canonical_field, value in report.coverage_by_field().items()
+                    },
+                    "unused_reviewed_mappings": len(report.unused_reviewed_mappings),
+                    "store": stored,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
 
     if args.command == "dedupe-vehicle-facts":
         datastores = DatastoreClients.from_settings(settings)

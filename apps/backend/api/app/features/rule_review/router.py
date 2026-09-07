@@ -54,6 +54,14 @@ def list_rule_catalog(
     decision: str | None = Query(default=None, max_length=40),
     origin: Literal["catalog", "code", "resolution"] | None = Query(default=None),
     transformer_id: str | None = Query(default=None, max_length=80),
+    source: Literal["transportstyrelsen", "tecdoc"] | None = Query(default=None),
+    include_inventory: bool = Query(
+        default=False,
+        description=(
+            "Include TecDoc model names and manufacturers. They have no closed "
+            "vocabulary, cannot gain a target, and outnumber every other rule."
+        ),
+    ),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> RuleCatalogResponse:
@@ -65,6 +73,8 @@ def list_rule_catalog(
             decision=decision,
             origin=origin,
             transformer_id=transformer_id,
+            source=source,
+            include_inventory=include_inventory,
             limit=limit,
             offset=offset,
         )

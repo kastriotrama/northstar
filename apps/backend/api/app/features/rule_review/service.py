@@ -88,6 +88,8 @@ class RuleReviewService:
         decision: str | None = None,
         origin: str | None = None,
         transformer_id: str | None = None,
+        source: str | None = None,
+        include_inventory: bool = False,
         limit: int = 100,
         offset: int = 0,
     ) -> RuleCatalogResponse:
@@ -159,6 +161,17 @@ class RuleReviewService:
         ]
         entries.extend(resolution)
 
+        tecdoc_version, tecdoc_rows = self._repository.fetch_tecdoc_rules()
+        tecdoc = [self._tecdoc_entry(rule) for rule in tecdoc_rows]
+        tecdoc_inventory_total = sum(1 for entry in tecdoc if entry.inventory_only)
+        # Inventory rows are the model names and manufacturers TecDoc holds. They
+        # outnumber every other rule roughly forty to one and none of them can ever
+        # gain a target, so including them by default would bury the rules a reviewer
+        # can actually act on. They stay one filter click away.
+        if not include_inventory:
+            tecdoc = [entry for entry in tecdoc if not entry.inventory_only]
+        entries.extend(tecdoc)
+
         total = len(entries)
         term = query.strip().lower()
         if term:
@@ -185,6 +198,8 @@ class RuleReviewService:
             entries = [entry for entry in entries if entry.origin == origin]
         if transformer_id:
             entries = [entry for entry in entries if entry.transformer_id == transformer_id]
+        if source:
+            entries = [entry for entry in entries if entry.source == source]
 
         filtered_total = len(entries)
         page = entries[offset : offset + limit]
@@ -200,6 +215,9 @@ class RuleReviewService:
             catalog_total=catalog_total,
             code_total=len(embedded),
             resolution_total=len(resolution),
+            tecdoc_total=len(tecdoc),
+            tecdoc_inventory_total=tecdoc_inventory_total,
+            tecdoc_rule_version=tecdoc_version,
             pipeline_version=PIPELINE_VERSION,
             limit=limit,
             offset=offset,
@@ -207,11 +225,13 @@ class RuleReviewService:
                 {rule.area for rule in self._base.rules}
                 | {entry.area for entry in embedded}
                 | {entry.area for entry in resolution}
+                | {entry.area for entry in tecdoc}
             ),
             canonical_fields=sorted(
                 {rule.canonical_field for rule in self._base.rules}
                 | {entry.canonical_field for entry in embedded}
                 | {entry.canonical_field for entry in resolution}
+                | {entry.canonical_field for entry in tecdoc}
             ),
             canonical_options_by_field=self._canonical_options(),
             transformers=[
@@ -277,6 +297,69 @@ class RuleReviewService:
             origin="resolution",
             editable=False,
             notes=f"Authored by {rule['author']} on the projection. {counts}{note}",
+        )
+
+    @staticmethod
+    def _tecdoc_entry(rule: dict[str, Any]) -> RuleCatalogEntry:
+        """Render one generated TecDoc rule as a catalog row.
+
+        TecDoc and Transportstyrelsen are peers: each is normalized into the same
+        canonical vocabulary and written to the same graph, so their rules belong in
+        one list. The shapes differ in what each source actually has -- a TecDoc rule
+        carries a key table and a support count, a TS rule carries vehicle scopes --
+        and the fields with no counterpart stay empty rather than being invented.
+
+        Not editable here. These rules live in a sealed, immutable version; a
+        correction is a new generation, not an edit, exactly as it is for the TS
+        rule definitions.
+        """
+
+        reason = str(rule["evidence"].get("reason") or "")
+        support = int(rule["support"])
+        notes = [f"{support:,} rows in the scanned release carry this value."]
+        if rule["key_table"]:
+            notes.append(f"TecDoc key table {rule['key_table']}.")
+        if reason == "unmapped":
+            notes.append(
+                "No reviewed mapping and no canonical token covers it, so it reaches "
+                "the graph unnormalized until a reviewer rules on it."
+            )
+        elif reason == "mixed_descriptor":
+            components = ", ".join(str(c) for c in rule["evidence"].get("components", []))
+            notes.append(
+                f"A mixed descriptor naming {components}. It states a capability, not "
+                "the fuel this vehicle uses, so it resolves to nothing on purpose."
+            )
+        elif reason == "exact_canonical_spelling":
+            notes.append(
+                "The catalog value already spells a canonical token. Still a proposal: "
+                "matching spellings is not evidence of matching meaning."
+            )
+        elif reason == "open_vocabulary":
+            notes.append(
+                "Listed for completeness only. This field has no closed vocabulary, so "
+                "generation never assigns it a target."
+            )
+
+        return RuleCatalogEntry(
+            rule_id=rule["rule_id"],
+            area=rule["area"],
+            source_fields=[f"{rule['entity_type']}.{rule['source_field']}"],
+            source_terms=[rule["source_term"]],
+            canonical_field=rule["canonical_field"],
+            base_canonical_value=rule["canonical_value"],
+            effective_canonical_value=rule["canonical_value"],
+            effective_decision=rule["decision"],
+            origin=(
+                "reviewed_mapping"
+                if rule["derivation"] == "reviewed_mapping"
+                else "generated"
+            ),
+            source="tecdoc",
+            support=support,
+            inventory_only=reason == "open_vocabulary",
+            editable=False,
+            notes=" ".join(notes),
         )
 
     @staticmethod

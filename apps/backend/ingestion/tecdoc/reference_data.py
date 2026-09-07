@@ -202,14 +202,82 @@ def official_drive_type_labels(reference_directory: Path) -> dict[str, str]:
     return load_key_table_labels(reference_directory, key_table_id="082")
 
 
+_DRIVE_CANONICAL_BY_KT082: dict[str, str] = {
+    "001": "fwd",
+    "002": "rwd",
+    "003": "awd",
+    "004": "awd",
+    "005": "awd",
+    "011": "awd",
+}
+
+
 def canonical_drive_by_kt082() -> dict[str, str]:
     """Map only wheel-drive classifications to NorthStar drive vocabulary."""
 
-    return {
-        "001": "fwd",
-        "002": "rwd",
-        "003": "awd",
-        "004": "awd",
-        "005": "awd",
-        "011": "awd",
-    }
+    return dict(_DRIVE_CANONICAL_BY_KT082)
+
+
+@dataclass(frozen=True)
+class ReviewedMapping:
+    """One reviewed TecDoc lookup, described so it can be listed and generated from.
+
+    The TS side registers every lookup it consults in `normalization_catalog`, and
+    a test fails when one is added without being registered. The TecDoc side had
+    no such registry: these dictionaries changed a value on its way into the graph
+    with nothing to show for it. Registering them here gives the rule generator its
+    input and gives `test_tecdoc_canonical_rules` something to check.
+    """
+
+    name: str
+    #: The module-level dict this mapping reads. Named rather than inferred so
+    #: the completeness guard can compare two exact sets instead of two counts.
+    constant: str
+    key_table: str | None
+    canonical_field: str
+    #: True when one label yields several canonical components rather than one
+    #: value -- a mixed fuel descriptor, not a scalar.
+    multi_valued: bool = False
+
+
+def reviewed_engine_fuel_labels() -> dict[str, str]:
+    """KT 088/182 official label -> one canonical NorthStar energy source."""
+
+    return dict(_ENGINE_FUEL_LABELS)
+
+
+def reviewed_mixed_engine_fuel_labels() -> dict[str, tuple[str, ...]]:
+    """KT 088 mixed descriptor -> the canonical components it names.
+
+    A mixed descriptor is evidence of capability, never authority to pick one
+    fuel; `EngineFuelEvidence` keeps that distinction and so must any caller.
+    """
+
+    return dict(_MIXED_ENGINE_FUEL_LABELS)
+
+
+#: Every reviewed TecDoc lookup that produces a canonical NorthStar value.
+#: Add a mapping above and it must be added here too, or the completeness test
+#: fails -- the TecDoc equivalent of the TS catalog's hidden-transformer guard.
+REVIEWED_MAPPINGS: tuple[ReviewedMapping, ...] = (
+    ReviewedMapping("engine_fuel_labels", "_ENGINE_FUEL_LABELS", "088", "energy_sources"),
+    ReviewedMapping(
+        "mixed_engine_fuel_labels", "_MIXED_ENGINE_FUEL_LABELS", "088",
+        "energy_sources", multi_valued=True,
+    ),
+    ReviewedMapping("bodywork_by_kt086", "_BODYWORK_CANONICAL_BY_KT086", "086", "bodywork_form"),
+    ReviewedMapping("drive_by_kt082", "_DRIVE_CANONICAL_BY_KT082", "082", "drive_type"),
+)
+
+
+def reviewed_mapping_values() -> dict[str, set[str]]:
+    """Canonical values the reviewed TecDoc mappings produce, by canonical field."""
+
+    values: dict[str, set[str]] = {}
+    for canonical in _ENGINE_FUEL_LABELS.values():
+        values.setdefault("energy_sources", set()).add(canonical)
+    for components in _MIXED_ENGINE_FUEL_LABELS.values():
+        values.setdefault("energy_sources", set()).update(components)
+    values.setdefault("bodywork_form", set()).update(_BODYWORK_CANONICAL_BY_KT086.values())
+    values.setdefault("drive_type", set()).update(canonical_drive_by_kt082().values())
+    return values

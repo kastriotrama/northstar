@@ -122,10 +122,22 @@ class RuleCatalogEntry(BaseModel):
     manufacturers: list[str] = Field(default_factory=list)
     has_draft: bool = False
     change_note: str | None = None
-    origin: Literal["catalog", "code", "resolution"] = "catalog"
+    origin: Literal[
+        "catalog", "code", "resolution", "reviewed_mapping", "generated"
+    ] = "catalog"
     transformer_id: str | None = None
     editable: bool = True
     notes: str | None = None
+    #: Which dataset this rule normalizes. Both sources are normalized into the
+    #: same canonical vocabulary, so they belong in one list rather than two.
+    source: Literal["transportstyrelsen", "tecdoc"] = "transportstyrelsen"
+    #: Rows carrying this source value in the scanned release. TecDoc rules only;
+    #: a TS catalog rule is a naming fact and has no support count.
+    support: int | None = None
+    #: True for a value listed only so the catalogue is complete -- a model name
+    #: or manufacturer, on a field with no closed vocabulary to resolve against.
+    #: These outnumber every other rule and are hidden unless asked for.
+    inventory_only: bool = False
 
 
 class TransformerStageView(BaseModel):
@@ -155,6 +167,9 @@ class RuleCatalogResponse(BaseModel):
     catalog_total: int = 0
     code_total: int = 0
     resolution_total: int = 0
+    tecdoc_total: int = 0
+    tecdoc_inventory_total: int = 0
+    tecdoc_rule_version: str | None = None
     pipeline_version: str = ""
     areas: list[str] = Field(default_factory=list)
     canonical_fields: list[str] = Field(default_factory=list)
