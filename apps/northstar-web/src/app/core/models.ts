@@ -154,6 +154,8 @@ export interface TecDocEntityPage {
   items: TecDocEntity[];
 }
 
+export type RuleOrigin = 'catalog' | 'code' | 'resolution';
+
 export interface RuleCatalogEntry {
   rule_id: string;
   area: string;
@@ -168,6 +170,24 @@ export interface RuleCatalogEntry {
   manufacturers: string[];
   has_draft: boolean;
   change_note: string | null;
+  origin: RuleOrigin;
+  transformer_id: string | null;
+  editable: boolean;
+  notes: string | null;
+}
+
+export interface TransformerStage {
+  transformer_id: string;
+  order: number;
+  default_rule_id: string;
+  summary: string;
+  source_fields: string[];
+  writes: string[];
+  rule_areas: string[];
+  code_areas: string[];
+  catalog_rule_count: number;
+  code_rule_count: number;
+  review_reasons: string[];
 }
 
 export interface RuleCatalogResponse {
@@ -176,11 +196,16 @@ export interface RuleCatalogResponse {
   draft_count: number;
   total: number;
   filtered_total: number;
+  catalog_total: number;
+  code_total: number;
+  resolution_total: number;
+  pipeline_version: string;
   limit: number;
   offset: number;
   areas: string[];
   canonical_fields: string[];
   canonical_options_by_field: Record<string, string[]>;
+  transformers: TransformerStage[];
   items: RuleCatalogEntry[];
 }
 
@@ -484,4 +509,28 @@ export interface ResolutionRuleApplication {
   started_at: string;
   finished_at: string | null;
   error_summary: string | null;
+}
+
+/**
+ * Populations of a gap collapsed by the shape of their value.
+ *
+ * Grouping by exact value is what the original worklist did, and it hid the largest
+ * finding in the data: three Volvo spellings read as three unrelated populations among
+ * 97,063, when one leading token accounts for 608,251 cars.
+ */
+export type GapGroupingMode = 'leading_token' | 'character_shape' | 'exact';
+
+export interface GapGroup {
+  label: string;
+  rows: number;
+  distinct_values: number;
+  samples: string[];
+}
+
+export interface GapGroupReport {
+  field: string;
+  mode: GapGroupingMode;
+  unresolved_field: string;
+  total_rows: number;
+  groups: GapGroup[];
 }

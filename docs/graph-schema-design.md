@@ -868,3 +868,112 @@ checked against:
       may temporarily omit one.
 - [ ] Pairing-specific facts (power, torque, emission standard) are on
       edges, never copied onto component nodes.
+
+## 10. Proposed v0.5 amendments (draft — NOT accepted)
+
+| Field | Value |
+|---|---|
+| Status | Draft proposals under stakeholder review |
+| Origin | TS translation work (SCRUM-74…81), stakeholder search requirements (SCRUM-80), TS stakeholder guide (2026-07-22), user-searches document (Erik) |
+| Rule | Nothing in this section is contract. A proposal becomes contract only when moved into §§3–8 with its constraints, migrations, and contract tests updated in the same PR. |
+
+The v0.4 contract above remains the only accepted schema. This section
+records proposed changes and — equally important — proposals that were
+evaluated and **not** adopted, so the same debates are not reopened without
+new evidence.
+
+### 10.1 A1 — Bodywork replaces BodyType
+
+**Driver.** The stakeholder bodywork search ("user only wants to find a
+bodywork, not a complete vehicle… the specific bodywork with data, and all
+vehicle variants using that bodywork") cannot be answered by a global
+nine-value vocabulary node. A shared `sedan` node is not a findable artifact
+with its own data.
+
+**Proposal.** Replace `BodyType` with `Bodywork`: a specific physical body
+configuration. Keeps the `BDY-` prefix. Proposed properties:
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `form` | enum from the Epic 4 body dictionary | required | Replaces `canonical_name`; vocabulary discipline is preserved |
+| `door_count` | int | nullable | |
+| `roof_style` | string | nullable | Dictionary-controlled when the vocabulary exists |
+| `wheelbase_mm` | int | nullable | |
+
+Registry body codes (TS `body_code`) remain `Alias` nodes
+(`alias_type: "body_code"`) targeting `Bodywork`. `HAS_BODY` retargets to
+`Bodywork` with unchanged direction and cardinality.
+
+**Open design point.** The search path "manufacturer → family → list of
+bodyworks" can be served by traversal through variants, or by an explicit
+Bodywork-to-Platform relationship. Decide with real query fixtures before
+acceptance.
+
+### 10.2 A2 — Engine code semantics and Phase 1 family properties
+
+**Driver.** §3.4 currently describes `engine_code` as the "manufacturer
+engine family code" with example `OM642` — a family-level code. The
+translation register requires the family and the exact engine to stay
+separate (the Volvo "D5" problem).
+
+**Proposal.**
+
+- `engine_code` means the **exact** engine design/version code. Never fill
+  it with a family badge or a guessed value.
+- Add nullable `engine_family_code` (normalized within manufacturer context,
+  not globally unique) and `engine_family_name` (approved canonical name).
+- A family badge alone (TS text "D5") never creates a confirmed Engine; the
+  variant stays provisional with the badge retained as evidence.
+- Post-Phase-1: one `EngineFamily` node per manufacturer and normalized
+  family code, connected from each Engine by a new relationship whose name
+  is chosen per §5.4 at acceptance time. The relationship names removed by
+  SCRUM-13 remain banned by the doc contract tests and must not return.
+
+### 10.3 A3 — Engine attribution to Manufacturer
+
+**Driver.** The engine-code search is scoped by manufacturer first, but
+`Engine` has no path to `Manufacturer` except through variants (four hops,
+and undefined for an Engine not yet used by any variant).
+
+**Proposal.** Permit `MADE_BY` with start label `Engine`
+(`Engine → Manufacturer`), reusing the existing name and direction
+convention. Alternative if rejected: accept the variant-traversal cost and
+document it as a query pattern. Needs a decision before the engine search
+story starts.
+
+### 10.4 A4 — TEXT indexes for prefix search
+
+**Driver.** The engine-code search requires autocomplete ("write M54, show
+all engines starting with M54"). The §8.2 lookup indexes are range indexes
+tuned for equality, not `STARTS WITH`.
+
+**Proposal.** Add Neo4j `TEXT` indexes on `Alias.alias_text` and
+`Engine.engine_code`. Owned by SCRUM-15 when accepted; names join the §8
+stable-name contract.
+
+### 10.5 A5 — Electrification granularity
+
+**Driver.** The search-synonym register requires distinguishing mild, full,
+and plug-in hybrid; `Engine.fuel_type` cannot express MHEV vs PHEV.
+
+**Proposal.** Keep `fuel_type` stable; add a nullable
+`electrification` enum(`none`, `mhev`, `hev`, `phev`) property, populated
+only from structured evidence (marketing text such as "48V" or "eTSI" stays
+a candidate until confirmed).
+
+### 10.6 A6 — Body vocabulary additions
+
+The Epic 4 body dictionary must grow to cover TS registry codes that the
+current list cannot express: `mpv`, `bus`, `minibus`, `camper`, and the
+"Decision required" rows of the translation register (TS codes `AB`, `AC`,
+`AF`, `20`, `BA`). Dictionary work, not schema work — recorded here because
+§3.6 names the current closed list.
+
+### 10.7 Evaluated and NOT adopted
+
+| Proposal (source: TS stakeholder guide, 2026-07-22) | Decision | Reason |
+|---|---|---|
+| `KType` as its own node with a `VehicleVariant → IDENTIFIED_BY → KType` edge | Rejected | k-type stays an `Alias` with `REFERS_TO` (§3.8). One resolution mechanism for plate/VIN/k-type/engine-code; identity, confidence, and constraints already exist and are tested. |
+| At most one k-type per variant (0..1) | Rejected | TecDoc splits finer than we do in places; multiple k-type aliases may target one variant. The true invariant already holds in the other direction: each k-type Alias has exactly one live target. |
+| `USES_ENGINE` / `USES_TRANSMISSION` as 0..many with per-source, market, and validity-date edge properties | Not adopted (open question) | Conflicts with the §5.1 singular-fact rule and the variant definition ("materially different powertrain = different variant"). Reopen only with real records showing one business-visible variant with several engine options — stakeholder question tracked in SCRUM-80. Hybrid dual-power-units are a modeling question, not a cardinality question. |
+| `source` provenance properties on canonical domain edges | Rejected | Provenance is owned by the enrichment ledger (SCRUM-17); parallel per-source edges break idempotent re-ingestion (§5.1). |

@@ -10,7 +10,9 @@ from ingestion.normalization_pipeline import NormalizationContext, Transformer
 
 TEXT_CANONICALIZATION_VERSION = "text-canonicalization-v1"
 
-_NAME_FIELDS = frozenset(
+#: Public because the rule catalog lists which fields each canonicalization rule
+#: touches. Narrowing one of these silently changes what every later stage reads.
+NAME_FIELDS = frozenset(
     {
         "manufacturer",
         "base_manufacturer",
@@ -23,7 +25,7 @@ _NAME_FIELDS = frozenset(
         "version",
     }
 )
-_CODE_FIELDS = frozenset(
+CODE_FIELDS = frozenset(
     {
         "body_code",
         "body_code2",
@@ -42,9 +44,9 @@ _CODE_FIELDS = frozenset(
         "text_code",
     }
 )
-_TEXT_FIELDS = (
-    _NAME_FIELDS
-    | _CODE_FIELDS
+TEXT_FIELDS = (
+    NAME_FIELDS
+    | CODE_FIELDS
     | frozenset(
         {
             "build_date",
@@ -75,22 +77,22 @@ _SAFE_PUNCTUATION_TRANSLATION = str.maketrans(
 def canonicalize_text(field_name: str, value: object) -> str | None:
     """Return canonical text for an allow-listed field without guessing meaning."""
 
-    if field_name not in _TEXT_FIELDS or not isinstance(value, str):
+    if field_name not in TEXT_FIELDS or not isinstance(value, str):
         return None
     canonical = unicodedata.normalize("NFKC", value)
     canonical = _WHITESPACE.sub(" ", canonical).strip()
-    if field_name in _NAME_FIELDS:
+    if field_name in NAME_FIELDS:
         canonical = canonical.translate(_SAFE_PUNCTUATION_TRANSLATION)
-    elif field_name in _CODE_FIELDS:
+    elif field_name in CODE_FIELDS:
         canonical = canonical.upper()
     return canonical or None
 
 
 def _applied_rule_ids(field_name: str, before: str, after: str) -> tuple[str, ...]:
     rules = ["TXT-NFKC-V1", "TXT-WHITESPACE-V1"]
-    if field_name in _NAME_FIELDS:
+    if field_name in NAME_FIELDS:
         rules.append("TXT-PUNCT-SAFE-V1")
-    if field_name in _CODE_FIELDS:
+    if field_name in CODE_FIELDS:
         rules.append("TXT-CASE-CODE-V1")
     return tuple(rules) if before != after else ()
 
@@ -103,7 +105,7 @@ class TextCanonicalizationTransformer(Transformer):
     order: int = 5
 
     def apply(self, context: NormalizationContext) -> None:
-        for field_name in sorted(_TEXT_FIELDS):
+        for field_name in sorted(TEXT_FIELDS):
             before = context.canonical_record.get(field_name)
             if not isinstance(before, str):
                 continue

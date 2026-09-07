@@ -38,9 +38,28 @@
   @if (advice(); as suggestion) {
     <div class="advice" [class.advice--confident]="suggestion.confident">
       <p class="advice__head">
-        Suggested by {{ advisorLabel(suggestion) }} —
-        {{ suggestion.confident ? 'evidence supports a value' : 'needs evidence for the value' }}
+        Suggested by {{ advisorLabel(suggestion) }}
       </p>
+      @if (suggestion.target_value) {
+        <p class="advice__value">
+          <span class="mono">{{ suggestion.target_field }} = {{ suggestion.target_value }}</span>
+          @if (suggestion.confident) {
+            <p-tag value="OEM evidence agrees" severity="success" />
+          } @else {
+            <!-- Reasoned from the established identity, not from purchased evidence.
+                 Worth showing and worth labelling: Preview and Save are the gate. -->
+            <p-tag value="unverified — check it" severity="warn" />
+          }
+        </p>
+        <p-button
+          label="Use this value"
+          size="small"
+          [outlined]="true"
+          (onClick)="onTargetValue(suggestion.target_value)"
+        />
+      } @else {
+        <p class="advice__value muted">No value proposed — the block is still ambiguous.</p>
+      }
       <p class="advice__reasoning">{{ suggestion.reasoning }}</p>
     </div>
   }

@@ -90,3 +90,31 @@ class VehicleDetail(BaseModel):
     norm_status: str | None
     source_batch_id: str | None
     fields: list[VehicleFieldStatus]
+
+
+class AdviseRequest(VehicleFilter):
+    """Ask for a rule over the filtered population.
+
+    Unlike the build-scoped advisor this replaces, the population is whatever the
+    filter describes, so the model reasons about the cars on screen rather than
+    a 226,529-row slice of them.
+    """
+
+    target_field: str = Field(min_length=1, max_length=60)
+
+
+class GapGroup(BaseModel):
+    """One shape of value, and how much of the gap it accounts for."""
+
+    label: str
+    rows: int
+    distinct_values: int
+    samples: list[str]
+
+
+class GapGroupReport(BaseModel):
+    field: str
+    mode: Literal["leading_token", "character_shape", "exact"]
+    unresolved_field: str
+    total_rows: int
+    groups: list[GapGroup]

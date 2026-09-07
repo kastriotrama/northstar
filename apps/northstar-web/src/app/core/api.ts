@@ -34,6 +34,8 @@ import type {
   VehicleFacet,
   VehicleFilterRequest,
   VehiclePage,
+  GapGroupingMode,
+  GapGroupReport,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -126,6 +128,8 @@ export class Api {
     area?: string | null;
     canonicalField?: string | null;
     decision?: string | null;
+    origin?: string | null;
+    transformerId?: string | null;
     limit?: number;
     offset?: number;
   }): Observable<RuleCatalogResponse> {
@@ -137,6 +141,8 @@ export class Api {
           area: options.area,
           canonical_field: options.canonicalField,
           decision: options.decision,
+          origin: options.origin,
+          transformer_id: options.transformerId,
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,
         }),
@@ -246,13 +252,19 @@ export class Api {
     });
   }
 
-  /** Suggests a rule. Writes nothing -- the proposal still has to be previewed. */
-  adviseRule(body: {
-    build_id: string;
-    source_field: string;
-    source_value: string;
+  /**
+   * Suggests a rule for the filtered population. Writes nothing.
+   *
+   * Scoped by the filter rather than by a match-chunk build, so the model reasons
+   * about the cars on screen. The build-scoped advisor it replaces saw a 226,529-row
+   * slice, and reported "nothing to separate this" for populations that separate
+   * perfectly well across the whole register.
+   */
+  adviseForFilter(body: {
+    conditions: RuleCondition[];
+    target_field: string;
   }): Observable<RuleAdvice> {
-    return this.http.post<RuleAdvice>(`${this.base}/v1/match-review/unresolved/advise`, body);
+    return this.http.post<RuleAdvice>(`${this.base}/v1/vehicles/advise`, body);
   }
 
   targetVocabulary(buildId: string, targetField: string): Observable<TargetVocabulary> {
@@ -377,5 +389,23 @@ export class Api {
 
   vehicleDetail(sourceRecordId: number): Observable<VehicleDetail> {
     return this.http.get<VehicleDetail>(`${this.base}/v1/vehicles/${sourceRecordId}`);
+  }
+  /**
+   * Where a gap lives, grouped by the shape of the value rather than its text.
+   *
+   * "Which cars are these" and "where is the leverage" are different questions, and an
+   * exact-value list can only answer the first.
+   */
+  gapGroups(
+    filter: VehicleFilterRequest,
+    options: { field: string; mode?: GapGroupingMode; limit?: number },
+  ): Observable<GapGroupReport> {
+    return this.http.post<GapGroupReport>(`${this.base}/v1/vehicles/gap-groups`, filter, {
+      params: params({
+        field: options.field,
+        mode: options.mode ?? 'leading_token',
+        limit: options.limit ?? 25,
+      }),
+    });
   }
 }

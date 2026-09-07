@@ -20,6 +20,8 @@ from ingestion.vehicle_facts_migrations import (
 )
 from ingestion.vehicle_facts_query import (
     CompiledPredicate,
+    UnknownFieldError,
+    group_statement,
     compile_predicate,
     count_statement,
     facet_statement,
@@ -123,7 +125,21 @@ class VehicleFilterRepository:
         field: str,
         limit: int,
     ) -> list[tuple[str, int]]:
-        predicate = self._predicate(conditions, unresolved_field)
+        """Top values of one field inside the filter, with its own clause lifted.
+
+        A field the filter already pins would otherwise report that one value at
+        100%, which is true and useless: it hides every sibling value the
+        reviewer might want to add. Counting with this field's own conditions
+        removed keeps the alternatives visible and their counts honest, so
+        picking a second model is one click rather than a restart.
+        """
+
+        others = [
+            condition
+            for condition in conditions
+            if not (condition.field == field and condition.layer == "source")
+        ]
+        predicate = self._predicate(others, unresolved_field)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 facet_statement(predicate, field, limit=limit), predicate.parameters
@@ -214,3 +230,116 @@ class VehicleFilterRepository:
             "source_batch_id": batch,
             "fields": fields,
         }
+
+
+    def advisor_evidence(
+        self, conditions: Sequence[Any], *, target_field: str, candidate_fields: Sequence[str]
+    ) -> tuple[int, list[dict[str, Any]], dict[str, list[tuple[str, int]]]]:
+        """Population size, scored candidate fields, and their value spreads.
+
+        Shaped for the rule advisor, which asks the same three questions of any
+        population: how big is it, what could split it, and how do those values
+        fall. Scoped by the filter rather than by a build, so the advisor reasons
+        about the cars the reviewer is actually looking at.
+        """
+
+        population = self.count(conditions, target_field)
+        if population == 0:
+            return 0, [], {}
+
+        discriminators: list[dict[str, Any]] = []
+        field_values: dict[str, list[tuple[str, int]]] = {}
+        for field in candidate_fields:
+            try:
+                values = self.facet(conditions, target_field, field=field, limit=40)
+            except UnknownFieldError:
+                continue
+            if not values:
+                continue
+            present = sum(count for _, count in values)
+            distinct = len(values)
+            largest = max(count for _, count in values)
+            # A field that is one value across the whole population cannot split
+            # it, and one that is near-unique splits it into noise.
+            separation = 1.0 - (largest / present) if present else 0.0
+            discriminators.append(
+                {
+                    "field": field,
+                    "distinct_count": distinct,
+                    "present_count": present,
+                    "coverage": round(present / population, 4),
+                    "separation": round(separation, 4),
+                    "usable": distinct > 1 and separation > 0.02,
+                }
+            )
+            field_values[field] = values
+
+        discriminators.sort(key=lambda item: item["separation"], reverse=True)
+        return population, discriminators, field_values
+
+
+    def resolved_profile(self, conditions: Sequence[Any]) -> dict[str, Any]:
+        """What is already settled about the matched cars.
+
+        The advisor was only ever shown the registry columns it might filter on,
+        so it had to infer the vehicle from raw spellings while the normalized
+        identity -- manufacturer, model family, power, displacement, year -- sat
+        one table over, already derived and already trusted. A field is reported
+        only when it is uniform across the population, because a fact about the
+        block is the only kind of fact worth reasoning from.
+        """
+
+        predicate = self._predicate(conditions, None)
+        fields = [f for f in RESOLVABLE_FIELDS]
+        selects = ", ".join(
+            f"count(DISTINCT coalesce(n_{f}::text, r_{f}::text)) AS d_{f}, "
+            f"min(coalesce(n_{f}::text, r_{f}::text)) AS v_{f}"
+            for f in fields
+        )
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {selects} FROM {VEHICLE_FACTS_TABLE} WHERE {predicate.sql}",
+                predicate.parameters,
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return {}
+        profile: dict[str, Any] = {}
+        for index, field in enumerate(fields):
+            distinct, value = row[index * 2], row[index * 2 + 1]
+            if distinct == 1 and value is not None:
+                profile[field] = value
+        return profile
+
+
+    def gap_groups(
+        self,
+        conditions: Sequence[Any],
+        unresolved_field: str,
+        *,
+        field: str,
+        mode: str,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        """Where the gap actually lives, grouped by the shape of the value.
+
+        Answers "where is the leverage" rather than "which cars are these", which
+        is a different question and the one an exact-value list cannot answer.
+        """
+
+        predicate = self._predicate(conditions, unresolved_field)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                group_statement(predicate, field, mode, limit=limit),
+                predicate.parameters,
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "label": str(row[0]),
+                "rows": int(row[1]),
+                "distinct_values": int(row[2]),
+                "samples": [str(value) for value in (row[3] or [])],
+            }
+            for row in rows
+        ]

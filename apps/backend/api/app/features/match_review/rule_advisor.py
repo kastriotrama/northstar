@@ -13,6 +13,8 @@ the two happened.
 
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -60,6 +62,7 @@ class RuleAdvisor(Protocol):
         discriminators: list[dict[str, Any]],
         field_values: dict[str, list[tuple[str, int]]],
         oem_samples: list[dict[str, Any]],
+        resolved_profile: dict[str, Any] | None = None,
     ) -> RuleAdvice: ...
 
 
@@ -102,6 +105,7 @@ class PatternRuleAdvisor:
         discriminators: list[dict[str, Any]],
         field_values: dict[str, list[tuple[str, int]]],
         oem_samples: list[dict[str, Any]],
+        resolved_profile: dict[str, Any] | None = None,
     ) -> RuleAdvice:
         anchor = AdvisedCondition(
             layer="source",
@@ -204,6 +208,18 @@ class PatternRuleAdvisor:
         )
 
 
+logger = logging.getLogger(__name__)
+
+
+class NoSuggestion(ValueError):
+    """The model answered and proposed nothing.
+
+    Distinct from a reply that was malformed or out of vocabulary, and distinct
+    again from the model being unreachable. A population with nothing to
+    separate it is a real answer, and reporting it as a failure sends a reviewer
+    looking for a broken key.
+    """
+
 ADVISOR_INSTRUCTIONS = """\
 You propose resolution rules over Swedish vehicle-register data. A rule is a
 conjunction of conditions (AND); values inside one condition are OR-ed.
@@ -218,10 +234,17 @@ Rules:
 4. Every condition needs a `layer` from `allowed_layers`. Use `source` unless
    you deliberately mean the canonical normalized value: the fields and
    distributions above are all source-layer registry strings.
-5. Set `target_value` ONLY when `oem_evidence` supports it and it is in
-   `allowed_target_values`; otherwise null and `confident` false. Narrowing the
-   population without naming a value is a good answer.
-6. Never guess a fact about cars that the supplied evidence does not contain.
+5. `already_established_for_all_of_these_cars` holds what normalization has
+   already derived and verified for every car in the block. Reason from it: it
+   identifies the vehicle far better than the raw registry spellings do.
+6. Propose a `target_value` whenever the block is identified well enough to name
+   one, and it is in `allowed_target_values` when that list is closed. Set
+   `confident` true ONLY when `oem_evidence` supports the value. A proposal
+   resting on the established identity rather than on evidence is wanted: it
+   reaches a reviewer marked as unverified, and a value they can check beats a
+   blank they cannot. Say in `reasoning` which the value rests on. Narrowing
+   without naming a value remains a valid answer when the block is genuinely
+   ambiguous.
 
 Reply with one JSON object: conditions (list of {field, operator, values,
 layer}), target_value, confident (bool), reasoning.
@@ -261,6 +284,7 @@ class LlmRuleAdvisor:
         discriminators: list[dict[str, Any]],
         field_values: dict[str, list[tuple[str, int]]],
         oem_samples: list[dict[str, Any]],
+        resolved_profile: dict[str, Any] | None = None,
     ) -> RuleAdvice:
         allowed_values = RESOLVABLE_TARGETS.get(target_field, ())
         allowed_fields = sorted(
@@ -298,6 +322,10 @@ class LlmRuleAdvisor:
                 for name, values in field_values.items()
             },
             "oem_evidence": oem_samples[:5],
+            # What normalization already settled for every car in this block. The
+            # model was previously left to infer the vehicle from registry
+            # spellings while its derived identity sat unused.
+            "already_established_for_all_of_these_cars": resolved_profile or {},
         }
         try:
             payload = self._llm.complete_json(
@@ -320,7 +348,7 @@ class LlmRuleAdvisor:
             # allowlists rather than letting an invented field or a
             # non-canonical value reach the preview.
             if not conditions or any(not c.values for c in conditions):
-                raise ValueError("model returned no usable conditions")
+                raise NoSuggestion("model proposed no conditions")
             for condition in conditions:
                 if condition.field not in allowed_fields:
                     raise ValueError(f"unknown field {condition.field!r}")
@@ -335,20 +363,53 @@ class LlmRuleAdvisor:
                 and str(target_value) not in allowed_values
             ):
                 raise ValueError(f"non-canonical target value {target_value!r}")
-            if target_value and not oem_samples:
-                # No evidence was supplied, so no value can be justified.
-                target_value = None
+            unverified = bool(target_value) and not oem_samples
             return RuleAdvice(
                 advisor=self.name,
-                confident=bool(payload.get("confident")) and target_value is not None,
+                # Confidence means evidence, not eloquence: only OEM samples can
+                # justify a value. An unverified proposal still reaches the
+                # reviewer, marked, because Preview and Save are the real gate and
+                # a suggestion they can check beats a blank they cannot.
+                confident=(
+                    bool(payload.get("confident"))
+                    and target_value is not None
+                    and not unverified
+                ),
                 conditions=conditions,
                 target_field=target_field,
                 target_value=str(target_value) if target_value else None,
                 reasoning=str(payload.get("reasoning", "")).strip()
                 or "Model returned no reasoning.",
-                evidence={"population": population, "source": self.name},
+                evidence={
+                    "population": population,
+                    "source": self.name,
+                    "value_unverified": unverified,
+                    "resolved_profile": resolved_profile or {},
+                },
             )
-        except Exception:  # noqa: BLE001 - any failure degrades to heuristics
+        except Exception as error:  # noqa: BLE001 - any failure degrades to heuristics
+            # Why it fell back matters to whoever is looking at the screen. A
+            # model that answered and had nothing to propose is not the same as
+            # a model that could not be reached, and reporting both as
+            # "unavailable" sent a reviewer looking for a broken API key when the
+            # population simply had nothing to separate it.
+            if isinstance(error, NoSuggestion):
+                reason = "no suggestion"
+            elif isinstance(error, (ValueError, KeyError, TypeError)):
+                # The model replied, but with a field, operator, layer or value
+                # outside the allowlists. That is a model problem worth naming
+                # separately from an unreachable one.
+                reason = "rejected reply"
+            else:
+                reason = "llm unavailable"
+            logger.info(
+                "Rule advisor fell back to heuristics",
+                extra={
+                    "reason": reason,
+                    "error_code": type(error).__name__,
+                    "source_field": source_field,
+                },
+            )
             advice = self._fallback.advise(
                 source_field=source_field,
                 source_value=source_value,
@@ -359,7 +420,7 @@ class LlmRuleAdvisor:
                 oem_samples=oem_samples,
             )
             return RuleAdvice(
-                advisor=f"{advice.advisor} (llm unavailable)",
+                advisor=f"{advice.advisor} ({reason})",
                 confident=advice.confident,
                 conditions=advice.conditions,
                 target_field=advice.target_field,

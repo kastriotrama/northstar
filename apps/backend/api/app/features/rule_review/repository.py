@@ -6,6 +6,11 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from api.app.features.normalization_review.repository import ConnectionFactory
+from ingestion.match_chunk_migrations import MATCH_RESOLUTION_RULES_TABLE
+from ingestion.tecdoc.canonical_rule_migrations import (
+    TECDOC_RULE_VERSIONS_TABLE,
+    TECDOC_RULES_TABLE,
+)
 from ingestion.normalization_migrations import (
     MANUFACTURER_ENTITY_DRAFTS_TABLE,
     NORMALIZATION_RESULTS_TABLE,
@@ -172,6 +177,56 @@ class RuleReviewRepository:
                 "source_term": str(row[1]),
                 "occurrences": int(row[2]),
                 "base_manufacturers": [str(value) for value in row[3]],
+            }
+            for row in rows
+        ]
+
+    def fetch_resolution_rules(self, limit: int = 2000) -> list[dict[str, Any]]:
+        """Rules a reviewer authored against the vehicle projection.
+
+        Asks with ``to_regclass`` before selecting: this table is created by the match
+        chunk migrations, which the rule review schema does not run, so a database
+        without it is the ordinary case rather than a fault. Selecting from a missing
+        table raises ``UndefinedTable`` and, inside a transaction, poisons every later
+        statement on the connection.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s) IS NOT NULL", (MATCH_RESOLUTION_RULES_TABLE,)
+            )
+            row = cursor.fetchone()
+            if not (row and row[0]):
+                return []
+            cursor.execute(
+                f"""
+                SELECT rule_id, build_id, source_field, source_value, target_field,
+                       target_value, conditions, author, note, matched_rows,
+                       resolved_rows, status, created_at, applied_at, retired_at
+                FROM {MATCH_RESOLUTION_RULES_TABLE}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "rule_id": str(row[0]),
+                "build_id": str(row[1]),
+                "source_field": str(row[2]),
+                "source_value": str(row[3]),
+                "target_field": str(row[4]),
+                "target_value": str(row[5]),
+                "conditions": list(row[6]),
+                "author": str(row[7]),
+                "note": str(row[8]) if row[8] is not None else None,
+                "matched_rows": int(row[9]),
+                "resolved_rows": int(row[10]),
+                "status": str(row[11]),
+                "created_at": row[12],
+                "applied_at": row[13],
+                "retired_at": row[14],
             }
             for row in rows
         ]
@@ -347,3 +402,67 @@ class RuleReviewRepository:
             cursor.execute(f"DELETE FROM {MANUFACTURER_ENTITY_DRAFTS_TABLE}")
             connection.commit()
         return len(rows) + len(entity_rows), activated_at
+
+    def fetch_tecdoc_rules(self, limit: int = 20000) -> tuple[str | None, list[dict[str, Any]]]:
+        """The newest sealed TecDoc rule version, and its rules.
+
+        Asks with ``to_regclass`` first, exactly as ``fetch_resolution_rules`` does:
+        these tables are created by the TecDoc rule migrations, which the rule review
+        schema does not run, so a database without them is the ordinary case rather
+        than a fault. Selecting from a missing table raises ``UndefinedTable`` and,
+        inside a transaction, poisons every later statement on the connection.
+
+        Only a sealed version is read. An unsealed one is a generation still in
+        progress, and showing a half-written rule set as if it were the active one is
+        how a reviewer ends up ruling on rules that then change underneath them.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s) IS NOT NULL AND to_regclass(%s) IS NOT NULL",
+                (TECDOC_RULES_TABLE, TECDOC_RULE_VERSIONS_TABLE),
+            )
+            row = cursor.fetchone()
+            if not (row and row[0]):
+                return None, []
+
+            cursor.execute(
+                f"SELECT rule_version FROM {TECDOC_RULE_VERSIONS_TABLE} "
+                "WHERE sealed IS TRUE ORDER BY generated_at DESC, rule_version DESC LIMIT 1"
+            )
+            version_row = cursor.fetchone()
+            if version_row is None:
+                return None, []
+            rule_version = str(version_row[0])
+
+            cursor.execute(
+                f"""
+                SELECT rule_id, area, entity_type, source_field, source_term, key_table,
+                       canonical_field, canonical_value, decision, derivation, support,
+                       evidence
+                FROM {TECDOC_RULES_TABLE}
+                WHERE rule_version = %s
+                ORDER BY support DESC, rule_id
+                LIMIT %s
+                """,
+                (rule_version, limit),
+            )
+            rows = cursor.fetchall()
+
+        return rule_version, [
+            {
+                "rule_id": str(row[0]),
+                "area": str(row[1]),
+                "entity_type": str(row[2]),
+                "source_field": str(row[3]),
+                "source_term": str(row[4]),
+                "key_table": str(row[5]) if row[5] is not None else None,
+                "canonical_field": str(row[6]),
+                "canonical_value": str(row[7]) if row[7] is not None else None,
+                "decision": str(row[8]),
+                "derivation": str(row[9]),
+                "support": int(row[10]),
+                "evidence": dict(row[11] or {}),
+            }
+            for row in rows
+        ]

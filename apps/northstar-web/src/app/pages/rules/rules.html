@@ -3,16 +3,33 @@
     <div>
       <h1 class="page__title">Rules</h1>
       <p class="page__subtitle">
-        Every normalization rule, browsable for the first time. Unresolved values and
-        versioned rule proposals live in Match review.
+        Everything that changes a value. Reviewed catalog rules can be redrafted here; the
+        lookup tables, grammars and unit conversions compiled into the pipeline are listed
+        so no transform is hidden; and the rules authored on the projection from TS data
+        are listed with the population each one resolved.
       </p>
     </div>
     @if (catalog(); as catalog) {
-      <div class="stats" style="min-width: 420px">
+      <div class="stats" style="min-width: 680px">
         <div class="stat">
           <div class="stat__label">Rules</div>
           <div class="stat__value">{{ catalog.total | number }}</div>
           <div class="stat__hint mono">{{ catalog.base_version }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Reviewed catalog</div>
+          <div class="stat__value">{{ catalog.catalog_total | number }}</div>
+          <div class="stat__hint">editable</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">In the pipeline</div>
+          <div class="stat__value">{{ catalog.code_total | number }}</div>
+          <div class="stat__hint mono">{{ catalog.pipeline_version }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">On the projection</div>
+          <div class="stat__value">{{ catalog.resolution_total | number }}</div>
+          <div class="stat__hint">authored in TS data</div>
         </div>
         <div class="stat">
           <div class="stat__label">Matching filter</div>
@@ -26,14 +43,92 @@
     }
   </div>
 
+  <!-- Every stage that touches a record, in the order it runs. -->
+  <div class="pipeline">
+    <button type="button" class="pipeline__head" (click)="pipelineOpen.set(!pipelineOpen())">
+      <span class="pipeline__title">Pipeline</span>
+      <span class="pipeline__hint">
+        {{ stages().length }} stages, in execution order. Select one to see only what it
+        applies. Projection rules run after all of them.
+      </span>
+      <span class="pipeline__chevron">{{ pipelineOpen() ? 'Hide' : 'Show' }}</span>
+    </button>
+    @if (pipelineOpen()) {
+      <div class="pipeline__body">
+        @for (stage of stages(); track stage.transformer_id) {
+          <button
+            type="button"
+            class="stage"
+            [class.stage--active]="transformerId() === stage.transformer_id"
+            (click)="showStage(stage)"
+          >
+            <div class="stage__order">{{ stage.order }}</div>
+            <div>
+              <div>
+                <span class="stage__name">{{ stage.transformer_id }}</span>
+                <span class="stage__counts">
+                  @if (stage.catalog_rule_count) {
+                    {{ stage.catalog_rule_count | number }} catalog
+                  }
+                  @if (stage.catalog_rule_count && stage.code_rule_count) { · }
+                  @if (stage.code_rule_count) {
+                    {{ stage.code_rule_count | number }} code
+                  }
+                  @if (!stage.catalog_rule_count && !stage.code_rule_count) {
+                    no rule table
+                  }
+                </span>
+              </div>
+              <div class="stage__summary">{{ stage.summary }}</div>
+              <div class="stage__io">
+                @if (stage.source_fields.length) {
+                  <b>reads</b>
+                  @for (field of stage.source_fields; track field) {
+                    <span class="field">{{ field }}</span>
+                  }
+                }
+              </div>
+              <div class="stage__io">
+                @if (stage.writes.length) {
+                  <b>writes</b>
+                  @for (field of stage.writes; track field) {
+                    <span class="field">{{ field }}</span>
+                  }
+                }
+              </div>
+              @if (stage.review_reasons.length) {
+                <div class="stage__io">
+                  <b>sends to review</b>
+                  @for (reason of stage.review_reasons; track reason) {
+                    <span class="field">{{ reason }}</span>
+                  }
+                </div>
+              }
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
   <div class="toolbar">
     <input
       pInputText
-      placeholder="Search rule id, term, manufacturer…"
+      placeholder="Search rule id, term, field, note…"
       [ngModel]="query()"
       (ngModelChange)="query.set($event)"
       (keyup.enter)="search()"
-      style="min-width: 300px"
+      style="min-width: 280px"
+    />
+    <p-select
+      [options]="originOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="origin()"
+      (ngModelChange)="origin.set($event); search()"
+      [showClear]="true"
+      placeholder="Any origin"
+      [style]="{ minWidth: '220px' }"
     />
     <p-select
       [options]="areaOptions()"
@@ -63,13 +158,23 @@
       (ngModelChange)="decision.set($event); search()"
       [showClear]="true"
       placeholder="Any decision"
-      [style]="{ minWidth: '160px' }"
+      [style]="{ minWidth: '150px' }"
     />
     <p-button label="Search" [loading]="loading()" (onClick)="search()" />
     <p-button label="Clear" severity="secondary" [text]="true" (onClick)="clear()" />
-    <span style="margin-left: auto">
-    </span>
   </div>
+
+  @if (selectedStage(); as stage) {
+    <div class="notice">
+      Showing only what <span class="mono">{{ stage.transformer_id }}</span> applies.
+      <p-button
+        label="Show all stages"
+        [text]="true"
+        size="small"
+        (onClick)="transformerId.set(null); search()"
+      />
+    </div>
+  }
 
   <p-table
     [value]="catalog()?.items ?? []"
@@ -90,22 +195,40 @@
   >
     <ng-template #header>
       <tr>
-        <th style="width: 110px">Rule</th>
+        <th style="width: 190px">Rule</th>
+        <th style="width: 80px">Origin</th>
         <th style="width: 170px">Area</th>
         <th style="min-width: 200px">Source terms</th>
         <th style="width: 160px">Canonical field</th>
         <th style="width: 160px">Value</th>
         <th style="width: 110px">Decision</th>
-        <th style="min-width: 140px">Manufacturers</th>
+        <th style="min-width: 130px">Manufacturers</th>
         <th style="width: 70px"></th>
       </tr>
     </ng-template>
     <ng-template #body let-rule>
       <tr>
-        <td class="mono">{{ rule.rule_id }}</td>
+        <td class="mono truncate" [title]="rule.rule_id">{{ rule.rule_id }}</td>
+        <td>
+          <span
+            class="origin-tag"
+            [class.origin-tag--code]="rule.origin === 'code'"
+            [class.origin-tag--resolution]="rule.origin === 'resolution'"
+            [title]="rule.transformer_id ?? ''"
+          >
+            {{ originLabel(rule.origin) }}
+          </span>
+        </td>
         <td class="mono muted">{{ rule.area }}</td>
-        <td class="truncate" [title]="rule.source_terms.join(', ')">
-          {{ rule.source_terms.join(', ') }}
+        <td
+          class="truncate"
+          [title]="rule.source_terms.join(rule.origin === 'resolution' ? ' AND ' : ', ')"
+        >
+          {{
+            rule.source_terms.length
+              ? rule.source_terms.join(rule.origin === 'resolution' ? ' AND ' : ', ')
+              : '—'
+          }}
         </td>
         <td class="mono">{{ rule.canonical_field }}</td>
         <td class="mono">{{ rule.effective_canonical_value ?? '—' }}</td>
@@ -120,7 +243,7 @@
     </ng-template>
     <ng-template #emptymessage>
       <tr>
-        <td colspan="8" class="muted" style="padding: 1rem">No rules matched.</td>
+        <td colspan="9" class="muted" style="padding: 1rem">No rules matched.</td>
       </tr>
     </ng-template>
   </p-table>
@@ -135,16 +258,50 @@
   [dismissableMask]="true"
 >
   @if (detail(); as rule) {
+    @if (rule.origin === 'code') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Compiled into the pipeline, applied by
+        <span class="mono">{{ rule.transformer_id }}</span>. It is listed so the transform is
+        visible; changing it is a code change, not a draft.
+      </div>
+    }
+    @if (rule.origin === 'resolution') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Authored on the vehicle projection from TS data, not part of the normalization
+        pipeline: it runs after it, over the rows its conditions select. Edit or retire it
+        where it was written.
+      </div>
+    }
+    @if (rule.notes) {
+      <p class="rule-note">{{ rule.notes }}</p>
+    }
     <table class="kv">
       <tr><td class="kv__key mono">rule_id</td><td class="mono">{{ rule.rule_id }}</td></tr>
+      <tr><td class="kv__key mono">origin</td><td class="mono">{{ rule.origin }}</td></tr>
+      @if (rule.transformer_id) {
+        <tr>
+          <td class="kv__key mono">transformer</td>
+          <td class="mono">{{ rule.transformer_id }}</td>
+        </tr>
+      }
       <tr><td class="kv__key mono">area</td><td class="mono">{{ rule.area }}</td></tr>
       <tr>
         <td class="kv__key mono">source_fields</td>
-        <td class="mono">{{ rule.source_fields.join(', ') }}</td>
+        <td class="mono">{{ rule.source_fields.join(', ') || '—' }}</td>
       </tr>
       <tr>
-        <td class="kv__key mono">source_terms</td>
-        <td class="mono">{{ rule.source_terms.join(', ') }}</td>
+        <td class="kv__key mono">
+          {{ rule.origin === 'resolution' ? 'conditions' : 'source_terms' }}
+        </td>
+        <td class="mono">
+          @if (rule.origin === 'resolution') {
+            @for (condition of rule.source_terms; track condition; let last = $last) {
+              <div>{{ condition }}{{ last ? '' : ' AND' }}</div>
+            }
+          } @else {
+            {{ rule.source_terms.join(', ') || '—' }}
+          }
+        </td>
       </tr>
       <tr>
         <td class="kv__key mono">canonical_field</td>
@@ -158,33 +315,42 @@
         <td class="kv__key mono">effective value</td>
         <td class="mono">{{ rule.effective_canonical_value ?? '—' }}</td>
       </tr>
+      @if (rule.effective_display_value) {
+        <tr>
+          <td class="kv__key mono">display value</td>
+          <td class="mono">{{ rule.effective_display_value }}</td>
+        </tr>
+      }
       <tr>
         <td class="kv__key mono">decision</td>
         <td class="mono">{{ rule.effective_decision }}</td>
       </tr>
-      <tr>
-        <td class="kv__key mono">vehicle_scopes</td>
-        <td class="mono">{{ rule.vehicle_scopes.join(', ') || 'any' }}</td>
-      </tr>
-      <tr>
-        <td class="kv__key mono">manufacturers</td>
-        <td class="mono">{{ rule.manufacturers.join(', ') || 'any' }}</td>
-      </tr>
+      @if (rule.origin === 'catalog') {
+        <tr>
+          <td class="kv__key mono">vehicle_scopes</td>
+          <td class="mono">{{ rule.vehicle_scopes.join(', ') || 'any' }}</td>
+        </tr>
+        <tr>
+          <td class="kv__key mono">manufacturers</td>
+          <td class="mono">{{ rule.manufacturers.join(', ') || 'any' }}</td>
+        </tr>
+      }
       @if (rule.change_note) {
         <tr><td class="kv__key mono">change note</td><td>{{ rule.change_note }}</td></tr>
       }
     </table>
 
-    <h3 style="font-size: 0.85rem; margin: 1rem 0 0.35rem">
-      Allowed values for <span class="mono">{{ rule.canonical_field }}</span>
-    </h3>
-    <div style="display: flex; flex-wrap: wrap; gap: 0.3rem">
-      @for (option of optionsForDetail(); track option) {
-        <span class="mono" style="background: var(--p-surface-100); padding: 0.1rem 0.4rem; border-radius: 4px">
-          {{ option }}
-        </span>
-      }
-    </div>
+    @if (optionsForDetail().length) {
+      <h3 style="font-size: 0.85rem; margin: 1rem 0 0.35rem">
+        Allowed values for <span class="mono">{{ rule.canonical_field }}</span>
+      </h3>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.3rem">
+        @for (option of optionsForDetail(); track option) {
+          <span class="mono" style="background: var(--p-surface-100); padding: 0.1rem 0.4rem; border-radius: 4px">
+            {{ option }}
+          </span>
+        }
+      </div>
+    }
   }
 </p-dialog>
-

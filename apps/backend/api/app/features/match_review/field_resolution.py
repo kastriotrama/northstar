@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
 
+from ingestion.vehicle_facts_migrations import RESOLVABLE_FIELDS
+
 
 class FieldStatus(StrEnum):
     RESOLVED = "resolved"
@@ -118,15 +120,27 @@ def _canonical_values(field: str) -> tuple[str, ...]:
 # screen offers observed values as suggestions rather than a fixed list.
 # `model_family` is genuinely unbounded — there is no closed set of model names
 # — while drive type and bodywork form are closed sets.
-RESOLVABLE_TARGETS: dict[str, tuple[str, ...]] = {
+# Allowed values for the fields that have a closed vocabulary. A field absent from
+# here is open: any value is accepted, and the screen offers observed values as
+# suggestions rather than as a constraint.
+TARGET_VOCABULARIES: dict[str, tuple[str, ...]] = {
     # The reviewed rules only ever produce `awd` (from is_4wd = 1); the other
     # two are exactly what a resolution rule exists to assert.
     "drive_type": ("fwd", "rwd", "awd"),
     "bodywork_form": _canonical_values("bodywork_form"),
-    "model_family": (),
-    "manufacturer": (),
-    "energy_sources": _canonical_values("energy_sources"),
-    "transmission_type": _canonical_values("transmission_type"),
+}
+
+# Which fields a rule may target, derived from the projection rather than listed
+# again here.
+#
+# These were two hand-maintained lists and they drifted apart in both directions:
+# the screen offered engine_code, power_kw, displacement_cc and production_year
+# from the projection while this list rejected them on save, and it allowed
+# energy_sources and transmission_type, which the projection cannot store, so a
+# rule targeting either would save and then fail when run. Deriving one from the
+# other is what stops that happening again.
+RESOLVABLE_TARGETS: dict[str, tuple[str, ...]] = {
+    field: TARGET_VOCABULARIES.get(field, ()) for field in RESOLVABLE_FIELDS
 }
 
 

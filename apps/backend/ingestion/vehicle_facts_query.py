@@ -195,3 +195,64 @@ def page_statement(predicate: CompiledPredicate, *, limit: int = 100) -> str:
         f"FROM {VEHICLE_FACTS_TABLE} WHERE {predicate.sql} "
         "AND source_record_id > %s ORDER BY source_record_id LIMIT %s"
     )
+
+
+# How a set of values is collapsed into shapes. Grouping by exact value is what the
+# original worklist did, and it hid the largest finding in the data: `VOLVO S + V70`,
+# `VOLVO M + V50` and `VOLVO L + V70` read as three unrelated populations among 97,063,
+# when 95.5% of the model_family gap is one structural problem -- the brand column
+# carrying brand and model together.
+GROUPING_MODES: frozenset[str] = frozenset({"leading_token", "character_shape", "exact"})
+
+
+def _grouping_expression(column: str, mode: str) -> str:
+    if mode == "leading_token":
+        # The first word, which for a compound registry string is the part that
+        # actually names the manufacturer.
+        return f"split_part(btrim({column}), ' ', 1)"
+    if mode == "character_shape":
+        # Letters to A, digits to 9: turns YS3F and YS3E into one shape, and keeps
+        # padding characters visible so YS3E???? stays distinguishable.
+        return (
+            f"regexp_replace(regexp_replace(btrim({column}), "
+            "'[0-9]', '9', 'g'), '[A-Za-z]', 'A', 'g')"
+        )
+    return f"btrim({column})"
+
+
+def group_statement(
+    predicate: CompiledPredicate, field: str, mode: str, *, limit: int = 25
+) -> str:
+    """Populations of one field collapsed into shapes, largest first.
+
+    Rolled up in two levels rather than aggregated in one. Counting distinct values
+    per group directly costs a sort inside every group across the whole gap --
+    measured at 3.29s against 0.31s for the counts alone -- while grouping once by
+    (shape, value) and rolling that up gives the same exact numbers in 0.80s.
+
+    It also improves the samples: ordering by frequency surfaces the values that
+    show the pattern, where alphabetical order surfaces whatever sorts first.
+    """
+
+    if mode not in GROUPING_MODES:
+        raise ValueError(f"unsupported grouping mode: {mode}")
+    column, _ = _column("source", field)
+    expression = _grouping_expression(column, mode)
+    return f"""
+        WITH per_value AS (
+            SELECT {expression} AS label,
+                   btrim({column}) AS value,
+                   count(*)::bigint AS n
+            FROM {VEHICLE_FACTS_TABLE}
+            WHERE {predicate.sql} AND {column} IS NOT NULL
+            GROUP BY 1, 2
+        )
+        SELECT label,
+               sum(n)::bigint AS rows,
+               count(*)::bigint AS distinct_values,
+               (array_agg(value ORDER BY n DESC))[1:4] AS samples
+        FROM per_value
+        GROUP BY 1
+        ORDER BY 2 DESC, 1
+        LIMIT {int(limit)}
+    """

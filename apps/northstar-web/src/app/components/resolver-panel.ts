@@ -180,43 +180,50 @@ export class ResolverPanel {
   }
 
   protected askAdvisor(): void {
-    const build = this.buildId();
-    const first = this.filter.conditions()[0];
-    if (!build || !first) {
+    if (this.filter.isEmpty()) {
       return;
     }
     this.advising.set(true);
     this.api
-      .adviseRule({
-        build_id: build,
-        source_field: first.field,
-        source_value: first.values[0],
+      .adviseForFilter({
+        conditions: this.filter.payload(),
+        target_field: this.targetField(),
       })
       .subscribe({
         next: (advice) => {
           this.advising.set(false);
           this.advice.set(advice);
-          if (advice.target_value) {
-            this.targetValue.set(advice.target_value);
-          }
         },
-        error: () => {
+        error: (err: unknown) => {
           this.advising.set(false);
-          this.showFlash('The advisor could not answer.', true);
+          this.showFlash(
+            ResolverPanel.describe(err, 'The advisor could not answer.'),
+            true,
+          );
         },
       });
   }
 
   /**
-   * Names the advisor that actually replied. The button says AI, but without a
-   * configured key the deterministic statistical advisor answers instead.
+   * Names the advisor that actually replied, and why, if it was not the model.
+   *
+   * "No suggestion" is not a failure and must not read like one: the model
+   * answered and had nothing to propose, usually because the filter leaves
+   * nothing to separate the population by. Reporting that as unavailable sends
+   * a reviewer hunting for a broken key.
    */
   protected advisorLabel(advice: RuleAdvice): string {
     if (advice.advisor.startsWith('llm:')) {
       return advice.advisor;
     }
+    if (advice.advisor.includes('no suggestion')) {
+      return 'statistical advisor — the model had nothing to suggest for this population';
+    }
+    if (advice.advisor.includes('rejected reply')) {
+      return 'statistical advisor — the model answered outside the allowed fields';
+    }
     return advice.advisor.includes('llm unavailable')
-      ? 'statistical advisor (AI unavailable, fell back)'
+      ? 'statistical advisor — the model could not be reached'
       : 'statistical advisor (no AI key configured)';
   }
 

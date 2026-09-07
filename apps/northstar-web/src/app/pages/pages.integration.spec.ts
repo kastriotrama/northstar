@@ -85,9 +85,42 @@ describe('pages render real data', () => {
     expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
 
     // The gaps sidebar is what makes browsing lead somewhere: without it the screen is
-    // a list, and the filter has nowhere to go.
+    // a list, and the filter has nowhere to go. Asserted on the affordance rather than
+    // its wording, which has already changed once.
     expect(host.querySelectorAll('.gap').length).toBeGreaterThan(0);
-    expect(text).toContain('Resolve');
+    expect(host.querySelectorAll('.gap__set').length).toBeGreaterThan(0);
+  }, INTEGRATION_TIMEOUT);
+
+  it('the gap view groups by shape, not by exact value', async () => {
+    if (!apiUp) return;
+    configure();
+    const filter = TestBed.inject(FilterState);
+    filter.reset();
+
+    const fixture = TestBed.createComponent(TsRecordsPage);
+    fixture.detectChanges();
+    await settle(fixture, 12);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const gapTab = tabs.find((tab) => (tab.textContent ?? '').includes('Where the gap'));
+    expect(gapTab).toBeTruthy();
+    gapTab?.click();
+    fixture.detectChanges();
+    await settle(fixture, 12);
+
+    const groups = [...fixture.nativeElement.querySelectorAll('.group')];
+    expect(groups.length).toBeGreaterThan(0);
+
+    // Grouping by shape is the whole point: an exact-value list of this gap runs to
+    // tens of thousands of rows, and one leading token covers a fifth of it. A group
+    // must therefore stand for many distinct values, not one.
+    const distinct = groups
+      .map((group) => (group.textContent ?? '').match(/([\d,]+) distinct values/)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Number(value.replace(/,/g, '')));
+    expect(distinct.length).toBeGreaterThan(0);
+    expect(Math.max(...distinct)).toBeGreaterThan(1);
   }, INTEGRATION_TIMEOUT);
 
   it('TS data resolves a field without leaving the screen', async () => {
@@ -104,18 +137,16 @@ describe('pages render real data', () => {
     await settle(fixture, 12);
     const host = fixture.nativeElement as HTMLElement;
 
-    const resolve = [...host.querySelectorAll('button')].find((button) =>
-      (button.textContent ?? '').includes('Resolve'),
-    );
-    expect(resolve).toBeDefined();
-    resolve?.click();
+    const setValue = host.querySelector<HTMLButtonElement>('.gap__set');
+    expect(setValue).toBeTruthy();
+    setValue?.click();
     fixture.detectChanges();
     await settle(fixture, 8);
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Resolve');
-    // The filter is the rule's predicate, so it appears in the statement unchanged.
-    expect(text).toContain('TOYOTA');
+    const host2 = fixture.nativeElement as HTMLElement;
+    expect(host2.querySelector('.resolver')).toBeTruthy();
+    // The filter is the rule's predicate, so it reaches the statement unchanged.
+    expect(host2.querySelector('.statement')?.textContent ?? '').toContain('TOYOTA');
   }, INTEGRATION_TIMEOUT);
 
   it('TecDoc lists promoted ktypes', async () => {
