@@ -32,6 +32,11 @@ RuleOrigin = Literal["catalog", "code"]
 #: a table. The prefix keeps them from colliding with catalog IDs like MOD-001.
 CODE_RULE_PREFIX = "CODE"
 
+#: Reviewer-authored projection rules. They are not produced here -- they live in the
+#: database -- but the prefix belongs with the other one so the ID namespaces of the
+#: rule list are declared in a single place and cannot collide.
+RESOLUTION_RULE_PREFIX = "RES"
+
 
 @dataclass(frozen=True)
 class EmbeddedRule:

@@ -59,10 +59,14 @@ export class RulesPage {
   protected readonly decisionOptions = [
     { label: 'accepted', value: 'accepted' },
     { label: 'proposed', value: 'proposed' },
+    { label: 'applied', value: 'applied' },
+    { label: 'saved', value: 'saved' },
+    { label: 'retired', value: 'retired' },
   ];
   protected readonly originOptions = [
     { label: 'Reviewed catalog', value: 'catalog' },
     { label: 'Compiled into the pipeline', value: 'code' },
+    { label: 'Authored on the projection', value: 'resolution' },
   ];
 
   /** The pipeline stages, kept in execution order as the API returns them. */
@@ -144,11 +148,19 @@ export class RulesPage {
     this.detailOpen.set(true);
   }
 
-  protected decisionSeverity(decision: string): 'success' | 'warn' {
-    return decision === 'accepted' ? 'success' : 'warn';
+  /**
+   * A rule's state, across all three kinds. Catalog rules are accepted or proposed;
+   * projection rules are applied, saved or retired. A retired rule reads as neither
+   * live nor pending, so it is greyed rather than coloured.
+   */
+  protected decisionSeverity(decision: string): 'success' | 'warn' | 'secondary' {
+    if (decision === 'accepted' || decision === 'applied') {
+      return 'success';
+    }
+    return decision === 'retired' ? 'secondary' : 'warn';
   }
 
   protected originLabel(origin: string): string {
-    return origin === 'code' ? 'code' : 'catalog';
+    return origin === 'resolution' ? 'projection' : origin;
   }
 }

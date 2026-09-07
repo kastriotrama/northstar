@@ -36,15 +36,16 @@ const CATALOG: RuleCatalogResponse = {
   base_version: 'ts-translation-v7',
   active_version: 'ts-translation-v7',
   draft_count: 0,
-  total: 2,
-  filtered_total: 2,
+  total: 3,
+  filtered_total: 3,
   catalog_total: 1,
   code_total: 1,
+  resolution_total: 1,
   pipeline_version: 'normalization-pipeline-v10',
   limit: 100,
   offset: 0,
-  areas: ['model_family', 'tyre_construction'],
-  canonical_fields: ['model_family', 'construction'],
+  areas: ['model_family', 'resolution_rule', 'tyre_construction'],
+  canonical_fields: ['model_family', 'construction', 'engine_code'],
   canonical_options_by_field: { model_family: ['C-Class'] },
   transformers: [
     {
@@ -100,6 +101,25 @@ const CATALOG: RuleCatalogResponse = {
       editable: false,
       notes: 'Construction letter inside a tyre size.',
     },
+    {
+      rule_id: 'RES:25ceeb43-0cb2-4d5c-87a5-10e9af147cd2',
+      area: 'resolution_rule',
+      source_fields: ['brand', 'model'],
+      source_terms: ['brand equals AUDI', 'model equals Q3'],
+      canonical_field: 'engine_code',
+      base_canonical_value: 'CUUB',
+      effective_canonical_value: 'CUUB',
+      effective_decision: 'applied',
+      effective_display_value: null,
+      vehicle_scopes: [],
+      manufacturers: [],
+      has_draft: false,
+      change_note: null,
+      origin: 'resolution',
+      transformer_id: null,
+      editable: false,
+      notes: 'Authored by Valon Shabani on the projection. Matched 2,704 rows.',
+    },
   ],
 };
 
@@ -140,6 +160,28 @@ describe('RulesPage', () => {
     expect(text).toContain('CODE:TYC:ZR');
   });
 
+  it('lists a rule authored on the projection from the TS data screen', async () => {
+    const fixture = render();
+    flush();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const row = [...host.querySelectorAll('tbody tr')].find((tr) =>
+      (tr.textContent ?? '').includes('RES:'),
+    );
+    expect(row).toBeDefined();
+    const text = row?.textContent ?? '';
+    // The conditions are a conjunction, not a comma list: reading them as alternatives
+    // would invert what the rule selects.
+    expect(text).toContain('brand equals AUDI AND model equals Q3');
+    expect(text).toContain('engine_code');
+    expect(text).toContain('CUUB');
+    expect(row?.querySelector('.origin-tag--resolution')).not.toBeNull();
+    expect((row?.querySelector('.origin-tag')?.textContent ?? '').trim()).toBe('projection');
+  });
+
   it('marks which rules come from the pipeline rather than the catalog', async () => {
     const fixture = render();
     flush();
@@ -163,6 +205,7 @@ describe('RulesPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Reviewed catalog');
     expect(text).toContain('In the pipeline');
+    expect(text).toContain('On the projection');
     expect(text).toContain('normalization-pipeline-v10');
   });
 

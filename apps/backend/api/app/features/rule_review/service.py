@@ -22,6 +22,7 @@ from api.app.features.rule_review.schemas import (
 )
 from ingestion.normalization_catalog import (
     CODE_RULE_PREFIX,
+    RESOLUTION_RULE_PREFIX,
     EmbeddedRule,
     code_rules,
     transformer_stages,
@@ -152,6 +153,11 @@ class RuleReviewService:
         catalog_total = len(entries)
         embedded = [self._code_entry(entry) for entry in code_rules()]
         entries.extend(embedded)
+        resolution = [
+            self._resolution_entry(rule)
+            for rule in self._repository.fetch_resolution_rules()
+        ]
+        entries.extend(resolution)
 
         total = len(entries)
         term = query.strip().lower()
@@ -193,15 +199,19 @@ class RuleReviewService:
             filtered_total=filtered_total,
             catalog_total=catalog_total,
             code_total=len(embedded),
+            resolution_total=len(resolution),
             pipeline_version=PIPELINE_VERSION,
             limit=limit,
             offset=offset,
             areas=sorted(
-                {rule.area for rule in self._base.rules} | {entry.area for entry in embedded}
+                {rule.area for rule in self._base.rules}
+                | {entry.area for entry in embedded}
+                | {entry.area for entry in resolution}
             ),
             canonical_fields=sorted(
                 {rule.canonical_field for rule in self._base.rules}
                 | {entry.canonical_field for entry in embedded}
+                | {entry.canonical_field for entry in resolution}
             ),
             canonical_options_by_field=self._canonical_options(),
             transformers=[
@@ -221,6 +231,52 @@ class RuleReviewService:
                 for stage in transformer_stages(self._base)
             ],
             items=page,
+        )
+
+    @staticmethod
+    def _condition_text(condition: dict[str, Any]) -> str:
+        """One predicate, read the way the reviewer wrote it in the filter."""
+
+        values = [str(value) for value in (condition.get("values") or []) if value is not None]
+        if not values and condition.get("value") is not None:
+            values = [str(condition["value"])]
+        layer = condition.get("layer")
+        field = f"{condition.get('field')}" + (" (normalized)" if layer == "normalized" else "")
+        return f"{field} {condition.get('operator', 'equals')} {', '.join(values) or '—'}"
+
+    @staticmethod
+    def _resolution_entry(rule: dict[str, Any]) -> RuleCatalogEntry:
+        """Render one reviewer-authored projection rule as a catalog row.
+
+        These do not run in the normalization pipeline. They are applied afterwards to
+        the vehicle projection, which is why they carry no transformer and why their
+        state is applied/saved/retired rather than accepted/proposed. They are listed
+        because they change a field's value just as much as a dictionary rule does.
+        """
+
+        conditions = [
+            condition for condition in rule["conditions"] if isinstance(condition, dict)
+        ]
+        fields = [
+            str(condition["field"]) for condition in conditions if condition.get("field")
+        ]
+        terms = [RuleReviewService._condition_text(condition) for condition in conditions]
+        counts = (
+            f"Matched {rule['matched_rows']:,} rows, resolved {rule['resolved_rows']:,}."
+        )
+        note = f" {rule['note']}" if rule["note"] else ""
+        return RuleCatalogEntry(
+            rule_id=f"{RESOLUTION_RULE_PREFIX}:{rule['rule_id']}",
+            area="resolution_rule",
+            source_fields=sorted(dict.fromkeys(fields)) or [rule["source_field"]],
+            source_terms=terms,
+            canonical_field=rule["target_field"],
+            base_canonical_value=rule["target_value"],
+            effective_canonical_value=rule["target_value"],
+            effective_decision=rule["status"],
+            origin="resolution",
+            editable=False,
+            notes=f"Authored by {rule['author']} on the projection. {counts}{note}",
         )
 
     @staticmethod
@@ -537,6 +593,10 @@ class RuleReviewService:
             # Listed so the transform is visible, but it lives in the pipeline, not the
             # catalog. Overriding it here would claim an authority this screen lacks.
             raise RuleReviewError("rule_is_compiled_into_the_pipeline")
+        if rule_id.startswith(f"{RESOLUTION_RULE_PREFIX}:"):
+            # Authored against the projection and applied by its own job. It is edited
+            # where it was written, not by drafting a translation override over it.
+            raise RuleReviewError("rule_is_a_projection_resolution_rule")
         try:
             return self._base.get(rule_id)
         except KeyError as error:

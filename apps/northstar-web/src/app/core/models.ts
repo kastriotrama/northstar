@@ -154,7 +154,7 @@ export interface TecDocEntityPage {
   items: TecDocEntity[];
 }
 
-export type RuleOrigin = 'catalog' | 'code';
+export type RuleOrigin = 'catalog' | 'code' | 'resolution';
 
 export interface RuleCatalogEntry {
   rule_id: string;
@@ -198,6 +198,7 @@ export interface RuleCatalogResponse {
   filtered_total: number;
   catalog_total: number;
   code_total: number;
+  resolution_total: number;
   pipeline_version: string;
   limit: number;
   offset: number;

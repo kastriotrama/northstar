@@ -122,7 +122,7 @@ class RuleCatalogEntry(BaseModel):
     manufacturers: list[str] = Field(default_factory=list)
     has_draft: bool = False
     change_note: str | None = None
-    origin: Literal["catalog", "code"] = "catalog"
+    origin: Literal["catalog", "code", "resolution"] = "catalog"
     transformer_id: str | None = None
     editable: bool = True
     notes: str | None = None
@@ -154,6 +154,7 @@ class RuleCatalogResponse(BaseModel):
     offset: int
     catalog_total: int = 0
     code_total: int = 0
+    resolution_total: int = 0
     pipeline_version: str = ""
     areas: list[str] = Field(default_factory=list)
     canonical_fields: list[str] = Field(default_factory=list)

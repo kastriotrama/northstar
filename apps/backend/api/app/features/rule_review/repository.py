@@ -6,6 +6,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from api.app.features.normalization_review.repository import ConnectionFactory
+from ingestion.match_chunk_migrations import MATCH_RESOLUTION_RULES_TABLE
 from ingestion.normalization_migrations import (
     MANUFACTURER_ENTITY_DRAFTS_TABLE,
     NORMALIZATION_RESULTS_TABLE,
@@ -172,6 +173,56 @@ class RuleReviewRepository:
                 "source_term": str(row[1]),
                 "occurrences": int(row[2]),
                 "base_manufacturers": [str(value) for value in row[3]],
+            }
+            for row in rows
+        ]
+
+    def fetch_resolution_rules(self, limit: int = 2000) -> list[dict[str, Any]]:
+        """Rules a reviewer authored against the vehicle projection.
+
+        Asks with ``to_regclass`` before selecting: this table is created by the match
+        chunk migrations, which the rule review schema does not run, so a database
+        without it is the ordinary case rather than a fault. Selecting from a missing
+        table raises ``UndefinedTable`` and, inside a transaction, poisons every later
+        statement on the connection.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s) IS NOT NULL", (MATCH_RESOLUTION_RULES_TABLE,)
+            )
+            row = cursor.fetchone()
+            if not (row and row[0]):
+                return []
+            cursor.execute(
+                f"""
+                SELECT rule_id, build_id, source_field, source_value, target_field,
+                       target_value, conditions, author, note, matched_rows,
+                       resolved_rows, status, created_at, applied_at, retired_at
+                FROM {MATCH_RESOLUTION_RULES_TABLE}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "rule_id": str(row[0]),
+                "build_id": str(row[1]),
+                "source_field": str(row[2]),
+                "source_value": str(row[3]),
+                "target_field": str(row[4]),
+                "target_value": str(row[5]),
+                "conditions": list(row[6]),
+                "author": str(row[7]),
+                "note": str(row[8]) if row[8] is not None else None,
+                "matched_rows": int(row[9]),
+                "resolved_rows": int(row[10]),
+                "status": str(row[11]),
+                "created_at": row[12],
+                "applied_at": row[13],
+                "retired_at": row[14],
             }
             for row in rows
         ]

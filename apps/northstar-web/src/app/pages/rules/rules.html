@@ -3,13 +3,14 @@
     <div>
       <h1 class="page__title">Rules</h1>
       <p class="page__subtitle">
-        Everything that changes a value during normalization. Reviewed catalog rules can be
-        redrafted here; the lookup tables, grammars and unit conversions compiled into the
-        pipeline are listed so no transform is hidden, and are changed in code.
+        Everything that changes a value. Reviewed catalog rules can be redrafted here; the
+        lookup tables, grammars and unit conversions compiled into the pipeline are listed
+        so no transform is hidden; and the rules authored on the projection from TS data
+        are listed with the population each one resolved.
       </p>
     </div>
     @if (catalog(); as catalog) {
-      <div class="stats" style="min-width: 560px">
+      <div class="stats" style="min-width: 680px">
         <div class="stat">
           <div class="stat__label">Rules</div>
           <div class="stat__value">{{ catalog.total | number }}</div>
@@ -24,6 +25,11 @@
           <div class="stat__label">In the pipeline</div>
           <div class="stat__value">{{ catalog.code_total | number }}</div>
           <div class="stat__hint mono">{{ catalog.pipeline_version }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">On the projection</div>
+          <div class="stat__value">{{ catalog.resolution_total | number }}</div>
+          <div class="stat__hint">authored in TS data</div>
         </div>
         <div class="stat">
           <div class="stat__label">Matching filter</div>
@@ -42,7 +48,8 @@
     <button type="button" class="pipeline__head" (click)="pipelineOpen.set(!pipelineOpen())">
       <span class="pipeline__title">Pipeline</span>
       <span class="pipeline__hint">
-        {{ stages().length }} stages, in execution order. Select one to see only what it applies.
+        {{ stages().length }} stages, in execution order. Select one to see only what it
+        applies. Projection rules run after all of them.
       </span>
       <span class="pipeline__chevron">{{ pipelineOpen() ? 'Hide' : 'Show' }}</span>
     </button>
@@ -206,14 +213,22 @@
           <span
             class="origin-tag"
             [class.origin-tag--code]="rule.origin === 'code'"
+            [class.origin-tag--resolution]="rule.origin === 'resolution'"
             [title]="rule.transformer_id ?? ''"
           >
             {{ originLabel(rule.origin) }}
           </span>
         </td>
         <td class="mono muted">{{ rule.area }}</td>
-        <td class="truncate" [title]="rule.source_terms.join(', ')">
-          {{ rule.source_terms.length ? rule.source_terms.join(', ') : '—' }}
+        <td
+          class="truncate"
+          [title]="rule.source_terms.join(rule.origin === 'resolution' ? ' AND ' : ', ')"
+        >
+          {{
+            rule.source_terms.length
+              ? rule.source_terms.join(rule.origin === 'resolution' ? ' AND ' : ', ')
+              : '—'
+          }}
         </td>
         <td class="mono">{{ rule.canonical_field }}</td>
         <td class="mono">{{ rule.effective_canonical_value ?? '—' }}</td>
@@ -250,6 +265,13 @@
         visible; changing it is a code change, not a draft.
       </div>
     }
+    @if (rule.origin === 'resolution') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Authored on the vehicle projection from TS data, not part of the normalization
+        pipeline: it runs after it, over the rows its conditions select. Edit or retire it
+        where it was written.
+      </div>
+    }
     @if (rule.notes) {
       <p class="rule-note">{{ rule.notes }}</p>
     }
@@ -268,8 +290,18 @@
         <td class="mono">{{ rule.source_fields.join(', ') || '—' }}</td>
       </tr>
       <tr>
-        <td class="kv__key mono">source_terms</td>
-        <td class="mono">{{ rule.source_terms.join(', ') || '—' }}</td>
+        <td class="kv__key mono">
+          {{ rule.origin === 'resolution' ? 'conditions' : 'source_terms' }}
+        </td>
+        <td class="mono">
+          @if (rule.origin === 'resolution') {
+            @for (condition of rule.source_terms; track condition; let last = $last) {
+              <div>{{ condition }}{{ last ? '' : ' AND' }}</div>
+            }
+          } @else {
+            {{ rule.source_terms.join(', ') || '—' }}
+          }
+        </td>
       </tr>
       <tr>
         <td class="kv__key mono">canonical_field</td>

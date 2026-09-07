@@ -52,7 +52,7 @@ def list_rule_catalog(
     area: str | None = Query(default=None, max_length=80),
     canonical_field: str | None = Query(default=None, max_length=80),
     decision: str | None = Query(default=None, max_length=40),
-    origin: Literal["catalog", "code"] | None = Query(default=None),
+    origin: Literal["catalog", "code", "resolution"] | None = Query(default=None),
     transformer_id: str | None = Query(default=None, max_length=80),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
