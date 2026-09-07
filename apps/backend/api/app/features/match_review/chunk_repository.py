@@ -27,6 +27,12 @@ from ingestion.match_run_migrations import (
     MATCH_RUN_PATTERN_MEMBERS_TABLE,
 )
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
+from ingestion.vehicle_facts_migrations import (
+    RESOLVABLE_FIELDS,
+    VEHICLE_FACTS_TABLE,
+)
+from ingestion.vehicle_facts_query import CompiledPredicate, compile_predicate
+from ingestion.vehicle_facts_rules import apply_rule, retire_rule
 
 _BUILD_COLUMNS = (
     "build_id, source_batch_id, signature_version, status, "
@@ -55,6 +61,29 @@ _UNRESOLVED_ROW = f"""nullif(btrim(chunks.signature ->> %s), '') IS NULL
                         AND res.target_field = %s
                         AND res.superseded_at IS NULL
                   )"""
+
+
+def _resolvable_field(field: str) -> str:
+    """Guard a field name before it reaches SQL as a column.
+
+    Column names cannot be bound, so the projection's own whitelist is what
+    stands between a signature field and injected SQL.
+    """
+
+    if field not in RESOLVABLE_FIELDS:
+        raise ValueError(f"{field!r} is not a resolvable field")
+    return field
+
+
+def _projection_predicate(conditions: list[PredicateTerm]) -> CompiledPredicate:
+    """Compile rule conditions against the projection's flat columns."""
+
+    return compile_predicate(
+        [
+            (term.layer, term.field, term.operator, tuple(term.values))
+            for term in conditions
+        ]
+    )
 
 
 class ConnectionFactory(Protocol):
@@ -823,30 +852,25 @@ class MatchReviewRepository:
     ) -> dict[str, Any]:
         """Count what a candidate rule would resolve, and what it would contradict.
 
-        `already_resolved` rows already carry a value — from the signature, or
+        `already_resolved` rows already carry a value — from normalization, or
         from a resolution rule someone has already run — so the rule would be
         asserting over an existing decision rather than filling a gap.
+
+        Counted over the whole projection, not one build: a rule now resolves
+        every car matching it, so a preview that counted only one build's rows
+        would understate what saving it does.
         """
 
-        clauses, parameters = self._condition_sql(conditions)
+        predicate = _projection_predicate(conditions)
+        field = _resolvable_field(signature_field)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 f"""
                 WITH matched AS (
-                    SELECT raw.raw_record ->> 'plate' AS plate,
-                           coalesce(
-                               nullif(btrim(chunks.signature ->> %s), ''),
-                               applied.target_value
-                           ) AS existing_value
-                    FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
-                    JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
-                    JOIN staging.transportstyrelsen_raw AS raw
-                        ON raw.id = mem.source_record_id
-                    LEFT JOIN {MATCH_FIELD_RESOLUTIONS_TABLE} AS applied
-                        ON applied.source_record_id = mem.source_record_id
-                       AND applied.target_field = %s
-                       AND applied.superseded_at IS NULL
-                    WHERE chunks.build_id = %s AND {clauses}
+                    SELECT plate,
+                           coalesce(n_{field}::text, r_{field}::text) AS existing_value
+                    FROM {VEHICLE_FACTS_TABLE}
+                    WHERE {predicate.sql}
                 )
                 SELECT count(*),
                        count(*) FILTER (WHERE existing_value IS NULL),
@@ -854,13 +878,7 @@ class MatchReviewRepository:
                        (array_agg(plate) FILTER (WHERE plate IS NOT NULL))[1:%s]
                 FROM matched
                 """,
-                (
-                    signature_field,
-                    signature_field,
-                    build_id,
-                    *parameters,
-                    sample_limit,
-                ),
+                (*predicate.parameters, sample_limit),
             )
             row = cursor.fetchone()
         if row is None:
@@ -975,62 +993,46 @@ class MatchReviewRepository:
     ) -> dict[str, Any]:
         """Write one resolution per matched car that still lacks the field.
 
-        Rows whose signature already carries a value are skipped, so running a
-        rule can only fill gaps — never overwrite a decision normalization
-        already made. Re-running is idempotent: the partial unique index makes
-        a second pass insert only rows the first pass did not reach.
+        Runs over the whole projection rather than one build, so a rule reaches
+        every car it describes -- which is the difference between resolving a
+        couple of hundred rows and a couple of hundred thousand. Work is
+        committed in batches: a single statement over that many rows would hold
+        one transaction open and discard all of it on any interruption.
+
+        Rows already carrying a value are excluded, so a rule only fills gaps
+        and never overwrites a decision normalization already made. Re-running
+        is therefore idempotent rather than merely harmless.
         """
 
-        clauses, parameters = self._condition_sql(conditions)
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                WITH matched AS (
-                    SELECT DISTINCT mem.source_record_id
-                    FROM {MATCH_CHUNK_MEMBERS_TABLE} AS mem
-                    JOIN {MATCH_CHUNKS_TABLE} AS chunks USING (chunk_id)
-                    JOIN staging.transportstyrelsen_raw AS raw
-                        ON raw.id = mem.source_record_id
-                    WHERE chunks.build_id = %s
-                      AND {_UNRESOLVED_ROW}
-                      AND {clauses}
+        predicate = _projection_predicate(conditions)
+        with self._connection_factory() as connection:
+            summary = apply_rule(
+                connection,
+                rule_id=rule_id,
+                build_id=build_id,
+                predicate=predicate,
+                target_field=_resolvable_field(target_field),
+                target_value=target_value,
+            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    UPDATE {MATCH_RESOLUTION_RULES_TABLE}
+                    SET status = 'applied',
+                        resolved_rows = resolved_rows + %s,
+                        applied_at = now(),
+                        applied_by = %s
+                    WHERE rule_id = %s
+                    RETURNING {_RESOLUTION_RULE_COLUMNS}
+                    """,
+                    (summary.rows_written, applied_by, rule_id),
                 )
-                INSERT INTO {MATCH_FIELD_RESOLUTIONS_TABLE}
-                    (rule_id, build_id, source_record_id, target_field,
-                     target_value)
-                SELECT %s, %s, source_record_id, %s, %s FROM matched
-                ON CONFLICT DO NOTHING
-                """,
-                (
-                    build_id,
-                    target_field,
-                    target_field,
-                    *parameters,
-                    rule_id,
-                    build_id,
-                    target_field,
-                    target_value,
-                ),
-            )
-            resolved_now = cursor.rowcount
-            cursor.execute(
-                f"""
-                UPDATE {MATCH_RESOLUTION_RULES_TABLE}
-                SET status = 'applied',
-                    resolved_rows = resolved_rows + %s,
-                    applied_at = now(),
-                    applied_by = %s
-                WHERE rule_id = %s
-                RETURNING {_RESOLUTION_RULE_COLUMNS}
-                """,
-                (resolved_now, applied_by, rule_id),
-            )
-            row = cursor.fetchone()
+                row = cursor.fetchone()
             connection.commit()
         if row is None:
             raise RuntimeError(f"resolution rule {rule_id} vanished while applying")
         applied = _resolution_rule_row(row)
-        applied["resolved_now"] = max(resolved_now, 0)
+        applied["resolved_now"] = summary.rows_written
         return applied
 
     def retire_resolution_rule(
@@ -1038,38 +1040,40 @@ class MatchReviewRepository:
     ) -> dict[str, Any]:
         """Supersede every resolution this rule wrote, and close the rule.
 
-        The rows stay — they record what was asserted and when — but they stop
-        counting as resolved, so the population they came from reopens.
+        The ledger rows are marked superseded rather than deleted -- it stays an
+        append-only record of what was asserted and when -- while the
+        projection's overlay is cleared, so the cars reappear as unresolved at
+        once instead of waiting for a refresh.
         """
 
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                UPDATE {MATCH_FIELD_RESOLUTIONS_TABLE}
-                SET superseded_at = now()
-                WHERE rule_id = %s AND superseded_at IS NULL
-                """,
-                (rule_id,),
+        rule = self.fetch_resolution_rule(rule_id)
+        if rule is None:
+            raise RuntimeError(f"resolution rule {rule_id} vanished while retiring")
+        with self._connection_factory() as connection:
+            superseded = retire_rule(
+                connection,
+                rule_id=rule_id,
+                target_field=_resolvable_field(str(rule["target_field"])),
             )
-            superseded = cursor.rowcount
-            cursor.execute(
-                f"""
-                UPDATE {MATCH_RESOLUTION_RULES_TABLE}
-                SET status = 'retired',
-                    resolved_rows = 0,
-                    retired_at = now(),
-                    retired_by = %s
-                WHERE rule_id = %s
-                RETURNING {_RESOLUTION_RULE_COLUMNS}
-                """,
-                (retired_by, rule_id),
-            )
-            row = cursor.fetchone()
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    UPDATE {MATCH_RESOLUTION_RULES_TABLE}
+                    SET status = 'retired',
+                        resolved_rows = 0,
+                        retired_at = now(),
+                        retired_by = %s
+                    WHERE rule_id = %s
+                    RETURNING {_RESOLUTION_RULE_COLUMNS}
+                    """,
+                    (retired_by, rule_id),
+                )
+                row = cursor.fetchone()
             connection.commit()
         if row is None:
             raise RuntimeError(f"resolution rule {rule_id} vanished while retiring")
         retired = _resolution_rule_row(row)
-        retired["superseded_rows"] = max(superseded, 0)
+        retired["superseded_rows"] = superseded
         return retired
 
     def fetch_field_profile(
