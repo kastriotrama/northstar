@@ -23,6 +23,7 @@ from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
 from ingestion.match_run_service import MatchSourceRecord, run_dry_match_audit
 from ingestion.vehicle_facts import DEFAULT_PAGE_SIZE, refresh_vehicle_facts
+from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_delta import export_rule_delta
@@ -134,6 +135,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Apply the seed and write the graph. Omitted means dry run.",
     )
+
+    dedupe_parser = subparsers.add_parser(
+        "dedupe-vehicle-facts",
+        help="Collapse the vehicle projection to one row per plate.",
+    )
+    dedupe_parser.add_argument("--batch-size", type=int, default=100_000)
+    dedupe_parser.add_argument("--max-batches", type=int, default=None)
 
     facts_parser = subparsers.add_parser(
         "refresh-vehicle-facts",
@@ -297,6 +305,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "refresh-vehicle-facts\tnormalization_results+transportstyrelsen_raw\t"
             "Project every vehicle into the flat, indexed facts table."
         )
+        print(
+            "dedupe-vehicle-facts\tvehicle_facts\t"
+            "Collapse the vehicle projection to one row per plate."
+        )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
         return 0
@@ -449,6 +461,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+
+    if args.command == "dedupe-vehicle-facts":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_vehicle_facts_migrations(connection)
+                dedupe_summary = dedupe_vehicle_facts(
+                    connection,
+                    batch_size=args.batch_size,
+                    max_batches=args.max_batches,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle facts dedupe stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(dedupe_summary), sort_keys=True))
+        return 0
 
     if args.command == "refresh-vehicle-facts":
         datastores = DatastoreClients.from_settings(settings)

@@ -83,17 +83,21 @@ RESOLVABLE_FIELDS: tuple[str, ...] = (
 # rest are under 6% and are served well enough by the plain dimension indexes.
 _PARTIAL_INDEX_FIELDS: tuple[str, ...] = ("drive_type", "model_family")
 
-# Trimmed to what the measured workload actually used. The two partial indexes
-# below did nearly all the work (faceting went 197s -> 87ms on them); these
-# three serve filters that do not mention an unresolved field. type_text,
-# fab_code and vehicle_year earned indexes in the first draft and cost ~0.6 GB
-# between them, which is not affordable on the current disk -- add them back
-# when there is room, since CREATE INDEX needs no reload.
+# What the measured workload actually uses. The two partial indexes below carry
+# most of it (faceting went 197s -> 87ms on them); these serve filters that do
+# not mention an unresolved field. type_text was dropped while the disk was full
+# and restored once there was room: without it a `starts_with` filter took 8.6s.
 _DIMENSION_INDEX_COLUMNS: tuple[str, ...] = (
     "brand",
     "model",
     "variant",
+    "type_text",
 )
+
+# A `normalized` condition reads coalesce(n_x, r_x), so a plain column index
+# cannot serve it -- the expression has to be indexed as written. Only
+# manufacturer earns one: it is the normalized field filters actually name.
+_EFFECTIVE_VALUE_INDEX_FIELDS: tuple[str, ...] = ("manufacturer",)
 
 
 def _column_definitions() -> str:
@@ -149,6 +153,14 @@ def _migrations() -> tuple[tuple[str, str], ...]:
                 f"create_vehicle_facts_{column}_index",
                 f"CREATE INDEX IF NOT EXISTS vehicle_facts_{column}_idx "
                 f"ON {VEHICLE_FACTS_TABLE} ({column})",
+            )
+        )
+    for field in _EFFECTIVE_VALUE_INDEX_FIELDS:
+        statements.append(
+            (
+                f"create_vehicle_facts_{field}_effective_index",
+                f"CREATE INDEX IF NOT EXISTS vehicle_facts_{field}_effective_idx "
+                f"ON {VEHICLE_FACTS_TABLE} (coalesce(n_{field}, r_{field}))",
             )
         )
     for field in _PARTIAL_INDEX_FIELDS:
