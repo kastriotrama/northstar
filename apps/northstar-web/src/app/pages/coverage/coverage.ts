@@ -13,6 +13,7 @@ import { TagModule } from '@openng/optimus-ui/tag';
 import { TextareaModule } from '@openng/optimus-ui/textarea';
 
 import { Api } from '../../core/api';
+import { FilterState } from '../../core/filter-state';
 import type {
   DiscriminatorField,
   FieldValueCount,
@@ -79,6 +80,7 @@ const SINGLE_VALUE_OPERATORS: ReadonlySet<RuleOperator> = new Set<RuleOperator>(
 })
 export class CoveragePage {
   private readonly api = inject(Api);
+  private readonly handoff = inject(FilterState);
 
   protected readonly operators = OPERATORS;
 
@@ -89,6 +91,8 @@ export class CoveragePage {
   protected readonly populationsLoading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly flash = signal<{ text: string; bad: boolean } | null>(null);
+  /** True when this screen was entered from a filter rather than the worklist. */
+  protected readonly arrivedWithFilter = signal(false);
 
   /** Scales each worklist bar against the biggest population, so leverage is visible. */
   protected readonly maxRowCount = computed(() =>
@@ -216,6 +220,7 @@ export class CoveragePage {
         this.buildId.set(first);
         if (first) {
           this.loadPopulations(first);
+          this.adoptHandoff();
         } else {
           this.error.set('No match-chunk build exists yet. Run `build-match-chunks` first.');
         }
@@ -223,6 +228,42 @@ export class CoveragePage {
       error: (err: unknown) =>
         this.error.set(CoveragePage.describe(err, 'Could not load the build list.')),
     });
+  }
+
+  /**
+   * Take up a filter the explorer handed over.
+   *
+   * Nothing is translated on the way in: the conditions that produced the list on TS
+   * records are the conditions the rule is authored with, which is the whole point of
+   * the two screens sharing one filter rather than each holding its own.
+   */
+  private adoptHandoff(): void {
+    const conditions = this.handoff.conditions();
+    const field = this.handoff.targetField();
+    if (conditions.length === 0 && !field) {
+      return;
+    }
+    this.arrivedWithFilter.set(true);
+    // A handed-over population has no single (source_field, source_value) to name it, so
+    // it stands on its own conditions rather than borrowing a worklist entry's identity.
+    this.selected.set({
+      source_field: conditions[0]?.field ?? (field ?? ''),
+      source_value: conditions[0]?.values[0] ?? '',
+      signature_field: field ?? '',
+      row_count: 0,
+    });
+    this.conditions.set(
+      conditions.map((condition, index) => ({ ...condition, locked: index === 0 })),
+    );
+    this.advice.set(null);
+    this.preview.set(null);
+    this.savedRules.set([]);
+    if (field) {
+      this.targetField.set(field);
+      this.loadVocabulary(field);
+    }
+    this.runRefine();
+    this.handoff.reset();
   }
 
   // --- worklist ------------------------------------------------------------------------
@@ -263,6 +304,7 @@ export class CoveragePage {
   }
 
   protected selectPopulation(population: UnresolvedPopulation): void {
+    this.arrivedWithFilter.set(false);
     this.selected.set(population);
     this.attributes.set(null);
     this.advice.set(null);

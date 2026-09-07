@@ -401,3 +401,72 @@ export interface PatternReport {
   population: number;
   patterns: ValuePatternSuggestion[];
 }
+
+// --- Filtering the whole vehicle population -----------------------------------------
+// Mirrors api/app/features/vehicle_filter/schemas.py. The filter deliberately reuses
+// RuleCondition: a filter that narrows a population and a rule that resolves one are the
+// same expression at two moments, so they must not drift into two shapes.
+
+export interface VehicleFilterRequest {
+  conditions: RuleCondition[];
+  /** Restrict to cars where this field is neither normalized nor filled by a live rule. */
+  unresolved_field?: string | null;
+}
+
+export interface VehicleCount {
+  matched_rows: number;
+  total_rows: number;
+}
+
+export interface UnresolvedFieldCount {
+  field: string;
+  unresolved: number;
+  share: number;
+}
+
+export interface UnresolvedSummary {
+  matched_rows: number;
+  fields: UnresolvedFieldCount[];
+}
+
+export interface VehicleFacet {
+  field: string;
+  matched_rows: number;
+  values: FieldValueCount[];
+}
+
+export interface VehicleRow {
+  source_record_id: number;
+  plate: string | null;
+  brand: string | null;
+  model: string | null;
+  variant: string | null;
+  version: string | null;
+  vehicle_year: number | null;
+  kw: number | null;
+  norm_status: string | null;
+}
+
+export interface VehiclePage {
+  items: VehicleRow[];
+  next_cursor: number | null;
+  has_more: boolean;
+}
+
+export interface VehicleFieldStatus {
+  field: string;
+  source_field: string | null;
+  source_value: string | null;
+  normalized_value: string | null;
+  resolved_value: string | null;
+  status: 'resolved' | 'unresolved' | 'rule_resolved';
+}
+
+export interface VehicleDetail {
+  source_record_id: number;
+  plate: string | null;
+  vin: string | null;
+  norm_status: string | null;
+  source_batch_id: string | null;
+  fields: VehicleFieldStatus[];
+}

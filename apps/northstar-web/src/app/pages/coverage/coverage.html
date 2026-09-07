@@ -103,9 +103,19 @@
     <!-- ----------------------------------------------------------------- authoring -->
     <div class="author-pane">
       @if (selected(); as population) {
+        @if (arrivedWithFilter()) {
+          <div class="notice" role="status">
+            Carried over from your TS records filter — these conditions are the ones that
+            produced that list. Edit them here and the rule follows.
+          </div>
+        }
         <header class="pane__head">
           <h2 class="pane__title mono">
-            {{ population.source_field }} = {{ population.source_value }}
+            @if (arrivedWithFilter()) {
+              Filtered population
+            } @else {
+              {{ population.source_field }} = {{ population.source_value }}
+            }
           </h2>
           @if (refine(); as result) {
             <p class="pane__sub muted">

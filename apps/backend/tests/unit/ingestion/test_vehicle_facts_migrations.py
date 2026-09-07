@@ -54,14 +54,21 @@ def test_unresolved_predicate_rejects_unknown_fields() -> None:
         unresolved_predicate("drive_type; DROP TABLE core.vehicle_facts --")
 
 
-def test_big_gaps_get_a_partial_index_over_the_unresolved_population() -> None:
-    """The partial index *is* the unresolved set, so faceting never scans."""
+def test_every_resolvable_field_gets_a_partial_index_over_its_gap() -> None:
+    """The partial index *is* the unresolved set, so counting it never scans.
+
+    Every field earns one, not just the large gaps: counting unresolved
+    manufacturer -- 200 times rarer than drive_type -- took 9.16s without an
+    index against drive_type's 1.07s with one, because without one the count is
+    a heap scan whatever the answer turns out to be.
+    """
 
     statements = _statements()
 
-    for field in ("drive_type", "model_family"):
+    for field in RESOLVABLE_FIELDS:
         index = statements[f"create_vehicle_facts_unresolved_{field}_index"]
-        assert "(brand, model, variant)" in index
+        # Narrow on purpose: these serve counting, so the key only has to exist.
+        assert "(source_record_id)" in index
         assert f"WHERE {unresolved_predicate(field)}" in index
 
 

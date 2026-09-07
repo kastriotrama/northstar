@@ -27,6 +27,12 @@ import type {
   TecDocPage,
   TsCoverageReport,
   UnresolvedOverview,
+  UnresolvedSummary,
+  VehicleCount,
+  VehicleDetail,
+  VehicleFacet,
+  VehicleFilterRequest,
+  VehiclePage,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -316,5 +322,45 @@ export class Api {
       `${this.base}/v1/match-review/resolution-rules/${encodeURIComponent(ruleId)}/retire`,
       { reviewer },
     );
+  }
+
+  // --- Filtering the whole vehicle population ------------------------------------------
+  // Every call takes the same condition shape the rule endpoints take, so a filter built
+  // here can be handed to a rule without being rebuilt.
+
+  countVehicles(filter: VehicleFilterRequest): Observable<VehicleCount> {
+    return this.http.post<VehicleCount>(`${this.base}/v1/vehicles/count`, filter);
+  }
+
+  /** What the filtered set still cannot say about itself -- the worklist. */
+  unresolvedSummary(filter: VehicleFilterRequest): Observable<UnresolvedSummary> {
+    return this.http.post<UnresolvedSummary>(
+      `${this.base}/v1/vehicles/unresolved-summary`,
+      filter,
+    );
+  }
+
+  vehicleFacet(
+    filter: VehicleFilterRequest,
+    field: string,
+    limit = 12,
+  ): Observable<VehicleFacet> {
+    return this.http.post<VehicleFacet>(`${this.base}/v1/vehicles/facets`, filter, {
+      params: params({ field, limit }),
+    });
+  }
+
+  /** Keyset paging: pass the previous page's `next_cursor`, never an offset. */
+  vehiclePage(
+    filter: VehicleFilterRequest,
+    options: { cursor?: number; limit?: number } = {},
+  ): Observable<VehiclePage> {
+    return this.http.post<VehiclePage>(`${this.base}/v1/vehicles/page`, filter, {
+      params: params({ cursor: options.cursor ?? 0, limit: options.limit ?? 100 }),
+    });
+  }
+
+  vehicleDetail(sourceRecordId: number): Observable<VehicleDetail> {
+    return this.http.get<VehicleDetail>(`${this.base}/v1/vehicles/${sourceRecordId}`);
   }
 }

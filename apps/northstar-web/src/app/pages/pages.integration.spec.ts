@@ -14,7 +14,11 @@ import { provideOptimus } from '@openng/optimus-ui/config';
 import Aura from '@openng/optimus-ui-themes/aura';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+/** These tests query a live backend over 6.5M rows; 5s is a unit-test budget. */
+const INTEGRATION_TIMEOUT = 30_000;
+
 import { API_BASE_URL } from '../core/api-config';
+import { FilterState } from '../core/filter-state';
 import { CoveragePage } from './coverage/coverage';
 import { TsRecordsPage } from './ts-records/ts-records';
 import { TecDocPage } from './tecdoc/tecdoc';
@@ -70,17 +74,41 @@ beforeAll(async () => {
 });
 
 describe('pages render real data', () => {
-  it('TS records lists raw staging rows', async () => {
+  it('TS records filters the whole population and names its gaps', async () => {
     if (!apiUp) return;
     configure();
     const fixture = TestBed.createComponent(TsRecordsPage);
     fixture.detectChanges();
-    await settle(fixture);
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr');
+    await settle(fixture, 10);
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
     expect(text).toContain('TS records');
-    expect(rows.length).toBeGreaterThan(0);
-  });
+    expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
+
+    // The gaps sidebar is what makes browsing lead somewhere: without it the screen is
+    // a list, and the filter has nowhere to go.
+    expect(host.querySelectorAll('.gap').length).toBeGreaterThan(0);
+    expect(text).toContain('Resolve');
+  }, INTEGRATION_TIMEOUT);
+
+  it('a filter built on TS records reaches the resolver unchanged', async () => {
+    if (!apiUp) return;
+    configure();
+    // The two screens share one filter precisely so nothing is retyped between them.
+    const filter = TestBed.inject(FilterState);
+    filter.reset();
+    filter.addTerm('brand', 'TOYOTA');
+    filter.targetField.set('drive_type');
+
+    const fixture = TestBed.createComponent(CoveragePage);
+    fixture.detectChanges();
+    await settle(fixture, 12);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(text).toContain('Carried over from your TS records filter');
+    expect(text).toContain('TOYOTA');
+    expect(text).toContain('drive_type');
+  }, INTEGRATION_TIMEOUT);
 
   it('Unresolved fields ranks populations by how many cars they block', async () => {
     if (!apiUp) return;
@@ -100,7 +128,7 @@ describe('pages render real data', () => {
     );
     expect(counts[0]).toBeGreaterThan(0);
     expect([...counts]).toEqual([...counts].sort((a, b) => b - a));
-  });
+  }, INTEGRATION_TIMEOUT);
 
   it('TecDoc lists promoted ktypes', async () => {
     if (!apiUp) return;
@@ -111,7 +139,7 @@ describe('pages render real data', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent ?? '').toContain('TecDoc');
     expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
-  });
+  }, INTEGRATION_TIMEOUT);
 
   it('Rules lists the rule catalog', async () => {
     if (!apiUp) return;
@@ -137,5 +165,5 @@ describe('pages render real data', () => {
     expect(text).toContain('Match review');
     expect(text).toContain('blocker patterns');
     expect(text).not.toContain('Unresolved fields');
-  });
+  }, INTEGRATION_TIMEOUT);
 });

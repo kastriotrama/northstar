@@ -78,10 +78,16 @@ RESOLVABLE_FIELDS: tuple[str, ...] = (
     NORMALIZED_TEXT_FIELDS + NORMALIZED_INTEGER_FIELDS
 )
 
-# Fields whose unresolved population is large enough to deserve its own partial
-# index. drive_type is missing on 76.8% of rows and model_family on 41.0%; the
-# rest are under 6% and are served well enough by the plain dimension indexes.
-_PARTIAL_INDEX_FIELDS: tuple[str, ...] = ("drive_type", "model_family")
+# Every resolvable field gets a partial index over its own unresolved population,
+# because that predicate is what the gaps sidebar counts and what a rule matches
+# against. Size follows the gap rather than the table: production_year covers 344
+# rows, manufacturer 24,996, while engine_code covers all of them.
+#
+# The measured difference is not subtle. Counting unresolved manufacturer -- 200
+# times rarer than drive_type -- took 9.16s without an index while drive_type
+# took 1.07s with one, because without one the count is a heap scan whatever the
+# answer turns out to be.
+_PARTIAL_INDEX_FIELDS: tuple[str, ...] = RESOLVABLE_FIELDS
 
 # What the measured workload actually uses. The two partial indexes below carry
 # most of it (faceting went 197s -> 87ms on them); these serve filters that do
@@ -168,7 +174,7 @@ def _migrations() -> tuple[tuple[str, str], ...]:
             (
                 f"create_vehicle_facts_unresolved_{field}_index",
                 f"CREATE INDEX IF NOT EXISTS vehicle_facts_unresolved_{field}_idx "
-                f"ON {VEHICLE_FACTS_TABLE} (brand, model, variant) "
+                f"ON {VEHICLE_FACTS_TABLE} (source_record_id) "
                 f"WHERE {unresolved_predicate(field)}",
             )
         )

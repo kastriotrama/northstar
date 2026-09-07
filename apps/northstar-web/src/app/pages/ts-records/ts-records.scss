@@ -1,0 +1,308 @@
+:host {
+  display: block;
+}
+
+/* Sidebar, list and record panel side by side: the filter's consequences stay visible
+   while a car is open, which is what makes browsing lead somewhere. */
+.explorer {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.explorer:has(.record) {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(320px, 380px);
+}
+
+@media (max-width: 1200px) {
+  .explorer,
+  .explorer:has(.record) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.card__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.card__hint {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.filter-summary {
+  font-size: 0.74rem;
+  max-width: 60ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  position: sticky;
+  top: 0.5rem;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+/* --- condition chips ---------------------------------------------------------------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chips__and {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--p-text-muted-color);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--p-primary-color);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  background: var(--p-primary-50, #eef4ff);
+  font-size: 0.78rem;
+}
+
+.chip__field,
+.chip__value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.chip__value {
+  font-weight: 600;
+}
+
+.chip__or {
+  font-size: 0.68rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+.chip__op-select {
+  font: inherit;
+  border: 1px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 5px;
+  background: var(--p-surface-0);
+  padding: 0.1rem 0.2rem;
+  cursor: pointer;
+}
+
+.chip__remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  color: var(--p-text-muted-color);
+}
+
+.chip__remove:hover {
+  color: #8a2020;
+}
+
+/* --- gaps sidebar ------------------------------------------------------------------- */
+
+.gaps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.gap__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.gap__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.linkish {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  text-decoration: underline;
+}
+
+.linkish:hover {
+  color: var(--p-primary-color);
+}
+
+.linkish--strong {
+  color: var(--p-primary-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* --- facet chips -------------------------------------------------------------------- */
+
+.spread__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.vchip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  border: 1px solid var(--p-surface-300, var(--p-surface-200));
+  border-radius: 999px;
+  background: var(--p-surface-0);
+  padding: 0.14rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.vchip:hover {
+  border-color: var(--p-primary-color);
+}
+
+.vchip:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.vchip--selected {
+  background: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+  color: var(--p-primary-contrast-color, #fff);
+}
+
+.vchip__value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+
+.vchip__count {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* --- record panel ------------------------------------------------------------------- */
+
+/* A panel rather than a modal: the previous screen used a dialog that could only be read
+   and closed, so nothing learned in it could act on anything. */
+.record {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  position: sticky;
+  top: 0.5rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.record__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.record__vin {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.record__batch {
+  margin: 0.15rem 0 0.6rem;
+  font-size: 0.68rem;
+  word-break: break-all;
+}
+
+.record__nav {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.record__nav button {
+  border: 1px solid var(--p-surface-200);
+  background: var(--p-surface-0);
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+}
+
+.record__nav button:hover {
+  border-color: var(--p-primary-color);
+}
+
+.record__fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.record__fields td {
+  padding: 0.3rem 0.3rem;
+  border-bottom: 1px solid var(--p-surface-100);
+  vertical-align: middle;
+}
+
+.record__arrow {
+  color: var(--p-text-muted-color);
+  width: 1.2rem;
+  text-align: center;
+}
+
+.row--active td {
+  background: var(--p-primary-50, #eef4ff);
+}
