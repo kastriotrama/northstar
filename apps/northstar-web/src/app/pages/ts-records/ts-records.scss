@@ -341,3 +341,75 @@
   opacity: 0.45;
   transition: opacity 120ms ease;
 }
+
+/* Choosing the field to set is the point of the screen, so the whole row is the
+   button. It was a text link the same weight as the filter shortcut beside it, and a
+   reviewer could build an entire filter without finding where a value gets named. */
+.gap__set {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 7px;
+  padding: 0.45rem 0.55rem;
+}
+
+.gap__set:hover {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50, #eef4ff);
+}
+
+.gap__set:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.gap--open .gap__set {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50, #eef4ff);
+}
+
+.gap__cta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--p-primary-color);
+}
+
+.gap .linkish {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
+.next-step {
+  background: var(--p-surface-0);
+  border: 1px dashed var(--p-primary-color);
+  border-radius: 8px;
+  padding: 0.9rem;
+  position: sticky;
+  top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.next-step__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.next-step p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.next-step__hint {
+  font-size: 0.72rem !important;
+}

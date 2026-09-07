@@ -85,9 +85,10 @@ describe('pages render real data', () => {
     expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
 
     // The gaps sidebar is what makes browsing lead somewhere: without it the screen is
-    // a list, and the filter has nowhere to go.
+    // a list, and the filter has nowhere to go. Asserted on the affordance rather than
+    // its wording, which has already changed once.
     expect(host.querySelectorAll('.gap').length).toBeGreaterThan(0);
-    expect(text).toContain('Resolve');
+    expect(host.querySelectorAll('.gap__set').length).toBeGreaterThan(0);
   }, INTEGRATION_TIMEOUT);
 
   it('TS data resolves a field without leaving the screen', async () => {
@@ -104,18 +105,16 @@ describe('pages render real data', () => {
     await settle(fixture, 12);
     const host = fixture.nativeElement as HTMLElement;
 
-    const resolve = [...host.querySelectorAll('button')].find((button) =>
-      (button.textContent ?? '').includes('Resolve'),
-    );
-    expect(resolve).toBeDefined();
-    resolve?.click();
+    const setValue = host.querySelector<HTMLButtonElement>('.gap__set');
+    expect(setValue).toBeTruthy();
+    setValue?.click();
     fixture.detectChanges();
     await settle(fixture, 8);
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Resolve');
-    // The filter is the rule's predicate, so it appears in the statement unchanged.
-    expect(text).toContain('TOYOTA');
+    const host2 = fixture.nativeElement as HTMLElement;
+    expect(host2.querySelector('.resolver')).toBeTruthy();
+    // The filter is the rule's predicate, so it reaches the statement unchanged.
+    expect(host2.querySelector('.statement')?.textContent ?? '').toContain('TOYOTA');
   }, INTEGRATION_TIMEOUT);
 
   it('TecDoc lists promoted ktypes', async () => {

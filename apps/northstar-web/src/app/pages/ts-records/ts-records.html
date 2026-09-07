@@ -127,14 +127,14 @@
     </div>
   </section>
 
-  <div class="explorer" [class.explorer--panel]="detail() || resolving()">
+  <div class="explorer" [class.explorer--panel]="detail() || resolving() || !filter.isEmpty()">
     <!-- ------------------------------------------------------------------- sidebar -->
     <aside class="sidebar">
       <section class="card" aria-labelledby="gaps-heading">
-        <h2 id="gaps-heading" class="card__title">What this set can't say</h2>
+        <h2 id="gaps-heading" class="card__title">Set a field for these cars</h2>
         <p class="muted card__hint">
-          Fields the matched cars still lack — the THEN side. Resolving one writes
-          <span class="mono">IF &lt;filter&gt; THEN &lt;field&gt; = …</span>, so nothing
+          Pick the field you want to give a value. It becomes the THEN side of
+          <span class="mono">IF &lt;your filter&gt; THEN &lt;field&gt; = …</span> — so nothing
           you filtered on is ever what gets set.
         </p>
         @if (summaryLoading()) {
@@ -150,26 +150,25 @@
              showing them as current is worse than showing nothing. -->
         <ul class="gaps" [class.gaps--stale]="summaryLoading()" [attr.aria-busy]="summaryLoading()">
           @for (gap of unresolved(); track gap.field) {
-            <li class="gap">
-              <div class="gap__head">
-                <strong class="mono">{{ gap.field }}</strong>
-                <span class="num muted">{{ gap.unresolved | number }}</span>
-              </div>
-              <div class="bar">
-                <span class="bar__fill" [style.width.%]="gap.share * 100"></span>
-              </div>
-              <div class="gap__actions">
-                <button
-                  type="button"
-                  class="linkish"
-                  (click)="onUnresolvedField(gap.field)"
-                >
-                  show only these
-                </button>
-                <button type="button" class="linkish linkish--strong" (click)="resolve(gap.field)">
-                  Resolve →
-                </button>
-              </div>
+            <li class="gap" [class.gap--open]="resolving() === gap.field">
+              <button
+                type="button"
+                class="gap__set"
+                [attr.aria-pressed]="resolving() === gap.field"
+                (click)="resolve(gap.field)"
+              >
+                <span class="gap__head">
+                  <strong class="mono">{{ gap.field }}</strong>
+                  <span class="num muted">{{ gap.unresolved | number }}</span>
+                </span>
+                <span class="bar">
+                  <span class="bar__fill" [style.width.%]="gap.share * 100"></span>
+                </span>
+                <span class="gap__cta">Set a value →</span>
+              </button>
+              <button type="button" class="linkish" (click)="onUnresolvedField(gap.field)">
+                show only these in the list
+              </button>
             </li>
           } @empty {
             @if (!summaryLoading()) {
@@ -288,7 +287,30 @@
     </div>
 
     <!-- ------------------------------------------------------- resolver / record -->
-    @if (resolving(); as field) {
+    @if (!resolving() && !detail() && !filter.isEmpty()) {
+      <!-- With a filter built and no panel open, the next step is invisible unless the
+           screen says it: naming a value is the whole point and it lives one click away
+           in a sidebar. -->
+      <aside class="next-step" aria-label="What to do next">
+        <p class="next-step__title">These {{ matched() ?? 0 | number }} cars are your IF side</p>
+        <p class="muted">
+          Now pick the field to give them a value — choose one under
+          <strong>Set a field for these cars</strong> on the left, and the rule is written
+          here.
+        </p>
+        @if (unresolved().length) {
+          <p-button
+            [label]="'Set ' + unresolved()[0].field + ' →'"
+            size="small"
+            (onClick)="resolve(unresolved()[0].field)"
+          />
+          <p class="muted next-step__hint">
+            {{ unresolved()[0].unresolved | number }} of them still lack it — the biggest gap
+            in this set.
+          </p>
+        }
+      </aside>
+    } @else if (resolving(); as field) {
       <ns-resolver-panel
         [targetField]="field"
         [buildId]="buildId()"
