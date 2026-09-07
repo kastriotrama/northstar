@@ -1,5 +1,5 @@
 from contextlib import AbstractContextManager
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -52,6 +52,8 @@ def list_rule_catalog(
     area: str | None = Query(default=None, max_length=80),
     canonical_field: str | None = Query(default=None, max_length=80),
     decision: str | None = Query(default=None, max_length=40),
+    origin: Literal["catalog", "code"] | None = Query(default=None),
+    transformer_id: str | None = Query(default=None, max_length=80),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> RuleCatalogResponse:
@@ -61,6 +63,8 @@ def list_rule_catalog(
             area=area,
             canonical_field=canonical_field,
             decision=decision,
+            origin=origin,
+            transformer_id=transformer_id,
             limit=limit,
             offset=offset,
         )

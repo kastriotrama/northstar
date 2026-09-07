@@ -10,7 +10,11 @@ import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
-import type { RuleCatalogEntry, RuleCatalogResponse } from '../../core/models';
+import type {
+  RuleCatalogEntry,
+  RuleCatalogResponse,
+  TransformerStage,
+} from '../../core/models';
 
 @Component({
   selector: 'ns-rules',
@@ -25,6 +29,7 @@ import type { RuleCatalogEntry, RuleCatalogResponse } from '../../core/models';
     TagModule,
   ],
   templateUrl: './rules.html',
+  styleUrl: './rules.scss',
 })
 export class RulesPage {
   private readonly api = inject(Api);
@@ -38,9 +43,12 @@ export class RulesPage {
   protected readonly area = signal<string | null>(null);
   protected readonly canonicalField = signal<string | null>(null);
   protected readonly decision = signal<string | null>(null);
+  protected readonly origin = signal<string | null>(null);
+  protected readonly transformerId = signal<string | null>(null);
 
   protected readonly detail = signal<RuleCatalogEntry | null>(null);
   protected readonly detailOpen = signal(false);
+  protected readonly pipelineOpen = signal(false);
 
   protected readonly areaOptions = computed(() =>
     (this.catalog()?.areas ?? []).map((area) => ({ label: area, value: area })),
@@ -52,11 +60,24 @@ export class RulesPage {
     { label: 'accepted', value: 'accepted' },
     { label: 'proposed', value: 'proposed' },
   ];
+  protected readonly originOptions = [
+    { label: 'Reviewed catalog', value: 'catalog' },
+    { label: 'Compiled into the pipeline', value: 'code' },
+  ];
+
+  /** The pipeline stages, kept in execution order as the API returns them. */
+  protected readonly stages = computed<TransformerStage[]>(
+    () => this.catalog()?.transformers ?? [],
+  );
+
+  protected readonly selectedStage = computed(() =>
+    this.stages().find((stage) => stage.transformer_id === this.transformerId()) ?? null,
+  );
 
   protected readonly optionsForDetail = computed(() => {
     const rule = this.detail();
     const catalog = this.catalog();
-    if (!rule || !catalog) {
+    if (!rule || !catalog || rule.origin === 'code') {
       return [];
     }
     return catalog.canonical_options_by_field[rule.canonical_field] ?? [];
@@ -74,6 +95,8 @@ export class RulesPage {
         area: this.area(),
         canonicalField: this.canonicalField(),
         decision: this.decision(),
+        origin: this.origin(),
+        transformerId: this.transformerId(),
         limit: this.rows,
         offset: this.first(),
       })
@@ -101,6 +124,18 @@ export class RulesPage {
     this.area.set(null);
     this.canonicalField.set(null);
     this.decision.set(null);
+    this.origin.set(null);
+    this.transformerId.set(null);
+    this.search();
+  }
+
+  /** Clicking a stage narrows the table to exactly what that stage applies. */
+  protected showStage(stage: TransformerStage): void {
+    this.transformerId.set(
+      this.transformerId() === stage.transformer_id ? null : stage.transformer_id,
+    );
+    this.area.set(null);
+    this.origin.set(null);
     this.search();
   }
 
@@ -111,5 +146,9 @@ export class RulesPage {
 
   protected decisionSeverity(decision: string): 'success' | 'warn' {
     return decision === 'accepted' ? 'success' : 'warn';
+  }
+
+  protected originLabel(origin: string): string {
+    return origin === 'code' ? 'code' : 'catalog';
   }
 }

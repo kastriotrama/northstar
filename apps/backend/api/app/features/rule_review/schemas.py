@@ -122,6 +122,26 @@ class RuleCatalogEntry(BaseModel):
     manufacturers: list[str] = Field(default_factory=list)
     has_draft: bool = False
     change_note: str | None = None
+    origin: Literal["catalog", "code"] = "catalog"
+    transformer_id: str | None = None
+    editable: bool = True
+    notes: str | None = None
+
+
+class TransformerStageView(BaseModel):
+    """One pipeline stage, so no transformer can change a record unlisted."""
+
+    transformer_id: str
+    order: int
+    default_rule_id: str
+    summary: str
+    source_fields: list[str] = Field(default_factory=list)
+    writes: list[str] = Field(default_factory=list)
+    rule_areas: list[str] = Field(default_factory=list)
+    code_areas: list[str] = Field(default_factory=list)
+    catalog_rule_count: int = 0
+    code_rule_count: int = 0
+    review_reasons: list[str] = Field(default_factory=list)
 
 
 class RuleCatalogResponse(BaseModel):
@@ -132,7 +152,11 @@ class RuleCatalogResponse(BaseModel):
     filtered_total: int
     limit: int
     offset: int
+    catalog_total: int = 0
+    code_total: int = 0
+    pipeline_version: str = ""
     areas: list[str] = Field(default_factory=list)
     canonical_fields: list[str] = Field(default_factory=list)
     canonical_options_by_field: dict[str, list[str]] = Field(default_factory=dict)
+    transformers: list[TransformerStageView] = Field(default_factory=list)
     items: list[RuleCatalogEntry] = Field(default_factory=list)

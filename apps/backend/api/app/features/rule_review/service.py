@@ -18,9 +18,17 @@ from api.app.features.rule_review.schemas import (
     RuleDraftRequest,
     RuleListResponse,
     RuleView,
+    TransformerStageView,
+)
+from ingestion.normalization_catalog import (
+    CODE_RULE_PREFIX,
+    EmbeddedRule,
+    code_rules,
+    transformer_stages,
 )
 from ingestion.normalization_repository import NormalizationSummary
 from ingestion.normalization_rules import (
+    PIPELINE_VERSION,
     ManufacturerEntityRules,
     manufacturer_entity_catalog,
     normalize_manufacturer_entity,
@@ -77,10 +85,17 @@ class RuleReviewService:
         area: str | None = None,
         canonical_field: str | None = None,
         decision: str | None = None,
+        origin: str | None = None,
+        transformer_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> RuleCatalogResponse:
-        """Paginated rule browsing.
+        """Paginated browsing of everything that transforms a record.
+
+        Two kinds of rule share this list. Catalog rules come from the reviewed
+        translation dictionaries and can be redrafted here. Code rules are the lookup
+        tables, grammars and unit conversions compiled into the pipeline; they are
+        listed so no transform is invisible, and they are not editable from this screen.
 
         Deliberately avoids the two aggregates that make ``list_rules`` expensive --
         ``fetch_review_reason_summary`` and ``fetch_discovered_manufacturer_entities``
@@ -134,6 +149,10 @@ class RuleReviewService:
                 )
             )
 
+        catalog_total = len(entries)
+        embedded = [self._code_entry(entry) for entry in code_rules()]
+        entries.extend(embedded)
+
         total = len(entries)
         term = query.strip().lower()
         if term:
@@ -143,7 +162,9 @@ class RuleReviewService:
                 if term in entry.rule_id.lower()
                 or term in entry.canonical_field.lower()
                 or (entry.effective_canonical_value or "").lower().find(term) >= 0
+                or (entry.notes or "").lower().find(term) >= 0
                 or any(term in value.lower() for value in entry.source_terms)
+                or any(term in value.lower() for value in entry.source_fields)
                 or any(term in value.lower() for value in entry.manufacturers)
             ]
         if area:
@@ -154,6 +175,10 @@ class RuleReviewService:
             ]
         if decision:
             entries = [entry for entry in entries if entry.effective_decision == decision]
+        if origin:
+            entries = [entry for entry in entries if entry.origin == origin]
+        if transformer_id:
+            entries = [entry for entry in entries if entry.transformer_id == transformer_id]
 
         filtered_total = len(entries)
         page = entries[offset : offset + limit]
@@ -166,12 +191,56 @@ class RuleReviewService:
             draft_count=len(drafts),
             total=total,
             filtered_total=filtered_total,
+            catalog_total=catalog_total,
+            code_total=len(embedded),
+            pipeline_version=PIPELINE_VERSION,
             limit=limit,
             offset=offset,
-            areas=sorted({rule.area for rule in self._base.rules}),
-            canonical_fields=sorted({rule.canonical_field for rule in self._base.rules}),
+            areas=sorted(
+                {rule.area for rule in self._base.rules} | {entry.area for entry in embedded}
+            ),
+            canonical_fields=sorted(
+                {rule.canonical_field for rule in self._base.rules}
+                | {entry.canonical_field for entry in embedded}
+            ),
             canonical_options_by_field=self._canonical_options(),
+            transformers=[
+                TransformerStageView(
+                    transformer_id=stage.transformer_id,
+                    order=stage.order,
+                    default_rule_id=stage.default_rule_id,
+                    summary=stage.summary,
+                    source_fields=list(stage.source_fields),
+                    writes=list(stage.writes),
+                    rule_areas=list(stage.rule_areas),
+                    code_areas=list(stage.code_areas),
+                    catalog_rule_count=stage.catalog_rule_count,
+                    code_rule_count=stage.code_rule_count,
+                    review_reasons=list(stage.review_reasons),
+                )
+                for stage in transformer_stages(self._base)
+            ],
             items=page,
+        )
+
+    @staticmethod
+    def _code_entry(rule: EmbeddedRule) -> RuleCatalogEntry:
+        """Render one compiled-in transform in the same shape as a catalog rule."""
+
+        return RuleCatalogEntry(
+            rule_id=rule.rule_id,
+            area=rule.area,
+            source_fields=list(rule.source_fields),
+            source_terms=list(rule.source_terms),
+            canonical_field=rule.canonical_field,
+            base_canonical_value=rule.canonical_value,
+            effective_canonical_value=rule.canonical_value,
+            effective_decision="accepted",
+            effective_display_value=rule.display_value,
+            origin="code",
+            transformer_id=rule.transformer_id,
+            editable=False,
+            notes=rule.notes,
         )
 
     def save_draft(self, rule_id: str, request: RuleDraftRequest) -> RuleListResponse:
@@ -464,6 +533,10 @@ class RuleReviewService:
         }
 
     def _get_rule(self, rule_id: str) -> TranslationRule:
+        if rule_id.startswith(f"{CODE_RULE_PREFIX}:"):
+            # Listed so the transform is visible, but it lives in the pipeline, not the
+            # catalog. Overriding it here would claim an authority this screen lacks.
+            raise RuleReviewError("rule_is_compiled_into_the_pipeline")
         try:
             return self._base.get(rule_id)
         except KeyError as error:

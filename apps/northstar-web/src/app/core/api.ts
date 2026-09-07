@@ -128,6 +128,8 @@ export class Api {
     area?: string | null;
     canonicalField?: string | null;
     decision?: string | null;
+    origin?: string | null;
+    transformerId?: string | null;
     limit?: number;
     offset?: number;
   }): Observable<RuleCatalogResponse> {
@@ -139,6 +141,8 @@ export class Api {
           area: options.area,
           canonical_field: options.canonicalField,
           decision: options.decision,
+          origin: options.origin,
+          transformer_id: options.transformerId,
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,
         }),
