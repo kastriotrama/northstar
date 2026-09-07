@@ -217,6 +217,12 @@ export class TsRecordsPage {
 
   // --- filter editing -------------------------------------------------------------------
 
+  /** The first facet field the filter has not already pinned. */
+  private firstFreeField(): string {
+    const pinned = new Set(this.filter.conditions().map((item) => item.field));
+    return FACET_FIELDS.find((field) => !pinned.has(field)) ?? FACET_FIELDS[0];
+  }
+
   protected addDraft(): void {
     const value = this.draftValue().trim();
     if (!value) {
@@ -232,6 +238,8 @@ export class TsRecordsPage {
     });
     this.filter.conditions.set(conditions);
     this.draftValue.set('');
+    // Move off the field just pinned, so the empty row never mirrors a live clause.
+    this.draftField.set(this.firstFreeField());
     this.reload();
   }
 
@@ -257,6 +265,9 @@ export class TsRecordsPage {
    */
   protected toggleFacetValue(value: string): void {
     this.filter.toggleTerm(this.facetField(), value);
+    if (this.filter.conditions().some((item) => item.field === this.draftField())) {
+      this.draftField.set(this.firstFreeField());
+    }
     this.reload();
   }
 

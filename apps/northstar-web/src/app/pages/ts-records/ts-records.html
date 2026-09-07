@@ -40,7 +40,9 @@
   <!-- ------------------------------------------------------------------- the filter -->
   <section class="card" aria-labelledby="filter-heading">
     <div class="card__head">
-      <h2 id="filter-heading" class="card__title">Filter</h2>
+      <h2 id="filter-heading" class="card__title">
+        Which cars <span class="muted card__hint">— the IF side of any rule you write</span>
+      </h2>
       <span class="muted mono filter-summary">{{ filterLabel() }}</span>
     </div>
 
@@ -83,7 +85,8 @@
       }
     </div>
 
-    <div class="toolbar">
+    <div class="filter__add">
+      <span class="filter__add-label">Add a condition</span>
       <p-select
         [options]="facetFields"
         [ngModel]="draftField()"
@@ -111,10 +114,10 @@
         aria-label="Value for the new condition"
         style="min-width: 190px"
       />
-      <p-button label="Add condition" size="small" [outlined]="true" (onClick)="addDraft()" />
+      <p-button label="Add" size="small" [outlined]="true" (onClick)="addDraft()" />
       @if (!filter.isEmpty() || unresolvedField()) {
         <p-button
-          label="Clear"
+          label="Clear filter"
           size="small"
           severity="secondary"
           [text]="true"
@@ -130,12 +133,22 @@
       <section class="card" aria-labelledby="gaps-heading">
         <h2 id="gaps-heading" class="card__title">What this set can't say</h2>
         <p class="muted card__hint">
-          Fields the matched cars still lack. Pick one to author a rule for it.
+          Fields the matched cars still lack — the THEN side. Resolving one writes
+          <span class="mono">IF &lt;filter&gt; THEN &lt;field&gt; = …</span>, so nothing
+          you filtered on is ever what gets set.
         </p>
-        @if (summaryLoading() && !unresolved().length) {
-          <p class="muted">Counting gaps across the matched set…</p>
+        @if (summaryLoading()) {
+          <p class="muted" role="status" aria-live="polite">
+            @if (unresolved().length) {
+              Recounting for the new filter…
+            } @else {
+              Counting gaps across the matched set…
+            }
+          </p>
         }
-        <ul class="gaps">
+        <!-- Dimmed while recounting: these are the previous filter's numbers, and
+             showing them as current is worse than showing nothing. -->
+        <ul class="gaps" [class.gaps--stale]="summaryLoading()" [attr.aria-busy]="summaryLoading()">
           @for (gap of unresolved(); track gap.field) {
             <li class="gap">
               <div class="gap__head">

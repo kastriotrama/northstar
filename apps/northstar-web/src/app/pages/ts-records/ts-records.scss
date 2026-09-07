@@ -314,3 +314,30 @@
   margin: 0;
   font-size: 0.72rem;
 }
+
+/* The row that builds a new condition is an input, not a condition. Without a rule
+   and a label it read as another clause of the filter -- a field name resting in its
+   dropdown looked like "AND is_4wd = ...", which is the opposite of what it does. */
+.filter__add {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--p-surface-300, var(--p-surface-200));
+  padding-top: 0.65rem;
+  margin-top: 0.15rem;
+}
+
+.filter__add-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+/* The gaps summary is deliberately off the critical path, so it lags the filter by a
+   moment. Stale counts presented as current are a worse lie than a visible wait. */
+.gaps--stale {
+  opacity: 0.45;
+  transition: opacity 120ms ease;
+}
