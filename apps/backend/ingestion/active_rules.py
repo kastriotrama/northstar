@@ -12,6 +12,7 @@ from ingestion.normalization_rules import (
     ManufacturerEntityRules,
     normalize_manufacturer_entity,
 )
+from ingestion.rule_definitions import load_rule_set_from_database
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
     TranslationRuleSet,
@@ -51,7 +52,13 @@ def load_active_rules(
         return load_translation_rule_set(REVIEWED_RULE_SET_VERSION), {}
 
     version, base_version, overrides = str(row[0]), str(row[1]), dict(row[2] or {})
-    base = load_translation_rule_set(base_version)
+    # Stored content wins when the version has been imported: a version is then
+    # the rows carrying it, so its meaning cannot drift while a name stays the
+    # same. Versions pinned before that table existed fall back to the Python
+    # catalog and resolve exactly as they always did.
+    base = load_rule_set_from_database(connection, base_version) or load_translation_rule_set(
+        base_version
+    )
     effective: list[Any] = []
     for rule in base.rules:
         override = overrides.get(rule.rule_id)
