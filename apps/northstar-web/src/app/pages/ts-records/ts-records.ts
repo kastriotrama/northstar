@@ -12,6 +12,7 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
+import { ResolverPanel } from '../../components/resolver-panel';
 import { FilterState, OPERATORS } from '../../core/filter-state';
 import type { EditableCondition } from '../../core/filter-state';
 import type {
@@ -22,6 +23,12 @@ import type {
   VehicleFilterRequest,
   VehicleRow,
 } from '../../core/models';
+
+/**
+ * Fields that carry identity. While any of these still varies inside a filter, the
+ * matched cars are not one thing and no single value can be asserted over them.
+ */
+const IDENTITY_FIELDS: readonly string[] = ['brand', 'model', 'variant', 'type_text'];
 
 /** Fields worth offering as facets, cheapest and most discriminating first. */
 const FACET_FIELDS: string[] = [
@@ -57,6 +64,7 @@ const FACET_FIELDS: string[] = [
     SelectModule,
     TableModule,
     TagModule,
+    ResolverPanel,
   ],
   templateUrl: './ts-records.html',
   styleUrl: './ts-records.scss',
@@ -86,6 +94,25 @@ export class TsRecordsPage {
   protected readonly draftField = signal<string>('brand');
   protected readonly draftOperator = signal<RuleOperator>('equals');
   protected readonly draftValue = signal<string>('');
+
+  // --- the resolver, as a panel rather than a page ---------------------------------------
+  protected readonly resolving = signal<string | null>(null);
+  protected readonly buildId = signal<string | null>(null);
+
+  /** How many matched cars lack the field being resolved. */
+  protected readonly resolvingUnresolved = computed(() => {
+    const field = this.resolving();
+    return this.unresolved().find((gap) => gap.field === field)?.unresolved ?? 0;
+  });
+
+  /**
+   * Identity fields the current filter has not pinned. The resolver refuses to write
+   * while any of these still varies, so the filter must narrow until none do.
+   */
+  protected readonly varyingIdentity = computed(() => {
+    const pinned = new Set(this.filter.conditions().map((item) => item.field));
+    return IDENTITY_FIELDS.filter((field) => !pinned.has(field));
+  });
 
   // --- record panel ---------------------------------------------------------------------
   protected readonly detail = signal<VehicleDetail | null>(null);
@@ -167,6 +194,11 @@ export class TsRecordsPage {
         this.summaryLoading.set(false);
         this.unresolved.set(summary?.fields ?? []);
       });
+
+    this.api.listMatchChunkBuilds().subscribe({
+      next: (builds) => this.buildId.set(builds[0]?.build_id ?? null),
+      error: () => this.buildId.set(null),
+    });
 
     this.reload();
   }
@@ -298,6 +330,7 @@ export class TsRecordsPage {
   // --- record panel ---------------------------------------------------------------------
 
   protected open(row: VehicleRow): void {
+    this.resolving.set(null);
     this.detailLoading.set(true);
     this.api.vehicleDetail(row.source_record_id).subscribe({
       next: (detail) => {
@@ -336,18 +369,29 @@ export class TsRecordsPage {
   // --- the handoff ----------------------------------------------------------------------
 
   /**
-   * Carry this filter to the resolver. Nothing is translated: the conditions the list was
-   * built from are the conditions the rule is authored with.
+   * Open the resolver on this field.
+   *
+   * There is no navigation and nothing to carry: the filter that produced the list is
+   * already the rule's predicate, so the panel simply opens beside it.
    */
   protected resolve(field: string): void {
-    this.filter.targetField.set(field);
-    void this.router.navigate(['/coverage']);
+    this.detail.set(null);
+    this.resolving.set(field);
+  }
+
+  protected closeResolver(): void {
+    this.resolving.set(null);
   }
 
   /** From the record panel: adopt this car's value for the field, then resolve it. */
-  protected resolveFrom(field: string, sourceField: string | null, sourceValue: string | null): void {
+  protected resolveFrom(
+    field: string,
+    sourceField: string | null,
+    sourceValue: string | null,
+  ): void {
     if (sourceField && sourceValue) {
       this.filter.addTerm(sourceField, sourceValue);
+      this.reload();
     }
     this.resolve(field);
   }

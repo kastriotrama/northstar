@@ -1,10 +1,10 @@
 <section class="page">
   <div class="page__head">
     <div>
-      <h1 class="page__title">TS records</h1>
+      <h1 class="page__title">TS data</h1>
       <p class="page__subtitle">
         Filter every car in the register, see what the matched set still cannot say about
-        itself, then hand that filter straight to a rule. One row per car.
+        itself, and write the rule that fills it — without leaving the filter. One row per car.
       </p>
     </div>
     <div class="stats" style="min-width: 340px">
@@ -124,7 +124,7 @@
     </div>
   </section>
 
-  <div class="explorer">
+  <div class="explorer" [class.explorer--panel]="detail() || resolving()">
     <!-- ------------------------------------------------------------------- sidebar -->
     <aside class="sidebar">
       <section class="card" aria-labelledby="gaps-heading">
@@ -265,8 +265,17 @@
       </div>
     </div>
 
-    <!-- -------------------------------------------------------------- record panel -->
-    @if (detail(); as record) {
+    <!-- ------------------------------------------------------- resolver / record -->
+    @if (resolving(); as field) {
+      <ns-resolver-panel
+        [targetField]="field"
+        [buildId]="buildId()"
+        [unresolvedRows]="resolvingUnresolved()"
+        [varyingFields]="varyingIdentity()"
+        (closed)="closeResolver()"
+        (changed)="reload()"
+      />
+    } @else if (detail(); as record) {
       <aside class="record" aria-label="Vehicle detail">
         <div class="record__head">
           <div>

@@ -11,13 +11,16 @@
   align-items: start;
 }
 
-.explorer:has(.record) {
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(320px, 380px);
+/* A third column appears for whichever panel is open -- the car, or the rule being
+   written about the filter. Only one shows at a time; two would compete for the same
+   question. */
+.explorer--panel {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(340px, 400px);
 }
 
 @media (max-width: 1200px) {
   .explorer,
-  .explorer:has(.record) {
+  .explorer--panel {
     grid-template-columns: 1fr;
   }
 }
