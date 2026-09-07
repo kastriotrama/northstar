@@ -23,6 +23,7 @@ from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
 from ingestion.match_run_service import MatchSourceRecord, run_dry_match_audit
 from ingestion.normalization_bundle import import_normalization_bundle
+from ingestion.rule_definition_migrations import run_rule_definition_migrations
 from ingestion.rule_delta import export_rule_delta
 from ingestion.tecdoc.match_run_adapters import (
     TecDocDryRunEvaluator,
@@ -431,6 +432,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             with datastores.postgres.connect() as connection:
                 run_match_chunk_migrations(connection)
+                run_rule_definition_migrations(connection)
                 resolver = None
                 if args.align_to_matcher:
                     # Chunk membership only means "one decision covers all of
@@ -506,6 +508,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 # owns that schema too. Without it a database migrated before the
                 # `sealed` column existed fails on the read rather than on setup.
                 run_vocabulary_migrations(connection)
+                # `load_active_rules` prefers stored rule content, so this
+                # command owns that schema as well: without the table it would
+                # silently fall back to the Python catalog and a run pinned to
+                # a stored version would not be matched with that version.
+                run_rule_definition_migrations(connection)
                 rule_set, manufacturer_rules = load_active_rules(connection)
                 catalog = (
                     load_postgres_ktype_catalog(
