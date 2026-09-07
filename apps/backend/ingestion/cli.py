@@ -587,6 +587,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
                 run_match_run_migrations(connection)
+                # The evaluator reads the sealed fuel alignment, so this command
+                # owns that schema too. Without it a database migrated before the
+                # `sealed` column existed fails on the read rather than on setup.
+                run_vocabulary_migrations(connection)
                 rule_set, manufacturer_rules = load_active_rules(connection)
                 catalog = (
                     load_postgres_ktype_catalog(
