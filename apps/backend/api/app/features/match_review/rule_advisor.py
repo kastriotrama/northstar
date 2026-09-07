@@ -13,6 +13,8 @@ the two happened.
 
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -204,6 +206,18 @@ class PatternRuleAdvisor:
         )
 
 
+logger = logging.getLogger(__name__)
+
+
+class NoSuggestion(ValueError):
+    """The model answered and proposed nothing.
+
+    Distinct from a reply that was malformed or out of vocabulary, and distinct
+    again from the model being unreachable. A population with nothing to
+    separate it is a real answer, and reporting it as a failure sends a reviewer
+    looking for a broken key.
+    """
+
 ADVISOR_INSTRUCTIONS = """\
 You propose resolution rules over Swedish vehicle-register data. A rule is a
 conjunction of conditions (AND); values inside one condition are OR-ed.
@@ -320,7 +334,7 @@ class LlmRuleAdvisor:
             # allowlists rather than letting an invented field or a
             # non-canonical value reach the preview.
             if not conditions or any(not c.values for c in conditions):
-                raise ValueError("model returned no usable conditions")
+                raise NoSuggestion("model proposed no conditions")
             for condition in conditions:
                 if condition.field not in allowed_fields:
                     raise ValueError(f"unknown field {condition.field!r}")
@@ -348,7 +362,29 @@ class LlmRuleAdvisor:
                 or "Model returned no reasoning.",
                 evidence={"population": population, "source": self.name},
             )
-        except Exception:  # noqa: BLE001 - any failure degrades to heuristics
+        except Exception as error:  # noqa: BLE001 - any failure degrades to heuristics
+            # Why it fell back matters to whoever is looking at the screen. A
+            # model that answered and had nothing to propose is not the same as
+            # a model that could not be reached, and reporting both as
+            # "unavailable" sent a reviewer looking for a broken API key when the
+            # population simply had nothing to separate it.
+            if isinstance(error, NoSuggestion):
+                reason = "no suggestion"
+            elif isinstance(error, (ValueError, KeyError, TypeError)):
+                # The model replied, but with a field, operator, layer or value
+                # outside the allowlists. That is a model problem worth naming
+                # separately from an unreachable one.
+                reason = "rejected reply"
+            else:
+                reason = "llm unavailable"
+            logger.info(
+                "Rule advisor fell back to heuristics",
+                extra={
+                    "reason": reason,
+                    "error_code": type(error).__name__,
+                    "source_field": source_field,
+                },
+            )
             advice = self._fallback.advise(
                 source_field=source_field,
                 source_value=source_value,
@@ -359,7 +395,7 @@ class LlmRuleAdvisor:
                 oem_samples=oem_samples,
             )
             return RuleAdvice(
-                advisor=f"{advice.advisor} (llm unavailable)",
+                advisor=f"{advice.advisor} ({reason})",
                 confident=advice.confident,
                 conditions=advice.conditions,
                 target_field=advice.target_field,

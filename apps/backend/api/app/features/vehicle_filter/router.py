@@ -15,9 +15,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
-from api.app.features.match_review.chunk_schemas import FieldValueCount
+from api.app.features.match_review.chunk_schemas import FieldValueCount, RuleAdvice
+from api.app.features.match_review.field_resolution import CANDIDATE_DISCRIMINATORS
+from api.app.features.match_review.integrations import GeminiJsonLlm
+from api.app.features.match_review.rule_advisor import (
+    LlmRuleAdvisor,
+    PatternRuleAdvisor,
+    RuleAdvisor,
+)
 from api.app.features.vehicle_filter.repository import VehicleFilterRepository
 from api.app.features.vehicle_filter.schemas import (
+    AdviseRequest,
     UnresolvedField,
     UnresolvedSummary,
     VehicleCount,
@@ -30,6 +38,32 @@ from api.app.features.vehicle_filter.schemas import (
 from ingestion.vehicle_facts_query import UnknownFieldError
 
 router = APIRouter(prefix="/v1/vehicles", tags=["vehicles"])
+
+
+@lru_cache(maxsize=1)
+def _cached_advisor() -> RuleAdvisor:
+    """The model when one is configured, the statistical advisor otherwise."""
+
+    settings = get_settings()
+    fallback = PatternRuleAdvisor()
+    if not settings.gemini_api_key:
+        return fallback
+    return LlmRuleAdvisor(
+        llm=GeminiJsonLlm(
+            api_key=settings.gemini_api_key,
+            base_url=settings.gemini_base_url,
+            model=settings.rule_advisor_model,
+            timeout_seconds=settings.rule_advisor_timeout_seconds,
+        ),
+        fallback=fallback,
+    )
+
+
+def get_advisor() -> RuleAdvisor:
+    return _cached_advisor()
+
+
+AdvisorDependency = Annotated[RuleAdvisor, Depends(get_advisor)]
 
 
 @lru_cache(maxsize=1)
@@ -166,3 +200,43 @@ def get_vehicle(
     if detail is None:
         raise HTTPException(status_code=404, detail="Vehicle not found.")
     return VehicleDetail(**detail)
+
+
+@router.post("/advise", response_model=RuleAdvice)
+def advise_for_filter(
+    request: AdviseRequest,
+    repository: RepositoryDependency,
+    advisor: AdvisorDependency,
+) -> RuleAdvice:
+    """Suggest a rule for the filtered population. Writes nothing."""
+
+    try:
+        population, discriminators, field_values = repository.advisor_evidence(
+            request.conditions,
+            target_field=request.target_field,
+            candidate_fields=CANDIDATE_DISCRIMINATORS,
+        )
+    except UnknownFieldError as error:
+        raise _bad_field(error) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+    if population == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Nothing in this filter still lacks that field.",
+        )
+
+    first = request.conditions[0] if request.conditions else None
+    return advisor.advise(
+        source_field=first.field if first else request.target_field,
+        source_value=first.terms[0] if first and first.terms else "",
+        target_field=request.target_field,
+        population=population,
+        discriminators=discriminators,
+        field_values=field_values,
+        # OEM evidence is bought per VIN through the chunk workspace; the filter
+        # path has none, and the advisor treats its absence as "cannot justify a
+        # value" rather than inventing one.
+        oem_samples=[],
+    )

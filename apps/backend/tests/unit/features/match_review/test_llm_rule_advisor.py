@@ -107,19 +107,39 @@ def test_value_is_dropped_when_no_oem_evidence_backs_it() -> None:
         {"conditions": [{"field": "invented_field", "values": ["x"]}]},
         {"conditions": [{"field": "fab_code", "operator": "regex", "values": ["x"]}]},
         {"conditions": [{"field": "fab_code", "layer": "psychic", "values": ["x"]}]},
-        {"conditions": []},
-        {"conditions": [{"field": "fab_code", "values": []}]},
         {"no_conditions_key": True},
     ],
 )
 def test_malformed_or_out_of_vocabulary_replies_fall_back(
     reply: dict[str, Any],
 ) -> None:
+    """A reply outside the allowlists is the model's fault, and says so."""
+
     advice = _advise(_advisor(reply))
 
     assert advice.evidence["llm_fallback"] is True
-    assert "llm unavailable" in advice.advisor
+    assert "rejected reply" in advice.advisor
     assert advice.conditions[0].field == "is_4wd"
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        {"conditions": []},
+        {"conditions": [{"field": "fab_code", "values": []}]},
+    ],
+)
+def test_a_model_with_nothing_to_propose_is_not_reported_as_unavailable(
+    reply: dict[str, Any],
+) -> None:
+    """The model answered. Saying it was unreachable sends a reviewer hunting
+    for a broken API key when the population simply cannot be separated."""
+
+    advice = _advise(_advisor(reply))
+
+    assert advice.evidence["llm_fallback"] is True
+    assert "no suggestion" in advice.advisor
+    assert "unavailable" not in advice.advisor
 
 
 def test_non_canonical_target_value_falls_back() -> None:

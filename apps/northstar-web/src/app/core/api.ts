@@ -246,13 +246,19 @@ export class Api {
     });
   }
 
-  /** Suggests a rule. Writes nothing -- the proposal still has to be previewed. */
-  adviseRule(body: {
-    build_id: string;
-    source_field: string;
-    source_value: string;
+  /**
+   * Suggests a rule for the filtered population. Writes nothing.
+   *
+   * Scoped by the filter rather than by a match-chunk build, so the model reasons
+   * about the cars on screen. The build-scoped advisor it replaces saw a 226,529-row
+   * slice, and reported "nothing to separate this" for populations that separate
+   * perfectly well across the whole register.
+   */
+  adviseForFilter(body: {
+    conditions: RuleCondition[];
+    target_field: string;
   }): Observable<RuleAdvice> {
-    return this.http.post<RuleAdvice>(`${this.base}/v1/match-review/unresolved/advise`, body);
+    return this.http.post<RuleAdvice>(`${this.base}/v1/vehicles/advise`, body);
   }
 
   targetVocabulary(buildId: string, targetField: string): Observable<TargetVocabulary> {

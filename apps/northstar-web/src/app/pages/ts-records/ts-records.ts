@@ -245,29 +245,37 @@ export class TsRecordsPage {
     this.reload();
   }
 
+  /**
+   * Add or remove one value of the faceted field.
+   *
+   * Values of the same field are OR-ed, so picking several is how "all of these
+   * models are rear-wheel drive" gets said. The facet deliberately stays put
+   * afterwards: an earlier version advanced to the next unpinned field as soon
+   * as one value was chosen, which made selecting a second value impossible.
+   * The backend lifts this field's own clause when counting, so its siblings
+   * stay visible and their counts stay honest.
+   */
   protected toggleFacetValue(value: string): void {
-    const field = this.facetField();
-    const adding = !this.filter.covers(field, value);
-    this.filter.toggleTerm(field, value);
-    if (adding) {
-      // Constraining a field usually leaves it showing one value at 100%, which
-      // is true and useless. Move to the next field that can still split the set.
-      this.facetField.set(this.nextUnconstrainedField(field));
-    }
+    this.filter.toggleTerm(this.facetField(), value);
     this.reload();
   }
 
-  /** The next facet field the filter does not already pin, wrapping around. */
-  private nextUnconstrainedField(current: string): string {
-    const constrained = new Set(this.filter.conditions().map((item) => item.field));
-    const start = FACET_FIELDS.indexOf(current);
-    for (let step = 1; step <= FACET_FIELDS.length; step += 1) {
-      const candidate = FACET_FIELDS[(start + step) % FACET_FIELDS.length];
-      if (!constrained.has(candidate)) {
-        return candidate;
-      }
+  /** Values of the faceted field the filter already covers, in picking order. */
+  protected readonly facetSelection = computed(() => {
+    const field = this.facetField();
+    return (
+      this.filter
+        .conditions()
+        .find((item) => item.field === field && item.layer === 'source')?.values ?? []
+    );
+  });
+
+  protected clearFacetSelection(): void {
+    const field = this.facetField();
+    for (const value of [...this.facetSelection()]) {
+      this.filter.removeTerm(field, value);
     }
-    return current;
+    this.reload();
   }
 
   protected covers(value: string): boolean {

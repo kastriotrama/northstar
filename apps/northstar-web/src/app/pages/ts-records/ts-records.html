@@ -178,6 +178,15 @@
             [style]="{ minWidth: '130px' }"
           />
         </div>
+        @if (facetSelection().length) {
+          <p class="facet__picked muted">
+            {{ facetSelection().length }} of {{ facetField() }} picked — they are OR-ed
+            together.
+            <button type="button" class="linkish" (click)="clearFacetSelection()">
+              clear
+            </button>
+          </p>
+        }
         @if (facet(); as breakdown) {
           <div class="spread__values">
             @for (entry of breakdown.values; track entry.value) {
