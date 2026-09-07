@@ -19,7 +19,6 @@ const INTEGRATION_TIMEOUT = 30_000;
 
 import { API_BASE_URL } from '../core/api-config';
 import { FilterState } from '../core/filter-state';
-import { CoveragePage } from './coverage/coverage';
 import { TsRecordsPage } from './ts-records/ts-records';
 import { TecDocPage } from './tecdoc/tecdoc';
 import { RulesPage } from './rules/rules';
@@ -74,7 +73,7 @@ beforeAll(async () => {
 });
 
 describe('pages render real data', () => {
-  it('TS records filters the whole population and names its gaps', async () => {
+  it('TS data filters the whole population and names its gaps', async () => {
     if (!apiUp) return;
     configure();
     const fixture = TestBed.createComponent(TsRecordsPage);
@@ -82,7 +81,7 @@ describe('pages render real data', () => {
     await settle(fixture, 10);
     const host = fixture.nativeElement as HTMLElement;
     const text = host.textContent ?? '';
-    expect(text).toContain('TS records');
+    expect(text).toContain('TS data');
     expect(host.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
 
     // The gaps sidebar is what makes browsing lead somewhere: without it the screen is
@@ -91,43 +90,32 @@ describe('pages render real data', () => {
     expect(text).toContain('Resolve');
   }, INTEGRATION_TIMEOUT);
 
-  it('a filter built on TS records reaches the resolver unchanged', async () => {
+  it('TS data resolves a field without leaving the screen', async () => {
     if (!apiUp) return;
     configure();
-    // The two screens share one filter precisely so nothing is retyped between them.
+    // Browsing and resolving were two pages with a handoff between them; the handoff
+    // was the tell that they are one workflow.
     const filter = TestBed.inject(FilterState);
     filter.reset();
     filter.addTerm('brand', 'TOYOTA');
-    filter.targetField.set('drive_type');
 
-    const fixture = TestBed.createComponent(CoveragePage);
+    const fixture = TestBed.createComponent(TsRecordsPage);
     fixture.detectChanges();
     await settle(fixture, 12);
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-
-    expect(text).toContain('Carried over from your TS records filter');
-    expect(text).toContain('TOYOTA');
-    expect(text).toContain('drive_type');
-  }, INTEGRATION_TIMEOUT);
-
-  it('Unresolved fields ranks populations by how many cars they block', async () => {
-    if (!apiUp) return;
-    configure();
-    const fixture = TestBed.createComponent(CoveragePage);
-    fixture.detectChanges();
-    await settle(fixture, 10);
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent ?? '').toContain('Unresolved fields');
 
-    // The worklist is the entry point, and it is ranked: the leverage ordering is the
-    // reason the screen is population-first, so a wrongly ordered list is a real failure.
-    const rows = Array.from(host.querySelectorAll('.pop'));
-    expect(rows.length).toBeGreaterThan(0);
-    const counts = rows.map((row) =>
-      Number((row.querySelector('.pop__count')?.textContent ?? '').replace(/[^0-9]/g, '')),
+    const resolve = [...host.querySelectorAll('button')].find((button) =>
+      (button.textContent ?? '').includes('Resolve'),
     );
-    expect(counts[0]).toBeGreaterThan(0);
-    expect([...counts]).toEqual([...counts].sort((a, b) => b - a));
+    expect(resolve).toBeDefined();
+    resolve?.click();
+    fixture.detectChanges();
+    await settle(fixture, 8);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Resolve');
+    // The filter is the rule's predicate, so it appears in the statement unchanged.
+    expect(text).toContain('TOYOTA');
   }, INTEGRATION_TIMEOUT);
 
   it('TecDoc lists promoted ktypes', async () => {

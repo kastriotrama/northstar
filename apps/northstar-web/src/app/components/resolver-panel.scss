@@ -1,0 +1,200 @@
+:host {
+  display: block;
+}
+
+.resolver {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-primary-color);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  position: sticky;
+  top: 0.5rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.resolver__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.resolver__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.resolver__sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.75rem;
+}
+
+.resolver__close,
+.flash__close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  color: var(--p-text-muted-color);
+}
+
+/* The rule read back as a sentence, so what will be written is legible before it is. */
+.statement {
+  margin: 0;
+  font-size: 0.74rem;
+  background: var(--p-surface-50);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  word-break: break-word;
+}
+
+.verdict {
+  font-size: 0.76rem;
+  border-left: 3px solid var(--p-surface-300, var(--p-surface-200));
+  background: var(--p-surface-50);
+  border-radius: 4px;
+  padding: 0.4rem 0.55rem;
+}
+
+/* Coherence is the one state worth colour: it is the difference between asserting a
+   value over one thing and asserting it over several. */
+.verdict--coherent {
+  border-left-color: #3f9a52;
+  background: #f2faf4;
+}
+
+.advice {
+  border: 1px solid #f5c86a;
+  background: #fff8e8;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
+.advice--confident {
+  border-color: #9ccfa8;
+  background: #f2faf4;
+}
+
+.advice__head {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.advice__reasoning {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.field__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.field__hint {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.field__error {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #8a2020;
+}
+
+.field input,
+.field textarea,
+.field p-autocomplete {
+  width: 100%;
+}
+
+.preview {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  background: var(--p-surface-50);
+}
+
+.preview__headline {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.preview__detail {
+  margin: 0.15rem 0 0;
+  font-size: 0.73rem;
+}
+
+.preview__note {
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  font-style: italic;
+}
+
+.saved__title {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.rule {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rule--retired {
+  opacity: 0.6;
+}
+
+.rule__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.rule__statement {
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.rule__meta {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.rule__note {
+  margin: 0;
+  font-size: 0.73rem;
+}

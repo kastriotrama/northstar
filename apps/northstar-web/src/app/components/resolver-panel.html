@@ -1,0 +1,200 @@
+<div class="resolver">
+  <header class="resolver__head">
+    <div>
+      <h2 class="resolver__title">
+        Resolve <span class="mono">{{ targetField() }}</span>
+      </h2>
+      <p class="resolver__sub muted">
+        {{ unresolvedRows() | number }} matched cars still lack it
+      </p>
+    </div>
+    <button type="button" class="resolver__close" aria-label="Close" (click)="closed.emit()">
+      ×
+    </button>
+  </header>
+
+  @if (flash(); as message) {
+    <div class="notice" [class.notice--error]="message.bad" role="status" aria-live="polite">
+      <span>{{ message.text }}</span>
+      <button type="button" class="flash__close" aria-label="Dismiss" (click)="dismissFlash()">
+        ×
+      </button>
+    </div>
+  }
+
+  <!-- The rule as a sentence: the filter is the predicate, so this is just the filter
+       read back with the assignment on the end. -->
+  <p class="statement mono">{{ statement() }}</p>
+
+  <div class="verdict" [class.verdict--coherent]="coherent()" aria-live="polite">
+    @if (coherent()) {
+      One coherent block — nothing identity-bearing still varies, so a single value is safe.
+    } @else {
+      Still mixed on {{ varyingFields().join(', ') }} — narrow the filter further before
+      assigning a value.
+    }
+  </div>
+
+  @if (advice(); as suggestion) {
+    <div class="advice" [class.advice--confident]="suggestion.confident">
+      <p class="advice__head">
+        Suggested by {{ advisorLabel(suggestion) }} —
+        {{ suggestion.confident ? 'evidence supports a value' : 'needs evidence for the value' }}
+      </p>
+      <p class="advice__reasoning">{{ suggestion.reasoning }}</p>
+    </div>
+  }
+
+  <div class="field">
+    <label class="field__label" for="resolver-value">Set {{ targetField() }} to</label>
+    <p-autocomplete
+      inputId="resolver-value"
+      [ngModel]="targetValue()"
+      (ngModelChange)="onTargetValue($event)"
+      [suggestions]="suggestions()"
+      (completeMethod)="complete($event.query)"
+      optionLabel="value"
+      [dropdown]="true"
+      [forceSelection]="false"
+      [minLength]="0"
+      emptyMessage="No canonical value matches."
+      [placeholder]="vocabulary()?.closed ? 'choose a canonical value' : 'type a value or choose'"
+    />
+    <p class="field__hint muted">{{ targetHint() }}</p>
+    @if (targetProblem(); as problem) {
+      @if (targetValue().trim()) {
+        <p class="field__error" role="alert">{{ problem }}</p>
+      }
+    }
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="resolver-author">Your name</label>
+    <input
+      id="resolver-author"
+      pInputText
+      [ngModel]="author()"
+      (ngModelChange)="author.set($event)"
+      placeholder="rules are recorded with their author"
+      autocomplete="name"
+    />
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="resolver-note">Note (optional)</label>
+    <textarea
+      id="resolver-note"
+      pTextarea
+      rows="2"
+      [ngModel]="note()"
+      (ngModelChange)="note.set($event)"
+      placeholder="why this value is the right one"
+    ></textarea>
+  </div>
+
+  <div class="toolbar">
+    <p-button
+      label="AI Suggest"
+      size="small"
+      [outlined]="true"
+      [loading]="advising()"
+      (onClick)="askAdvisor()"
+    />
+    <p-button
+      label="Preview"
+      size="small"
+      severity="secondary"
+      [outlined]="true"
+      [loading]="previewing()"
+      [disabled]="!canWrite()"
+      (onClick)="runPreview()"
+    />
+    <p-button
+      label="Save"
+      size="small"
+      [outlined]="true"
+      [disabled]="!canWrite() || saving()"
+      (onClick)="saveRule(false)"
+    />
+    <p-button
+      label="Save &amp; run"
+      size="small"
+      [loading]="saving() || applying()"
+      [disabled]="!canWrite()"
+      (onClick)="saveRule(true)"
+    />
+  </div>
+
+  @if (applying()) {
+    <p class="muted" role="status" aria-live="polite">
+      Running over every matching car — {{ appliedRows() | number }} resolved so far…
+    </p>
+  }
+
+  @if (preview(); as result) {
+    <div class="preview">
+      <p class="preview__headline">
+        Would resolve {{ result.would_resolve | number }} cars as
+        {{ result.target_field }} = {{ result.target_value }}.
+      </p>
+      <p class="preview__detail muted">
+        {{ result.matched_rows | number }} match the conditions;
+        {{ result.already_resolved | number }} already have a value and would not be
+        overwritten.
+      </p>
+      @if (result.sample_plates.length) {
+        <p class="preview__detail mono muted">
+          Spot-check: {{ result.sample_plates.join(', ') }}
+        </p>
+      }
+      <p class="preview__note muted">
+        Preview only — nothing is written. Save keeps it; Save &amp; run resolves now.
+      </p>
+    </div>
+  }
+
+  @if (savedRules().length) {
+    <section class="saved" aria-labelledby="saved-heading">
+      <h3 id="saved-heading" class="saved__title">
+        Saved rules <span class="muted">({{ savedRules().length }})</span>
+      </h3>
+      <ul class="rules">
+        @for (rule of savedRules(); track rule.rule_id) {
+          <li class="rule" [class.rule--retired]="rule.status === 'retired'">
+            <div class="rule__head">
+              <strong class="rule__statement mono">
+                {{ rule.target_field }} = {{ rule.target_value }}
+              </strong>
+              <p-tag [value]="rule.status" [severity]="ruleSeverity(rule)" />
+            </div>
+            <p class="rule__meta muted">{{ ruleMeta(rule) }}</p>
+            @if (rule.note) {
+              <p class="rule__note">{{ rule.note }}</p>
+            }
+            @if (rule.status !== 'retired') {
+              <div class="toolbar">
+                <p-button
+                  [label]="rule.status === 'applied' ? 'Run again' : 'Run rule'"
+                  size="small"
+                  [outlined]="true"
+                  [loading]="busyRuleId() === rule.rule_id"
+                  (onClick)="runSavedRule(rule)"
+                />
+                @if (rule.status === 'applied') {
+                  <p-button
+                    label="Retire"
+                    size="small"
+                    severity="danger"
+                    [text]="true"
+                    [disabled]="busyRuleId() === rule.rule_id"
+                    (onClick)="retireSavedRule(rule)"
+                  />
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</div>

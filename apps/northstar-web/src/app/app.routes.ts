@@ -1,21 +1,23 @@
 import { Routes } from '@angular/router';
 
 /**
- * Five pages. That is the whole app, on purpose -- it replaces two vanilla-JS apps whose
- * ten tabs were the main complaint. New capability belongs inside one of these five.
+ * Four pages, one per concern in the pipeline: TS data and its normalization, TecDoc
+ * data, the rules that govern both, and the matching between them.
+ *
+ * Browsing a population and saying what it means were two pages until they were one
+ * workflow with a handoff between them, which was the tell. New capability belongs
+ * inside one of these four.
  */
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'coverage' },
+  { path: '', pathMatch: 'full', redirectTo: 'ts-data' },
   {
-    path: 'coverage',
-    title: 'Unresolved fields',
-    loadComponent: () => import('./pages/coverage/coverage').then((m) => m.CoveragePage),
-  },
-  {
-    path: 'ts-records',
-    title: 'TS records',
+    path: 'ts-data',
+    title: 'TS data',
     loadComponent: () => import('./pages/ts-records/ts-records').then((m) => m.TsRecordsPage),
   },
+  // The two screens this replaced; existing links keep working.
+  { path: 'ts-records', pathMatch: 'full', redirectTo: 'ts-data' },
+  { path: 'coverage', pathMatch: 'full', redirectTo: 'ts-data' },
   {
     path: 'tecdoc',
     title: 'TecDoc',
@@ -31,5 +33,5 @@ export const routes: Routes = [
     title: 'Chunks',
     loadComponent: () => import('./pages/chunks/chunks').then((m) => m.ChunksPage),
   },
-  { path: '**', redirectTo: 'coverage' },
+  { path: '**', redirectTo: 'ts-data' },
 ];
