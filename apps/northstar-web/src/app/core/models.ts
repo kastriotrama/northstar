@@ -470,3 +470,18 @@ export interface VehicleDetail {
   source_batch_id: string | null;
   fields: VehicleFieldStatus[];
 }
+
+/**
+ * A run of one rule. Applying is a background job now: a rule covering the whole
+ * population takes about a minute, so the request that starts it returns this and the
+ * screen polls until it settles.
+ */
+export interface ResolutionRuleApplication {
+  job_id: number;
+  rule_id: string;
+  status: 'running' | 'completed' | 'failed';
+  rows_written: number;
+  started_at: string;
+  finished_at: string | null;
+  error_summary: string | null;
+}

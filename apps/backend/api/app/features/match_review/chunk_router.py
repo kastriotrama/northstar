@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
@@ -35,6 +35,7 @@ from api.app.features.match_review.chunk_schemas import (
     RefineResult,
     ResolutionRule,
     ResolutionRuleActionRequest,
+    ResolutionRuleApplication,
     ResolutionRuleRequest,
     RuleAdvice,
     RuleAdviceRequest,
@@ -42,6 +43,10 @@ from api.app.features.match_review.chunk_schemas import (
     RulePreviewRequest,
     TargetVocabulary,
     UnresolvedOverview,
+)
+from api.app.features.match_review.rule_application import (
+    RuleAlreadyRunningError,
+    RuleApplicationRunner,
 )
 from api.app.features.match_review.chunk_service import (
     MatchReviewConflictError,
@@ -148,6 +153,21 @@ def get_match_review_service() -> MatchReviewService:
 
 ServiceDependency = Annotated[
     MatchReviewService, Depends(get_match_review_service)
+]
+
+
+@lru_cache(maxsize=1)
+def _cached_runner() -> RuleApplicationRunner:
+    settings = get_settings()
+    return RuleApplicationRunner(lambda: get_postgres_connection(settings))
+
+
+def get_rule_application_runner() -> RuleApplicationRunner:
+    return _cached_runner()
+
+
+RunnerDependency = Annotated[
+    RuleApplicationRunner, Depends(get_rule_application_runner)
 ]
 
 
@@ -384,22 +404,73 @@ def list_resolution_rules(
         raise _unavailable() from error
 
 
-@api_router.post("/resolution-rules/{rule_id}/apply", response_model=ResolutionRule)
+@api_router.post(
+    "/resolution-rules/{rule_id}/apply",
+    response_model=ResolutionRuleApplication,
+    status_code=202,
+)
 def apply_resolution_rule(
     rule_id: UUID,
     request: ResolutionRuleActionRequest,
+    background: BackgroundTasks,
     service: ServiceDependency,
-) -> ResolutionRule:
-    """Run a saved rule over the build: one resolution per car it still covers."""
+    runner: RunnerDependency,
+) -> ResolutionRuleApplication:
+    """Start running a saved rule over every car it covers.
+
+    Returns as soon as the run is claimed, not when it finishes: a rule covering
+    two hundred thousand cars takes about a minute, and a request held open that
+    long is one a proxy will cut. Poll the companion status endpoint.
+    """
 
     try:
-        return service.apply_resolution_rule(rule_id, reviewer=request.reviewer)
+        plan = service.plan_resolution_rule_application(rule_id)
     except MatchReviewNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except MatchReviewConflictError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     except psycopg.Error as error:
         raise _unavailable() from error
+
+    try:
+        application = runner.start(rule_id)
+    except RuleAlreadyRunningError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+    background.add_task(
+        runner.run,
+        job_id=application.job_id,
+        rule_id=rule_id,
+        build_id=plan.build_id,
+        predicate=plan.predicate,
+        target_field=plan.target_field,
+        target_value=plan.target_value,
+        applied_by=request.reviewer.strip(),
+        on_finish=lambda rows: service.record_rule_applied(
+            rule_id, rows_written=rows, applied_by=request.reviewer.strip()
+        ),
+    )
+    return ResolutionRuleApplication(**vars(application))
+
+
+@api_router.get(
+    "/resolution-rules/{rule_id}/application",
+    response_model=ResolutionRuleApplication,
+)
+def get_resolution_rule_application(
+    rule_id: UUID, runner: RunnerDependency
+) -> ResolutionRuleApplication:
+    """The latest run of this rule -- what the screen polls while it works."""
+
+    try:
+        application = runner.latest(rule_id)
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    if application is None:
+        raise HTTPException(status_code=404, detail="This rule has not been run.")
+    return ResolutionRuleApplication(**vars(application))
 
 
 @api_router.post("/resolution-rules/{rule_id}/retire", response_model=ResolutionRule)

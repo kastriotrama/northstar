@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, switchMap } from 'rxjs';
 import { catchError, of } from 'rxjs';
+import { interval, takeWhile } from 'rxjs';
 import { AutoCompleteModule } from '@openng/optimus-ui/autocomplete';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { DialogModule } from '@openng/optimus-ui/dialog';
@@ -124,6 +125,9 @@ export class CoveragePage {
   protected readonly saving = signal(false);
   protected readonly savedRules = signal<ResolutionRule[]>([]);
   protected readonly busyRuleId = signal<string | null>(null);
+  protected readonly applying = signal(false);
+  /** Rows the running job has written so far, so a long run visibly moves. */
+  protected readonly appliedRows = signal(0);
 
   // --- all-attributes dialog -----------------------------------------------------------
   protected readonly attributesOpen = signal(false);
@@ -546,6 +550,46 @@ export class CoveragePage {
       : 'statistical advisor (no AI key configured)';
   }
 
+  /**
+   * Follow a started run to its end.
+   *
+   * Applying is a background job because a rule over the whole population takes about a
+   * minute, so the screen reports progress rather than freezing on a request.
+   */
+  private followApplication(ruleId: string, onDone: () => void): void {
+    this.applying.set(true);
+    interval(1500)
+      .pipe(
+        switchMap(() => this.api.ruleApplication(ruleId).pipe(catchError(() => of(null)))),
+        takeWhile((application) => application?.status === 'running', true),
+      )
+      .subscribe((application) => {
+        if (!application) {
+          return;
+        }
+        this.appliedRows.set(application.rows_written);
+        if (application.status === 'running') {
+          return;
+        }
+        this.applying.set(false);
+        this.busyRuleId.set(null);
+        if (application.status === 'failed') {
+          this.showFlash(
+            application.error_summary ?? 'The run failed part-way through.',
+            true,
+          );
+        } else {
+          this.showFlash(
+            application.rows_written
+              ? `Resolved ${application.rows_written.toLocaleString()} cars.`
+              : 'Nothing left to resolve — every car this rule covers already has a value.',
+            false,
+          );
+        }
+        onDone();
+      });
+  }
+
   // --- preview, save, run --------------------------------------------------------------
 
   protected runPreview(): void {
@@ -618,15 +662,11 @@ export class CoveragePage {
             return;
           }
           this.api.applyResolutionRule(rule.rule_id, author).subscribe({
-            next: (applied) => {
+            next: () => {
               this.saving.set(false);
               this.note.set('');
-              this.showFlash(
-                `Resolved ${(applied.resolved_now ?? 0).toLocaleString()} cars as ` +
-                  `${applied.target_field} = ${applied.target_value}.`,
-                false,
-              );
-              this.afterRuleChange();
+              this.appliedRows.set(0);
+              this.followApplication(rule.rule_id, () => this.afterRuleChange());
             },
             error: (err: unknown) => {
               this.saving.set(false);
@@ -651,18 +691,9 @@ export class CoveragePage {
       return;
     }
     this.busyRuleId.set(rule.rule_id);
+    this.appliedRows.set(0);
     this.api.applyResolutionRule(rule.rule_id, reviewer).subscribe({
-      next: (applied) => {
-        this.busyRuleId.set(null);
-        this.showFlash(
-          applied.resolved_now
-            ? `Resolved ${applied.resolved_now.toLocaleString()} cars as ` +
-                `${applied.target_field} = ${applied.target_value}.`
-            : 'Nothing left to resolve — every car this rule covers already has a value.',
-          false,
-        );
-        this.afterRuleChange();
-      },
+      next: () => this.followApplication(rule.rule_id, () => this.afterRuleChange()),
       error: (err: unknown) => {
         this.busyRuleId.set(null);
         this.showFlash(CoveragePage.describe(err, 'The rule could not be run.'), true);

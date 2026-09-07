@@ -31,6 +31,12 @@ from ingestion.vehicle_facts_query import CompiledPredicate
 
 DEFAULT_BATCH_SIZE = 50_000
 
+# Applying a rule is bookkept as an ingest job run, reusing the table that
+# already models exactly this: a long unit of work with a status, a progress
+# count, and a terminal error. `batch_id` carries the rule and one run's own id,
+# so a rule can be run again later while two runs of it can never overlap.
+APPLY_JOB_NAME = "apply-resolution-rule"
+
 _INTEGER_FIELDS: frozenset[str] = frozenset(NORMALIZED_INTEGER_FIELDS)
 
 

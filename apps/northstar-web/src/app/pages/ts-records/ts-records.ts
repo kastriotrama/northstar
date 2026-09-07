@@ -214,8 +214,28 @@ export class TsRecordsPage {
   }
 
   protected toggleFacetValue(value: string): void {
-    this.filter.toggleTerm(this.facetField(), value);
+    const field = this.facetField();
+    const adding = !this.filter.covers(field, value);
+    this.filter.toggleTerm(field, value);
+    if (adding) {
+      // Constraining a field usually leaves it showing one value at 100%, which
+      // is true and useless. Move to the next field that can still split the set.
+      this.facetField.set(this.nextUnconstrainedField(field));
+    }
     this.reload();
+  }
+
+  /** The next facet field the filter does not already pin, wrapping around. */
+  private nextUnconstrainedField(current: string): string {
+    const constrained = new Set(this.filter.conditions().map((item) => item.field));
+    const start = FACET_FIELDS.indexOf(current);
+    for (let step = 1; step <= FACET_FIELDS.length; step += 1) {
+      const candidate = FACET_FIELDS[(start + step) % FACET_FIELDS.length];
+      if (!constrained.has(candidate)) {
+        return candidate;
+      }
+    }
+    return current;
   }
 
   protected covers(value: string): boolean {

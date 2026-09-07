@@ -407,10 +407,15 @@
             />
             <p-button
               label="Save &amp; run"
-              [loading]="saving()"
+              [loading]="saving() || applying()"
               [disabled]="!canWrite()"
               (onClick)="saveRule(true)"
             />
+            @if (applying()) {
+              <span class="muted" role="status" aria-live="polite">
+                Running over every matching car — {{ appliedRows() | number }} resolved so far…
+              </span>
+            }
           </div>
 
           @if (preview(); as result) {

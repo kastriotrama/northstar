@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -62,6 +63,7 @@ from api.app.features.match_review.field_resolution import (
 )
 from api.app.features.match_review.integrations import OemVinProvider, mask_vin
 from api.app.features.match_review.rule_advisor import RuleAdvisor
+from ingestion.vehicle_facts_query import CompiledPredicate, compile_predicate
 
 MEMBER_PREVIEW_LIMIT = 25
 ATTRIBUTE_SCAN_LIMIT = 20_000
@@ -275,6 +277,16 @@ class ChunkRepository(Protocol):
         reviewer: str,
         note: str | None,
     ) -> dict[str, Any] | None: ...
+
+
+@dataclass(frozen=True)
+class RuleApplicationPlan:
+    """A validated, compiled rule, ready for a background run to execute."""
+
+    build_id: UUID
+    predicate: CompiledPredicate
+    target_field: str
+    target_value: str
 
 
 class MatchReviewNotFoundError(LookupError):
@@ -865,15 +877,13 @@ class MatchReviewService:
             )
         ]
 
-    def apply_resolution_rule(
-        self, rule_id: UUID, *, reviewer: str
-    ) -> ResolutionRule:
-        """Run a saved rule: write one resolution per car it still covers.
+    def plan_resolution_rule_application(self, rule_id: UUID) -> RuleApplicationPlan:
+        """Validate a rule and compile it, writing nothing.
 
-        Re-running is allowed and safe. A rule only ever fills gaps, so a
-        second run picks up rows that were resolved elsewhere in between and
-        nothing else; running one that has already covered its population
-        writes zero rows rather than failing.
+        This runs inside the request that asks for the run, before any
+        background work is claimed, so a rule that cannot legally be applied is
+        refused with a status code rather than failing out of sight in a job the
+        caller has already stopped watching.
         """
 
         rule = self._require_resolution_rule(rule_id)
@@ -890,15 +900,26 @@ class MatchReviewService:
             target_field=rule["target_field"],
             target_value=rule["target_value"],
         )
-        applied = self._repository.apply_resolution_rule(
-            rule_id,
+        return RuleApplicationPlan(
             build_id=rule["build_id"],
-            conditions=_predicate_terms(conditions),
-            target_field=rule["target_field"],
-            target_value=rule["target_value"],
-            applied_by=reviewer.strip(),
+            predicate=compile_predicate(
+                [
+                    (term.layer, term.field, term.operator, tuple(term.values))
+                    for term in _predicate_terms(conditions)
+                ]
+            ),
+            target_field=str(rule["target_field"]),
+            target_value=str(rule["target_value"]),
         )
-        return _resolution_rule(applied)
+
+    def record_rule_applied(
+        self, rule_id: UUID, *, rows_written: int, applied_by: str
+    ) -> None:
+        """Close the rule out once its background run has finished."""
+
+        self._repository.mark_resolution_rule_applied(
+            rule_id, rows_written=rows_written, applied_by=applied_by.strip()
+        )
 
     def retire_resolution_rule(
         self, rule_id: UUID, *, reviewer: str

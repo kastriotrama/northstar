@@ -13,6 +13,7 @@ import type {
   PopulationAttributes,
   RefineResult,
   ResolutionRule,
+  ResolutionRuleApplication,
   RuleAdvice,
   RuleCatalogResponse,
   RuleCondition,
@@ -308,11 +309,25 @@ export class Api {
     });
   }
 
-  /** Runs a saved rule over the build: one resolution per car it still covers. */
-  applyResolutionRule(ruleId: string, reviewer: string): Observable<ResolutionRule> {
-    return this.http.post<ResolutionRule>(
+  /**
+   * Starts running a saved rule over every car it covers.
+   *
+   * Returns as soon as the run is claimed, not when it finishes -- a rule covering two
+   * hundred thousand cars takes about a minute. Poll `ruleApplication` until it settles.
+   */
+  applyResolutionRule(
+    ruleId: string,
+    reviewer: string,
+  ): Observable<ResolutionRuleApplication> {
+    return this.http.post<ResolutionRuleApplication>(
       `${this.base}/v1/match-review/resolution-rules/${encodeURIComponent(ruleId)}/apply`,
       { reviewer },
+    );
+  }
+
+  ruleApplication(ruleId: string): Observable<ResolutionRuleApplication> {
+    return this.http.get<ResolutionRuleApplication>(
+      `${this.base}/v1/match-review/resolution-rules/${encodeURIComponent(ruleId)}/application`,
     );
   }
 

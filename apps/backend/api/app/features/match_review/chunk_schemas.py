@@ -468,3 +468,19 @@ class RefineResult(BaseModel):
     varying_identity_fields: list[str]
     trail: list[NarrowingStep]
     fields: list[DiscriminatorField]
+
+
+class ResolutionRuleApplication(BaseModel):
+    """A run of one rule, for a screen to poll while it works.
+
+    Applying against the whole population takes about a minute for a large rule,
+    so the request that starts it returns this rather than the finished result.
+    """
+
+    job_id: int
+    rule_id: UUID
+    status: Literal["running", "completed", "failed"]
+    rows_written: int
+    started_at: datetime
+    finished_at: datetime | None
+    error_summary: str | None

@@ -32,7 +32,8 @@ class FakeRepository:
         self.brand_variants = 1
         self.model_no_variants = 1
         self.previewed_conditions: list[PredicateTerm] = []
-        self.applied_conditions: list[PredicateTerm] = []
+        self.applied_conditions: list[PredicateTerm] | None = None
+        self.marked_applied: tuple[UUID, int, str] | None = None
         self.pinned_fields: tuple[str, ...] = ()
         self.rules: dict[UUID, dict[str, Any]] = {}
         self.resolves_rows = 44_253
@@ -290,27 +291,21 @@ class FakeRepository:
         rule = self.rules.get(rule_id)
         return None if rule is None else dict(rule)
 
-    def apply_resolution_rule(
-        self,
-        rule_id: UUID,
-        *,
-        build_id: UUID,
-        conditions: list[PredicateTerm],
-        target_field: str,
-        target_value: str,
-        applied_by: str,
+    def mark_resolution_rule_applied(
+        self, rule_id: UUID, *, rows_written: int, applied_by: str
     ) -> dict[str, Any]:
-        self.applied_conditions = conditions
-        rule = self.rules[rule_id]
+        self.marked_applied = (rule_id, rows_written, applied_by)
+        rule = dict(self.rules[rule_id])
         rule.update(
             {
                 "status": "applied",
-                "resolved_rows": rule["resolved_rows"] + self.resolves_rows,
-                "applied_at": NOW,
+                "resolved_rows": rule["resolved_rows"] + rows_written,
                 "applied_by": applied_by,
+                "resolved_now": rows_written,
             }
         )
-        return {**rule, "resolved_now": self.resolves_rows}
+        self.rules[rule_id] = rule
+        return rule
 
     def retire_resolution_rule(
         self, rule_id: UUID, *, retired_by: str
@@ -775,42 +770,40 @@ def test_saving_a_rule_refuses_a_non_canonical_value() -> None:
     assert not repository.rules
 
 
-def test_running_a_saved_rule_reports_what_it_resolved() -> None:
-    repository = FakeRepository()
-    service, _, _ = _service(repository)
-    rule = _saved_rule(service, uuid4())
-
-    applied = service.apply_resolution_rule(rule.rule_id, reviewer="valon")
-
-    assert applied.status == "applied"
-    assert applied.resolved_now == 44_253
-    assert applied.applied_by == "valon"
-    assert repository.applied_conditions == [
-        PredicateTerm("source", "is_4wd", "equals", ("0",)),
-        PredicateTerm("source", "fab_code", "equals", ("VO",)),
-    ]
-
-
-def test_running_the_same_rule_twice_only_reports_new_rows() -> None:
-    """Re-running is a safe no-op once the population is covered."""
+def test_planning_a_run_compiles_the_rule_without_writing() -> None:
+    """Applying is now a background job, so the request that starts one only
+    validates and compiles: nothing may be written before the job is claimed."""
 
     repository = FakeRepository()
     service, _, _ = _service(repository)
     rule = _saved_rule(service, uuid4())
 
-    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
-    repository.resolves_rows = 0
-    again = service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+    plan = service.plan_resolution_rule_application(rule.rule_id)
 
-    assert again.resolved_now == 0
-    assert again.resolved_rows == 44_253
+    assert plan.target_field == "drive_type"
+    assert plan.target_value == "fwd"
+    assert plan.build_id == rule.build_id
+    # The conditions survive into the compiled predicate as bound values.
+    assert ["0"] in plan.predicate.parameters
+    assert ["VO"] in plan.predicate.parameters
+    assert repository.applied_conditions is None, "planning must not write"
+
+
+def test_recording_a_finished_run_closes_the_rule_out() -> None:
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4())
+
+    service.record_rule_applied(rule.rule_id, rows_written=44_253, applied_by="valon")
+
+    assert repository.marked_applied == (rule.rule_id, 44_253, "valon")
 
 
 def test_retiring_a_rule_reopens_the_cars_it_resolved() -> None:
     repository = FakeRepository()
     service, _, _ = _service(repository)
     rule = _saved_rule(service, uuid4())
-    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+    service.record_rule_applied(rule.rule_id, rows_written=44_253, applied_by="valon")
 
     retired = service.retire_resolution_rule(rule.rule_id, reviewer="valon")
 
@@ -823,18 +816,18 @@ def test_a_retired_rule_cannot_be_run_again() -> None:
     repository = FakeRepository()
     service, _, _ = _service(repository)
     rule = _saved_rule(service, uuid4())
-    service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+    service.record_rule_applied(rule.rule_id, rows_written=44_253, applied_by="valon")
     service.retire_resolution_rule(rule.rule_id, reviewer="valon")
 
     with pytest.raises(MatchReviewConflictError):
-        service.apply_resolution_rule(rule.rule_id, reviewer="valon")
+        service.plan_resolution_rule_application(rule.rule_id)
 
 
 def test_running_an_unknown_rule_is_not_found() -> None:
     service, _, _ = _service()
 
     with pytest.raises(MatchReviewNotFoundError):
-        service.apply_resolution_rule(uuid4(), reviewer="valon")
+        service.plan_resolution_rule_application(uuid4())
 
 
 def test_saved_rules_are_listed_for_their_population() -> None:

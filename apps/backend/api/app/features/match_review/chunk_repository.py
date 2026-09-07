@@ -981,58 +981,30 @@ class MatchReviewRepository:
             row = cursor.fetchone()
         return None if row is None else _resolution_rule_row(row)
 
-    def apply_resolution_rule(
-        self,
-        rule_id: UUID,
-        *,
-        build_id: UUID,
-        conditions: list[PredicateTerm],
-        target_field: str,
-        target_value: str,
-        applied_by: str,
+    def mark_resolution_rule_applied(
+        self, rule_id: UUID, *, rows_written: int, applied_by: str
     ) -> dict[str, Any]:
-        """Write one resolution per matched car that still lacks the field.
+        """Close out a rule once its background run has finished."""
 
-        Runs over the whole projection rather than one build, so a rule reaches
-        every car it describes -- which is the difference between resolving a
-        couple of hundred rows and a couple of hundred thousand. Work is
-        committed in batches: a single statement over that many rows would hold
-        one transaction open and discard all of it on any interruption.
-
-        Rows already carrying a value are excluded, so a rule only fills gaps
-        and never overwrites a decision normalization already made. Re-running
-        is therefore idempotent rather than merely harmless.
-        """
-
-        predicate = _projection_predicate(conditions)
-        with self._connection_factory() as connection:
-            summary = apply_rule(
-                connection,
-                rule_id=rule_id,
-                build_id=build_id,
-                predicate=predicate,
-                target_field=_resolvable_field(target_field),
-                target_value=target_value,
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                UPDATE {MATCH_RESOLUTION_RULES_TABLE}
+                SET status = 'applied',
+                    resolved_rows = resolved_rows + %s,
+                    applied_at = now(),
+                    applied_by = %s
+                WHERE rule_id = %s
+                RETURNING {_RESOLUTION_RULE_COLUMNS}
+                """,
+                (rows_written, applied_by, rule_id),
             )
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    f"""
-                    UPDATE {MATCH_RESOLUTION_RULES_TABLE}
-                    SET status = 'applied',
-                        resolved_rows = resolved_rows + %s,
-                        applied_at = now(),
-                        applied_by = %s
-                    WHERE rule_id = %s
-                    RETURNING {_RESOLUTION_RULE_COLUMNS}
-                    """,
-                    (summary.rows_written, applied_by, rule_id),
-                )
-                row = cursor.fetchone()
+            row = cursor.fetchone()
             connection.commit()
         if row is None:
             raise RuntimeError(f"resolution rule {rule_id} vanished while applying")
         applied = _resolution_rule_row(row)
-        applied["resolved_now"] = summary.rows_written
+        applied["resolved_now"] = rows_written
         return applied
 
     def retire_resolution_rule(
