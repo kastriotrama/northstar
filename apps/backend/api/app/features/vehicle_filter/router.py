@@ -216,6 +216,10 @@ def advise_for_filter(
             target_field=request.target_field,
             candidate_fields=CANDIDATE_DISCRIMINATORS,
         )
+        # What normalization already settled about these cars. Without it the model
+        # reasons from registry spellings alone while the derived identity it needs
+        # -- manufacturer, model family, power, displacement -- sits unused.
+        profile = repository.resolved_profile(request.conditions)
     except UnknownFieldError as error:
         raise _bad_field(error) from error
     except psycopg.Error as error:
@@ -239,4 +243,5 @@ def advise_for_filter(
         # path has none, and the advisor treats its absence as "cannot justify a
         # value" rather than inventing one.
         oem_samples=[],
+        resolved_profile=profile,
     )

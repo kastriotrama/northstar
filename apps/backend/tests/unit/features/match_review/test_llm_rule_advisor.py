@@ -81,8 +81,14 @@ def test_valid_reply_is_accepted() -> None:
     assert advice.advisor == "llm:test-model"
 
 
-def test_value_is_dropped_when_no_oem_evidence_backs_it() -> None:
-    """A model may assert a value confidently; without evidence we refuse it."""
+def test_a_value_without_oem_evidence_survives_but_is_never_confident() -> None:
+    """A model may assert a value confidently; without evidence we do not agree.
+
+    The proposal used to be discarded, which left a reviewer reading an
+    explanation of why there was no suggestion instead of a suggestion they
+    could check. It is kept and marked: Preview and Save are the real gate, and
+    confidence is reserved for values OEM samples actually back.
+    """
 
     advice = _advise(
         _advisor(
@@ -97,8 +103,28 @@ def test_value_is_dropped_when_no_oem_evidence_backs_it() -> None:
         )
     )
 
-    assert advice.target_value is None
+    assert advice.target_value == "fwd"
     assert advice.confident is False
+    assert advice.evidence["value_unverified"] is True
+
+
+def test_a_value_backed_by_oem_evidence_is_not_marked_unverified() -> None:
+    advice = _advise(
+        _advisor(
+            {
+                "conditions": [
+                    {"field": "fab_code", "operator": "equals", "values": ["VO"]}
+                ],
+                "target_value": "fwd",
+                "confident": True,
+                "reasoning": "Volvo block.",
+            }
+        ),
+        oem=[{"drive": "fwd"}],
+    )
+
+    assert advice.evidence["value_unverified"] is False
+    assert advice.confident is True
 
 
 @pytest.mark.parametrize(
@@ -181,4 +207,9 @@ def test_prompt_carries_vocabulary_priors_and_distributions() -> None:
     assert sent["allowed_target_values"] == ["fwd", "rwd", "awd"]
     assert sent["semantically_relevant_fields_in_order"][0] == "fab_code"
     assert sent["value_distributions"]["fab_code"][0]["value"] == "VO"
-    assert "Never guess a fact about cars" in llm.calls[0]["instructions"]
+    # The block's settled identity travels with the prompt. Without it the model
+    # reasons from registry spellings while the derived identity goes unused, and
+    # it declines to name values it could otherwise place.
+    assert "already_established_for_all_of_these_cars" in sent
+    # Confidence still requires evidence, even though a proposal no longer does.
+    assert "confident` true ONLY when `oem_evidence`" in llm.calls[0]["instructions"]

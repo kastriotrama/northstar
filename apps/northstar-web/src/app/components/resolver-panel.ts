@@ -193,9 +193,6 @@ export class ResolverPanel {
         next: (advice) => {
           this.advising.set(false);
           this.advice.set(advice);
-          if (advice.target_value) {
-            this.targetValue.set(advice.target_value);
-          }
         },
         error: (err: unknown) => {
           this.advising.set(false);

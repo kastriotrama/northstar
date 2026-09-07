@@ -275,3 +275,37 @@ class VehicleFilterRepository:
 
         discriminators.sort(key=lambda item: item["separation"], reverse=True)
         return population, discriminators, field_values
+
+
+    def resolved_profile(self, conditions: Sequence[Any]) -> dict[str, Any]:
+        """What is already settled about the matched cars.
+
+        The advisor was only ever shown the registry columns it might filter on,
+        so it had to infer the vehicle from raw spellings while the normalized
+        identity -- manufacturer, model family, power, displacement, year -- sat
+        one table over, already derived and already trusted. A field is reported
+        only when it is uniform across the population, because a fact about the
+        block is the only kind of fact worth reasoning from.
+        """
+
+        predicate = self._predicate(conditions, None)
+        fields = [f for f in RESOLVABLE_FIELDS]
+        selects = ", ".join(
+            f"count(DISTINCT coalesce(n_{f}::text, r_{f}::text)) AS d_{f}, "
+            f"min(coalesce(n_{f}::text, r_{f}::text)) AS v_{f}"
+            for f in fields
+        )
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {selects} FROM {VEHICLE_FACTS_TABLE} WHERE {predicate.sql}",
+                predicate.parameters,
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return {}
+        profile: dict[str, Any] = {}
+        for index, field in enumerate(fields):
+            distinct, value = row[index * 2], row[index * 2 + 1]
+            if distinct == 1 and value is not None:
+                profile[field] = value
+        return profile
