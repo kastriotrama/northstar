@@ -1,13 +1,88 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
 from psycopg import Connection
 
+from api.app.features.tecdoc_review.gaps import GAP_VALUE_SPECS
+from api.app.features.tecdoc_review.predicate import (
+    FILTERABLE_FIELDS,
+    GAP_FIELDS,
+    compile_conditions,
+)
+from ingestion.tecdoc.resolution_migrations import (
+    TECDOC_RESOLUTION_RULES_TABLE,
+    run_tecdoc_resolution_migrations,
+)
+
+#: The `vehicles` CTE every filtered vehicle query builds on. Kept in one place
+#: so `fetch_vehicles`, `count`, `facet` and `unresolved_summary` -- one column
+#: list, one join, four uses -- can never drift into projecting different rows.
+_VEHICLES_CTE = """
+    WITH vehicles AS (
+        SELECT a.source_key, a.node_id AS alias_id, a.attributes AS alias_attributes,
+            v.node_id AS variant_id, v.attributes AS variant_attributes,
+            v.source_row_refs,
+            m.attributes AS manufacturer_attributes,
+            f.attributes AS family_attributes,
+            e.attributes AS engine_attributes,
+            t.attributes AS transmission_attributes,
+            bw.attributes AS bodywork_attributes
+        FROM core.tecdoc_canonical_candidates a
+        JOIN core.tecdoc_canonical_candidates v
+          ON v.batch_id=a.batch_id AND v.entity_type='vehicle_variant'
+         AND v.source_key=a.attributes->>'target_source_key'
+        LEFT JOIN core.tecdoc_canonical_candidates m
+          ON m.batch_id=v.batch_id AND m.entity_type='manufacturer'
+         AND m.source_key=v.attributes->>'manufacturer_source_key'
+        LEFT JOIN core.tecdoc_canonical_candidates f
+          ON f.batch_id=v.batch_id AND f.entity_type='model_family'
+         AND f.source_key=v.attributes->>'model_family_source_key'
+        LEFT JOIN core.tecdoc_canonical_candidates e
+          ON e.batch_id=v.batch_id AND e.entity_type='engine'
+         AND e.source_key=v.attributes->>'engine_source_key'
+        LEFT JOIN core.tecdoc_canonical_candidates t
+          ON t.batch_id=v.batch_id AND t.entity_type='transmission'
+         AND t.source_key=v.attributes->>'transmission_source_key'
+        LEFT JOIN core.tecdoc_canonical_candidates bw
+          ON bw.batch_id=v.batch_id AND bw.entity_type='bodywork'
+         AND bw.source_key=v.attributes->>'bodywork_source_key'
+        WHERE a.batch_id=%s AND a.entity_type='alias'
+    )
+"""
+
+#: `query` free-text search reads the same concatenation `fetch_vehicles` always
+#: has, so adding structured conditions never changes what plain search matches.
+_SEARCH_CONDITION = """concat_ws(' ', source_key,
+    variant_attributes->>'source_name', manufacturer_attributes->>'canonical_name',
+    family_attributes->>'canonical_name', engine_attributes->>'engine_code',
+    engine_attributes->>'fuel_type', transmission_attributes->>'transmission_code',
+    bodywork_attributes->>'tecdoc_body_type_code') ILIKE %s"""
+
 
 class ConnectionFactory(Protocol):
     def __call__(self) -> AbstractContextManager[Connection[Any]]: ...
+
+
+def _where(
+    query: str,
+    conditions: Sequence[Any],
+    unresolved_field: str | None,
+) -> tuple[str, list[Any]]:
+    """One WHERE clause AND-ing free-text search, structured conditions and a gap."""
+
+    fragments = ["(%s='' OR " + _SEARCH_CONDITION + ")"]
+    parameters: list[Any] = [query.strip(), f"%{query.strip()}%"]
+    compiled = compile_conditions(
+        [(item.field, item.operator, tuple(item.values)) for item in conditions],
+        unresolved_field=unresolved_field,
+    )
+    if compiled.sql != "true":
+        fragments.append(compiled.sql)
+        parameters.extend(compiled.parameters)
+    return "WHERE " + " AND ".join(fragments), parameters
 
 
 class TecDocReviewRepository:
@@ -55,59 +130,29 @@ class TecDocReviewRepository:
         )
 
     def fetch_vehicles(
-        self, *, batch_id: str, query: str, limit: int, offset: int
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        limit: int,
+        offset: int,
+        conditions: Sequence[Any] = (),
+        unresolved_field: str | None = None,
     ) -> tuple[int, list[dict[str, Any]]]:
-        search = f"%{query.strip()}%"
-        statement = """
-            WITH vehicles AS (
-                SELECT a.source_key, a.node_id AS alias_id, a.attributes AS alias_attributes,
-                    v.node_id AS variant_id, v.attributes AS variant_attributes,
-                    v.source_row_refs,
-                    m.attributes AS manufacturer_attributes,
-                    f.attributes AS family_attributes,
-                    e.attributes AS engine_attributes,
-                    t.attributes AS transmission_attributes,
-                    bw.attributes AS bodywork_attributes
-                FROM core.tecdoc_canonical_candidates a
-                JOIN core.tecdoc_canonical_candidates v
-                  ON v.batch_id=a.batch_id AND v.entity_type='vehicle_variant'
-                 AND v.source_key=a.attributes->>'target_source_key'
-                LEFT JOIN core.tecdoc_canonical_candidates m
-                  ON m.batch_id=v.batch_id AND m.entity_type='manufacturer'
-                 AND m.source_key=v.attributes->>'manufacturer_source_key'
-                LEFT JOIN core.tecdoc_canonical_candidates f
-                  ON f.batch_id=v.batch_id AND f.entity_type='model_family'
-                 AND f.source_key=v.attributes->>'model_family_source_key'
-                LEFT JOIN core.tecdoc_canonical_candidates e
-                  ON e.batch_id=v.batch_id AND e.entity_type='engine'
-                 AND e.source_key=v.attributes->>'engine_source_key'
-                LEFT JOIN core.tecdoc_canonical_candidates t
-                  ON t.batch_id=v.batch_id AND t.entity_type='transmission'
-                 AND t.source_key=v.attributes->>'transmission_source_key'
-                LEFT JOIN core.tecdoc_canonical_candidates bw
-                  ON bw.batch_id=v.batch_id AND bw.entity_type='bodywork'
-                 AND bw.source_key=v.attributes->>'bodywork_source_key'
-                WHERE a.batch_id=%s AND a.entity_type='alias'
-            )
-        """
-        condition = """WHERE %s='' OR concat_ws(' ', source_key,
-            variant_attributes->>'source_name', manufacturer_attributes->>'canonical_name',
-            family_attributes->>'canonical_name', engine_attributes->>'engine_code',
-            engine_attributes->>'fuel_type', transmission_attributes->>'transmission_code',
-            bodywork_attributes->>'tecdoc_body_type_code') ILIKE %s"""
+        where, where_params = _where(query, conditions, unresolved_field)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                statement + "SELECT count(*) FROM vehicles " + condition,
-                (batch_id, query.strip(), search),
+                _VEHICLES_CTE + "SELECT count(*) FROM vehicles " + where,
+                [batch_id, *where_params],
             )
             count_row = cursor.fetchone()
             total = int(count_row[0]) if count_row is not None else 0
             cursor.execute(
-                statement
+                _VEHICLES_CTE
                 + "SELECT * FROM vehicles "
-                + condition
+                + where
                 + " ORDER BY source_key LIMIT %s OFFSET %s",
-                (batch_id, query.strip(), search, limit, offset),
+                [batch_id, *where_params, limit, offset],
             )
             description = cursor.description
             if description is None:
@@ -115,6 +160,93 @@ class TecDocReviewRepository:
             columns = [column.name for column in description]
             rows = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
         return total, rows
+
+    def count_vehicles(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any] = (),
+        unresolved_field: str | None = None,
+    ) -> int:
+        where, where_params = _where(query, conditions, unresolved_field)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                _VEHICLES_CTE + "SELECT count(*) FROM vehicles " + where,
+                [batch_id, *where_params],
+            )
+            row = cursor.fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def total_vehicles(self, *, batch_id: str) -> int:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                _VEHICLES_CTE + "SELECT count(*) FROM vehicles",
+                [batch_id],
+            )
+            row = cursor.fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def facet_vehicles(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any],
+        unresolved_field: str | None,
+        field: str,
+        limit: int,
+    ) -> list[tuple[str, int]]:
+        """Top values of one filterable field inside the current filter.
+
+        The field's own clause, if any, is lifted before counting -- the same
+        rule `vehicle_filter` follows -- so a field's siblings stay visible and
+        their counts stay honest instead of a picked value hiding itself.
+        """
+
+        if field not in FILTERABLE_FIELDS:
+            return []
+        remaining = [item for item in conditions if item.field != field]
+        where, where_params = _where(query, remaining, unresolved_field)
+        expr = FILTERABLE_FIELDS[field]
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                _VEHICLES_CTE
+                + f"SELECT {expr} AS value, count(*) AS rows FROM vehicles "
+                + where
+                + f" AND {expr} IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT %s",
+                [batch_id, *where_params, limit],
+            )
+            rows = cursor.fetchall()
+        return [(str(value), int(count)) for value, count in rows]
+
+    def unresolved_summary(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any],
+    ) -> tuple[int, list[tuple[str, int]]]:
+        """How many matched KTypes still miss each canonical gap, in one pass."""
+
+        where, where_params = _where(query, conditions, None)
+        gap_selects = ", ".join(
+            f"count(*) FILTER (WHERE {predicate}) AS {name}"
+            for name, (_, predicate) in GAP_FIELDS.items()
+        )
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                _VEHICLES_CTE
+                + f"SELECT count(*), {gap_selects} FROM vehicles "
+                + where,
+                [batch_id, *where_params],
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return 0, []
+        matched = int(row[0])
+        counts = [(name, int(value)) for name, value in zip(GAP_FIELDS, row[1:], strict=True)]
+        return matched, counts
 
     def fetch_entities(
         self, *, batch_id: str, kind: str, query: str, limit: int, offset: int
@@ -214,3 +346,112 @@ class TecDocReviewRepository:
                 for row in cursor.fetchall()
             ]
         return total, rows
+
+    # --- the value-level gap: raw codes/labels with no canonical target -----------------
+
+    def gap_values(
+        self, *, batch_id: str, canonical_field: str, limit: int
+    ) -> list[tuple[str, str | None, int]]:
+        """Distinct raw values behind one canonical field's gap, largest first."""
+
+        spec = GAP_VALUE_SPECS[canonical_field]
+        label_sql = spec.label_expr or spec.value_expr
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                _VEHICLES_CTE
+                + f"SELECT {spec.value_expr} AS source_term, max({label_sql}) AS label, "
+                + "count(*) AS support FROM vehicles WHERE "
+                + spec.unresolved_sql
+                + " GROUP BY 1 ORDER BY 3 DESC, 1 LIMIT %s",
+                [batch_id, limit],
+            )
+            rows = cursor.fetchall()
+        return [
+            (str(term), (str(label) if label is not None else None), int(support))
+            for term, label, support in rows
+        ]
+
+    def fetch_resolutions(self, *, canonical_field: str) -> dict[str, dict[str, Any]]:
+        """Every live-reviewed value for one canonical field, keyed by comparison_key.
+
+        `to_regclass` first, exactly as `fetch_tecdoc_rules` does it: this table
+        is created on first write, so a database no one has resolved anything
+        in yet is the ordinary case rather than a fault.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s) IS NOT NULL", (TECDOC_RESOLUTION_RULES_TABLE,)
+            )
+            exists_row = cursor.fetchone()
+            if not (exists_row and exists_row[0]):
+                return {}
+            cursor.execute(
+                "SELECT comparison_key, decision, canonical_value, note, reviewed_by, "
+                f"updated_at FROM {TECDOC_RESOLUTION_RULES_TABLE} WHERE canonical_field = %s",
+                (canonical_field,),
+            )
+            rows = cursor.fetchall()
+        return {
+            str(row[0]): {
+                "decision": str(row[1]),
+                "canonical_value": row[2],
+                "note": str(row[3] or ""),
+                "reviewed_by": str(row[4]),
+                "updated_at": row[5].isoformat() if row[5] else "",
+            }
+            for row in rows
+        }
+
+    def upsert_resolution(
+        self,
+        *,
+        canonical_field: str,
+        comparison_key: str,
+        source_term: str,
+        key_table: str | None,
+        decision: str,
+        canonical_value: str | None,
+        note: str,
+        reviewed_by: str,
+    ) -> dict[str, Any]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
+            cursor.execute(
+                f"""
+                INSERT INTO {TECDOC_RESOLUTION_RULES_TABLE}
+                    (canonical_field, comparison_key, source_term, key_table, decision,
+                     canonical_value, note, reviewed_by, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (canonical_field, comparison_key) DO UPDATE SET
+                    source_term = EXCLUDED.source_term,
+                    key_table = EXCLUDED.key_table,
+                    decision = EXCLUDED.decision,
+                    canonical_value = EXCLUDED.canonical_value,
+                    note = EXCLUDED.note,
+                    reviewed_by = EXCLUDED.reviewed_by,
+                    updated_at = now()
+                RETURNING decision, canonical_value, note, reviewed_by, updated_at
+                """,
+                (
+                    canonical_field,
+                    comparison_key,
+                    source_term,
+                    key_table,
+                    decision,
+                    canonical_value,
+                    note,
+                    reviewed_by,
+                ),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        if row is None:
+            raise RuntimeError("resolution upsert returned no row")
+        return {
+            "decision": str(row[0]),
+            "canonical_value": row[1],
+            "note": str(row[2] or ""),
+            "reviewed_by": str(row[3]),
+            "updated_at": row[4].isoformat() if row[4] else "",
+        }

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -74,3 +74,91 @@ class TecDocEntityPage(BaseModel):
     limit: int
     offset: int
     items: list[TecDocEntity] = Field(default_factory=list)
+
+
+# --- filtering the vehicle population, ported from `/v1/vehicles` -----------------------
+#
+# `layer` is accepted for wire compatibility with the shared TS `RuleCondition`
+# shape (so the frontend's `FilterState`/chip editor can be reused verbatim) but
+# is unused: TecDoc has no source/normalized distinction, only one projection.
+
+
+class TecDocVehicleCondition(BaseModel):
+    field: str = Field(max_length=60)
+    operator: Literal["equals", "not_equals", "starts_with", "contains", "gte", "lte"]
+    layer: str = "source"
+    values: list[str] = Field(default_factory=list, max_length=20)
+
+
+class TecDocVehicleFilter(BaseModel):
+    query: str = Field(default="", max_length=120)
+    conditions: list[TecDocVehicleCondition] = Field(default_factory=list, max_length=20)
+    unresolved_field: str | None = Field(default=None, max_length=40)
+
+
+class TecDocVehicleCount(BaseModel):
+    matched_rows: int = 0
+    total_rows: int = 0
+
+
+class TecDocUnresolvedField(BaseModel):
+    field: str
+    label: str
+    unresolved: int
+    share: float = 0.0
+
+
+class TecDocUnresolvedSummary(BaseModel):
+    matched_rows: int = 0
+    fields: list[TecDocUnresolvedField] = Field(default_factory=list)
+
+
+class TecDocVehicleFacetValue(BaseModel):
+    value: str
+    count: int
+
+
+class TecDocVehicleFacet(BaseModel):
+    field: str
+    matched_rows: int = 0
+    values: list[TecDocVehicleFacetValue] = Field(default_factory=list)
+
+
+# --- the value-level gap: which raw codes/labels have no canonical target ---------------
+
+
+class TecDocResolution(BaseModel):
+    """A reviewer's live ruling on one value, from `core.tecdoc_resolution_rules`."""
+
+    decision: Literal["accepted", "excluded"]
+    canonical_value: str | None = None
+    note: str = ""
+    reviewed_by: str
+    updated_at: str
+
+
+class TecDocGapValue(BaseModel):
+    source_term: str
+    label: str | None = None
+    key_table: str | None = None
+    support: int
+    #: Set when this value must not be resolved with a single target -- a mixed
+    #: TecDoc descriptor today. Present means the Resolve action is refused.
+    blocked_reason: str | None = None
+    resolution: TecDocResolution | None = None
+
+
+class TecDocGapValuesResponse(BaseModel):
+    canonical_field: str
+    key_table: str | None = None
+    canonical_options: list[str] = Field(default_factory=list)
+    values: list[TecDocGapValue] = Field(default_factory=list)
+
+
+class TecDocResolveRequest(BaseModel):
+    canonical_field: Literal["energy_sources", "bodywork_form", "drive_type"]
+    source_term: str = Field(max_length=200)
+    decision: Literal["accepted", "excluded"]
+    canonical_value: str | None = Field(default=None, max_length=80)
+    note: str = Field(default="", max_length=500)
+    reviewed_by: str = Field(max_length=80)

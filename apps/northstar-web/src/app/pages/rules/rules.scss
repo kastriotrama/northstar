@@ -142,7 +142,41 @@
   color: #1f6b45;
 }
 
+.origin-tag--reviewed_mapping {
+  border-color: #8fc7a8;
+  background: #eefaf2;
+  color: #1f6b45;
+}
+
+.origin-tag--generated {
+  border-color: #e0c48f;
+  background: #fff8ee;
+  color: #8a5f1f;
+}
+
 .rule-note {
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.toolbar__check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.source-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--p-surface-300);
+  color: var(--p-text-muted-color);
+}
+
+.source-tag--tecdoc {
+  border-color: #8fb3e0;
+  background: #eef4ff;
+  color: #29508f;
 }

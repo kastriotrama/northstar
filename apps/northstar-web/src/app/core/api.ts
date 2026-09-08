@@ -25,7 +25,14 @@ import type {
   TargetVocabulary,
   TecDocCoverageReport,
   TecDocEntityPage,
+  TecDocGapValuesResponse,
   TecDocPage,
+  TecDocResolution,
+  TecDocResolveRequest,
+  TecDocUnresolvedSummary,
+  TecDocVehicleCount,
+  TecDocVehicleFacet,
+  TecDocVehicleFilter,
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
@@ -120,6 +127,62 @@ export class Api {
     });
   }
 
+  // --- TecDoc vehicles: filtered, ported from `/v1/vehicles` ----------------------------
+
+  tecdocVehiclePage(
+    filter: TecDocVehicleFilter,
+    options: { limit?: number; offset?: number } = {},
+  ): Observable<TecDocPage> {
+    return this.http.post<TecDocPage>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/page`,
+      filter,
+      { params: params({ limit: options.limit ?? 100, offset: options.offset ?? 0 }) },
+    );
+  }
+
+  countTecDocVehicles(filter: TecDocVehicleFilter): Observable<TecDocVehicleCount> {
+    return this.http.post<TecDocVehicleCount>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/count`,
+      filter,
+    );
+  }
+
+  /** What the filtered KTypes still cannot say about themselves -- the worklist. */
+  tecdocUnresolvedSummary(filter: TecDocVehicleFilter): Observable<TecDocUnresolvedSummary> {
+    return this.http.post<TecDocUnresolvedSummary>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/unresolved-summary`,
+      filter,
+    );
+  }
+
+  tecdocVehicleFacet(
+    filter: TecDocVehicleFilter,
+    field: string,
+    limit = 12,
+  ): Observable<TecDocVehicleFacet> {
+    return this.http.post<TecDocVehicleFacet>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/facets`,
+      filter,
+      { params: params({ field, limit }) },
+    );
+  }
+
+  /** The distinct raw values behind one canonical field's gap -- the Resolve click target. */
+  tecdocGapValues(field: string, limit = 100): Observable<TecDocGapValuesResponse> {
+    return this.http.get<TecDocGapValuesResponse>(
+      `${this.base}/v1/normalization-review/tecdoc/gaps`,
+      { params: params({ field, limit }) },
+    );
+  }
+
+  /** Write one reviewer's live ruling on one TecDoc value. */
+  resolveTecDocGap(request: TecDocResolveRequest): Observable<TecDocResolution> {
+    return this.http.post<TecDocResolution>(
+      `${this.base}/v1/normalization-review/tecdoc/gaps/resolve`,
+      request,
+    );
+  }
+
   // --- Page 3: rules -------------------------------------------------------------------
   // Uses the paginated catalog, not GET /rules: that endpoint returns ~12MB in ~25s
   // because it also aggregates the newest normalization batch.
@@ -129,6 +192,8 @@ export class Api {
     canonicalField?: string | null;
     decision?: string | null;
     origin?: string | null;
+    source?: string | null;
+    includeInventory?: boolean;
     transformerId?: string | null;
     limit?: number;
     offset?: number;
@@ -142,6 +207,8 @@ export class Api {
           canonical_field: options.canonicalField,
           decision: options.decision,
           origin: options.origin,
+          source: options.source,
+          include_inventory: options.includeInventory ? 'true' : undefined,
           transformer_id: options.transformerId,
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,

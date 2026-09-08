@@ -3,8 +3,8 @@
     <div>
       <h1 class="page__title">TecDoc</h1>
       <p class="page__subtitle">
-        The promoted TecDoc catalogue. Every field each row carries is shown — open a row for
-        the full payload.
+        The promoted TecDoc catalogue. Filter the ktype population, see what it still
+        cannot say about itself, and open a row for the full payload.
       </p>
     </div>
     @if (vehiclePage()?.summary; as summary) {
@@ -30,6 +30,10 @@
       </div>
     }
   </div>
+
+  @if (error(); as message) {
+    <div class="notice notice--error" role="alert">{{ message }}</div>
+  }
 
   <div class="toolbar">
     <p-select
@@ -62,6 +66,231 @@
   </div>
 
   @if (view() === 'vehicles') {
+    <!-- ------------------------------------------------------------------- the filter -->
+    <section class="card" aria-labelledby="tecdoc-filter-heading">
+      <div class="card__head">
+        <h2 id="tecdoc-filter-heading" class="card__title">
+          Which ktypes
+          <span class="muted card__hint">
+            — {{ matched() ?? 0 | number }} of {{ totalKtypes() ?? 0 | number }}
+          </span>
+        </h2>
+        <span class="muted mono filter-summary">{{ filterLabel() }}</span>
+      </div>
+
+      <div class="chips" role="group" aria-label="Active TecDoc filter conditions">
+        @for (
+          condition of filter.conditions();
+          track condition.field + ':' + $index;
+          let i = $index
+        ) {
+          @if (i > 0) {
+            <span class="chips__and" aria-hidden="true">AND</span>
+          }
+          <span class="chip">
+            <b class="chip__field">{{ condition.field }}</b>
+            <select
+              class="chip__op-select"
+              [attr.aria-label]="'Operator for ' + condition.field"
+              [value]="condition.operator"
+              (change)="setOperator(condition, $any($event.target).value)"
+            >
+              @for (operator of operators; track operator.value) {
+                <option
+                  [value]="operator.value"
+                  [selected]="operator.value === condition.operator"
+                >
+                  {{ operator.label }}
+                </option>
+              }
+            </select>
+            @for (value of condition.values; track value; let v = $index) {
+              @if (v > 0) {
+                <i class="chip__or" aria-hidden="true">or</i>
+              }
+              <span class="chip__value">{{ value }}</span>
+            }
+            <button
+              type="button"
+              class="chip__remove"
+              [attr.aria-label]="'Remove ' + condition.field + ' condition'"
+              (click)="removeCondition(condition)"
+            >
+              ×
+            </button>
+          </span>
+        } @empty {
+          <span class="muted">No conditions — every promoted ktype.</span>
+        }
+      </div>
+
+      <div class="filter__add">
+        <span class="filter__add-label">Add a condition</span>
+        <p-select
+          [options]="facetFields"
+          [ngModel]="draftField()"
+          (ngModelChange)="onDraftField($event)"
+          [filter]="true"
+          ariaLabel="Field to filter on"
+          [style]="{ minWidth: '190px' }"
+        />
+        <select
+          class="chip__op-select"
+          aria-label="Operator for the new condition"
+          [value]="draftOperator()"
+          (change)="draftOperator.set($any($event.target).value)"
+        >
+          @for (operator of operators; track operator.value) {
+            <option [value]="operator.value">{{ operator.label }}</option>
+          }
+        </select>
+        <input
+          pInputText
+          placeholder="or type a value"
+          [ngModel]="draftValue()"
+          (ngModelChange)="draftValue.set($event)"
+          (keyup.enter)="addDraft()"
+          aria-label="Value for the new condition"
+          style="min-width: 190px"
+        />
+        <p-button label="Add" size="small" [outlined]="true" (onClick)="addDraft()" />
+        @if (!filter.isEmpty() || unresolvedField()) {
+          <p-button
+            label="Clear filter"
+            size="small"
+            severity="secondary"
+            [text]="true"
+            (onClick)="clearFilter()"
+          />
+        }
+      </div>
+
+      <!-- Real values of the field just picked, not a blind text box. -->
+      <div class="filter__values">
+        <span class="muted card__hint">
+          Values of <span class="mono">{{ draftField() }}</span> in this filter
+          @if (facetSelection().length) {
+            — {{ facetSelection().length }} picked
+            <button type="button" class="linkish" (click)="clearFacetSelection()">clear</button>
+          }
+        </span>
+        @if (facet(); as breakdown) {
+          <div class="spread__values">
+            @for (entry of breakdown.values; track entry.value) {
+              <button
+                type="button"
+                class="vchip"
+                [class.vchip--selected]="covers(entry.value)"
+                [attr.aria-pressed]="covers(entry.value)"
+                (click)="toggleFacetValue(entry.value)"
+              >
+                <span class="vchip__value">{{ entry.value }}</span>
+                <span class="vchip__count num">{{ entry.count | number }}</span>
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="muted">—</p>
+        }
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------------- the gaps -->
+    <section class="card" aria-labelledby="tecdoc-gaps-heading">
+      <h2 id="tecdoc-gaps-heading" class="card__title">
+        What these ktypes still cannot say
+        <span class="muted card__hint">
+          — the same canonical fields TecDoc rule generation reports, counted per ktype
+        </span>
+      </h2>
+      @if (summaryLoading()) {
+        <p class="muted" role="status" aria-live="polite">Recounting for the new filter…</p>
+      }
+      <ul class="gaps" [class.gaps--stale]="summaryLoading()" [attr.aria-busy]="summaryLoading()">
+        @for (gap of unresolved(); track gap.field) {
+          <li class="gap" [class.gap--active]="unresolvedField() === gap.field">
+            <span class="gap__head">
+              <strong class="mono">{{ gap.field }}</strong>
+              <span class="num muted">{{ gap.unresolved | number }}</span>
+            </span>
+            <span class="muted gap__label">{{ gap.label }}</span>
+            <span class="bar">
+              <span class="bar__fill" [style.width.%]="gap.share * 100"></span>
+            </span>
+            <span class="gap__actions">
+              <button type="button" class="linkish" (click)="onUnresolvedField(gap.field)">
+                {{ unresolvedField() === gap.field ? 'show all matched ktypes' : 'show only these' }}
+              </button>
+              @if (resolvableGapFields.has(gap.field)) {
+                <button type="button" class="linkish linkish--strong" (click)="browseGapValues(gap.field)">
+                  {{ gapField() === gap.field ? 'hide values' : 'browse values →' }}
+                </button>
+              }
+            </span>
+          </li>
+        } @empty {
+          @if (!summaryLoading()) {
+            <li class="muted">Every canonical field is filled for this set.</li>
+          }
+        }
+      </ul>
+
+      <!-- --------------------------------------------------------- the value-level gap -->
+      @if (gapField(); as field) {
+        <div class="gapvalues">
+          <div class="card__head">
+            <h3 class="card__title" style="font-size: 0.8rem">
+              Raw <span class="mono">{{ field }}</span> values with no canonical target
+            </h3>
+            @if (gapValues()?.key_table; as kt) {
+              <span class="muted card__hint">TecDoc key table {{ kt }}</span>
+            }
+          </div>
+          @if (gapValuesLoading()) {
+            <p class="muted">Reading the promoted release…</p>
+          } @else if (gapValues(); as report) {
+            <ul class="gapvalue-list">
+              @for (value of report.values; track value.source_term) {
+                <li class="gapvalue" [class.gapvalue--resolved]="value.resolution">
+                  <span class="gapvalue__head">
+                    <strong class="mono">{{ value.source_term }}</strong>
+                    @if (value.label && value.label !== value.source_term) {
+                      <span class="muted">{{ value.label }}</span>
+                    }
+                    <span class="num muted">{{ value.support | number }} ktypes</span>
+                  </span>
+                  @if (value.blocked_reason; as reason) {
+                    <p class="muted gapvalue__note">
+                      A {{ reason.replace('_', ' ') }} — names a capability, not one fuel. Needs
+                      the mixed-fuel policy decision, not a direct resolve.
+                    </p>
+                  } @else if (value.resolution; as resolution) {
+                    <p class="gapvalue__note">
+                      @if (resolution.decision === 'accepted') {
+                        → <span class="mono">{{ resolution.canonical_value }}</span>
+                      } @else {
+                        excluded — {{ resolution.note }}
+                      }
+                      <span class="muted"> · {{ resolution.reviewed_by }}</span>
+                    </p>
+                    <button type="button" class="linkish" (click)="openResolve(value)">
+                      change ruling
+                    </button>
+                  } @else {
+                    <button type="button" class="linkish linkish--strong" (click)="openResolve(value)">
+                      Resolve →
+                    </button>
+                  }
+                </li>
+              } @empty {
+                <li class="muted">Nothing unmapped — this gap is empty.</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </section>
+
     <p-table
       [value]="vehiclePage()?.items ?? []"
       [lazy]="true"
@@ -72,7 +301,7 @@
       [totalRecords]="total()"
       [loading]="loading()"
       [scrollable]="true"
-      scrollHeight="calc(100vh - 380px)"
+      scrollHeight="calc(100vh - 620px)"
       [rowHover]="true"
       size="small"
       [showCurrentPageReport]="true"
@@ -163,4 +392,101 @@
       </tr>
     }
   </table>
+</p-dialog>
+
+<!-- ---------------------------------------------------------------------- resolve -->
+<p-dialog
+  header="Resolve this value"
+  [visible]="!!resolving()"
+  (visibleChange)="!$event && closeResolve()"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [dismissableMask]="true"
+>
+  @if (resolving(); as value) {
+    <p class="muted" style="margin-top: 0">
+      <span class="mono">{{ gapField() }}</span> ·
+      <strong class="mono">{{ value.source_term }}</strong>
+      @if (value.label && value.label !== value.source_term) {
+        <span> ({{ value.label }})</span>
+      }
+      — {{ value.support | number }} ktypes carry this value.
+    </p>
+
+    <div class="resolve-decision" role="radiogroup" aria-label="Ruling">
+      <button
+        type="button"
+        class="resolve-decision__opt"
+        [class.resolve-decision__opt--on]="resolveDecision() === 'accepted'"
+        [attr.aria-pressed]="resolveDecision() === 'accepted'"
+        (click)="onResolveDecision('accepted')"
+      >
+        Accept — this means…
+      </button>
+      <button
+        type="button"
+        class="resolve-decision__opt"
+        [class.resolve-decision__opt--on]="resolveDecision() === 'excluded'"
+        [attr.aria-pressed]="resolveDecision() === 'excluded'"
+        (click)="onResolveDecision('excluded')"
+      >
+        Exclude — out of scope
+      </button>
+    </div>
+
+    @if (resolveDecision() === 'accepted') {
+      <div class="field">
+        <label class="field__label" for="resolve-target">Canonical value</label>
+        <p-select
+          inputId="resolve-target"
+          [options]="gapValues()?.canonical_options ?? []"
+          [ngModel]="resolveTarget()"
+          (ngModelChange)="resolveTarget.set($event)"
+          [filter]="true"
+          placeholder="pick the target"
+          [style]="{ width: '100%' }"
+        />
+      </div>
+    }
+
+    <div class="field">
+      <label class="field__label" for="resolve-note">
+        {{ resolveDecision() === 'excluded' ? 'Why (required)' : 'Note (optional)' }}
+      </label>
+      <textarea
+        id="resolve-note"
+        pTextarea
+        rows="2"
+        [ngModel]="resolveNote()"
+        (ngModelChange)="resolveNote.set($event)"
+        placeholder="a motorcycle body type, out of car-matching scope…"
+      ></textarea>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="resolve-reviewer">Your name</label>
+      <input
+        id="resolve-reviewer"
+        pInputText
+        [ngModel]="reviewerName()"
+        (ngModelChange)="reviewerName.set($event)"
+        placeholder="a ruling is recorded with who made it"
+        autocomplete="name"
+      />
+    </div>
+
+    @if (resolveError(); as message) {
+      <p class="field__error">{{ message }}</p>
+    }
+
+    <div class="toolbar" style="justify-content: flex-end">
+      <p-button label="Cancel" size="small" [text]="true" (onClick)="closeResolve()" />
+      <p-button
+        label="Save ruling"
+        size="small"
+        [loading]="resolveSaving()"
+        (onClick)="submitResolve()"
+      />
+    </div>
+  }
 </p-dialog>

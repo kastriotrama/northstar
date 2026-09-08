@@ -1,24 +1,92 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 
+from api.app.features.tecdoc_review.gaps import (
+    GAP_VALUE_SPECS,
+    RESOLVABLE_FIELDS,
+    TecDocResolveError,
+    blocked_reason,
+)
+from api.app.features.tecdoc_review.predicate import GAP_FIELDS
 from api.app.features.tecdoc_review.schemas import (
     TecDocEntity,
     TecDocEntityPage,
+    TecDocGapValue,
+    TecDocGapValuesResponse,
     TecDocPromotionSummary,
+    TecDocResolution,
     TecDocReviewPage,
+    TecDocUnresolvedField,
+    TecDocUnresolvedSummary,
     TecDocVehicle,
+    TecDocVehicleCondition,
+    TecDocVehicleCount,
+    TecDocVehicleFacet,
+    TecDocVehicleFacetValue,
 )
+from ingestion.tecdoc.canonical_rule_proposals import comparison_key
+from ingestion.tecdoc.canonical_vocabulary import canonical_values
 
 
 class ReviewRepository(Protocol):
     def latest_batch(self) -> dict[str, Any] | None: ...
     def fetch_vehicles(
-        self, *, batch_id: str, query: str, limit: int, offset: int
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        limit: int,
+        offset: int,
+        conditions: Sequence[Any] = (),
+        unresolved_field: str | None = None,
     ) -> tuple[int, list[dict[str, Any]]]: ...
     def fetch_entities(
         self, *, batch_id: str, kind: str, query: str, limit: int, offset: int
     ) -> tuple[int, list[dict[str, Any]]]: ...
+    def count_vehicles(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any] = (),
+        unresolved_field: str | None = None,
+    ) -> int: ...
+    def total_vehicles(self, *, batch_id: str) -> int: ...
+    def facet_vehicles(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any],
+        unresolved_field: str | None,
+        field: str,
+        limit: int,
+    ) -> list[tuple[str, int]]: ...
+    def unresolved_summary(
+        self,
+        *,
+        batch_id: str,
+        query: str,
+        conditions: Sequence[Any],
+    ) -> tuple[int, list[tuple[str, int]]]: ...
+    def gap_values(
+        self, *, batch_id: str, canonical_field: str, limit: int
+    ) -> list[tuple[str, str | None, int]]: ...
+    def fetch_resolutions(self, *, canonical_field: str) -> dict[str, dict[str, Any]]: ...
+    def upsert_resolution(
+        self,
+        *,
+        canonical_field: str,
+        comparison_key: str,
+        source_term: str,
+        key_table: str | None,
+        decision: str,
+        canonical_value: str | None,
+        note: str,
+        reviewed_by: str,
+    ) -> dict[str, Any]: ...
 
 
 PROMOTION_RULES = [
@@ -45,12 +113,25 @@ class TecDocReviewService:
     def __init__(self, repository: ReviewRepository) -> None:
         self._repository = repository
 
-    def list_vehicles(self, *, query: str, limit: int, offset: int) -> TecDocReviewPage:
+    def list_vehicles(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+        conditions: Sequence[TecDocVehicleCondition] = (),
+        unresolved_field: str | None = None,
+    ) -> TecDocReviewPage:
         batch = self._repository.latest_batch()
         if batch is None:
             return TecDocReviewPage(summary=TecDocPromotionSummary(), limit=limit, offset=offset)
         total, rows = self._repository.fetch_vehicles(
-            batch_id=str(batch["batch_id"]), query=query, limit=limit, offset=offset
+            batch_id=str(batch["batch_id"]),
+            query=query,
+            limit=limit,
+            offset=offset,
+            conditions=conditions,
+            unresolved_field=unresolved_field,
         )
         items = [self._vehicle(row) for row in rows]
         return TecDocReviewPage(
@@ -61,6 +142,187 @@ class TecDocReviewService:
             items=items,
             promotion_rules=PROMOTION_RULES,
         )
+
+    def count_vehicles(
+        self,
+        *,
+        query: str,
+        conditions: Sequence[TecDocVehicleCondition] = (),
+        unresolved_field: str | None = None,
+    ) -> TecDocVehicleCount:
+        batch = self._repository.latest_batch()
+        if batch is None:
+            return TecDocVehicleCount()
+        batch_id = str(batch["batch_id"])
+        matched = self._repository.count_vehicles(
+            batch_id=batch_id, query=query, conditions=conditions, unresolved_field=unresolved_field
+        )
+        total = self._repository.total_vehicles(batch_id=batch_id)
+        return TecDocVehicleCount(matched_rows=matched, total_rows=total)
+
+    def unresolved_vehicle_summary(
+        self, *, query: str, conditions: Sequence[TecDocVehicleCondition] = ()
+    ) -> TecDocUnresolvedSummary:
+        """What the filtered KTypes still cannot say about themselves.
+
+        Row-level twin of the value-level coverage `canonical_rule_proposals`
+        reports: the same three canonical fields (`energy_sources`,
+        `bodywork_form`, `drive_type`), counted per matched KType instead of
+        per distinct release value.
+        """
+
+        batch = self._repository.latest_batch()
+        if batch is None:
+            return TecDocUnresolvedSummary()
+        matched, counts = self._repository.unresolved_summary(
+            batch_id=str(batch["batch_id"]), query=query, conditions=conditions
+        )
+        fields = [
+            TecDocUnresolvedField(
+                field=field,
+                label=GAP_FIELDS[field][0],
+                unresolved=count,
+                share=round(count / matched, 4) if matched else 0.0,
+            )
+            for field, count in counts
+            if count > 0
+        ]
+        fields.sort(key=lambda entry: entry.unresolved, reverse=True)
+        return TecDocUnresolvedSummary(matched_rows=matched, fields=fields)
+
+    def facet_vehicles(
+        self,
+        *,
+        query: str,
+        conditions: Sequence[TecDocVehicleCondition],
+        unresolved_field: str | None,
+        field: str,
+        limit: int,
+    ) -> TecDocVehicleFacet:
+        batch = self._repository.latest_batch()
+        if batch is None:
+            return TecDocVehicleFacet(field=field)
+        batch_id = str(batch["batch_id"])
+        values = self._repository.facet_vehicles(
+            batch_id=batch_id,
+            query=query,
+            conditions=conditions,
+            unresolved_field=unresolved_field,
+            field=field,
+            limit=limit,
+        )
+        matched = self._repository.count_vehicles(
+            batch_id=batch_id, query=query, conditions=conditions, unresolved_field=unresolved_field
+        )
+        return TecDocVehicleFacet(
+            field=field,
+            matched_rows=matched,
+            values=[TecDocVehicleFacetValue(value=value, count=count) for value, count in values],
+        )
+
+    def gap_values(self, *, canonical_field: str, limit: int) -> TecDocGapValuesResponse:
+        """The distinct raw values behind one canonical field's gap.
+
+        Merges the algorithmic count from the promoted batch with whatever a
+        reviewer has already ruled on live, so a value someone resolved a
+        moment ago stops reading as an open gap without waiting for a new
+        sealed rule version.
+        """
+
+        if canonical_field not in GAP_VALUE_SPECS:
+            raise TecDocResolveError(f"{canonical_field!r} has no value-level gap to browse")
+        spec = GAP_VALUE_SPECS[canonical_field]
+        options = sorted(canonical_values(canonical_field))
+        batch = self._repository.latest_batch()
+        if batch is None:
+            return TecDocGapValuesResponse(
+                canonical_field=canonical_field,
+                key_table=spec.key_table,
+                canonical_options=options,
+            )
+        batch_id = str(batch["batch_id"])
+        raw = self._repository.gap_values(
+            batch_id=batch_id, canonical_field=canonical_field, limit=limit
+        )
+        reviewed = self._repository.fetch_resolutions(canonical_field=canonical_field)
+        values = [
+            TecDocGapValue(
+                source_term=source_term,
+                label=label,
+                key_table=spec.key_table,
+                support=support,
+                blocked_reason=blocked_reason(canonical_field, source_term),
+                resolution=TecDocResolution(**reviewed[key])
+                if (key := comparison_key(source_term)) in reviewed
+                else None,
+            )
+            for source_term, label, support in raw
+        ]
+        return TecDocGapValuesResponse(
+            canonical_field=canonical_field,
+            key_table=spec.key_table,
+            canonical_options=options,
+            values=values,
+        )
+
+    def resolve(
+        self,
+        *,
+        canonical_field: str,
+        source_term: str,
+        decision: str,
+        canonical_value: str | None,
+        note: str,
+        reviewed_by: str,
+    ) -> TecDocResolution:
+        """Write one reviewer's ruling on one value.
+
+        Validated the same way the schema already constrains a sealed
+        `tecdoc_rules` row -- an acceptance must name a real canonical target,
+        an exclusion must name none and must say why -- plus the one check a
+        sealed row cannot make: whether the value is a mixed descriptor, which
+        no single-target resolution is allowed to overrule.
+        """
+
+        if canonical_field not in RESOLVABLE_FIELDS:
+            raise TecDocResolveError(
+                f"{canonical_field!r} has no canonical vocabulary to resolve toward"
+            )
+        if not source_term.strip():
+            raise TecDocResolveError("a resolution needs the value it rules on")
+        if not reviewed_by.strip():
+            raise TecDocResolveError("a resolution needs who is ruling on it")
+        reason = blocked_reason(canonical_field, source_term)
+        if reason is not None:
+            raise TecDocResolveError(
+                f"{source_term!r} is a {reason.replace('_', ' ')} and cannot be resolved "
+                "to a single target"
+            )
+        if decision == "accepted":
+            if not canonical_value or canonical_value not in canonical_values(canonical_field):
+                raise TecDocResolveError(
+                    f"{canonical_value!r} is not a canonical {canonical_field} value"
+                )
+        elif decision == "excluded":
+            if canonical_value:
+                raise TecDocResolveError("an excluded value names no canonical target")
+            if not note.strip():
+                raise TecDocResolveError("excluding a value needs a note saying why")
+        else:
+            raise TecDocResolveError(f"{decision!r} is not a known resolution decision")
+
+        spec = GAP_VALUE_SPECS[canonical_field]
+        stored = self._repository.upsert_resolution(
+            canonical_field=canonical_field,
+            comparison_key=comparison_key(source_term),
+            source_term=source_term,
+            key_table=spec.key_table,
+            decision=decision,
+            canonical_value=canonical_value,
+            note=note,
+            reviewed_by=reviewed_by,
+        )
+        return TecDocResolution(**stored)
 
     def list_entities(self, *, kind: str, query: str, limit: int, offset: int) -> TecDocEntityPage:
         batch = self._repository.latest_batch()

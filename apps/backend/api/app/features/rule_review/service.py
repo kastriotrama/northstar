@@ -172,6 +172,12 @@ class RuleReviewService:
             tecdoc = [entry for entry in tecdoc if not entry.inventory_only]
         entries.extend(tecdoc)
 
+        tecdoc_resolution = [
+            self._tecdoc_resolution_entry(rule)
+            for rule in self._repository.fetch_tecdoc_resolution_rules()
+        ]
+        entries.extend(tecdoc_resolution)
+
         total = len(entries)
         term = query.strip().lower()
         if term:
@@ -217,6 +223,7 @@ class RuleReviewService:
             resolution_total=len(resolution),
             tecdoc_total=len(tecdoc),
             tecdoc_inventory_total=tecdoc_inventory_total,
+            tecdoc_resolution_total=len(tecdoc_resolution),
             tecdoc_rule_version=tecdoc_version,
             pipeline_version=PIPELINE_VERSION,
             limit=limit,
@@ -226,12 +233,14 @@ class RuleReviewService:
                 | {entry.area for entry in embedded}
                 | {entry.area for entry in resolution}
                 | {entry.area for entry in tecdoc}
+                | {entry.area for entry in tecdoc_resolution}
             ),
             canonical_fields=sorted(
                 {rule.canonical_field for rule in self._base.rules}
                 | {entry.canonical_field for entry in embedded}
                 | {entry.canonical_field for entry in resolution}
                 | {entry.canonical_field for entry in tecdoc}
+                | {entry.canonical_field for entry in tecdoc_resolution}
             ),
             canonical_options_by_field=self._canonical_options(),
             transformers=[
@@ -297,6 +306,39 @@ class RuleReviewService:
             origin="resolution",
             editable=False,
             notes=f"Authored by {rule['author']} on the projection. {counts}{note}",
+        )
+
+    @staticmethod
+    def _tecdoc_resolution_entry(rule: dict[str, Any]) -> RuleCatalogEntry:
+        """Render one reviewer-authored TecDoc value ruling as a catalog row.
+
+        TecDoc's sibling of `_resolution_entry`: not run by any pipeline, not part
+        of a sealed `tecdoc_rules` version, effective the moment it is written.
+        Sharing `origin="resolution"` with the TS rows is deliberate -- both are
+        the same act, a human ruling on one value outside the reviewed batch
+        process -- and `source="tecdoc"` is what tells the two apart.
+        """
+
+        if rule["decision"] == "excluded":
+            decision = "excluded"
+            note = f"Excluded: {rule['note']}" if rule["note"] else "Excluded."
+        else:
+            decision = "accepted"
+            note = rule["note"] or ""
+        key_table = f" TecDoc key table {rule['key_table']}." if rule["key_table"] else ""
+        return RuleCatalogEntry(
+            rule_id=f"TDRES:{rule['canonical_field']}:{rule['comparison_key']}",
+            area="tecdoc_resolution_rule",
+            source_fields=[rule["canonical_field"]],
+            source_terms=[rule["source_term"]],
+            canonical_field=rule["canonical_field"],
+            base_canonical_value=rule["canonical_value"],
+            effective_canonical_value=rule["canonical_value"],
+            effective_decision=decision,
+            origin="resolution",
+            source="tecdoc",
+            editable=False,
+            notes=f"Ruled by {rule['reviewed_by']} on the live gap browser.{key_table} {note}".strip(),
         )
 
     @staticmethod

@@ -154,7 +154,88 @@ export interface TecDocEntityPage {
   items: TecDocEntity[];
 }
 
-export type RuleOrigin = 'catalog' | 'code' | 'resolution';
+// --- filtering the TecDoc vehicle population, ported from `/v1/vehicles` ----------------
+// `conditions` reuses `RuleCondition`'s wire shape so `FilterState` can build a TecDoc
+// filter the same way it builds a TS one; TecDoc has only one layer, so `layer` is sent
+// as `'source'` and ignored server-side.
+
+export interface TecDocVehicleFilter {
+  query: string;
+  conditions: RuleCondition[];
+  unresolved_field?: string | null;
+}
+
+export interface TecDocVehicleCount {
+  matched_rows: number;
+  total_rows: number;
+}
+
+export interface TecDocUnresolvedField {
+  field: string;
+  label: string;
+  unresolved: number;
+  share: number;
+}
+
+export interface TecDocUnresolvedSummary {
+  matched_rows: number;
+  fields: TecDocUnresolvedField[];
+}
+
+export interface TecDocFacetValue {
+  value: string;
+  count: number;
+}
+
+export interface TecDocVehicleFacet {
+  field: string;
+  matched_rows: number;
+  values: TecDocFacetValue[];
+}
+
+// --- the value-level gap: which raw codes/labels have no canonical target, and Resolve --
+
+export type TecDocResolvableField = 'energy_sources' | 'bodywork_form' | 'drive_type';
+
+export interface TecDocResolution {
+  decision: 'accepted' | 'excluded';
+  canonical_value: string | null;
+  note: string;
+  reviewed_by: string;
+  updated_at: string;
+}
+
+export interface TecDocGapValue {
+  source_term: string;
+  label: string | null;
+  key_table: string | null;
+  support: number;
+  /** Set when this value must not be resolved with a single target (a mixed descriptor). */
+  blocked_reason: string | null;
+  resolution: TecDocResolution | null;
+}
+
+export interface TecDocGapValuesResponse {
+  canonical_field: string;
+  key_table: string | null;
+  canonical_options: string[];
+  values: TecDocGapValue[];
+}
+
+export interface TecDocResolveRequest {
+  canonical_field: TecDocResolvableField;
+  source_term: string;
+  decision: 'accepted' | 'excluded';
+  canonical_value?: string | null;
+  note?: string;
+  reviewed_by: string;
+}
+
+export type RuleOrigin = 'catalog' | 'code' | 'resolution' | 'reviewed_mapping' | 'generated';
+
+/** Which dataset a rule normalizes. Both are normalized into the same canonical
+ * vocabulary, so they share one catalog rather than two. */
+export type RuleSource = 'transportstyrelsen' | 'tecdoc';
 
 export interface RuleCatalogEntry {
   rule_id: string;
@@ -174,6 +255,12 @@ export interface RuleCatalogEntry {
   transformer_id: string | null;
   editable: boolean;
   notes: string | null;
+  source: RuleSource;
+  /** Rows carrying this value in the scanned release. TecDoc-generated rules only. */
+  support: number | null;
+  /** True for a value listed only so the catalogue is complete (a TecDoc model name
+   * or manufacturer) -- no closed vocabulary exists to resolve it against. */
+  inventory_only: boolean;
 }
 
 export interface TransformerStage {
@@ -199,6 +286,10 @@ export interface RuleCatalogResponse {
   catalog_total: number;
   code_total: number;
   resolution_total: number;
+  tecdoc_total: number;
+  tecdoc_inventory_total: number;
+  tecdoc_resolution_total: number;
+  tecdoc_rule_version: string | null;
   pipeline_version: string;
   limit: number;
   offset: number;

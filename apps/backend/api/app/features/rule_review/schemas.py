@@ -169,6 +169,7 @@ class RuleCatalogResponse(BaseModel):
     resolution_total: int = 0
     tecdoc_total: int = 0
     tecdoc_inventory_total: int = 0
+    tecdoc_resolution_total: int = 0
     tecdoc_rule_version: str | None = None
     pipeline_version: str = ""
     areas: list[str] = Field(default_factory=list)
