@@ -354,6 +354,11 @@ class TecDocReviewService:
         bodywork = dict(row.get("bodywork_attributes") or {})
         alias = dict(row["alias_attributes"] or {})
         source_key = str(row["source_key"])
+        # A live ruling from the gap browser (Tier 1 promotion-loop closer):
+        # takes effect here exactly as it does in the filter/facet SQL, so the
+        # list a reviewer resolved a value from also stops showing it as a gap.
+        bodywork_resolution = row.get("bodywork_resolution_value")
+        drive_resolution = row.get("drive_resolution_value")
         return TecDocVehicle(
             ktype=str(alias.get("alias_text") or source_key.removeprefix("ktype:")),
             alias_id=str(row["alias_id"]),
@@ -372,12 +377,21 @@ class TecDocReviewService:
             bodywork_code=bodywork.get("tecdoc_body_type_code")
             or variant.get("tecdoc_body_type_code"),
             bodywork_name=bodywork.get("canonical_name")
+            or bodywork_resolution
             or variant.get("tecdoc_bodywork_official_label"),
-            bodywork_status=str(variant.get("bodywork_link_status") or "code_missing"),
-            drive_type=variant.get("drive_type"),
+            bodywork_status=(
+                "linked"
+                if (bodywork.get("canonical_name") or bodywork_resolution)
+                else str(variant.get("bodywork_link_status") or "code_missing")
+            ),
+            drive_type=variant.get("drive_type") or drive_resolution,
             drive_code=variant.get("tecdoc_drive_type_code"),
             drive_official_label=variant.get("tecdoc_drive_official_label"),
-            drive_status=str(variant.get("drive_normalization_status") or "review_required"),
+            drive_status=(
+                "mapped"
+                if (variant.get("drive_type") or drive_resolution)
+                else str(variant.get("drive_normalization_status") or "review_required")
+            ),
             displacement_cc=engine.get("displacement_cc") or variant.get("displacement_cc"),
             displacement_source=engine.get("displacement_source")
             or variant.get("displacement_source"),

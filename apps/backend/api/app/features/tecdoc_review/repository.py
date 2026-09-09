@@ -20,6 +20,16 @@ from ingestion.tecdoc.resolution_migrations import (
 #: The `vehicles` CTE every filtered vehicle query builds on. Kept in one place
 #: so `fetch_vehicles`, `count`, `facet` and `unresolved_summary` -- one column
 #: list, one join, four uses -- can never drift into projecting different rows.
+#:
+#: The two trailing joins are the Tier 1 promotion-loop closer: a live ruling in
+#: `core.tecdoc_resolution_rules` is coalesced in at read time rather than
+#: written back into `core.tecdoc_canonical_candidates`, so resolving a value
+#: takes effect on every screen immediately and reversibly -- change a ruling
+#: later and the next query reflects it, with no batch data ever mutated. The
+#: join is a plain equality on the raw code because `comparison_key` is a
+#: no-op on a bare 3-digit KT082/KT086 code: no accents or punctuation to
+#: strip. This does not reach the matcher (`tecdoc/match_run_adapters.py`),
+#: which reads the same table through its own path -- see Tier 2.
 _VEHICLES_CTE = """
     WITH vehicles AS (
         SELECT a.source_key, a.node_id AS alias_id, a.attributes AS alias_attributes,
@@ -29,7 +39,9 @@ _VEHICLES_CTE = """
             f.attributes AS family_attributes,
             e.attributes AS engine_attributes,
             t.attributes AS transmission_attributes,
-            bw.attributes AS bodywork_attributes
+            bw.attributes AS bodywork_attributes,
+            bw_res.canonical_value AS bodywork_resolution_value,
+            drv_res.canonical_value AS drive_resolution_value
         FROM core.tecdoc_canonical_candidates a
         JOIN core.tecdoc_canonical_candidates v
           ON v.batch_id=a.batch_id AND v.entity_type='vehicle_variant'
@@ -49,6 +61,14 @@ _VEHICLES_CTE = """
         LEFT JOIN core.tecdoc_canonical_candidates bw
           ON bw.batch_id=v.batch_id AND bw.entity_type='bodywork'
          AND bw.source_key=v.attributes->>'bodywork_source_key'
+        LEFT JOIN core.tecdoc_resolution_rules bw_res
+          ON bw_res.canonical_field='bodywork_form'
+         AND bw_res.comparison_key=v.attributes->>'tecdoc_body_type_code'
+         AND bw_res.decision='accepted'
+        LEFT JOIN core.tecdoc_resolution_rules drv_res
+          ON drv_res.canonical_field='drive_type'
+         AND drv_res.comparison_key=v.attributes->>'tecdoc_drive_type_code'
+         AND drv_res.decision='accepted'
         WHERE a.batch_id=%s AND a.entity_type='alias'
     )
 """
@@ -141,6 +161,7 @@ class TecDocReviewRepository:
     ) -> tuple[int, list[dict[str, Any]]]:
         where, where_params = _where(query, conditions, unresolved_field)
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE + "SELECT count(*) FROM vehicles " + where,
                 [batch_id, *where_params],
@@ -171,6 +192,7 @@ class TecDocReviewRepository:
     ) -> int:
         where, where_params = _where(query, conditions, unresolved_field)
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE + "SELECT count(*) FROM vehicles " + where,
                 [batch_id, *where_params],
@@ -180,6 +202,7 @@ class TecDocReviewRepository:
 
     def total_vehicles(self, *, batch_id: str) -> int:
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE + "SELECT count(*) FROM vehicles",
                 [batch_id],
@@ -210,6 +233,7 @@ class TecDocReviewRepository:
         where, where_params = _where(query, remaining, unresolved_field)
         expr = FILTERABLE_FIELDS[field]
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE
                 + f"SELECT {expr} AS value, count(*) AS rows FROM vehicles "
@@ -235,6 +259,7 @@ class TecDocReviewRepository:
             for name, (_, predicate) in GAP_FIELDS.items()
         )
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE
                 + f"SELECT count(*), {gap_selects} FROM vehicles "
@@ -357,6 +382,7 @@ class TecDocReviewRepository:
         spec = GAP_VALUE_SPECS[canonical_field]
         label_sql = spec.label_expr or spec.value_expr
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 _VEHICLES_CTE
                 + f"SELECT {spec.value_expr} AS source_term, max({label_sql}) AS label, "

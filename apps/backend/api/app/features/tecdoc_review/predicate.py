@@ -28,11 +28,22 @@ FILTERABLE_FIELDS: dict[str, str] = {
     "manufacturer": "manufacturer_attributes->>'canonical_name'",
     "model_family": "family_attributes->>'canonical_name'",
     "fuel_type": "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type')",
-    "bodywork_name": "bodywork_attributes->>'canonical_name'",
-    "bodywork_status": "coalesce(variant_attributes->>'bodywork_link_status', 'code_missing')",
-    "drive_type": "variant_attributes->>'drive_type'",
+    # Falls back to a live ruling from `core.tecdoc_resolution_rules` (joined
+    # into the CTE as `bodywork_resolution_value`/`drive_resolution_value`)
+    # before the promoted batch's own value -- the Tier 1 promotion-loop
+    # closer. A KType a reviewer has since resolved reads as resolved here
+    # without the batch itself ever being rewritten.
+    "bodywork_name": "coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value)",
+    "bodywork_status": (
+        "CASE WHEN coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value) "
+        "IS NOT NULL THEN 'linked' "
+        "ELSE coalesce(variant_attributes->>'bodywork_link_status', 'code_missing') END"
+    ),
+    "drive_type": "coalesce(variant_attributes->>'drive_type', drive_resolution_value)",
     "drive_status": (
-        "coalesce(variant_attributes->>'drive_normalization_status', 'review_required')"
+        "CASE WHEN coalesce(variant_attributes->>'drive_type', drive_resolution_value) "
+        "IS NOT NULL THEN 'mapped' "
+        "ELSE coalesce(variant_attributes->>'drive_normalization_status', 'review_required') END"
     ),
     "transmission_type_name": "transmission_attributes->>'transmission_type_name'",
     "transmission_link_status": (
@@ -65,11 +76,11 @@ GAP_FIELDS: dict[str, tuple[str, str]] = {
     ),
     "bodywork_form": (
         "No canonical bodywork.",
-        "bodywork_attributes->>'canonical_name' IS NULL",
+        "coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value) IS NULL",
     ),
     "drive_type": (
         "No canonical drive type.",
-        "variant_attributes->>'drive_type' IS NULL",
+        "coalesce(variant_attributes->>'drive_type', drive_resolution_value) IS NULL",
     ),
     "engine": (
         "No engine allocation.",
