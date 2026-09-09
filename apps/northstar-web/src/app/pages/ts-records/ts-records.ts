@@ -85,7 +85,6 @@ export class TsRecordsPage {
   protected readonly total = signal<number | null>(null);
   protected readonly unresolved = signal<UnresolvedFieldCount[]>([]);
   protected readonly facet = signal<VehicleFacet | null>(null);
-  protected readonly facetField = signal<string>('brand');
   protected readonly loading = signal(false);
   protected readonly summaryLoading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -178,7 +177,7 @@ export class TsRecordsPage {
           return forkJoin({
             count: this.api.countVehicles(request),
             page: this.api.vehiclePage(request, { cursor: 0, limit: 100 }),
-            facet: this.api.vehicleFacet(request, this.facetField(), 12),
+            facet: this.api.vehicleFacet(request, this.draftField(), 12),
           }).pipe(
             catchError((err: unknown) => {
               this.error.set(TsRecordsPage.describe(err, 'Could not read the population.'));
@@ -349,26 +348,25 @@ export class TsRecordsPage {
   }
 
   /**
-   * Add or remove one value of the faceted field.
+   * Add or remove one real value of the field being drafted.
    *
    * Values of the same field are OR-ed, so picking several is how "all of these
-   * models are rear-wheel drive" gets said. The facet deliberately stays put
+   * models are rear-wheel drive" gets said. The field deliberately stays put
    * afterwards: an earlier version advanced to the next unpinned field as soon
    * as one value was chosen, which made selecting a second value impossible.
    * The backend lifts this field's own clause when counting, so its siblings
-   * stay visible and their counts stay honest.
+   * stay visible and their counts stay honest. A field with no clause yet takes
+   * the drafted operator, so choosing "≠" before clicking a value writes a
+   * not-equals condition rather than defaulting to equals.
    */
   protected toggleFacetValue(value: string): void {
-    this.filter.toggleTerm(this.facetField(), value);
-    if (this.filter.conditions().some((item) => item.field === this.draftField())) {
-      this.draftField.set(this.firstFreeField());
-    }
+    this.filter.toggleTerm(this.draftField(), value, 'source', this.draftOperator());
     this.reload();
   }
 
-  /** Values of the faceted field the filter already covers, in picking order. */
+  /** Values of the drafted field the filter already covers, in picking order. */
   protected readonly facetSelection = computed(() => {
-    const field = this.facetField();
+    const field = this.draftField();
     return (
       this.filter
         .conditions()
@@ -377,7 +375,7 @@ export class TsRecordsPage {
   });
 
   protected clearFacetSelection(): void {
-    const field = this.facetField();
+    const field = this.draftField();
     for (const value of [...this.facetSelection()]) {
       this.filter.removeTerm(field, value);
     }
@@ -385,11 +383,12 @@ export class TsRecordsPage {
   }
 
   protected covers(value: string): boolean {
-    return this.filter.covers(this.facetField(), value);
+    return this.filter.covers(this.draftField(), value);
   }
 
-  protected onFacetField(field: string): void {
-    this.facetField.set(field);
+  /** Picking a field to condition on also switches which field's real values show. */
+  protected onDraftField(field: string): void {
+    this.draftField.set(field);
     this.reload();
   }
 

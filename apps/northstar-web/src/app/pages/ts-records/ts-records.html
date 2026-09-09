@@ -90,7 +90,7 @@
       <p-select
         [options]="facetFields"
         [ngModel]="draftField()"
-        (ngModelChange)="draftField.set($event)"
+        (ngModelChange)="onDraftField($event)"
         [filter]="true"
         ariaLabel="Field to filter on"
         [style]="{ minWidth: '160px' }"
@@ -107,7 +107,7 @@
       </select>
       <input
         pInputText
-        placeholder="value"
+        placeholder="or type a value"
         [ngModel]="draftValue()"
         (ngModelChange)="draftValue.set($event)"
         (keyup.enter)="addDraft()"
@@ -123,6 +123,37 @@
           [text]="true"
           (onClick)="clearFilter()"
         />
+      }
+    </div>
+
+    <!-- Real values of the field just picked above, not a blind text box -- clicking
+         one writes the same condition as typing it, without risking a typo that
+         quietly matches nothing. -->
+    <div class="filter__values">
+      <span class="muted card__hint">
+        Values of <span class="mono">{{ draftField() }}</span> in this filter
+        @if (facetSelection().length) {
+          — {{ facetSelection().length }} picked
+          <button type="button" class="linkish" (click)="clearFacetSelection()">clear</button>
+        }
+      </span>
+      @if (facet(); as breakdown) {
+        <div class="spread__values">
+          @for (entry of breakdown.values; track entry.value) {
+            <button
+              type="button"
+              class="vchip"
+              [class.vchip--selected]="covers(entry.value)"
+              [attr.aria-pressed]="covers(entry.value)"
+              (click)="toggleFacetValue(entry.value)"
+            >
+              <span class="vchip__value">{{ entry.value }}</span>
+              <span class="vchip__count num">{{ entry.count | number }}</span>
+            </button>
+          }
+        </div>
+      } @else {
+        <p class="muted">—</p>
       }
     </div>
   </section>
@@ -176,47 +207,6 @@
             }
           }
         </ul>
-      </section>
-
-      <section class="card" aria-labelledby="facet-heading">
-        <div class="card__head">
-          <h2 id="facet-heading" class="card__title">What varies</h2>
-          <p-select
-            [options]="facetFields"
-            [ngModel]="facetField()"
-            (ngModelChange)="onFacetField($event)"
-            [filter]="true"
-            ariaLabel="Field to break down by"
-            [style]="{ minWidth: '130px' }"
-          />
-        </div>
-        @if (facetSelection().length) {
-          <p class="facet__picked muted">
-            {{ facetSelection().length }} of {{ facetField() }} picked — they are OR-ed
-            together.
-            <button type="button" class="linkish" (click)="clearFacetSelection()">
-              clear
-            </button>
-          </p>
-        }
-        @if (facet(); as breakdown) {
-          <div class="spread__values">
-            @for (entry of breakdown.values; track entry.value) {
-              <button
-                type="button"
-                class="vchip"
-                [class.vchip--selected]="covers(entry.value)"
-                [attr.aria-pressed]="covers(entry.value)"
-                (click)="toggleFacetValue(entry.value)"
-              >
-                <span class="vchip__value">{{ entry.value }}</span>
-                <span class="vchip__count num">{{ entry.count | number }}</span>
-              </button>
-            }
-          </div>
-        } @else {
-          <p class="muted">—</p>
-        }
       </section>
     </aside>
 

@@ -41,15 +41,17 @@ from ingestion.vocabulary_migrations import (
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
 
-# Concept label per vocabulary. `drive` has no node label yet and is listed so
-# an unreviewed vocabulary fails loudly instead of writing a stray label.
+# Concept label per vocabulary. An unregistered vocabulary fails loudly
+# instead of writing a stray label.
 CONCEPT_LABELS: dict[str, str] = {
     "fuel": "FuelType",
     "bodywork": "BodyType",
+    "drive": "DriveType",
 }
 CONCEPT_ID_PREFIX: dict[str, str] = {
     "fuel": "FUL",
     "bodywork": "BDY",
+    "drive": "DRV",
 }
 
 
@@ -138,8 +140,8 @@ def fetch_approved_alignments(
 
 
 @dataclass(frozen=True)
-class FuelAlignment:
-    """Source-scoped comparison rules, never a normalization rewrite."""
+class VocabularyComparisonAlignment:
+    """Source-scoped comparison rules for one vocabulary, never a normalization rewrite."""
 
     version: str
     ts_equivalences: Mapping[str, str]
@@ -147,23 +149,29 @@ class FuelAlignment:
     compatible_pairs: frozenset[tuple[str, str]]
 
 
-def load_fuel_alignment(
-    connection: Connection, *, alignment_version: str
-) -> FuelAlignment | None:
+# Kept as the name every existing caller and test already imports; fuel was
+# the first vocabulary this shape served, so nothing about the dataclass
+# itself is fuel-specific.
+FuelAlignment = VocabularyComparisonAlignment
+
+
+def load_vocabulary_alignment(
+    connection: Connection, *, alignment_version: str, vocabulary: str
+) -> VocabularyComparisonAlignment | None:
     """Fail closed on unknown/unsupported pinned sets; legacy applies no new rules."""
 
     if alignment_version == "unpinned-legacy":
         return None
     rows = fetch_approved_alignments(
-        connection, alignment_version=alignment_version, vocabulary="fuel"
+        connection, alignment_version=alignment_version, vocabulary=vocabulary
     )
     with connection.cursor() as cursor:
         cursor.execute(
             f"SELECT DISTINCT vocabulary FROM {VOCABULARY_ALIGNMENT_TABLE} "
             "WHERE alignment_version = %s", (alignment_version,),
         )
-        if {str(row[0]) for row in cursor.fetchall()} != {"fuel"}:
-            raise ValueError("this matcher supports only fuel alignment sets")
+        if {str(row[0]) for row in cursor.fetchall()} != {vocabulary}:
+            raise ValueError(f"this matcher supports only {vocabulary!r} alignment sets")
     maps: dict[str, dict[str, str]] = {"transportstyrelsen": {}, "tecdoc": {}}
     for row in rows:
         if row.source_system not in maps:
@@ -186,8 +194,24 @@ def load_fuel_alignment(
                 maps["transportstyrelsen"].get(row.source_term, row.source_term),
                 maps["tecdoc"].get(row.canonical_term, row.canonical_term),
             ))
-    return FuelAlignment(
+    return VocabularyComparisonAlignment(
         alignment_version, maps["transportstyrelsen"], maps["tecdoc"], frozenset(pairs)
+    )
+
+
+def load_fuel_alignment(
+    connection: Connection, *, alignment_version: str
+) -> VocabularyComparisonAlignment | None:
+    return load_vocabulary_alignment(
+        connection, alignment_version=alignment_version, vocabulary="fuel"
+    )
+
+
+def load_drive_alignment(
+    connection: Connection, *, alignment_version: str
+) -> VocabularyComparisonAlignment | None:
+    return load_vocabulary_alignment(
+        connection, alignment_version=alignment_version, vocabulary="drive"
     )
 
 

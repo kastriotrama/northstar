@@ -595,6 +595,7 @@ class FuzzyVehicleMatcher:
         config: FuzzyMatchConfig | None = None,
         *,
         fuel_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
+        drive_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
         context_policy: ContextComparisonPolicy | None = None,
     ) -> None:
         self._index = index
@@ -604,6 +605,16 @@ class FuzzyVehicleMatcher:
             (next(iter(_normalized_fuels((left,)))), next(iter(_normalized_fuels((right,)))))
             for left, right in fuel_compatible_pairs
             if _normalized_fuels((left,)) and _normalized_fuels((right,))
+        )
+        # Same directional-pair shape as fuel: a global, reviewed structural
+        # fact ("this term can't tell these two apart"), checked before the
+        # per-manufacturer reviewed context policy rather than through it --
+        # `ContextComparisonPolicy` is for scoped exceptions with evidence,
+        # not a universal vocabulary fact true for every manufacturer.
+        self._drive_compatible_pairs = frozenset(
+            (_normalized_text(left), _normalized_text(right))
+            for left, right in drive_compatible_pairs
+            if _normalized_text(left) and _normalized_text(right)
         )
 
     def match(self, query: VehicleMatchQuery) -> FuzzyMatchResult:
@@ -818,23 +829,33 @@ class FuzzyVehicleMatcher:
 
         query_drive = _normalized_text(query.drive_type) if query.drive_type else ""
         candidate_drive = _normalized_text(candidate.drive_type) if candidate.drive_type else ""
-        drive_comparison = self._context_policy.compare(
-            field="drive_type", source_value=query_drive,
-            candidate_values=frozenset({candidate_drive}) if candidate_drive else frozenset(),
-            manufacturer=candidate.manufacturer, model=candidate.model,
-            source_evidence=query.source_context,
-        )
-        if query_drive or drive_comparison.rule_ids:
-            if drive_comparison.state == "unknown":
-                missing_fields.append("drive_type")
-            elif drive_comparison.state == "equivalent":
-                matched_fields.append("drive_type")
-                context_effect += self._config.drive_match_bonus
-            elif drive_comparison.state == "compatible":
-                missing_fields.append("drive_type_compatible_not_confirmed")
-            else:
-                conflicting_fields.append("drive_type")
-                context_effect -= self._config.drive_conflict_penalty
+        if query_drive and candidate_drive and (
+            (query_drive, candidate_drive) in self._drive_compatible_pairs
+        ):
+            # A reviewed global fact (e.g. TS's undifferentiated `2wd` next to
+            # TecDoc's `fwd`/`rwd`) settles this before any per-manufacturer
+            # policy lookup runs -- it is true everywhere, not a scoped
+            # exception, so it must never fall through to that policy's
+            # unscoped default of "conflicting".
+            missing_fields.append("drive_type_compatible_not_confirmed")
+        else:
+            drive_comparison = self._context_policy.compare(
+                field="drive_type", source_value=query_drive,
+                candidate_values=frozenset({candidate_drive}) if candidate_drive else frozenset(),
+                manufacturer=candidate.manufacturer, model=candidate.model,
+                source_evidence=query.source_context,
+            )
+            if query_drive or drive_comparison.rule_ids:
+                if drive_comparison.state == "unknown":
+                    missing_fields.append("drive_type")
+                elif drive_comparison.state == "equivalent":
+                    matched_fields.append("drive_type")
+                    context_effect += self._config.drive_match_bonus
+                elif drive_comparison.state == "compatible":
+                    missing_fields.append("drive_type_compatible_not_confirmed")
+                else:
+                    conflicting_fields.append("drive_type")
+                    context_effect -= self._config.drive_conflict_penalty
 
         query_bodywork = _normalized_text(query.bodywork) if query.bodywork else ""
         candidate_bodyworks = _normalized_values(candidate.bodyworks)
