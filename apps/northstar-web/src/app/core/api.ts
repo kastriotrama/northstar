@@ -43,6 +43,9 @@ import type {
   VehiclePage,
   GapGroupingMode,
   GapGroupReport,
+  VocabularyAlignmentCatalogResponse,
+  VocabularyAlignmentDraft,
+  VocabularyAlignmentDraftListResponse,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -213,6 +216,49 @@ export class Api {
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,
         }),
+      },
+    );
+  }
+
+  // Sealed vocabulary-alignment sets: TS-to-TecDoc reconciliation for the matcher, not
+  // a normalization rule. Read-only here -- authored in code (`vocabulary_seed.py`) and
+  // activated by `northstar-ingest promote-vocabulary-alignments`, never drafted in the UI.
+  vocabularyAlignments(): Observable<VocabularyAlignmentCatalogResponse> {
+    return this.http.get<VocabularyAlignmentCatalogResponse>(
+      `${this.base}/v1/vocabulary-alignments`,
+    );
+  }
+
+  vocabularyAlignmentDrafts(): Observable<VocabularyAlignmentDraftListResponse> {
+    return this.http.get<VocabularyAlignmentDraftListResponse>(
+      `${this.base}/v1/vocabulary-alignments/drafts`,
+    );
+  }
+
+  reviewVocabularyAlignmentDraft(
+    draftId: number,
+    status: 'approved' | 'declined',
+    reviewedBy: string,
+  ): Observable<VocabularyAlignmentDraft> {
+    return this.http.put<VocabularyAlignmentDraft>(
+      `${this.base}/v1/vocabulary-alignments/drafts/${draftId}`,
+      { status, reviewed_by: reviewedBy },
+    );
+  }
+
+  activateVocabularyAlignmentDrafts(request: {
+    vocabulary: string;
+    alignmentVersion: string;
+    activatedBy: string;
+    note: string;
+  }): Observable<{ alignment_version: string; rows_sealed: number }> {
+    return this.http.post<{ alignment_version: string; rows_sealed: number }>(
+      `${this.base}/v1/vocabulary-alignments/activate`,
+      {
+        vocabulary: request.vocabulary,
+        alignment_version: request.alignmentVersion,
+        activated_by: request.activatedBy,
+        note: request.note,
       },
     );
   }

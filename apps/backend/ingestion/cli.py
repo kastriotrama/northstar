@@ -46,6 +46,7 @@ from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
     link_variants_to_fuel_concepts,
+    load_drive_alignment,
     load_fuel_alignment,
     promote_vocabulary_alignments,
 )
@@ -267,9 +268,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--alignment-version",
         default="unpinned-legacy",
         help=(
-            "Vocabulary alignment set governing how TS and TecDoc terms are "
-            "compared. Defaults to the pre-alignment sentinel so existing runs "
-            "stay reproducible; pass a real version once alignments are used."
+            "Fuel vocabulary alignment set governing how TS and TecDoc terms "
+            "are compared. Defaults to the pre-alignment sentinel so existing "
+            "runs stay reproducible; pass a real version once alignments are used."
+        ),
+    )
+    match_parser.add_argument(
+        "--drive-alignment-version",
+        default="unpinned-legacy",
+        help=(
+            "Drive vocabulary alignment set, same sentinel default and same "
+            "opt-in activation as --alignment-version."
         ),
     )
     match_parser.add_argument("--code-revision", required=True)
@@ -502,6 +511,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sort_keys=True,
             )
         )
+        return 0
 
     if args.command == "generate-tecdoc-rules":
         datastores = DatastoreClients.from_settings(settings)
@@ -718,7 +728,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         else args.policy_version
                     ),
                     code_revision=args.code_revision,
-                    alignment_version=args.alignment_version,
+                    alignment_version=(
+                        f"{args.alignment_version}|drive={args.drive_alignment_version}"
+                        if args.drive_alignment_version != "unpinned-legacy"
+                        else args.alignment_version
+                    ),
                 )
                 evaluator = TecDocDryRunEvaluator(
                     catalog,
@@ -726,6 +740,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ReviewedModelAliasIndex(rule_set),
                     fuel_alignment=load_fuel_alignment(
                         connection, alignment_version=args.alignment_version
+                    ),
+                    drive_alignment=load_drive_alignment(
+                        connection, alignment_version=args.drive_alignment_version
                     ),
                     context_policy=context_policy,
                 )

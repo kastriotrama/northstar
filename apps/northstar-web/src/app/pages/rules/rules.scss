@@ -180,3 +180,86 @@
   background: #eef4ff;
   color: #29508f;
 }
+
+// Same real-world thing under two spellings -- safe to treat as a match.
+.origin-tag--equivalent {
+  border-color: #8fc7a8;
+  background: #eefaf2;
+  color: #1f6b45;
+}
+
+// One side is coarser than the other: never scored as agreement, never as
+// conflict -- neutral evidence only.
+.origin-tag--compatible {
+  border-color: #e0c48f;
+  background: #fff8ee;
+  color: #8a5f1f;
+}
+
+.alignment {
+  margin-top: 1rem;
+}
+
+.alignment__version {
+  border: 1px solid var(--p-surface-300);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.6rem;
+}
+
+.alignment__version-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.alignment__version-note {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+  margin-bottom: 0.5rem;
+}
+
+.alignment__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--p-surface-200);
+}
+
+.alignment__row:first-of-type {
+  border-top: none;
+}
+
+.alignment__evidence {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  line-height: 1.4;
+}
+
+.alignment__version--draft {
+  border-color: #e0c48f;
+  background: #fffdf8;
+}
+
+.alignment__reviewer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.alignment__error {
+  font-size: 0.8rem;
+  color: #b3261e;
+}
+
+.alignment__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}

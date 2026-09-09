@@ -83,10 +83,28 @@ def test_seed_set_is_internally_consistent() -> None:
     for version, (rows, note) in SEED_SETS.items():
         assert version.strip() and note.strip()
         assert rows, f"{version} must define rows"
-        # One ruling per source term: a term cannot be both equivalent to a
-        # concept and merely compatible with it.
-        terms = [(r.vocabulary, r.source_system, r.source_term) for r in rows]
-        assert len(terms) == len(set(terms))
+        # "equivalent" is an identity claim and must be a function: one source
+        # term, one target. "compatible" is inherently many-to-many -- a
+        # coarser term (TS's undifferentiated `2wd`) can be compatible with
+        # several finer-grained options at once (TecDoc's `fwd` and `rwd`),
+        # so only an exact duplicate row is rejected there, not a second
+        # distinct target. A term still cannot be both: ruled equivalent to
+        # one concept and merely compatible with another contradicts itself.
+        equivalent_terms = [
+            (r.vocabulary, r.source_system, r.source_term)
+            for r in rows if r.relation == "equivalent"
+        ]
+        assert len(equivalent_terms) == len(set(equivalent_terms))
+        compatible_rows = [
+            (r.vocabulary, r.source_system, r.source_term, r.canonical_term)
+            for r in rows if r.relation == "compatible"
+        ]
+        assert len(compatible_rows) == len(set(compatible_rows)), "duplicate compatible row"
+        compatible_terms = {
+            (r.vocabulary, r.source_system, r.source_term)
+            for r in rows if r.relation == "compatible"
+        }
+        assert not set(equivalent_terms) & compatible_terms
         for row in rows:
             assert row.relation in {"equivalent", "compatible"}
             assert row.evidence_note.strip(), "a reviewer needs the rationale"

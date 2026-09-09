@@ -27,9 +27,11 @@ from psycopg import Connection
 
 VOCABULARY_ALIGNMENT_TABLE = "core.vocabulary_alignments"
 VOCABULARY_ALIGNMENT_VERSION_TABLE = "core.vocabulary_alignment_versions"
+VOCABULARY_ALIGNMENT_DRAFTS_TABLE = "core.vocabulary_alignment_drafts"
 
 VOCABULARIES = ("fuel", "bodywork", "drive")
 RELATIONS = ("equivalent", "compatible")
+DRAFT_STATUSES = ("proposed", "approved", "declined")
 
 VOCABULARY_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_core_schema", "CREATE SCHEMA IF NOT EXISTS core"),
@@ -169,6 +171,47 @@ VOCABULARY_MIGRATIONS: tuple[tuple[str, str], ...] = (
              "FOR EACH STATEMENT EXECUTE FUNCTION core.reject_vocabulary_alignment_mutation()"),
         )
         for table in (VOCABULARY_ALIGNMENT_TABLE, VOCABULARY_ALIGNMENT_VERSION_TABLE)
+    ),
+    # Proposed pairs, ordinarily mutable -- a reviewer approving or declining
+    # one is a status update, not a new immutable fact. Only an *activated*
+    # (sealed) alignment version carries the immutability guarantee above;
+    # this table is how a row earns its way there.
+    (
+        "create_vocabulary_alignment_drafts_table",
+        f"""
+        CREATE TABLE IF NOT EXISTS {VOCABULARY_ALIGNMENT_DRAFTS_TABLE} (
+            id BIGSERIAL PRIMARY KEY,
+            vocabulary TEXT NOT NULL
+                CHECK (vocabulary IN ('fuel', 'bodywork', 'drive')),
+            source_system TEXT NOT NULL
+                CHECK (source_system IN ('tecdoc', 'transportstyrelsen')),
+            source_term TEXT NOT NULL CHECK (btrim(source_term) <> ''),
+            canonical_term TEXT NOT NULL CHECK (btrim(canonical_term) <> ''),
+            relation TEXT NOT NULL CHECK (relation IN ('equivalent', 'compatible')),
+            support INTEGER CHECK (support IS NULL OR support >= 0),
+            evidence_note TEXT NOT NULL CHECK (btrim(evidence_note) <> ''),
+            status TEXT NOT NULL DEFAULT 'proposed'
+                CHECK (status IN ('proposed', 'approved', 'declined')),
+            proposed_by TEXT NOT NULL CHECK (btrim(proposed_by) <> ''),
+            reviewed_by TEXT,
+            reviewed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            CONSTRAINT vocabulary_alignment_draft_unique_pending UNIQUE (
+                vocabulary, source_system, source_term, canonical_term
+            ),
+            CONSTRAINT vocabulary_alignment_draft_review_pairing CHECK (
+                (status = 'proposed' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+                OR (status <> 'proposed' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+            )
+        )
+        """,
+    ),
+    (
+        "create_vocabulary_alignment_drafts_status_index",
+        (
+            f"CREATE INDEX IF NOT EXISTS vocabulary_alignment_drafts_status_idx "
+            f"ON {VOCABULARY_ALIGNMENT_DRAFTS_TABLE} (vocabulary, status)"
+        ),
     ),
 )
 

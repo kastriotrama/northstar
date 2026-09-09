@@ -77,10 +77,59 @@ INITIAL_FUEL_ALIGNMENT: tuple[SeedRow, ...] = (
     ),
 )
 
+INITIAL_DRIVE_ALIGNMENT_VERSION = "align-2026-09-08-drive-v1"
+
+# TS's own registry flag can only ever assert "not all-wheel-drive" -- it
+# cannot say front or rear, and normalization (`DRV-009`) records that
+# honestly as `2wd` rather than guessing. TecDoc's finer `fwd`/`rwd` split is
+# therefore always compatible with `2wd`, never equivalent to either: folding
+# `2wd` into one of them would assert a fact the registry never stated.
+# `awd` needs no row here -- TS's own normalization already emits the same
+# token TecDoc does (`DRV-008`), so the two agree without help.
+INITIAL_DRIVE_ALIGNMENT: tuple[SeedRow, ...] = (
+    SeedRow(
+        vocabulary="drive",
+        source_system="transportstyrelsen",
+        source_term="2wd",
+        canonical_term="fwd",
+        relation="compatible",
+        # Measured against the local 901,748-vehicle TS corpus (2026-09-08):
+        # 744,203 rows carry is_4wd=0, and 744,197 of those have no
+        # conflicting manufacturer marketing badge (4MATIC/xDrive/quattro/
+        # 4Motion) -- the population this compatibility actually governs.
+        support=744197,
+        evidence_note=(
+            "The registry's is_4wd flag only asserts 'not all-wheel-drive'; "
+            "it cannot distinguish front- from rear-wheel drive. TecDoc's fwd "
+            "is one of two possibilities, never confirmed by the flag alone."
+        ),
+    ),
+    SeedRow(
+        vocabulary="drive",
+        source_system="transportstyrelsen",
+        source_term="2wd",
+        canonical_term="rwd",
+        relation="compatible",
+        # Same population as the fwd row above -- the flag cannot favor
+        # either, so the same 744,197 vehicles are compatible with both.
+        support=744197,
+        evidence_note=(
+            "The registry's is_4wd flag only asserts 'not all-wheel-drive'; "
+            "it cannot distinguish front- from rear-wheel drive. TecDoc's rwd "
+            "is one of two possibilities, never confirmed by the flag alone."
+        ),
+    ),
+)
+
 SEED_SETS: dict[str, tuple[tuple[SeedRow, ...], str]] = {
     INITIAL_FUEL_ALIGNMENT_VERSION: (
         INITIAL_FUEL_ALIGNMENT,
         "Initial fuel alignment reconciling the TS and TecDoc canonicalisations.",
+    ),
+    INITIAL_DRIVE_ALIGNMENT_VERSION: (
+        INITIAL_DRIVE_ALIGNMENT,
+        "Initial drive alignment: TS's undifferentiated 2wd is compatible "
+        "with both of TecDoc's fwd and rwd, never equivalent to either.",
     ),
 }
 

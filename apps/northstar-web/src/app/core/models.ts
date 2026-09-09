@@ -625,3 +625,52 @@ export interface GapGroupReport {
   total_rows: number;
   groups: GapGroup[];
 }
+
+/**
+ * Reconciles two already-normalized vocabularies for the matcher -- never a
+ * normalization rewrite. `equivalent` means the same real-world thing under
+ * two spellings; `compatible` means one side is coarser than the other, so
+ * the pair must score neutral, never as agreement.
+ */
+export interface VocabularyAlignmentRow {
+  source_system: string;
+  source_term: string;
+  canonical_term: string;
+  relation: 'equivalent' | 'compatible';
+  support: number | null;
+  evidence_note: string;
+}
+
+export interface VocabularyAlignmentVersion {
+  alignment_version: string;
+  vocabulary: string;
+  activation_note: string;
+  activated_by: string;
+  activated_at: string;
+  sealed: boolean;
+  rows: VocabularyAlignmentRow[];
+}
+
+export interface VocabularyAlignmentCatalogResponse {
+  versions: VocabularyAlignmentVersion[];
+}
+
+export interface VocabularyAlignmentDraft {
+  id: number;
+  vocabulary: string;
+  source_system: string;
+  source_term: string;
+  canonical_term: string;
+  relation: 'equivalent' | 'compatible';
+  support: number | null;
+  evidence_note: string;
+  status: 'proposed' | 'approved' | 'declined';
+  proposed_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface VocabularyAlignmentDraftListResponse {
+  drafts: VocabularyAlignmentDraft[];
+}
