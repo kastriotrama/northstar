@@ -43,8 +43,17 @@ RESOLUTION_RULE = {
 
 
 class FakeRepository:
-    def __init__(self, resolution: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        resolution: list[dict[str, Any]] | None = None,
+        tecdoc: list[dict[str, Any]] | None = None,
+        tecdoc_version: str | None = None,
+        tecdoc_resolution: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.resolution = resolution if resolution is not None else [RESOLUTION_RULE]
+        self.tecdoc = tecdoc or []
+        self.tecdoc_version = tecdoc_version
+        self.tecdoc_resolution = tecdoc_resolution or []
 
     def ensure_schema(self) -> None:
         return None
@@ -58,9 +67,26 @@ class FakeRepository:
     def fetch_resolution_rules(self, limit: int = 2000) -> list[dict[str, Any]]:
         return self.resolution
 
+    def fetch_tecdoc_rules(
+        self, limit: int = 20000
+    ) -> tuple[str | None, list[dict[str, Any]]]:
+        """No sealed TecDoc version, the shape a database without one returns."""
 
-def build(resolution: list[dict[str, Any]] | None = None) -> RuleReviewService:
-    return RuleReviewService(FakeRepository(resolution), MagicMock())
+        return self.tecdoc_version, self.tecdoc
+
+    def fetch_tecdoc_resolution_rules(self, limit: int = 2000) -> list[dict[str, Any]]:
+        return self.tecdoc_resolution
+
+
+def build(
+    resolution: list[dict[str, Any]] | None = None,
+    tecdoc: list[dict[str, Any]] | None = None,
+    tecdoc_version: str | None = None,
+    tecdoc_resolution: list[dict[str, Any]] | None = None,
+) -> RuleReviewService:
+    return RuleReviewService(
+        FakeRepository(resolution, tecdoc, tecdoc_version, tecdoc_resolution), MagicMock()
+    )
 
 
 def test_the_list_holds_catalog_code_and_projection_rules() -> None:
@@ -201,3 +227,113 @@ def test_the_rows_are_read_when_the_table_is_there() -> None:
     assert rules[0]["rule_id"] == RESOLUTION_RULE["rule_id"]
     assert rules[0]["target_value"] == "CUUB"
     assert rules[0]["status"] == "applied"
+
+
+# --- TecDoc rules in the same catalog ------------------------------------------------
+# Both sources are normalized into one canonical vocabulary, so both belong in one
+# list. These pin the three things that merge has to get right: the rules arrive, the
+# `source` dimension separates them from the TS rows, and the model-name inventory
+# stays out of the default view.
+
+TECDOC_RULE: dict[str, Any] = {
+    "rule_id": "TD:transmission.transmission_type_name:abc123456789",
+    "area": "transmission",
+    "entity_type": "transmission",
+    "source_field": "transmission_type_name",
+    "source_term": "Manual Transmission",
+    "key_table": "085",
+    "canonical_field": "transmission_type",
+    "canonical_value": None,
+    "decision": "proposed",
+    "derivation": "generated",
+    "support": 385,
+    "evidence": {"reason": "unmapped", "observed_rows": 385},
+}
+
+TECDOC_INVENTORY_RULE: dict[str, Any] = {
+    **TECDOC_RULE,
+    "rule_id": "TD:model_family.canonical_name:def123456789",
+    "area": "model_family",
+    "entity_type": "model_family",
+    "source_field": "canonical_name",
+    "source_term": "XC90",
+    "key_table": None,
+    "canonical_field": "model_family",
+    "support": 4,
+    "evidence": {"reason": "open_vocabulary", "observed_rows": 4},
+}
+
+
+def test_tecdoc_rules_join_the_catalog_under_their_own_source() -> None:
+    catalog = build(tecdoc=[TECDOC_RULE], tecdoc_version="tecdoc-0326-v1").list_rule_catalog(
+        limit=5000
+    )
+
+    tecdoc = [entry for entry in catalog.items if entry.source == "tecdoc"]
+    assert len(tecdoc) == 1
+    assert catalog.tecdoc_rule_version == "tecdoc-0326-v1"
+    assert {entry.source for entry in catalog.items} == {"transportstyrelsen", "tecdoc"}
+
+
+def test_the_source_filter_separates_the_two_datasets() -> None:
+    service = build(tecdoc=[TECDOC_RULE], tecdoc_version="v1")
+
+    assert all(
+        entry.source == "tecdoc"
+        for entry in service.list_rule_catalog(source="tecdoc", limit=5000).items
+    )
+    assert all(
+        entry.source == "transportstyrelsen"
+        for entry in service.list_rule_catalog(source="transportstyrelsen", limit=5000).items
+    )
+
+
+def test_inventory_rules_are_hidden_by_default_but_counted() -> None:
+    """9,834 model names would bury the 36 rules a reviewer can act on."""
+
+    catalog = build(
+        tecdoc=[TECDOC_RULE, TECDOC_INVENTORY_RULE], tecdoc_version="v1"
+    ).list_rule_catalog(source="tecdoc", limit=5000)
+
+    assert catalog.tecdoc_total == 1
+    assert catalog.tecdoc_inventory_total == 1
+    assert [entry.source_terms for entry in catalog.items] == [["Manual Transmission"]]
+
+
+def test_inventory_rules_appear_when_asked_for() -> None:
+    catalog = build(
+        tecdoc=[TECDOC_RULE, TECDOC_INVENTORY_RULE], tecdoc_version="v1"
+    ).list_rule_catalog(source="tecdoc", include_inventory=True, limit=5000)
+
+    assert catalog.tecdoc_total == 2
+    assert any(entry.inventory_only for entry in catalog.items)
+
+
+def test_a_generated_rule_is_never_editable_from_this_screen() -> None:
+    """It lives in a sealed version; a correction is a new generation, not an edit."""
+
+    catalog = build(tecdoc=[TECDOC_RULE], tecdoc_version="v1").list_rule_catalog(
+        source="tecdoc", limit=5000
+    )
+
+    assert catalog.items[0].editable is False
+
+
+def test_an_unmapped_rule_says_it_reaches_the_graph_unnormalized() -> None:
+    catalog = build(tecdoc=[TECDOC_RULE], tecdoc_version="v1").list_rule_catalog(
+        source="tecdoc", limit=5000
+    )
+    entry = catalog.items[0]
+
+    assert entry.effective_canonical_value is None
+    assert entry.support == 385
+    assert "385 rows" in (entry.notes or "")
+    assert "unnormalized" in (entry.notes or "")
+
+
+def test_a_database_with_no_sealed_tecdoc_version_reads_as_no_tecdoc_rules() -> None:
+    catalog = build().list_rule_catalog(limit=5000)
+
+    assert catalog.tecdoc_total == 0
+    assert catalog.tecdoc_rule_version is None
+    assert all(entry.source == "transportstyrelsen" for entry in catalog.items)

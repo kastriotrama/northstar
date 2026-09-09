@@ -134,9 +134,23 @@ def compile_condition(field: str, operator: str, values: tuple[str, ...]) -> Com
     clauses: list[str] = []
     parameters: list[Any] = []
     for value in terms:
-        clauses.append(f"{expr} ILIKE %s")
-        parameters.append(pattern.format(value))
+        clauses.append(f"{expr} ILIKE %s ESCAPE '\\'")
+        parameters.append(pattern.format(_escape_like(value)))
     return CompiledCondition("(" + " OR ".join(clauses) + ")", parameters)
+
+
+def _escape_like(value: str) -> str:
+    """Neutralise LIKE wildcards inside a value the reviewer typed.
+
+    Binding the value protects against injection but not against meaning: `%`
+    and `_` stay wildcards inside the bound string, so searching for `50%` matched
+    every row and `BMW_3` matched `BMW 3` and `BMWX3` alike. A reviewer typing a
+    literal code expects it to be literal, so the two wildcards and the escape
+    character itself are escaped, and the clause declares the escape explicitly
+    rather than relying on the backslash default.
+    """
+
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def compile_conditions(
