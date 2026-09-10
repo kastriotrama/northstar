@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from psycopg import Connection
 
-from api.app.features.tecdoc_review.gaps import GAP_VALUE_SPECS
+from api.app.features.tecdoc_review.gaps import GAP_VALUE_SPECS, RESOLVABLE_FIELDS
 from api.app.features.tecdoc_review.predicate import (
     FILTERABLE_FIELDS,
     GAP_FIELDS,
@@ -63,10 +63,12 @@ _VEHICLES_CTE = """
          AND bw.source_key=v.attributes->>'bodywork_source_key'
         LEFT JOIN core.tecdoc_resolution_rules bw_res
           ON bw_res.canonical_field='bodywork_form'
+         AND bw_res.source_system='tecdoc'
          AND bw_res.comparison_key=v.attributes->>'tecdoc_body_type_code'
          AND bw_res.decision='accepted'
         LEFT JOIN core.tecdoc_resolution_rules drv_res
           ON drv_res.canonical_field='drive_type'
+         AND drv_res.source_system='tecdoc'
          AND drv_res.comparison_key=v.attributes->>'tecdoc_drive_type_code'
          AND drv_res.decision='accepted'
         WHERE a.batch_id=%s AND a.entity_type='alias'
@@ -80,6 +82,19 @@ _SEARCH_CONDITION = """concat_ws(' ', source_key,
     family_attributes->>'canonical_name', engine_attributes->>'engine_code',
     engine_attributes->>'fuel_type', transmission_attributes->>'transmission_code',
     bodywork_attributes->>'tecdoc_body_type_code') ILIKE %s"""
+
+
+#: The value promotion already baked in for one `RESOLVABLE_FIELDS` entry, if
+#: any -- read alongside `GAP_VALUE_SPECS`' raw term in `vehicle_detail` so a
+#: field that promotion already resolved never reads as an open gap.
+#: `transmission_type` has none: no promotion path computes a canonical value
+#: for it today (see `gaps.py`), only a live rule ever can.
+_PROMOTED_VALUE_EXPR: dict[str, str] = {
+    "bodywork_form": "coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value)",
+    "drive_type": "coalesce(variant_attributes->>'drive_type', drive_resolution_value)",
+    "energy_sources": "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type')",
+    "transmission_type": "NULL",
+}
 
 
 class ConnectionFactory(Protocol):
@@ -397,6 +412,49 @@ class TecDocReviewRepository:
             for term, label, support in rows
         ]
 
+    def vehicle_detail(self, *, batch_id: str, source_key: str) -> dict[str, Any] | None:
+        """One promoted KType: every resolvable field's raw term and, if
+        promotion already computed one, its baked-in canonical value.
+
+        Whether a live rule *also* resolved it since is the service's job to
+        merge in, exactly as `gap_values` splits the same concern at the
+        population level -- this stays a plain read of the batch.
+        """
+
+        columns: list[str] = []
+        for field in RESOLVABLE_FIELDS:
+            spec = GAP_VALUE_SPECS[field]
+            columns.append(spec.value_expr)
+            columns.append(spec.label_expr or "NULL")
+            columns.append(_PROMOTED_VALUE_EXPR[field])
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
+            cursor.execute(
+                _VEHICLES_CTE
+                + "SELECT manufacturer_attributes->>'canonical_name', "
+                + "family_attributes->>'canonical_name', "
+                + ", ".join(columns)
+                + " FROM vehicles WHERE source_key = %s",
+                [batch_id, source_key],
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        manufacturer, model_family, *values = row
+        fields: dict[str, dict[str, Any]] = {}
+        for index, field in enumerate(RESOLVABLE_FIELDS):
+            source_term, label, canonical_value = values[index * 3 : index * 3 + 3]
+            fields[field] = {
+                "source_term": None if source_term is None else str(source_term),
+                "label": None if label is None else str(label),
+                "canonical_value": None if canonical_value is None else str(canonical_value),
+            }
+        return {
+            "manufacturer": manufacturer,
+            "model_family": model_family,
+            "fields": fields,
+        }
+
     def fetch_resolutions(self, *, canonical_field: str) -> dict[str, dict[str, Any]]:
         """Every live-reviewed value for one canonical field, keyed by comparison_key.
 
@@ -414,7 +472,8 @@ class TecDocReviewRepository:
                 return {}
             cursor.execute(
                 "SELECT comparison_key, decision, canonical_value, note, reviewed_by, "
-                f"updated_at FROM {TECDOC_RESOLUTION_RULES_TABLE} WHERE canonical_field = %s",
+                f"updated_at FROM {TECDOC_RESOLUTION_RULES_TABLE} "
+                "WHERE canonical_field = %s AND source_system = 'tecdoc'",
                 (canonical_field,),
             )
             rows = cursor.fetchall()
@@ -440,20 +499,36 @@ class TecDocReviewRepository:
         canonical_value: str | None,
         note: str,
         reviewed_by: str,
+        source_system: str = "tecdoc",
+        relation: str = "equivalent",
+        support: int | None = None,
     ) -> dict[str, Any]:
+        """Write one live ruling. Callers writing a `compatible` row (more than
+
+        one canonical_value can apply to the same source term, e.g. TS's
+        undifferentiated `2wd` against both TecDoc `fwd` and `rwd`) must use
+        `insert_compatible_resolution` instead -- this upsert's conflict
+        target is the single-target unique index and does not accept it.
+        """
+
+        if relation == "compatible":
+            raise ValueError("upsert_resolution does not accept relation='compatible'")
         with self._connection_factory() as connection, connection.cursor() as cursor:
             run_tecdoc_resolution_migrations(connection)
             cursor.execute(
                 f"""
                 INSERT INTO {TECDOC_RESOLUTION_RULES_TABLE}
-                    (canonical_field, comparison_key, source_term, key_table, decision,
-                     canonical_value, note, reviewed_by, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
-                ON CONFLICT (canonical_field, comparison_key) DO UPDATE SET
+                    (canonical_field, source_system, comparison_key, source_term, key_table,
+                     decision, canonical_value, relation, support, note, reviewed_by, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (canonical_field, source_system, comparison_key)
+                    WHERE relation <> 'compatible' DO UPDATE SET
                     source_term = EXCLUDED.source_term,
                     key_table = EXCLUDED.key_table,
                     decision = EXCLUDED.decision,
                     canonical_value = EXCLUDED.canonical_value,
+                    relation = EXCLUDED.relation,
+                    support = EXCLUDED.support,
                     note = EXCLUDED.note,
                     reviewed_by = EXCLUDED.reviewed_by,
                     updated_at = now()
@@ -461,11 +536,14 @@ class TecDocReviewRepository:
                 """,
                 (
                     canonical_field,
+                    source_system,
                     comparison_key,
                     source_term,
                     key_table,
                     decision,
                     canonical_value,
+                    relation,
+                    support,
                     note,
                     reviewed_by,
                 ),
@@ -474,6 +552,65 @@ class TecDocReviewRepository:
             connection.commit()
         if row is None:
             raise RuntimeError("resolution upsert returned no row")
+        return {
+            "decision": str(row[0]),
+            "canonical_value": row[1],
+            "note": str(row[2] or ""),
+            "reviewed_by": str(row[3]),
+            "updated_at": row[4].isoformat() if row[4] else "",
+        }
+
+    def insert_compatible_resolution(
+        self,
+        *,
+        canonical_field: str,
+        comparison_key: str,
+        source_term: str,
+        canonical_value: str,
+        support: int,
+        note: str,
+        reviewed_by: str,
+        source_system: str = "transportstyrelsen",
+    ) -> dict[str, Any]:
+        """Add one `compatible` pairing -- broader-than, never scored as a match.
+
+        Unlike `upsert_resolution`, a source term can have more than one of
+        these (TS's `2wd` is compatible with both TecDoc `fwd` and `rwd`), so
+        conflict is keyed on the pair, not the source term alone.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            run_tecdoc_resolution_migrations(connection)
+            cursor.execute(
+                f"""
+                INSERT INTO {TECDOC_RESOLUTION_RULES_TABLE}
+                    (canonical_field, source_system, comparison_key, source_term, decision,
+                     canonical_value, relation, support, note, reviewed_by, updated_at)
+                VALUES (%s, %s, %s, %s, 'accepted', %s, 'compatible', %s, %s, %s, now())
+                ON CONFLICT (canonical_field, source_system, comparison_key, canonical_value)
+                    WHERE relation = 'compatible' DO UPDATE SET
+                    source_term = EXCLUDED.source_term,
+                    support = EXCLUDED.support,
+                    note = EXCLUDED.note,
+                    reviewed_by = EXCLUDED.reviewed_by,
+                    updated_at = now()
+                RETURNING decision, canonical_value, note, reviewed_by, updated_at
+                """,
+                (
+                    canonical_field,
+                    source_system,
+                    comparison_key,
+                    source_term,
+                    canonical_value,
+                    support,
+                    note,
+                    reviewed_by,
+                ),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        if row is None:
+            raise RuntimeError("compatible resolution insert returned no row")
         return {
             "decision": str(row[0]),
             "canonical_value": row[1],

@@ -46,7 +46,6 @@ def test_align_catalog_is_a_no_op_without_a_mapping() -> None:
 
 def test_alignment_row_rejects_an_unsupported_vocabulary_or_relation() -> None:
     common = {
-        "alignment_version": "v1",
         "source_system": "transportstyrelsen",
         "source_term": "electricity",
         "canonical_term": "electric",
@@ -60,74 +59,17 @@ def test_alignment_row_rejects_an_unsupported_vocabulary_or_relation() -> None:
 
 def test_alignment_row_builds_a_stable_assertion_identity() -> None:
     row = VocabularyAlignment(
-        alignment_version="v1",
         vocabulary="fuel",
         source_system="transportstyrelsen",
         source_term="electricity",
         canonical_term="electric",
         relation="equivalent",
         support=None,
-    ).graph_row()
+    ).graph_row(promoted_at="2026-09-09T00:00:00+00:00")
 
     assert row["alias_text"] == "electricity"
     assert row["canonical_term"] == "electric"
-    # Identity must carry the version, so a later alignment set cannot silently
-    # overwrite an earlier promoted alias.
-    assert "v1" in str(row["assertion_identity"])
-    assert str(row["assertion_identity"]).startswith("v1:")
-
-
-def test_seed_set_is_internally_consistent() -> None:
-    from ingestion.vocabulary_seed import INITIAL_FUEL_ALIGNMENT, SEED_SETS
-
-    for version, (rows, note) in SEED_SETS.items():
-        assert version.strip() and note.strip()
-        assert rows, f"{version} must define rows"
-        # "equivalent" is an identity claim and must be a function: one source
-        # term, one target. "compatible" is inherently many-to-many -- a
-        # coarser term (TS's undifferentiated `2wd`) can be compatible with
-        # several finer-grained options at once (TecDoc's `fwd` and `rwd`),
-        # so only an exact duplicate row is rejected there, not a second
-        # distinct target. A term still cannot be both: ruled equivalent to
-        # one concept and merely compatible with another contradicts itself.
-        equivalent_terms = [
-            (r.vocabulary, r.source_system, r.source_term)
-            for r in rows if r.relation == "equivalent"
-        ]
-        assert len(equivalent_terms) == len(set(equivalent_terms))
-        compatible_rows = [
-            (r.vocabulary, r.source_system, r.source_term, r.canonical_term)
-            for r in rows if r.relation == "compatible"
-        ]
-        assert len(compatible_rows) == len(set(compatible_rows)), "duplicate compatible row"
-        compatible_terms = {
-            (r.vocabulary, r.source_system, r.source_term)
-            for r in rows if r.relation == "compatible"
-        }
-        assert not set(equivalent_terms) & compatible_terms
-        for row in rows:
-            assert row.relation in {"equivalent", "compatible"}
-            assert row.evidence_note.strip(), "a reviewer needs the rationale"
-            # The schema enforces this too; assert it here so a bad seed fails
-            # before it reaches a database.
-            if row.relation == "compatible":
-                assert row.support is not None
-
-    equivalences = {r.source_term: r.canonical_term
-                    for r in INITIAL_FUEL_ALIGNMENT if r.relation == "equivalent"}
-    # A canonical target must not itself be a source term, or canonicalisation
-    # would depend on iteration order.
-    assert not set(equivalences) & set(equivalences.values())
-
-
-def test_unknown_seed_version_is_rejected() -> None:
-    import pytest as _pytest
-
-    from ingestion.vocabulary_seed import apply_vocabulary_seed
-
-    with _pytest.raises(ValueError, match="unknown alignment version"):
-        apply_vocabulary_seed(
-            None,  # type: ignore[arg-type]
-            alignment_version="align-does-not-exist",
-            activated_by="tester",
-        )
+    # Identity is scoped to the vocabulary/relation/terms, not to when it was
+    # promoted -- re-promoting the same live ruling must MERGE onto the same
+    # alias node, never mint a second one.
+    assert "fuel" in str(row["assertion_identity"])

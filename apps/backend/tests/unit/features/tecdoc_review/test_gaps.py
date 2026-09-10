@@ -74,17 +74,24 @@ class TestResolvableFields:
         assert "model_family" not in RESOLVABLE_FIELDS
         assert "manufacturer" not in RESOLVABLE_FIELDS
 
-    def test_transmission_is_not_resolvable_while_it_has_no_canonical_dict(self) -> None:
-        """Documents a real gap: KT085 labels are observed but have no mapping.
+    def test_transmission_is_resolvable_against_the_vocabulary_ts_already_vouches_for(
+        self,
+    ) -> None:
+        """The prompt this test used to hold ("fails when a mapping lands") has fired.
 
-        `canonical_rule_proposals` scans `transmission_type` and reports 0%
-        coverage on it. Until a reviewed KT085 mapping exists in `reference_data`,
-        there is nothing to resolve toward, and offering the button would be
-        offering an empty target list. This test fails when that mapping lands,
-        as the prompt to make the field resolvable here too.
+        `canonical_rule_proposals` still scans `transmission_type` and reports 0%
+        coverage, and `reference_data` still has no TecDoc-side reviewed KT085
+        dict -- a sealed `generate-tecdoc-rules` run cannot accept a value here on
+        its own, and that has not changed. But `canonical_values('transmission_type')`
+        is not empty: TS's side of the unified vocabulary already normalizes to
+        manual/automatic/cvt/dct/amt, so a reviewer can rule a TecDoc label onto an
+        existing term through the live gap browser before any TecDoc-side dict
+        exists to gate a sealed rule. That is exactly what `RESOLVABLE_FIELDS` is
+        for, so the field belongs in it.
         """
 
-        assert "transmission_type" not in RESOLVABLE_FIELDS
+        assert "transmission_type" in RESOLVABLE_FIELDS
+        assert canonical_values("transmission_type")
         assert not reference_data.reviewed_mapping_values().get("transmission_type")
 
     def test_every_resolvable_field_has_a_gap_spec(self) -> None:

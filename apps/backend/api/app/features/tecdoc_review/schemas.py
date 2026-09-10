@@ -128,13 +128,22 @@ class TecDocVehicleFacet(BaseModel):
 
 
 class TecDocResolution(BaseModel):
-    """A reviewer's live ruling on one value, from `core.tecdoc_resolution_rules`."""
+    """A reviewer's live ruling on one value, from `core.tecdoc_resolution_rules`.
+
+    `source_system`/`relation`/`support` only carry meaning on a synonym
+    row (`canonical_field` in `fuel`/`bodywork`/`drive`) -- a TecDoc gap
+    resolution always reports `source_system="tecdoc"`,
+    `relation="equivalent"`, `support=None`.
+    """
 
     decision: Literal["accepted", "excluded"]
     canonical_value: str | None = None
     note: str = ""
     reviewed_by: str
     updated_at: str
+    source_system: Literal["transportstyrelsen", "tecdoc"] = "tecdoc"
+    relation: Literal["equivalent", "compatible"] = "equivalent"
+    support: int | None = None
 
 
 class TecDocGapValue(BaseModel):
@@ -155,10 +164,55 @@ class TecDocGapValuesResponse(BaseModel):
     values: list[TecDocGapValue] = Field(default_factory=list)
 
 
+# --- one row's fields, each with its outcome -- the per-KType detail panel --------------
+
+
+class TecDocVehicleFieldStatus(BaseModel):
+    """One canonical field on one KType: what it says, what came of it.
+
+    Mirrors `vehicle_filter.schemas.VehicleFieldStatus` on the TS side -- same
+    three states -- so the two review screens' record panels behave alike.
+    """
+
+    canonical_field: str
+    source_term: str | None
+    label: str | None = None
+    canonical_value: str | None = None
+    status: Literal["resolved", "unresolved", "rule_resolved"]
+    #: Set when `source_term` must not be resolved with a single target -- see
+    #: `TecDocGapValue.blocked_reason`. Only ever set on an unresolved field.
+    blocked_reason: str | None = None
+
+
+class TecDocVehicleDetail(BaseModel):
+    source_key: str
+    manufacturer: str | None = None
+    model_family: str | None = None
+    fields: list[TecDocVehicleFieldStatus] = Field(default_factory=list)
+
+
 class TecDocResolveRequest(BaseModel):
-    canonical_field: Literal["energy_sources", "bodywork_form", "drive_type"]
+    """One reviewer ruling, written into `core.tecdoc_resolution_rules`.
+
+    `energy_sources`/`bodywork_form`/`drive_type`/`transmission_type` are
+    TecDoc's own gap fields -- ruling on a raw code/label TecDoc's own data
+    holds. `fuel`/`bodywork`/`drive` are cross-system synonym fields --
+    declaring that a TS term and a TecDoc term denote the same (`equivalent`)
+    or a broader-than (`compatible`) concept; see `service.py`'s `resolve()`
+    for how the two are validated differently. `source_system`/`relation`/
+    `support` are ignored on a gap field (always tecdoc/equivalent/None
+    there) and required in shape (not value) on a synonym field.
+    """
+
+    canonical_field: Literal[
+        "energy_sources", "bodywork_form", "drive_type", "transmission_type",
+        "fuel", "bodywork", "drive",
+    ]
     source_term: str = Field(max_length=200)
     decision: Literal["accepted", "excluded"]
     canonical_value: str | None = Field(default=None, max_length=80)
     note: str = Field(default="", max_length=500)
     reviewed_by: str = Field(max_length=80)
+    source_system: Literal["transportstyrelsen", "tecdoc"] = "tecdoc"
+    relation: Literal["equivalent", "compatible"] = "equivalent"
+    support: int | None = Field(default=None, ge=1)

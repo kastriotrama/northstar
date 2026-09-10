@@ -9,6 +9,7 @@ import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { SelectModule } from '@openng/optimus-ui/select';
 import { TableModule } from '@openng/optimus-ui/table';
 import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
+import { TagModule } from '@openng/optimus-ui/tag';
 import { TextareaModule } from '@openng/optimus-ui/textarea';
 
 import { Api } from '../../core/api';
@@ -22,7 +23,9 @@ import type {
   TecDocPage as TecDocVehiclePage,
   TecDocResolvableField,
   TecDocUnresolvedField,
+  TecDocVehicleDetail,
   TecDocVehicleFacet,
+  TecDocVehicleFieldStatus,
   TecDocVehicleFilter,
 } from '../../core/models';
 
@@ -86,6 +89,7 @@ type View = 'vehicles' | 'entities';
     InputTextModule,
     SelectModule,
     TableModule,
+    TagModule,
     TextareaModule,
   ],
   providers: [FilterState],
@@ -114,6 +118,16 @@ export class TecDocPage {
   protected readonly entityPage = signal<TecDocEntityPage | null>(null);
   protected readonly detail = signal<Record<string, unknown> | null>(null);
   protected readonly detailOpen = signal(false);
+
+  /** One row's canonical fields, each with its outcome -- fetched whenever a row is
+   * opened, same idea as `ts-data`'s record panel: the fields still missing a value
+   * are the ones with a Resolve action next to them. */
+  protected readonly vehicleDetail = signal<TecDocVehicleDetail | null>(null);
+  protected readonly vehicleDetailLoading = signal(false);
+  /** Whether the open Resolve dialog was opened from a row (vs. the field-level
+   * "browse gap values" list) -- decides whether cancelling or saving returns to
+   * the row's detail dialog. */
+  protected readonly resolvingFromRow = signal(false);
 
   protected readonly rows = 100;
   protected readonly first = signal(0);
@@ -421,6 +435,7 @@ export class TecDocPage {
   }
 
   protected openResolve(value: TecDocGapValue): void {
+    this.resolvingFromRow.set(false);
     this.resolving.set(value);
     this.resolveDecision.set(value.resolution?.decision ?? 'accepted');
     this.resolveTarget.set(value.resolution?.canonical_value ?? '');
@@ -428,9 +443,52 @@ export class TecDocPage {
     this.resolveError.set(null);
   }
 
+  /** Resolve one field from the row detail dialog, the same act as resolving it
+   * from "browse gap values" -- just scoped to the one term this row carries,
+   * rather than picking it out of the whole population's list.
+   *
+   * Still needs that field's `canonical_options` for the dialog's picker, which
+   * only `/gaps` carries -- the row detail endpoint reports outcomes, not the
+   * target vocabulary. Fetched here, exactly what "browse gap values" already
+   * has loaded by the time it opens the same dialog. */
+  protected resolveFieldFromDetail(entry: TecDocVehicleFieldStatus): void {
+    if (entry.source_term === null || entry.blocked_reason) {
+      return;
+    }
+    const field = entry.canonical_field;
+    const sourceTerm = entry.source_term;
+    const label = entry.label;
+    this.gapField.set(field);
+    this.detailOpen.set(false);
+    this.api.tecdocGapValues(field).subscribe({
+      next: (response) => {
+        this.gapValues.set(response);
+        this.openResolve({
+          source_term: sourceTerm,
+          label,
+          key_table: response.key_table,
+          support: 0,
+          blocked_reason: entry.blocked_reason,
+          resolution: null,
+        });
+        this.resolvingFromRow.set(true);
+      },
+      error: (err: unknown) => {
+        this.detailOpen.set(true);
+        this.error.set(
+          TecDocPage.describe(err, 'Could not load the canonical options for this field.'),
+        );
+      },
+    });
+  }
+
   protected closeResolve(): void {
     this.resolving.set(null);
     this.resolveError.set(null);
+    if (this.resolvingFromRow()) {
+      this.resolvingFromRow.set(false);
+      this.detailOpen.set(true);
+    }
   }
 
   protected onResolveDecision(decision: 'accepted' | 'excluded'): void {
@@ -485,6 +543,14 @@ export class TecDocPage {
               ),
             });
           }
+          if (this.resolvingFromRow()) {
+            this.resolvingFromRow.set(false);
+            const openRow = this.vehicleDetail();
+            if (openRow) {
+              this.loadVehicleDetail(openRow.source_key);
+            }
+            this.detailOpen.set(true);
+          }
           // A resolved value stops being a gap; the row-level count it fed reflects that
           // once the KType population is reloaded.
           this.reload();
@@ -517,6 +583,27 @@ export class TecDocPage {
   protected open(row: Record<string, unknown>): void {
     this.detail.set(row);
     this.detailOpen.set(true);
+    const sourceKeys = row['source_keys'] as Record<string, string> | undefined;
+    const sourceKey = sourceKeys?.['alias'];
+    if (sourceKey) {
+      this.loadVehicleDetail(sourceKey);
+    } else {
+      this.vehicleDetail.set(null);
+    }
+  }
+
+  private loadVehicleDetail(sourceKey: string): void {
+    this.vehicleDetailLoading.set(true);
+    this.api.tecdocVehicleDetail(sourceKey).subscribe({
+      next: (detail) => {
+        this.vehicleDetail.set(detail);
+        this.vehicleDetailLoading.set(false);
+      },
+      error: () => {
+        this.vehicleDetail.set(null);
+        this.vehicleDetailLoading.set(false);
+      },
+    });
   }
 
   protected cell(row: Record<string, unknown>, column: string): string {

@@ -337,3 +337,49 @@ def test_a_database_with_no_sealed_tecdoc_version_reads_as_no_tecdoc_rules() -> 
     assert catalog.tecdoc_total == 0
     assert catalog.tecdoc_rule_version is None
     assert all(entry.source == "transportstyrelsen" for entry in catalog.items)
+
+
+TS_SYNONYM_ROW = {
+    "canonical_field": "fuel",
+    "comparison_key": "ELECTRICITY",
+    "source_term": "electricity",
+    "key_table": None,
+    "decision": "accepted",
+    "canonical_value": "electric",
+    "note": "",
+    "reviewed_by": "pytest",
+    "created_at": datetime(2026, 9, 9, tzinfo=UTC),
+    "updated_at": datetime(2026, 9, 9, tzinfo=UTC),
+    "source_system": "transportstyrelsen",
+    "relation": "equivalent",
+    "support": None,
+}
+
+
+def test_a_ts_authored_synonym_row_reports_its_own_source_not_tecdoc() -> None:
+    """A row TS authored into the shared table must not read as TecDoc's own --
+    that was a real bug: every row from this table used to be hardcoded 'tecdoc'."""
+
+    catalog = build(tecdoc_resolution=[TS_SYNONYM_ROW]).list_rule_catalog(limit=5000)
+    entry = next(e for e in catalog.items if e.area == "tecdoc_resolution_rule")
+
+    assert entry.source == "transportstyrelsen"
+    assert entry.canonical_field == "fuel"
+    assert entry.source_terms == ["electricity"]
+    assert entry.effective_canonical_value == "electric"
+
+
+def test_compatible_rows_for_the_same_term_get_distinct_rule_ids() -> None:
+    """TS's undifferentiated 2wd is compatible with both TecDoc fwd and rwd --
+    two rows sharing canonical_field/comparison_key, which the old rule_id
+    (built from only those two) would have collided on."""
+
+    fwd = {**TS_SYNONYM_ROW, "canonical_field": "drive", "comparison_key": "2WD",
+           "source_term": "2wd", "canonical_value": "fwd", "relation": "compatible",
+           "support": 744197}
+    rwd = {**fwd, "canonical_value": "rwd"}
+
+    catalog = build(tecdoc_resolution=[fwd, rwd]).list_rule_catalog(limit=5000)
+    entries = [e for e in catalog.items if e.area == "tecdoc_resolution_rule"]
+
+    assert len({e.rule_id for e in entries}) == 2

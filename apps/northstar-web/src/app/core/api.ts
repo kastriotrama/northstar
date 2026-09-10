@@ -31,6 +31,7 @@ import type {
   TecDocResolveRequest,
   TecDocUnresolvedSummary,
   TecDocVehicleCount,
+  TecDocVehicleDetail,
   TecDocVehicleFacet,
   TecDocVehicleFilter,
   TsCoverageReport,
@@ -43,9 +44,6 @@ import type {
   VehiclePage,
   GapGroupingMode,
   GapGroupReport,
-  VocabularyAlignmentCatalogResponse,
-  VocabularyAlignmentDraft,
-  VocabularyAlignmentDraftListResponse,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -178,11 +176,21 @@ export class Api {
     );
   }
 
-  /** Write one reviewer's live ruling on one TecDoc value. */
+  /** Write one reviewer's live ruling on one TecDoc value, or one cross-system
+   * synonym rule (fuel/bodywork/drive) -- same endpoint, same table. */
   resolveTecDocGap(request: TecDocResolveRequest): Observable<TecDocResolution> {
     return this.http.post<TecDocResolution>(
       `${this.base}/v1/normalization-review/tecdoc/gaps/resolve`,
       request,
+    );
+  }
+
+  /** One KType's canonical fields, each with its outcome -- opened from a row
+   * the same way TS's record panel opens from a car. */
+  tecdocVehicleDetail(sourceKey: string): Observable<TecDocVehicleDetail> {
+    return this.http.get<TecDocVehicleDetail>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/detail`,
+      { params: params({ source_key: sourceKey }) },
     );
   }
 
@@ -216,49 +224,6 @@ export class Api {
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,
         }),
-      },
-    );
-  }
-
-  // Sealed vocabulary-alignment sets: TS-to-TecDoc reconciliation for the matcher, not
-  // a normalization rule. Read-only here -- authored in code (`vocabulary_seed.py`) and
-  // activated by `northstar-ingest promote-vocabulary-alignments`, never drafted in the UI.
-  vocabularyAlignments(): Observable<VocabularyAlignmentCatalogResponse> {
-    return this.http.get<VocabularyAlignmentCatalogResponse>(
-      `${this.base}/v1/vocabulary-alignments`,
-    );
-  }
-
-  vocabularyAlignmentDrafts(): Observable<VocabularyAlignmentDraftListResponse> {
-    return this.http.get<VocabularyAlignmentDraftListResponse>(
-      `${this.base}/v1/vocabulary-alignments/drafts`,
-    );
-  }
-
-  reviewVocabularyAlignmentDraft(
-    draftId: number,
-    status: 'approved' | 'declined',
-    reviewedBy: string,
-  ): Observable<VocabularyAlignmentDraft> {
-    return this.http.put<VocabularyAlignmentDraft>(
-      `${this.base}/v1/vocabulary-alignments/drafts/${draftId}`,
-      { status, reviewed_by: reviewedBy },
-    );
-  }
-
-  activateVocabularyAlignmentDrafts(request: {
-    vocabulary: string;
-    alignmentVersion: string;
-    activatedBy: string;
-    note: string;
-  }): Observable<{ alignment_version: string; rows_sealed: number }> {
-    return this.http.post<{ alignment_version: string; rows_sealed: number }>(
-      `${this.base}/v1/vocabulary-alignments/activate`,
-      {
-        vocabulary: request.vocabulary,
-        alignment_version: request.alignmentVersion,
-        activated_by: request.activatedBy,
-        note: request.note,
       },
     );
   }

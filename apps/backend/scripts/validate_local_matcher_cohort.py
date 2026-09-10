@@ -122,6 +122,80 @@ def compare_catalog_activation_reports(
     }
 
 
+def compare_alignment_activation_reports(
+    before: dict[str, Any], after: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare the same frozen cohort across turning vocabulary alignment on.
+
+    Mirrors `compare_catalog_activation_reports`, but the intentional variable
+    is the opposite one: here `alignment_version` is expected to differ (that
+    is the whole point -- "before" is the matcher with no TS/TecDoc synonym
+    rules considered, "after" is the same cohort with them wired in), while
+    everything else that could confound the comparison must still match.
+    """
+
+    for report in (before, after):
+        if len(report["records"]) != report["count"] or sum(
+            report["counts"].values()
+        ) != report["count"]:
+            raise ValueError("incomplete cohort accounting")
+        if len({row["row_key"] for row in report["records"]}) != report["count"]:
+            raise ValueError("duplicate cohort records")
+    for pin in (
+        "source_digest",
+        "catalog_digest",
+        "rules_digest",
+        "count",
+        "source_prefix",
+        "rule_version",
+        "context_policy_version",
+        "source_model_policy_version",
+    ):
+        if before.get(pin) != after.get(pin):
+            raise ValueError(f"alignment activation inputs differ: {pin}")
+    before_by_key = {row["row_key"]: row for row in before["records"]}
+    after_by_key = {row["row_key"]: row for row in after["records"]}
+    if before_by_key.keys() != after_by_key.keys():
+        raise ValueError("alignment activation cohort keys differ")
+    # "resolved"/"provisional" are the two successful terminals
+    # (`ingestion.match_run_service.MatchTerminal`); everything else --
+    # "unmatched", "hard_conflict" (exactly what an unreconciled drive/fuel
+    # spelling difference used to produce), "review_required", etc. -- is not
+    # a found car.
+    successful = {"resolved", "provisional"}
+    transitions: Counter[str] = Counter()
+    changed: list[dict[str, Any]] = []
+    resolved_by_alignment = 0
+    for row_key, old in before_by_key.items():
+        new = after_by_key[row_key]
+        transitions[f'{old["terminal"]}->{new["terminal"]}'] += 1
+        newly_resolved = old["terminal"] not in successful and new["terminal"] in successful
+        resolved_by_alignment += newly_resolved
+        if old["terminal"] != new["terminal"]:
+            changed.append({"row_key": row_key, "before": old, "after": new})
+    return {
+        "count": before["count"],
+        "before_alignment_version": before["alignment_version"],
+        "after_alignment_version": after["alignment_version"],
+        "before_counts": before["counts"],
+        "after_counts": after["counts"],
+        "transitions": dict(sorted(transitions.items())),
+        "changed_record_count": len(changed),
+        # How many of these 20k (or however many) cars went from not-matched
+        # to matched purely because a synonym rule stopped a real drive/fuel
+        # spelling difference from reading as a conflict -- the number this
+        # whole exercise exists to answer.
+        "newly_matched_by_alignment": resolved_by_alignment,
+        "changed_records": changed,
+        "before_reason_counts": before["reason_counts"],
+        "after_reason_counts": after["reason_counts"],
+        "independently_adjudicated": False,
+        "source_digest": before["source_digest"],
+        "catalog_digest": before["catalog_digest"],
+        "rules_digest": before["rules_digest"],
+    }
+
+
 def write_private_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Never overwrite existing evidence, even when a caller reuses a filename.
@@ -147,6 +221,16 @@ def main() -> None:
     parser.add_argument("--source-model-policy", type=Path)
     parser.add_argument("--source-model-policy-version")
     parser.add_argument("--source-model-policy-sha256")
+    parser.add_argument(
+        "--vocabulary-alignment", action="store_true",
+        help=(
+            "Load the live TS/TecDoc synonym rules from core.tecdoc_resolution_rules "
+            "(fuel/bodywork/drive equivalent+compatible rows) and wire them into the "
+            "matcher, same as a real match run does. Off by default so existing "
+            "frozen/pinned comparisons are unaffected; turn on for one side of a "
+            "before/after pair to measure what those rules change."
+        ),
+    )
     args = parser.parse_args()
     if not 1 <= args.limit <= 100_000 or args.after_id < 0:
         raise ValueError("invalid cohort bounds")
@@ -170,6 +254,7 @@ def main() -> None:
         ReviewedSourceModelPolicy,
         reviewed_source_model_policy,
     )
+    from ingestion.vocabulary_alignment import load_drive_alignment, load_fuel_alignment
 
     settings = IngestionSettings(_env_file=args.env_file)  # type: ignore[call-arg]
     source_policy_args = (args.source_model_policy, args.source_model_policy_version, args.source_model_policy_sha256)
@@ -208,12 +293,21 @@ def main() -> None:
         )
         if len(raw_rows) != args.limit:
             raise ValueError("cohort count differs from requested count")
+        fuel_alignment = None
+        drive_alignment = None
+        alignment_version = "unpinned-legacy"
+        if args.vocabulary_alignment:
+            fuel_alignment = load_fuel_alignment(connection)
+            drive_alignment = load_drive_alignment(connection)
+            alignment_version = digest(
+                {"fuel": asdict(fuel_alignment), "drive": asdict(drive_alignment)}
+            )
         source_files = sorted((args.code_root / "ingestion").rglob("*.py"))
         code_digest = digest({str(path.relative_to(args.code_root)): path.read_text() for path in source_files})
         report: dict[str, Any] = {
             "code_root": str(args.code_root), "count": len(raw_rows),
             "source_prefix": args.source_prefix, "catalog_version": args.catalog_version,
-            "rule_version": rules.version, "alignment_version": "unpinned-legacy",
+            "rule_version": rules.version, "alignment_version": alignment_version,
             "source_digest": digest(raw_rows),
             "catalog_digest": digest([asdict(candidate) for candidate in catalog]),
             "rules_digest": digest([asdict(rules), manufacturers]),
@@ -235,6 +329,7 @@ def main() -> None:
                     raise ValueError(f"baseline inputs differ: {pin}")
         print(json.dumps({"phase": "inputs_verified", "count": len(raw_rows), "code_digest": code_digest}), flush=True)
         evaluator = TecDocDryRunEvaluator(catalog, manufacturers, ReviewedModelAliasIndex(rules),
+                                         fuel_alignment=fuel_alignment, drive_alignment=drive_alignment,
                                          context_policy=context_policy, source_model_policy=source_model_policy)
         diagnostics = RepairCohortDiagnostics()
         catalog_by_reference = {candidate.candidate_reference: candidate for candidate in catalog}

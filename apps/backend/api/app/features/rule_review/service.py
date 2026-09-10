@@ -310,13 +310,22 @@ class RuleReviewService:
 
     @staticmethod
     def _tecdoc_resolution_entry(rule: dict[str, Any]) -> RuleCatalogEntry:
-        """Render one reviewer-authored TecDoc value ruling as a catalog row.
+        """Render one live-ruled row from `core.tecdoc_resolution_rules` as a catalog row.
 
-        TecDoc's sibling of `_resolution_entry`: not run by any pipeline, not part
-        of a sealed `tecdoc_rules` version, effective the moment it is written.
-        Sharing `origin="resolution"` with the TS rows is deliberate -- both are
-        the same act, a human ruling on one value outside the reviewed batch
-        process -- and `source="tecdoc"` is what tells the two apart.
+        Covers two different kinds of ruling: TecDoc's own gap resolutions (a
+        raw code/label TecDoc's own data holds, `source_system="tecdoc"`
+        always) and cross-system synonym rows for `fuel`/`bodywork`/`drive`
+        (`source_system` names whichever side actually authored it -- TS's
+        `electricity` row reports `source="transportstyrelsen"`, not
+        `"tecdoc"`, even though it lives in the same table). Sharing
+        `origin="resolution"` with the TS projection rows is deliberate --
+        both are the same act, a human ruling on one value outside the
+        reviewed batch process.
+
+        `rule_id` includes `canonical_value`: a `compatible` synonym row is
+        the one case where the same source term can have more than one row
+        (TS's `2wd` against both TecDoc `fwd` and `rwd`), so
+        `canonical_field`+`comparison_key` alone would collide.
         """
 
         if rule["decision"] == "excluded":
@@ -326,9 +335,14 @@ class RuleReviewService:
             decision = "accepted"
             note = rule["note"] or ""
         key_table = f" TecDoc key table {rule['key_table']}." if rule["key_table"] else ""
+        relation_note = f" Relation: {rule['relation']}." if rule["relation"] == "compatible" else ""
         return RuleCatalogEntry(
-            rule_id=f"TDRES:{rule['canonical_field']}:{rule['comparison_key']}",
+            rule_id=(
+                f"TDRES:{rule['source_system']}:{rule['canonical_field']}:"
+                f"{rule['comparison_key']}:{rule['canonical_value'] or ''}"
+            ),
             area="tecdoc_resolution_rule",
+            support=rule["support"],
             source_fields=[rule["canonical_field"]],
             source_terms=[rule["source_term"]],
             canonical_field=rule["canonical_field"],
@@ -336,9 +350,12 @@ class RuleReviewService:
             effective_canonical_value=rule["canonical_value"],
             effective_decision=decision,
             origin="resolution",
-            source="tecdoc",
+            source=rule["source_system"],
             editable=False,
-            notes=f"Ruled by {rule['reviewed_by']} on the live gap browser.{key_table} {note}".strip(),
+            notes=(
+                f"Ruled by {rule['reviewed_by']} on the live gap browser."
+                f"{key_table} {note}{relation_note}"
+            ).strip(),
         )
 
     @staticmethod

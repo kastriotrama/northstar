@@ -195,7 +195,26 @@ export interface TecDocVehicleFacet {
 
 // --- the value-level gap: which raw codes/labels have no canonical target, and Resolve --
 
-export type TecDocResolvableField = 'energy_sources' | 'bodywork_form' | 'drive_type';
+/** `energy_sources`/`bodywork_form`/`drive_type`/`transmission_type` are TecDoc's own
+ * gap fields -- ruling on a raw code/label TecDoc's own data holds. `fuel`/`bodywork`/
+ * `drive` are cross-system synonym fields -- declaring that a TS term and a TecDoc
+ * term denote the same (or a broader-than) concept. Both write the same table through
+ * the same `resolve` endpoint; see `TecDocResolveRequest`. */
+export type TecDocResolvableField =
+  | 'energy_sources'
+  | 'bodywork_form'
+  | 'drive_type'
+  | 'transmission_type'
+  | 'fuel'
+  | 'bodywork'
+  | 'drive';
+
+/** `equivalent`: same real-world thing under two spellings, safe to treat as a match.
+ * `compatible`: one side is coarser than the other (TS's undifferentiated `2wd` against
+ * TecDoc's `fwd`/`rwd`), so it must score neutral, never as agreement -- and, unlike
+ * `equivalent`, one source term can be compatible with more than one target. Only
+ * meaningful for a synonym field; a TecDoc gap resolution is always `equivalent`. */
+export type RuleRelation = 'equivalent' | 'compatible';
 
 export interface TecDocResolution {
   decision: 'accepted' | 'excluded';
@@ -203,6 +222,9 @@ export interface TecDocResolution {
   note: string;
   reviewed_by: string;
   updated_at: string;
+  source_system: RuleSource;
+  relation: RuleRelation;
+  support: number | null;
 }
 
 export interface TecDocGapValue {
@@ -222,6 +244,24 @@ export interface TecDocGapValuesResponse {
   values: TecDocGapValue[];
 }
 
+// --- one row's fields, each with its outcome -- opened from a KType, mirrors TS's record panel
+
+export interface TecDocVehicleFieldStatus {
+  canonical_field: string;
+  source_term: string | null;
+  label: string | null;
+  canonical_value: string | null;
+  status: 'resolved' | 'unresolved' | 'rule_resolved';
+  blocked_reason: string | null;
+}
+
+export interface TecDocVehicleDetail {
+  source_key: string;
+  manufacturer: string | null;
+  model_family: string | null;
+  fields: TecDocVehicleFieldStatus[];
+}
+
 export interface TecDocResolveRequest {
   canonical_field: TecDocResolvableField;
   source_term: string;
@@ -229,6 +269,12 @@ export interface TecDocResolveRequest {
   canonical_value?: string | null;
   note?: string;
   reviewed_by: string;
+  /** Only meaningful on a synonym field; defaults to 'tecdoc' server-side. */
+  source_system?: RuleSource;
+  /** Only meaningful on a synonym field; defaults to 'equivalent' server-side. */
+  relation?: RuleRelation;
+  /** Required when `relation` is 'compatible'; ignored otherwise. */
+  support?: number | null;
 }
 
 export type RuleOrigin = 'catalog' | 'code' | 'resolution' | 'reviewed_mapping' | 'generated';
@@ -626,51 +672,3 @@ export interface GapGroupReport {
   groups: GapGroup[];
 }
 
-/**
- * Reconciles two already-normalized vocabularies for the matcher -- never a
- * normalization rewrite. `equivalent` means the same real-world thing under
- * two spellings; `compatible` means one side is coarser than the other, so
- * the pair must score neutral, never as agreement.
- */
-export interface VocabularyAlignmentRow {
-  source_system: string;
-  source_term: string;
-  canonical_term: string;
-  relation: 'equivalent' | 'compatible';
-  support: number | null;
-  evidence_note: string;
-}
-
-export interface VocabularyAlignmentVersion {
-  alignment_version: string;
-  vocabulary: string;
-  activation_note: string;
-  activated_by: string;
-  activated_at: string;
-  sealed: boolean;
-  rows: VocabularyAlignmentRow[];
-}
-
-export interface VocabularyAlignmentCatalogResponse {
-  versions: VocabularyAlignmentVersion[];
-}
-
-export interface VocabularyAlignmentDraft {
-  id: number;
-  vocabulary: string;
-  source_system: string;
-  source_term: string;
-  canonical_term: string;
-  relation: 'equivalent' | 'compatible';
-  support: number | null;
-  evidence_note: string;
-  status: 'proposed' | 'approved' | 'declined';
-  proposed_by: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  created_at: string;
-}
-
-export interface VocabularyAlignmentDraftListResponse {
-  drafts: VocabularyAlignmentDraft[];
-}

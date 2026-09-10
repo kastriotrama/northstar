@@ -1,16 +1,15 @@
-"""Verify vocabulary invariants in isolated Compose PostgreSQL, not the source DB."""
+"""Verify vocabulary rulings in isolated Compose PostgreSQL, not the source DB."""
 
 from collections.abc import Iterator
-from uuid import uuid4
 
 import psycopg
 import pytest
 from psycopg import Connection
 
 from ingestion.config import get_ingestion_settings
+from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
 from ingestion.vocabulary_alignment import load_fuel_alignment
-from ingestion.vocabulary_migrations import run_vocabulary_migrations
-from ingestion.vocabulary_seed import INITIAL_FUEL_ALIGNMENT_VERSION, apply_vocabulary_seed
+from scripts.port_vocabulary_alignment_seed import port_seed
 
 
 @pytest.fixture()
@@ -19,56 +18,43 @@ def connection() -> Iterator[Connection]:
     if settings.environment != "test":
         pytest.skip("requires explicitly isolated test environment")
     with psycopg.connect(settings.database_url) as connection:
-        run_vocabulary_migrations(connection)
+        run_tecdoc_resolution_migrations(connection)
         yield connection
         connection.rollback()
 
 
-def test_seed_is_idempotent_and_activated_rules_are_loaded(connection: Connection) -> None:
-    apply_vocabulary_seed(connection, activated_by="integration-test")
-    repeated = apply_vocabulary_seed(connection, activated_by="integration-test")
-    assert repeated["rows_inserted"] == 0
-    alignment = load_fuel_alignment(connection, alignment_version=INITIAL_FUEL_ALIGNMENT_VERSION)
-    assert alignment is not None
+def test_seed_port_is_idempotent_and_live_rules_are_loaded(connection: Connection) -> None:
+    port_seed(connection, reviewed_by="integration-test")
+    repeated = port_seed(connection, reviewed_by="integration-test")
+    # ON CONFLICT DO UPDATE always reports a row touched, so re-running still
+    # reports the same counts rather than zero -- idempotent means "same end
+    # state", not "no-op the second time".
+    assert repeated == {"equivalent": 2, "compatible": 3}
+
+    alignment = load_fuel_alignment(connection)
     assert alignment.ts_equivalences == {"electricity": "electric", "methane": "cng"}
     assert alignment.tecdoc_equivalences == {}
     assert alignment.compatible_pairs == frozenset({("ethanol", "petrol")})
-    run_vocabulary_migrations(connection)
-    assert load_fuel_alignment(connection, alignment_version=INITIAL_FUEL_ALIGNMENT_VERSION) == alignment
 
 
-@pytest.mark.parametrize("statement", [
-    "UPDATE core.vocabulary_alignments SET evidence_note = 'changed'",
-    "DELETE FROM core.vocabulary_alignments",
-    "TRUNCATE core.vocabulary_alignments",
-    "TRUNCATE core.vocabulary_alignment_versions CASCADE",
-    "UPDATE core.vocabulary_alignment_versions SET sealed = FALSE",
-    "DELETE FROM core.vocabulary_alignment_versions",
-    ("INSERT INTO core.vocabulary_alignments "
-    "(alignment_version,vocabulary,source_system,source_term,canonical_term,relation) "
-    "VALUES ('align-2026-08-28-v1','fuel','transportstyrelsen','extra','petrol','equivalent')"),
-])
-def test_activated_version_rejects_mutation(connection: Connection, statement: str) -> None:
-    apply_vocabulary_seed(connection, activated_by="integration-test")
-    with pytest.raises(psycopg.errors.RaiseException), connection.transaction():
-        connection.execute(statement)
+def test_a_reviewer_correction_takes_effect_immediately(connection: Connection) -> None:
+    """Unlike the retired vocabulary_alignments, this table is live and mutable."""
+
+    port_seed(connection, reviewed_by="integration-test")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE core.tecdoc_resolution_rules SET canonical_value = 'ev' "
+            "WHERE canonical_field = 'fuel' AND source_system = 'transportstyrelsen' "
+            "AND comparison_key = 'ELECTRICITY'"
+        )
+    connection.commit()
+
+    alignment = load_fuel_alignment(connection)
+    assert alignment.ts_equivalences["electricity"] == "ev"
 
 
-def test_unknown_and_unsealed_versions_are_rejected(connection: Connection) -> None:
-    with pytest.raises(ValueError, match="unknown or not activated"):
-        load_fuel_alignment(connection, alignment_version="missing-version")
-    version = f"test-unsealed-{uuid4()}"
-    connection.execute(
-        "INSERT INTO core.vocabulary_alignment_versions "
-        "(alignment_version, activation_note, activated_by, sealed) VALUES (%s,'test','test',FALSE)",
-        (version,),
-    )
-    with pytest.raises(ValueError, match="unknown or not activated"):
-        load_fuel_alignment(connection, alignment_version=version)
-
-
-def test_legacy_pin_performs_no_queries() -> None:
-    from unittest.mock import MagicMock
-    connection = MagicMock()
-    assert load_fuel_alignment(connection, alignment_version="unpinned-legacy") is None
-    connection.cursor.assert_not_called()
+def test_no_rows_for_a_vocabulary_is_a_harmless_empty_alignment(connection: Connection) -> None:
+    alignment = load_fuel_alignment(connection)
+    assert alignment.ts_equivalences == {}
+    assert alignment.tecdoc_equivalences == {}
+    assert alignment.compatible_pairs == frozenset()

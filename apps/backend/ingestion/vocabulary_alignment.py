@@ -29,15 +29,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 
 from neo4j import Driver, ManagedTransaction
 from psycopg import Connection
 
 from ingestion.fuzzy_matching import VehicleCandidate
-from ingestion.vocabulary_migrations import (
-    VOCABULARY_ALIGNMENT_TABLE,
-    VOCABULARY_ALIGNMENT_VERSION_TABLE,
-)
+from ingestion.tecdoc.resolution_migrations import TECDOC_RESOLUTION_RULES_TABLE
 from northstar.alias_identity import build_assertion_identity
 from northstar.node_ids import mint_node_id
 
@@ -57,9 +55,8 @@ CONCEPT_ID_PREFIX: dict[str, str] = {
 
 @dataclass(frozen=True)
 class VocabularyAlignment:
-    """One approved alignment row, pinned to an activated version."""
+    """One live `equivalent`/`compatible` ruling from `core.tecdoc_resolution_rules`."""
 
-    alignment_version: str
     vocabulary: str
     source_system: str
     source_term: str
@@ -72,18 +69,15 @@ class VocabularyAlignment:
             raise ValueError(f"unsupported vocabulary: {self.vocabulary!r}")
         if self.relation not in {"equivalent", "compatible"}:
             raise ValueError(f"unsupported relation: {self.relation!r}")
-        for name in ("alignment_version", "source_system", "source_term", "canonical_term"):
+        for name in ("source_system", "source_term", "canonical_term"):
             if not str(getattr(self, name)).strip():
                 raise ValueError(f"{name} must not be empty")
 
     @property
     def assertion_key(self) -> str:
-        return (
-            f"vocabulary:{self.alignment_version}:{self.vocabulary}:"
-            f"{self.relation}:{self.source_term}:{self.canonical_term}"
-        )
+        return f"vocabulary:{self.vocabulary}:{self.relation}:{self.source_term}:{self.canonical_term}"
 
-    def graph_row(self) -> dict[str, object]:
+    def graph_row(self, *, promoted_at: str) -> dict[str, object]:
         return {
             "alias_id": mint_node_id("ALI"),
             "concept_id": mint_node_id(CONCEPT_ID_PREFIX[self.vocabulary]),
@@ -93,7 +87,7 @@ class VocabularyAlignment:
             "canonical_term": self.canonical_term,
             "relation": self.relation,
             "support": self.support,
-            "alignment_version": self.alignment_version,
+            "promoted_at": promoted_at,
             "assertion_identity": build_assertion_identity(
                 self.source_system.lower(), self.assertion_key
             ),
@@ -101,39 +95,33 @@ class VocabularyAlignment:
 
 
 def fetch_approved_alignments(
-    connection: Connection, *, alignment_version: str, vocabulary: str
+    connection: Connection, *, vocabulary: str
 ) -> tuple[VocabularyAlignment, ...]:
-    """Read one pinned, activated alignment set."""
+    """Read the current live rulings for one vocabulary (fuel/bodywork/drive).
+
+    Live means mutable: unlike the retired `core.vocabulary_alignments`, there
+    is no sealed version to pin against. A reviewer's correction takes effect
+    on the very next read, the same guarantee `tecdoc_resolution_rules`
+    already gives TecDoc's own value resolutions.
+    """
 
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT sealed FROM {VOCABULARY_ALIGNMENT_VERSION_TABLE} "
-            "WHERE alignment_version = %s", (alignment_version,),
-        )
-        version = cursor.fetchone()
-        if version is None or version[0] is not True:
-            raise ValueError("vocabulary alignment version is unknown or not activated")
-        cursor.execute(
-            "SELECT alignment_version, vocabulary, source_system, source_term, "
-            f"canonical_term, relation, support FROM {VOCABULARY_ALIGNMENT_TABLE} "
-            "WHERE alignment_version = %s AND vocabulary = %s "
-            "ORDER BY source_system, source_term, canonical_term",
-            (alignment_version, vocabulary),
+            "SELECT source_system, source_term, canonical_value, relation, support "
+            f"FROM {TECDOC_RESOLUTION_RULES_TABLE} "
+            "WHERE canonical_field = %s AND decision = 'accepted' "
+            "ORDER BY source_system, source_term, canonical_value",
+            (vocabulary,),
         )
         rows = cursor.fetchall()
-    if not rows:
-        raise ValueError(
-            f"no approved {vocabulary!r} alignments for version {alignment_version!r}"
-        )
     return tuple(
         VocabularyAlignment(
-            alignment_version=str(r[0]),
-            vocabulary=str(r[1]),
-            source_system=str(r[2]),
-            source_term=str(r[3]),
-            canonical_term=str(r[4]),
-            relation=str(r[5]),
-            support=None if r[6] is None else int(r[6]),
+            vocabulary=vocabulary,
+            source_system=str(r[0]),
+            source_term=str(r[1]),
+            canonical_term=str(r[2]),
+            relation=str(r[3]),
+            support=None if r[4] is None else int(r[4]),
         )
         for r in rows
     )
@@ -143,7 +131,7 @@ def fetch_approved_alignments(
 class VocabularyComparisonAlignment:
     """Source-scoped comparison rules for one vocabulary, never a normalization rewrite."""
 
-    version: str
+    vocabulary: str
     ts_equivalences: Mapping[str, str]
     tecdoc_equivalences: Mapping[str, str]
     compatible_pairs: frozenset[tuple[str, str]]
@@ -156,22 +144,16 @@ FuelAlignment = VocabularyComparisonAlignment
 
 
 def load_vocabulary_alignment(
-    connection: Connection, *, alignment_version: str, vocabulary: str
-) -> VocabularyComparisonAlignment | None:
-    """Fail closed on unknown/unsupported pinned sets; legacy applies no new rules."""
+    connection: Connection, *, vocabulary: str
+) -> VocabularyComparisonAlignment:
+    """Build TS- and TecDoc-scoped equivalence maps from the live rules table.
 
-    if alignment_version == "unpinned-legacy":
-        return None
-    rows = fetch_approved_alignments(
-        connection, alignment_version=alignment_version, vocabulary=vocabulary
-    )
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"SELECT DISTINCT vocabulary FROM {VOCABULARY_ALIGNMENT_TABLE} "
-            "WHERE alignment_version = %s", (alignment_version,),
-        )
-        if {str(row[0]) for row in cursor.fetchall()} != {vocabulary}:
-            raise ValueError(f"this matcher supports only {vocabulary!r} alignment sets")
+    No rows for a vocabulary is a valid, harmless state (empty maps are a
+    no-op for `canonical_fuels`/`align_catalog_fuels`), not an error -- a
+    reviewer simply hasn't needed to reconcile that vocabulary yet.
+    """
+
+    rows = fetch_approved_alignments(connection, vocabulary=vocabulary)
     maps: dict[str, dict[str, str]] = {"transportstyrelsen": {}, "tecdoc": {}}
     for row in rows:
         if row.source_system not in maps:
@@ -195,24 +177,16 @@ def load_vocabulary_alignment(
                 maps["tecdoc"].get(row.canonical_term, row.canonical_term),
             ))
     return VocabularyComparisonAlignment(
-        alignment_version, maps["transportstyrelsen"], maps["tecdoc"], frozenset(pairs)
+        vocabulary, maps["transportstyrelsen"], maps["tecdoc"], frozenset(pairs)
     )
 
 
-def load_fuel_alignment(
-    connection: Connection, *, alignment_version: str
-) -> VocabularyComparisonAlignment | None:
-    return load_vocabulary_alignment(
-        connection, alignment_version=alignment_version, vocabulary="fuel"
-    )
+def load_fuel_alignment(connection: Connection) -> VocabularyComparisonAlignment:
+    return load_vocabulary_alignment(connection, vocabulary="fuel")
 
 
-def load_drive_alignment(
-    connection: Connection, *, alignment_version: str
-) -> VocabularyComparisonAlignment | None:
-    return load_vocabulary_alignment(
-        connection, alignment_version=alignment_version, vocabulary="drive"
-    )
+def load_drive_alignment(connection: Connection) -> VocabularyComparisonAlignment:
+    return load_vocabulary_alignment(connection, vocabulary="drive")
 
 
 # Concepts are looked up before minting so a re-run never creates a second
@@ -233,7 +207,7 @@ ON CREATE SET alias.id = row.alias_id,
               alias.alias_type = row.alias_type,
               alias.source_assertion_key = row.assertion_identity
 SET alias.alias_text = row.alias_text,
-    alias.alignment_version = row.alignment_version
+    alias.promoted_at = row.promoted_at
 MERGE (alias)-[:REFERS_TO]->(concept)
 RETURN count(alias) AS written
 """
@@ -249,10 +223,10 @@ ON CREATE SET alias.id = row.alias_id,
               alias.alias_type = row.alias_type,
               alias.source_assertion_key = row.assertion_identity
 SET alias.alias_text = row.alias_text,
-    alias.alignment_version = row.alignment_version
+    alias.promoted_at = row.promoted_at
 MERGE (alias)-[edge:COMPATIBLE_WITH]->(concept)
 SET edge.support = row.support,
-    edge.alignment_version = row.alignment_version
+    edge.promoted_at = row.promoted_at
 RETURN count(alias) AS written
 """
 
@@ -264,34 +238,6 @@ MATCH (concept:FuelType {canonical_name: v.fuel_type})
 MERGE (v)-[:USES_FUEL]->(concept)
 RETURN count(*) AS linked
 """
-
-
-def load_equivalence_map(
-    connection: Connection, *, alignment_version: str, vocabulary: str
-) -> dict[str, str]:
-    """Return source term -> canonical term for approved equivalences only.
-
-    Compatible rows are deliberately excluded. Folding a compatible term into
-    its canonical partner would score it as agreement, when the whole point of
-    the distinction is that it must stay neutral. Compatibility needs a scoring
-    change in the matcher, not a rewrite of the term.
-    """
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT source_term, canonical_term FROM "
-            f"{VOCABULARY_ALIGNMENT_TABLE} WHERE alignment_version = %s "
-            "AND vocabulary = %s AND relation = 'equivalent'",
-            (alignment_version, vocabulary),
-        )
-        rows = cursor.fetchall()
-    mapping = {str(source): str(canonical) for source, canonical in rows}
-    # A term must not be both a source and a target, or canonicalisation would
-    # depend on iteration order.
-    collisions = set(mapping) & set(mapping.values())
-    if collisions:
-        raise ValueError(f"equivalence map is not flat for terms: {sorted(collisions)}")
-    return mapping
 
 
 def canonical_fuels(
@@ -335,12 +281,10 @@ def promote_vocabulary_alignments(
     vocabularies = {a.vocabulary for a in alignments}
     if len(vocabularies) != 1:
         raise ValueError("promote one vocabulary at a time")
-    versions = {a.alignment_version for a in alignments}
-    if len(versions) != 1:
-        raise ValueError("promote one alignment version at a time")
 
     label = CONCEPT_LABELS[next(iter(vocabularies))]
-    rows = [a.graph_row() for a in alignments]
+    promoted_at = datetime.now(UTC).isoformat()
+    rows = [a.graph_row(promoted_at=promoted_at) for a in alignments]
     equivalent = [r for r in rows if r["relation"] == "equivalent"]
     compatible = [r for r in rows if r["relation"] == "compatible"]
 

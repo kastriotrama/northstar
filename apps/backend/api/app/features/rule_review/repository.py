@@ -487,7 +487,8 @@ class RuleReviewRepository:
             cursor.execute(
                 f"""
                 SELECT canonical_field, comparison_key, source_term, key_table, decision,
-                       canonical_value, note, reviewed_by, created_at, updated_at
+                       canonical_value, note, reviewed_by, created_at, updated_at,
+                       source_system, relation, support
                 FROM {TECDOC_RESOLUTION_RULES_TABLE}
                 ORDER BY updated_at DESC
                 LIMIT %s
@@ -507,6 +508,9 @@ class RuleReviewRepository:
                 "reviewed_by": str(row[7]),
                 "created_at": row[8],
                 "updated_at": row[9],
+                "source_system": str(row[10]),
+                "relation": str(row[11]),
+                "support": row[12],
             }
             for row in rows
         ]

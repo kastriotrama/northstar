@@ -317,7 +317,7 @@
         </tr>
       </ng-template>
       <ng-template #body let-row>
-        <tr>
+        <tr (click)="open(row)" style="cursor: pointer">
           @for (column of vehicleColumns(); track column) {
             <td class="truncate" [title]="cell(row, column)">{{ cell(row, column) }}</td>
           }
@@ -384,6 +384,49 @@
   [style]="{ width: '820px', maxWidth: '95vw' }"
   [dismissableMask]="true"
 >
+  @if (vehicleDetailLoading()) {
+    <p class="muted" style="margin-top: 0">Reading this KType's canonical fields…</p>
+  } @else if (vehicleDetail(); as row) {
+    <table class="kv" style="margin-bottom: 1rem">
+      @for (field of row.fields; track field.canonical_field) {
+        <tr>
+          <td class="kv__key mono">{{ field.canonical_field }}</td>
+          <td class="mono">
+            {{ field.source_term }}
+            @if (field.label && field.label !== field.source_term) {
+              <span class="muted"> ({{ field.label }})</span>
+            }
+          </td>
+          <td>
+            @if (field.status === 'unresolved') {
+              @if (field.blocked_reason) {
+                <span class="muted">{{ field.blocked_reason.replace('_', ' ') }}</span>
+              } @else {
+                <button
+                  type="button"
+                  class="linkish linkish--strong"
+                  (click)="resolveFieldFromDetail(field)"
+                >
+                  Resolve →
+                </button>
+              }
+            } @else {
+              <span class="mono">{{ field.canonical_value }}</span>
+              <p-tag
+                [value]="field.status === 'rule_resolved' ? 'by rule' : 'ok'"
+                [severity]="field.status === 'rule_resolved' ? 'warn' : 'success'"
+              />
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td class="muted" colspan="3">Every canonical field is filled for this KType.</td>
+        </tr>
+      }
+    </table>
+  }
+
   <table class="kv">
     @for (entry of entries(detail()); track entry[0]) {
       <tr>
@@ -410,7 +453,9 @@
       @if (value.label && value.label !== value.source_term) {
         <span> ({{ value.label }})</span>
       }
-      — {{ value.support | number }} ktypes carry this value.
+      @if (value.support) {
+        — {{ value.support | number }} ktypes carry this value.
+      }
     </p>
 
     <div class="resolve-decision" role="radiogroup" aria-label="Ruling">

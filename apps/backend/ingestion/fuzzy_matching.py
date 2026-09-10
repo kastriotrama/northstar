@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Literal
 
-from ingestion.context_comparison import ContextComparisonPolicy
+from ingestion.context_comparison import ContextComparison, ContextComparisonPolicy
 from ingestion.phonetic_matching import PHONETIC_VERSION, has_phonetic_overlap
 
 MatchScope = Literal[
@@ -89,25 +89,18 @@ def _normalized_values(values: Iterable[str]) -> frozenset[str]:
     return frozenset(normalized for value in values if (normalized := _normalized_text(value)))
 
 
-_FUEL_EQUIVALENTS = {"ELECTRIC": "ELECTRICITY", "METHANE": "CNG"}
-
-
-def _normalized_fuels(values: Iterable[str]) -> frozenset[str]:
-    return frozenset(
-        _FUEL_EQUIVALENTS.get(normalized, normalized)
-        for value in values
-        if (normalized := _normalized_text(value))
-    )
-
-
 def _fuel_evidence_matches(
     query_fuels: frozenset[str], candidate_fuels: frozenset[str]
 ) -> bool:
     if query_fuels & candidate_fuels:
         return True
+    # "ELECTRIC" is TecDoc's own native spelling and the canonical term the
+    # live tecdoc_resolution_rules electricity/electric row normalizes TS's
+    # "electricity" into (see ingestion/vocabulary_alignment.py), applied to
+    # both `query_fuels` and `candidate_fuels` before this function ever runs.
     hybrid_requirements = {
-        "HYBRID PETROL": frozenset({"PETROL", "ELECTRICITY"}),
-        "HYBRID DIESEL": frozenset({"DIESEL", "ELECTRICITY"}),
+        "HYBRID PETROL": frozenset({"PETROL", "ELECTRIC"}),
+        "HYBRID DIESEL": frozenset({"DIESEL", "ELECTRIC"}),
     }
     return any(
         hybrid in candidate_fuels and required.issubset(query_fuels)
@@ -602,9 +595,9 @@ class FuzzyVehicleMatcher:
         self._config = config or FuzzyMatchConfig()
         self._context_policy = context_policy or ContextComparisonPolicy()
         self._fuel_compatible_pairs = frozenset(
-            (next(iter(_normalized_fuels((left,)))), next(iter(_normalized_fuels((right,)))))
+            (_normalized_text(left), _normalized_text(right))
             for left, right in fuel_compatible_pairs
-            if _normalized_fuels((left,)) and _normalized_fuels((right,))
+            if _normalized_text(left) and _normalized_text(right)
         )
         # Same directional-pair shape as fuel: a global, reviewed structural
         # fact ("this term can't tell these two apart"), checked before the
@@ -761,9 +754,9 @@ class FuzzyVehicleMatcher:
                 conflicting_fields.append("year")
                 context_effect -= self._config.year_conflict_penalty
 
-        query_fuels = _normalized_fuels(query.fuels)
-        candidate_fuels = _normalized_fuels(candidate.fuels)
-        candidate_fuel_components = _normalized_fuels(candidate.fuel_components)
+        query_fuels = _normalized_values(query.fuels)
+        candidate_fuels = _normalized_values(candidate.fuels)
+        candidate_fuel_components = _normalized_values(candidate.fuel_components)
         if query_fuels:
             if not candidate_fuels and not candidate_fuel_components:
                 missing_fields.append("fuels")
@@ -838,6 +831,10 @@ class FuzzyVehicleMatcher:
             # exception, so it must never fall through to that policy's
             # unscoped default of "conflicting".
             missing_fields.append("drive_type_compatible_not_confirmed")
+            # No per-manufacturer context rule fired -- this came from the
+            # global vocabulary alignment instead -- but `drive_comparison`
+            # is still read unconditionally below, alongside `body_comparison`.
+            drive_comparison = ContextComparison(state="compatible")
         else:
             drive_comparison = self._context_policy.compare(
                 field="drive_type", source_value=query_drive,

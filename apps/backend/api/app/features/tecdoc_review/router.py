@@ -16,6 +16,7 @@ from api.app.features.tecdoc_review.schemas import (
     TecDocReviewPage,
     TecDocUnresolvedSummary,
     TecDocVehicleCount,
+    TecDocVehicleDetail,
     TecDocVehicleFacet,
     TecDocVehicleFilter,
 )
@@ -135,6 +136,21 @@ def facet_tecdoc_vehicles(
         raise _unavailable() from error
 
 
+@router.get("/vehicles/detail", response_model=TecDocVehicleDetail)
+def tecdoc_vehicle_detail(
+    service: Annotated[TecDocReviewService, Depends(get_tecdoc_review_service)],
+    source_key: str = Query(...),
+) -> TecDocVehicleDetail:
+    """One KType's canonical fields, each with its outcome -- opened from a row
+    the same way TS's record panel opens from a car, so the fields still
+    missing a value are the ones with a Resolve action next to them."""
+
+    detail = service.vehicle_detail(source_key=source_key)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="No promoted KType with that source key.")
+    return detail
+
+
 def _bad_resolve(error: TecDocResolveError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(error))
 
@@ -142,7 +158,9 @@ def _bad_resolve(error: TecDocResolveError) -> HTTPException:
 @router.get("/gaps", response_model=TecDocGapValuesResponse)
 def tecdoc_gap_values(
     service: Annotated[TecDocReviewService, Depends(get_tecdoc_review_service)],
-    field: Literal["energy_sources", "bodywork_form", "drive_type"] = Query(...),
+    field: Literal[
+        "energy_sources", "bodywork_form", "drive_type", "transmission_type"
+    ] = Query(...),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> TecDocGapValuesResponse:
     """The distinct raw values behind one canonical field's gap -- the click
@@ -179,6 +197,9 @@ def resolve_tecdoc_gap_value(
             canonical_value=request.canonical_value,
             note=request.note,
             reviewed_by=request.reviewed_by,
+            source_system=request.source_system,
+            relation=request.relation,
+            support=request.support,
         )
     except TecDocResolveError as error:
         raise _bad_resolve(error) from error
