@@ -39,6 +39,35 @@
           <span class="reimport__hint reimport__hint--error">{{ message }}</span>
         }
       </div>
+      <div class="reimport">
+        <p-button
+          label="Export rules"
+          size="small"
+          [outlined]="true"
+          [loading]="rulesExporting()"
+          (onClick)="exportRulesBundle()"
+        />
+        <p-button
+          label="Import rules"
+          size="small"
+          [outlined]="true"
+          [loading]="rulesImporting()"
+          (onClick)="rulesFileInput.click()"
+        />
+        <input
+          #rulesFileInput
+          type="file"
+          accept="application/json"
+          hidden
+          (change)="importRulesBundle($event)"
+        />
+        @if (rulesBundleMessage(); as message) {
+          <span class="reimport__hint">{{ message }}</span>
+        }
+        @if (rulesBundleError(); as message) {
+          <span class="reimport__hint reimport__hint--error">{{ message }}</span>
+        }
+      </div>
     </div>
     @if (vehiclePage()?.summary; as summary) {
       <div class="stats" style="min-width: 520px">

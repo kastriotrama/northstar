@@ -25,6 +25,8 @@ import type {
   TargetVocabulary,
   TecDocCoverageReport,
   TecDocEntityPage,
+  RulesBundleExport,
+  RulesBundleImportResult,
   TecDocGapValuesResponse,
   TecDocPage,
   TecDocReimportStatus,
@@ -211,6 +213,21 @@ export class Api {
   tecdocReimportStatus(): Observable<TecDocReimportStatus> {
     return this.http.get<TecDocReimportStatus>(
       `${this.base}/v1/normalization-review/tecdoc/reimport/latest`,
+    );
+  }
+
+  /** Every manually-authored rule (TecDoc + TS) in this database, as one file. */
+  exportResolutionRules(): Observable<RulesBundleExport> {
+    return this.http.get<RulesBundleExport>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/export`,
+    );
+  }
+
+  /** Applies a bundle from `exportResolutionRules` (this DB or another) here. */
+  importResolutionRules(bundle: RulesBundleExport): Observable<RulesBundleImportResult> {
+    return this.http.post<RulesBundleImportResult>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/import`,
+      { tecdoc_rules: bundle.tecdoc_rules, ts_rules: bundle.ts_rules },
     );
   }
 

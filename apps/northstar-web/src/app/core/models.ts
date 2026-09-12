@@ -664,6 +664,23 @@ export interface TecDocReimportStatus {
   error_summary: string | null;
 }
 
+/** Every manually-authored rule (TecDoc + TS) in this database, as one portable
+ * file -- downloaded by the Export button, handed back to Import on another. */
+export interface RulesBundleExport {
+  exported_at: string;
+  tecdoc_rules: Record<string, unknown>[];
+  ts_rules: Record<string, unknown>[];
+}
+
+export interface RulesBundleImportResult {
+  tecdoc_single_target: number;
+  tecdoc_compatible: number;
+  ts_created: number;
+  ts_already_present: number;
+  ts_skipped_invalid: number;
+  ts_target_build: string | null;
+}
+
 /**
  * Populations of a gap collapsed by the shape of their value.
  *

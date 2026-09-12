@@ -14,7 +14,14 @@ from api.app.features.tecdoc_review.reimport import (
     TecDocReimportRunner,
 )
 from api.app.features.tecdoc_review.repository import TecDocReviewRepository
+from api.app.features.tecdoc_review.rules_export import (
+    NoCompletedBuildError,
+    RulesBundleService,
+)
 from api.app.features.tecdoc_review.schemas import (
+    RulesBundleExport,
+    RulesBundleImportRequest,
+    RulesBundleImportResult,
     TecDocEntityPage,
     TecDocGapValuesResponse,
     TecDocReimportStatus,
@@ -39,6 +46,15 @@ def _cached_reimport_runner() -> TecDocReimportRunner:
 
 def get_tecdoc_reimport_runner() -> TecDocReimportRunner:
     return _cached_reimport_runner()
+
+
+@lru_cache(maxsize=1)
+def _cached_rules_bundle_service() -> RulesBundleService:
+    return RulesBundleService()
+
+
+def get_rules_bundle_service() -> RulesBundleService:
+    return _cached_rules_bundle_service()
 
 
 def get_tecdoc_review_service(
@@ -294,4 +310,53 @@ def get_latest_tecdoc_reimport(
         started_at=run.started_at,
         finished_at=run.finished_at,
         error_summary=run.error_summary,
+    )
+
+
+@router.get("/resolution-rules/export", response_model=RulesBundleExport)
+def export_resolution_rules(
+    service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
+) -> RulesBundleExport:
+    """Every manually-authored rule (TecDoc + TS) in this database, as one file.
+
+    The DB stays the source of truth; this is just a carrier to another one.
+    """
+
+    try:
+        bundle = service.export()
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    return RulesBundleExport(
+        exported_at=bundle.exported_at,
+        tecdoc_rules=bundle.tecdoc_rules,
+        ts_rules=bundle.ts_rules,
+    )
+
+
+@router.post("/resolution-rules/import", response_model=RulesBundleImportResult)
+def import_resolution_rules(
+    request: RulesBundleImportRequest,
+    service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
+) -> RulesBundleImportResult:
+    """Apply a bundle from `GET /resolution-rules/export` into this database.
+
+    Always writes (no dry run here -- the CLI scripts this wraps keep that
+    for hand-inspection; a reviewer clicking Import already means to commit).
+    """
+
+    try:
+        result = service.import_bundle(
+            tecdoc_rules=request.tecdoc_rules, ts_rules=request.ts_rules
+        )
+    except NoCompletedBuildError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    return RulesBundleImportResult(
+        tecdoc_single_target=result.tecdoc_single_target,
+        tecdoc_compatible=result.tecdoc_compatible,
+        ts_created=result.ts_created,
+        ts_already_present=result.ts_already_present,
+        ts_skipped_invalid=result.ts_skipped_invalid,
+        ts_target_build=result.ts_target_build,
     )

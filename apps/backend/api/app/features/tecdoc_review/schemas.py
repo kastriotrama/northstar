@@ -35,6 +35,34 @@ class TecDocReimportStatus(BaseModel):
     error_summary: str | None
 
 
+class RulesBundleExport(BaseModel):
+    """Every manually-authored rule in this database, as one portable file.
+
+    `tecdoc_rules` is `core.tecdoc_resolution_rules` verbatim (see
+    `scripts.export_resolution_rules`); `ts_rules` is TS's own active
+    resolution rules (see `scripts.export_ts_resolution_rules`). Save the
+    response as JSON and hand it to the import endpoint on another database.
+    """
+
+    exported_at: str
+    tecdoc_rules: list[dict[str, Any]]
+    ts_rules: list[dict[str, Any]]
+
+
+class RulesBundleImportRequest(BaseModel):
+    tecdoc_rules: list[dict[str, Any]] = Field(default_factory=list)
+    ts_rules: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RulesBundleImportResult(BaseModel):
+    tecdoc_single_target: int
+    tecdoc_compatible: int
+    ts_created: int
+    ts_already_present: int
+    ts_skipped_invalid: int
+    ts_target_build: str | None = None
+
+
 class TecDocVehicle(BaseModel):
     ktype: str
     alias_id: str
