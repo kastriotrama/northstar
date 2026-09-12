@@ -21,7 +21,6 @@ import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 import { TextareaModule } from '@openng/optimus-ui/textarea';
 
-import { RulesBundleControls } from '../../components/rules-bundle-controls';
 import { Api } from '../../core/api';
 import { FilterState, OPERATORS } from '../../core/filter-state';
 import type { EditableCondition } from '../../core/filter-state';
@@ -98,7 +97,6 @@ type View = 'vehicles' | 'entities';
     ButtonModule,
     DialogModule,
     InputTextModule,
-    RulesBundleControls,
     SelectModule,
     TableModule,
     TagModule,
