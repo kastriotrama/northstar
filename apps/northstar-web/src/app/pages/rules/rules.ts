@@ -10,6 +10,7 @@ import { TableModule } from '@openng/optimus-ui/table';
 import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
+import { RulesBundleControls } from '../../components/rules-bundle-controls';
 import { Api } from '../../core/api';
 import type { RuleCatalogEntry, RuleCatalogResponse, TransformerStage } from '../../core/models';
 
@@ -22,6 +23,7 @@ import type { RuleCatalogEntry, RuleCatalogResponse, TransformerStage } from '..
     CheckboxModule,
     DialogModule,
     InputTextModule,
+    RulesBundleControls,
     SelectModule,
     TableModule,
     TagModule,

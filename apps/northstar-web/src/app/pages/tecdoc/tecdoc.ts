@@ -21,6 +21,7 @@ import type { TableLazyLoadEvent } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 import { TextareaModule } from '@openng/optimus-ui/textarea';
 
+import { RulesBundleControls } from '../../components/rules-bundle-controls';
 import { Api } from '../../core/api';
 import { FilterState, OPERATORS } from '../../core/filter-state';
 import type { EditableCondition } from '../../core/filter-state';
@@ -29,7 +30,6 @@ import type {
   TecDocEntityPage,
   TecDocGapValue,
   TecDocGapValuesResponse,
-  RulesBundleExport,
   TecDocPage as TecDocVehiclePage,
   TecDocReimportStatus,
   TecDocResolvableField,
@@ -98,6 +98,7 @@ type View = 'vehicles' | 'entities';
     ButtonModule,
     DialogModule,
     InputTextModule,
+    RulesBundleControls,
     SelectModule,
     TableModule,
     TagModule,
@@ -187,12 +188,6 @@ export class TecDocPage {
   protected readonly reimportStatus = signal<TecDocReimportStatus | null>(null);
   protected readonly reimportStarting = signal(false);
   protected readonly reimportError = signal<string | null>(null);
-
-  // --- rules bundle: export/import manually-authored TecDoc + TS rules as one file ------
-  protected readonly rulesExporting = signal(false);
-  protected readonly rulesImporting = signal(false);
-  protected readonly rulesBundleMessage = signal<string | null>(null);
-  protected readonly rulesBundleError = signal<string | null>(null);
 
   protected readonly filterLabel = computed(() => {
     const conditions = this.filter.conditions();
@@ -356,86 +351,6 @@ export class TecDocPage {
       });
   }
 
-  /** Downloads every manually-authored rule (TecDoc + TS) as one JSON file, e.g. to
-   * hand to a teammate's local DB or a fresh clone via Import below. */
-  protected exportRulesBundle(): void {
-    this.rulesExporting.set(true);
-    this.rulesBundleError.set(null);
-    this.api
-      .exportResolutionRules()
-      .pipe(
-        catchError((err: unknown) => {
-          this.rulesBundleError.set(
-            TecDocPage.describe(err, 'Could not export the rules.'),
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(),
-      )
-      .subscribe((bundle) => {
-        this.rulesExporting.set(false);
-        if (!bundle) {
-          return;
-        }
-        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `tecdoc-rules-${bundle.exported_at.slice(0, 10)}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-        this.rulesBundleMessage.set(
-          `Exported ${bundle.tecdoc_rules.length} TecDoc rule(s), ${bundle.ts_rules.length} TS rule(s).`,
-        );
-      });
-  }
-
-  /** Opens a file picker for a bundle from `exportRulesBundle` (this DB or another)
-   * and applies it here -- always a real write, no dry run. */
-  protected importRulesBundle(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    this.rulesImporting.set(true);
-    this.rulesBundleError.set(null);
-    file
-      .text()
-      .then((text) => {
-        const bundle = JSON.parse(text) as RulesBundleExport;
-        this.api
-          .importResolutionRules(bundle)
-          .pipe(
-            catchError((err: unknown) => {
-              this.rulesBundleError.set(
-                TecDocPage.describe(err, 'Could not import the rules.'),
-              );
-              return of(null);
-            }),
-            takeUntilDestroyed(),
-          )
-          .subscribe((result) => {
-            this.rulesImporting.set(false);
-            input.value = '';
-            if (!result) {
-              return;
-            }
-            this.rulesBundleMessage.set(
-              `Imported: ${result.tecdoc_single_target + result.tecdoc_compatible} TecDoc rule(s), ` +
-                `${result.ts_created} new TS rule(s) (${result.ts_already_present} already present, ` +
-                `${result.ts_skipped_invalid} skipped).`,
-            );
-          });
-      })
-      .catch(() => {
-        this.rulesImporting.set(false);
-        input.value = '';
-        this.rulesBundleError.set('That file is not valid JSON.');
-      });
-  }
 
   private vehicleRequest(): TecDocVehicleFilter {
     return {
