@@ -61,6 +61,11 @@ class RulesBundleImportResult(BaseModel):
     ts_already_present: int
     ts_skipped_invalid: int
     ts_target_build: str | None = None
+    #: TS rules from this import now running their own apply job -- each one
+    #: only touches the rows its own condition matches, the same as clicking
+    #: Apply on a rule saved by hand. Poll `GET /match-review/resolution-rules/
+    #: {rule_id}/application` for any of these to see it finish.
+    ts_rules_queued_for_apply: list[str] = Field(default_factory=list)
 
 
 class TecDocVehicle(BaseModel):

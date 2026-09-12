@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Annotated, Literal
+from uuid import UUID
 
 import psycopg
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -13,6 +14,15 @@ from api.app.features.tecdoc_review.reimport import (
     TecDocReimportNotConfiguredError,
     TecDocReimportRunner,
 )
+from api.app.features.match_review.chunk_router import (
+    get_match_review_service,
+    get_rule_application_runner,
+)
+from api.app.features.match_review.chunk_service import (
+    MatchReviewConflictError,
+    MatchReviewNotFoundError,
+)
+from api.app.features.match_review.rule_application import RuleAlreadyRunningError
 from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 from api.app.features.tecdoc_review.rules_export import (
     NoCompletedBuildError,
@@ -333,15 +343,59 @@ def export_resolution_rules(
     )
 
 
+def _queue_ts_rule_applications(
+    background: BackgroundTasks, rule_ids: tuple[str, ...]
+) -> list[str]:
+    """Schedule each newly-imported TS rule's own apply job.
+
+    Reuses exactly the plan/start/run sequence `POST /match-review/
+    resolution-rules/{rule_id}/apply` runs for a rule saved by hand: the
+    predicate a rule was authored with only ever touches the rows it matches,
+    so importing ten rules queues ten narrow jobs, never a population-wide
+    reprocess. A rule that fails to plan or is already running is skipped
+    rather than failing the whole import -- the rule itself is still saved;
+    only its re-run needs a retry (e.g. via the /rules screen's own Apply).
+    """
+
+    service = get_match_review_service()
+    runner = get_rule_application_runner()
+    queued: list[str] = []
+    for raw_id in rule_ids:
+        rule_id = UUID(raw_id)
+        try:
+            plan = service.plan_resolution_rule_application(rule_id)
+            application = runner.start(rule_id)
+        except (MatchReviewNotFoundError, MatchReviewConflictError, RuleAlreadyRunningError):
+            continue
+        background.add_task(
+            runner.run,
+            job_id=application.job_id,
+            rule_id=rule_id,
+            build_id=plan.build_id,
+            predicate=plan.predicate,
+            target_field=plan.target_field,
+            target_value=plan.target_value,
+            applied_by="rules-bundle-import",
+            on_finish=lambda rows, rid=rule_id: service.record_rule_applied(
+                rid, rows_written=rows, applied_by="rules-bundle-import"
+            ),
+        )
+        queued.append(raw_id)
+    return queued
+
+
 @router.post("/resolution-rules/import", response_model=RulesBundleImportResult)
 def import_resolution_rules(
     request: RulesBundleImportRequest,
+    background: BackgroundTasks,
     service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
 ) -> RulesBundleImportResult:
     """Apply a bundle from `GET /resolution-rules/export` into this database.
 
     Always writes (no dry run here -- the CLI scripts this wraps keep that
     for hand-inspection; a reviewer clicking Import already means to commit).
+    Every newly-inserted TS rule is then queued to apply itself against just
+    the rows its own condition matches -- see `_queue_ts_rule_applications`.
     """
 
     try:
@@ -352,6 +406,7 @@ def import_resolution_rules(
         raise HTTPException(status_code=409, detail=str(error)) from error
     except psycopg.Error as error:
         raise _unavailable() from error
+    queued = _queue_ts_rule_applications(background, result.ts_created_rule_ids)
     return RulesBundleImportResult(
         tecdoc_single_target=result.tecdoc_single_target,
         tecdoc_compatible=result.tecdoc_compatible,
@@ -359,4 +414,5 @@ def import_resolution_rules(
         ts_already_present=result.ts_already_present,
         ts_skipped_invalid=result.ts_skipped_invalid,
         ts_target_build=result.ts_target_build,
+        ts_rules_queued_for_apply=queued,
     )

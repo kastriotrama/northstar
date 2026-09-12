@@ -62,9 +62,12 @@ def test_dry_run_reports_what_would_be_created_without_writing() -> None:
     repository = FakeRepository()
     service = _service(repository)
 
-    counts = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=False)  # type: ignore[arg-type]
+    result = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=False)  # type: ignore[arg-type]
 
-    assert counts == {"created": 1, "already_present": 0, "skipped_invalid": 0}
+    assert result.created == 1
+    assert result.already_present == 0
+    assert result.skipped_invalid == 0
+    assert result.created_rule_ids == ()
     assert repository.inserted == []
 
 
@@ -72,12 +75,15 @@ def test_commit_creates_the_rule_against_this_databases_own_build() -> None:
     repository = FakeRepository()
     service = _service(repository)
 
-    counts = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
+    result = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
 
-    assert counts == {"created": 1, "already_present": 0, "skipped_invalid": 0}
+    assert result.created == 1
+    assert result.already_present == 0
+    assert result.skipped_invalid == 0
     assert len(repository.inserted) == 1
     assert repository.inserted[0]["build_id"] == BUILD_ID
     assert repository.inserted[0]["target_value"] == "fwd"
+    assert result.created_rule_ids == (repository.inserted[0]["rule_id"],)
 
 
 def test_an_equivalent_existing_rule_is_not_duplicated() -> None:
@@ -89,9 +95,12 @@ def test_an_equivalent_existing_rule_is_not_duplicated() -> None:
     ])
     service = _service(repository)
 
-    counts = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
+    result = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
 
-    assert counts == {"created": 0, "already_present": 1, "skipped_invalid": 0}
+    assert result.created == 0
+    assert result.already_present == 1
+    assert result.skipped_invalid == 0
+    assert result.created_rule_ids == ()
     assert repository.inserted == []
 
 
@@ -104,6 +113,8 @@ def test_a_rule_with_a_different_target_value_is_not_treated_as_a_duplicate() ->
     ])
     service = _service(repository)
 
-    counts = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
+    result = load_rules(service, repository, [RULE], build_id=BUILD_ID, commit=True)  # type: ignore[arg-type]
 
-    assert counts == {"created": 1, "already_present": 0, "skipped_invalid": 0}
+    assert result.created == 1
+    assert result.already_present == 0
+    assert result.skipped_invalid == 0
