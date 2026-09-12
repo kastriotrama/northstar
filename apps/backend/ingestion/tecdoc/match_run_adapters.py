@@ -323,20 +323,26 @@ class TecDocDryRunEvaluator:
         reviewed_engine_fingerprints: ReviewedEngineFingerprintIndex | None = None,
         *,
         fuel_alignment: FuelAlignment | None = None,
+        drive_alignment: FuelAlignment | None = None,
         context_policy: ContextComparisonPolicy | None = None,
         source_model_policy: ReviewedSourceModelPolicy | None = None,
     ) -> None:
         config = FuzzyMatchConfig()
         self._fuel_alignment = fuel_alignment
+        self._drive_alignment = drive_alignment
         self._context_policy = context_policy or ContextComparisonPolicy()
         self._source_model_policy = source_model_policy or ReviewedSourceModelPolicy()
         self._source_model_policy.validate_catalog(candidates)
         if fuel_alignment is not None:
             candidates = align_catalog_fuels(candidates, fuel_alignment.tecdoc_equivalences)
         compatible_pairs = fuel_alignment.compatible_pairs if fuel_alignment else frozenset()
+        drive_compatible_pairs = (
+            drive_alignment.compatible_pairs if drive_alignment else frozenset()
+        )
         self._index = ManufacturerCandidateIndex(candidates)
         self._matcher = FuzzyVehicleMatcher(
             self._index, config, fuel_compatible_pairs=compatible_pairs,
+            drive_compatible_pairs=drive_compatible_pairs,
             context_policy=self._context_policy,
         )
         expanded_candidates = (
@@ -347,6 +353,7 @@ class TecDocDryRunEvaluator:
         self._alias_index = ManufacturerCandidateIndex(expanded_candidates)
         self._alias_matcher = FuzzyVehicleMatcher(
             self._alias_index, config, fuel_compatible_pairs=compatible_pairs,
+            drive_compatible_pairs=drive_compatible_pairs,
             context_policy=self._context_policy,
         )
         self._candidate_only_references = frozenset(

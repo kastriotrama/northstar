@@ -34,9 +34,10 @@ from ingestion.translation_dictionaries import (
 
 MAPPING_VERSION = "ts-mapping-v1"
 RULE_VERSION = REVIEWED_RULE_SET_VERSION
-# The decomposed type approval adds normalized fields; do not reuse the old
-# normalization identity when the same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v10"
+# is_4wd=0 without a marketing badge now writes drive_type="2wd" instead of
+# leaving it unset; do not reuse the old normalization identity when the
+# same source/rule version is reprocessed.
+PIPELINE_VERSION = "normalization-pipeline-v11"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2630,6 +2631,16 @@ def _normalize_drive(context: NormalizationContext) -> None:
 
     marketing = _marketing_match(context, "drive_marketing")
     if marketing is None:
+        if flag == "0":
+            # No badge to contest it, so the registry's negative is the whole
+            # story: not all-wheel-drive, front vs. rear still unknown. `2wd`
+            # says exactly that -- honest and no more specific than the
+            # source -- rather than leaving a fact the registry did state
+            # looking like normalization said nothing at all. Reconciling it
+            # against TecDoc's finer fwd/rwd split is a matching-time
+            # question (`core.vocabulary_alignments`, vocabulary="drive"),
+            # never a normalization guess.
+            normalized["drive_type"] = "2wd"
         return
     rule, source_field, source_term = marketing
     _record_dictionary_match(

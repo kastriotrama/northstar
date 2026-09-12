@@ -3,10 +3,11 @@
     <div>
       <h1 class="page__title">Rules</h1>
       <p class="page__subtitle">
-        Everything that changes a value. Reviewed catalog rules can be redrafted here; the
-        lookup tables, grammars and unit conversions compiled into the pipeline are listed
-        so no transform is hidden; and the rules authored on the projection from TS data
-        are listed with the population each one resolved.
+        Everything that changes a value, from both sources. Reviewed catalog rules can be
+        redrafted here; the lookup tables, grammars and unit conversions compiled into the
+        pipeline are listed so no transform is hidden; rules authored live on the TS
+        projection or the TecDoc gap browser are listed with what each one resolved; and
+        TecDoc's own sealed, generated rules are listed alongside them.
       </p>
     </div>
     @if (catalog(); as catalog) {
@@ -27,9 +28,19 @@
           <div class="stat__hint mono">{{ catalog.pipeline_version }}</div>
         </div>
         <div class="stat">
-          <div class="stat__label">On the projection</div>
+          <div class="stat__label">Live on TS</div>
           <div class="stat__value">{{ catalog.resolution_total | number }}</div>
-          <div class="stat__hint">authored in TS data</div>
+          <div class="stat__hint">authored on the projection</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">TecDoc</div>
+          <div class="stat__value">{{ catalog.tecdoc_total | number }}</div>
+          <div class="stat__hint mono">{{ catalog.tecdoc_rule_version ?? 'no sealed version' }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Live on TecDoc</div>
+          <div class="stat__value">{{ catalog.tecdoc_resolution_total | number }}</div>
+          <div class="stat__hint">ruled from the gap browser</div>
         </div>
         <div class="stat">
           <div class="stat__label">Matching filter</div>
@@ -121,6 +132,16 @@
       style="min-width: 280px"
     />
     <p-select
+      [options]="sourceOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="source()"
+      (ngModelChange)="onSourceChange($event)"
+      [showClear]="true"
+      placeholder="Any source"
+      [style]="{ minWidth: '170px' }"
+    />
+    <p-select
       [options]="originOptions"
       optionLabel="label"
       optionValue="value"
@@ -160,6 +181,17 @@
       placeholder="Any decision"
       [style]="{ minWidth: '150px' }"
     />
+    <span class="toolbar__check">
+      <p-checkbox
+        [binary]="true"
+        [ngModel]="includeInventory()"
+        (ngModelChange)="onIncludeInventoryChange($event)"
+        inputId="include-inventory"
+      />
+      <label for="include-inventory" class="muted">
+        Include inventory — TecDoc model names &amp; manufacturers
+      </label>
+    </span>
     <p-button label="Search" [loading]="loading()" (onClick)="search()" />
     <p-button label="Clear" severity="secondary" [text]="true" (onClick)="clear()" />
   </div>
@@ -196,6 +228,7 @@
     <ng-template #header>
       <tr>
         <th style="width: 190px">Rule</th>
+        <th style="width: 62px">Source</th>
         <th style="width: 80px">Origin</th>
         <th style="width: 170px">Area</th>
         <th style="min-width: 200px">Source terms</th>
@@ -210,10 +243,17 @@
       <tr>
         <td class="mono truncate" [title]="rule.rule_id">{{ rule.rule_id }}</td>
         <td>
+          <span class="source-tag" [class.source-tag--tecdoc]="rule.source === 'tecdoc'">
+            {{ sourceLabel(rule.source) }}
+          </span>
+        </td>
+        <td>
           <span
             class="origin-tag"
             [class.origin-tag--code]="rule.origin === 'code'"
             [class.origin-tag--resolution]="rule.origin === 'resolution'"
+            [class.origin-tag--reviewed_mapping]="rule.origin === 'reviewed_mapping'"
+            [class.origin-tag--generated]="rule.origin === 'generated'"
             [title]="rule.transformer_id ?? ''"
           >
             {{ originLabel(rule.origin) }}
@@ -243,10 +283,11 @@
     </ng-template>
     <ng-template #emptymessage>
       <tr>
-        <td colspan="9" class="muted" style="padding: 1rem">No rules matched.</td>
+        <td colspan="10" class="muted" style="padding: 1rem">No rules matched.</td>
       </tr>
     </ng-template>
   </p-table>
+
 </section>
 <!-- Rule detail -->
 <p-dialog
@@ -265,11 +306,41 @@
         visible; changing it is a code change, not a draft.
       </div>
     }
-    @if (rule.origin === 'resolution') {
+    @if (rule.origin === 'resolution' && rule.source === 'transportstyrelsen') {
       <div class="notice" style="margin-bottom: 0.8rem">
         Authored on the vehicle projection from TS data, not part of the normalization
         pipeline: it runs after it, over the rows its conditions select. Edit or retire it
         where it was written.
+      </div>
+    }
+    @if (rule.origin === 'resolution' && rule.source === 'tecdoc') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Ruled live on the TecDoc gap browser, not part of a sealed rule version and not
+        generated by scanning a release. Effective immediately; correcting it means
+        resolving the value again there.
+      </div>
+    }
+    @if (rule.origin === 'reviewed_mapping') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Read from a human-reviewed mapping in TecDoc's reference data at generation time.
+        Not editable here — a correction changes that mapping and regenerates a sealed
+        version.
+      </div>
+    }
+    @if (rule.origin === 'generated') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Proposed by scanning the TecDoc release.
+        @if (rule.support) {
+          {{ rule.support | number }} rows carry this value.
+        }
+        Generation never accepts a value on its own; this stays a proposal until a
+        reviewer rules on it.
+      </div>
+    }
+    @if (rule.inventory_only) {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        Listed for completeness only — this field has no closed vocabulary, so no target
+        is ever assigned.
       </div>
     }
     @if (rule.notes) {
@@ -277,11 +348,18 @@
     }
     <table class="kv">
       <tr><td class="kv__key mono">rule_id</td><td class="mono">{{ rule.rule_id }}</td></tr>
+      <tr><td class="kv__key mono">source</td><td class="mono">{{ rule.source }}</td></tr>
       <tr><td class="kv__key mono">origin</td><td class="mono">{{ rule.origin }}</td></tr>
       @if (rule.transformer_id) {
         <tr>
           <td class="kv__key mono">transformer</td>
           <td class="mono">{{ rule.transformer_id }}</td>
+        </tr>
+      }
+      @if (rule.support !== null) {
+        <tr>
+          <td class="kv__key mono">support</td>
+          <td class="mono">{{ rule.support | number }} rows in the scanned release</td>
         </tr>
       }
       <tr><td class="kv__key mono">area</td><td class="mono">{{ rule.area }}</td></tr>
@@ -291,10 +369,10 @@
       </tr>
       <tr>
         <td class="kv__key mono">
-          {{ rule.origin === 'resolution' ? 'conditions' : 'source_terms' }}
+          {{ rule.origin === 'resolution' && rule.source === 'transportstyrelsen' ? 'conditions' : 'source_terms' }}
         </td>
         <td class="mono">
-          @if (rule.origin === 'resolution') {
+          @if (rule.origin === 'resolution' && rule.source === 'transportstyrelsen') {
             @for (condition of rule.source_terms; track condition; let last = $last) {
               <div>{{ condition }}{{ last ? '' : ' AND' }}</div>
             }

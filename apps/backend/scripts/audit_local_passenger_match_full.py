@@ -96,7 +96,6 @@ def main() -> None:
                 candidate_catalog_version=f"postgres:{catalog_version}",
                 policy_version=str(release["version"]),
                 code_revision=args.code_revision,
-                alignment_version="unpinned-legacy",
             ),
             rule_set=rules,
             manufacturer_rules=manufacturers,

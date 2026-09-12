@@ -187,6 +187,21 @@ _BODYWORK_CANONICAL_BY_KT086: dict[str, str] = {
     "053": "suv",
     "054": "van",
     "055": "van",
+    # Added from a real 72,570-ktype drop's remaining unmapped codes, checked
+    # against real ktypes rather than the code list alone (a Table 120
+    # `body_type_code` a reviewer would otherwise see as "no canonical
+    # bodywork" for real passenger vehicles TecDoc already names clearly):
+    "033": "bus",  # "Bus" -- e.g. MERCEDES-BENZ T1 Bus (B601). 2,509 ktypes.
+    "056": "van",  # "Box Body/MPV" -- e.g. FORD FIESTA Box Body/MPV, FIAT
+    # DOBLO Cargo: the light-commercial van variant of a passenger-car
+    # platform, not a people-carrier MPV despite the raw label naming both.
+    # 817 ktypes.
+    "043": "coupe",  # "Hardtop" -- e.g. CHRYSLER CORDOBA Hardtop: a
+    # pillarless hardtop is a coupe body with no B-pillar; no separate
+    # "hardtop" term exists in the target vocabulary. 146 ktypes.
+    "031": "convertible",  # "Targa" -- e.g. PORSCHE 914, FIAT X 1/9: a
+    # removable roof panel over a fixed rollover hoop; closest existing
+    # target term. 130 ktypes.
 }
 
 

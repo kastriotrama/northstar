@@ -22,9 +22,6 @@ from ingestion.match_chunks import DEFAULT_STATUS_FILTER, build_match_chunks
 from ingestion.match_run_migrations import run_match_run_migrations
 from ingestion.match_run_repository import MatchRunPins
 from ingestion.match_run_service import MatchSourceRecord, run_dry_match_audit
-from ingestion.vehicle_facts import DEFAULT_PAGE_SIZE, refresh_vehicle_facts
-from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
-from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.normalization_bundle import import_normalization_bundle
 from ingestion.rule_definition_migrations import run_rule_definition_migrations
 from ingestion.rule_delta import export_rule_delta
@@ -43,14 +40,17 @@ from ingestion.tecdoc.match_run_adapters import (
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
+from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
+from ingestion.vehicle_facts import DEFAULT_PAGE_SIZE, refresh_vehicle_facts
+from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
+from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
     link_variants_to_fuel_concepts,
+    load_drive_alignment,
     load_fuel_alignment,
     promote_vocabulary_alignments,
 )
-from ingestion.vocabulary_migrations import run_vocabulary_migrations
-from ingestion.vocabulary_seed import INITIAL_FUEL_ALIGNMENT_VERSION, apply_vocabulary_seed
 from scripts.import_remote_passenger_reviews import (
     DEFAULT_IMPORT_PREFIX,
     EXPECTED_PASSENGER_COUNT,
@@ -126,21 +126,16 @@ def build_parser() -> argparse.ArgumentParser:
     vocabulary_parser = subparsers.add_parser(
         "promote-vocabulary-alignments",
         help=(
-            "Activate a reviewed vocabulary alignment set and materialise it "
-            "in the graph. Writes nothing without --commit."
+            "Materialise the current live tecdoc_resolution_rules vocabulary "
+            "rulings (fuel/bodywork/drive) into the graph. Writes nothing "
+            "without --commit."
         ),
-    )
-    vocabulary_parser.add_argument(
-        "--alignment-version", default=INITIAL_FUEL_ALIGNMENT_VERSION
     )
     vocabulary_parser.add_argument("--vocabulary", default="fuel")
     vocabulary_parser.add_argument(
-        "--activated-by", required=True, help="Actor accountable for the activation."
-    )
-    vocabulary_parser.add_argument(
         "--commit",
         action="store_true",
-        help="Apply the seed and write the graph. Omitted means dry run.",
+        help="Write the graph. Omitted means dry run.",
     )
 
     tecdoc_rule_parser = subparsers.add_parser(
@@ -262,15 +257,6 @@ def build_parser() -> argparse.ArgumentParser:
     match_parser.add_argument(
         "--context-policy-sha256",
         help="SHA-256 pin of the approved context-policy manifest.",
-    )
-    match_parser.add_argument(
-        "--alignment-version",
-        default="unpinned-legacy",
-        help=(
-            "Vocabulary alignment set governing how TS and TecDoc terms are "
-            "compared. Defaults to the pre-alignment sentinel so existing runs "
-            "stay reproducible; pass a real version once alignments are used."
-        ),
     )
     match_parser.add_argument("--code-revision", required=True)
     match_parser.add_argument("--page-size", type=int, default=25_000)
@@ -465,21 +451,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         datastores = DatastoreClients.from_settings(settings)
         try:
             with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
-                run_vocabulary_migrations(connection)
-                seeded = (
-                    apply_vocabulary_seed(
-                        connection,
-                        alignment_version=args.alignment_version,
-                        activated_by=args.activated_by,
-                    )
-                    if args.commit
-                    else {"dry_run": 1}
-                )
-                alignments = fetch_approved_alignments(
-                    connection,
-                    alignment_version=args.alignment_version,
-                    vocabulary=args.vocabulary,
-                )
+                run_tecdoc_resolution_migrations(connection)
+                alignments = fetch_approved_alignments(connection, vocabulary=args.vocabulary)
                 written = promote_vocabulary_alignments(
                     driver, alignments, dry_run=not args.commit
                 )
@@ -493,15 +466,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             json.dumps(
                 {
-                    "alignment_version": args.alignment_version,
+                    "vocabulary": args.vocabulary,
                     "committed": bool(args.commit),
-                    "seed": seeded,
                     "graph": written,
                     "variants_linked": linked,
                 },
                 sort_keys=True,
             )
         )
+        return 0
 
     if args.command == "generate-tecdoc-rules":
         datastores = DatastoreClients.from_settings(settings)
@@ -678,10 +651,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             with datastores.postgres.connect() as connection, datastores.neo4j.driver() as driver:
                 run_match_run_migrations(connection)
-                # The evaluator reads the sealed fuel alignment, so this command
-                # owns that schema too. Without it a database migrated before the
-                # `sealed` column existed fails on the read rather than on setup.
-                run_vocabulary_migrations(connection)
+                # The evaluator reads the live vocabulary rulings, so this
+                # command owns that schema too. Without it a database migrated
+                # before these columns existed fails on the read rather than
+                # on setup.
+                run_tecdoc_resolution_migrations(connection)
                 # `load_active_rules` prefers stored rule content, so this
                 # command owns that schema as well: without the table it would
                 # silently fall back to the Python catalog and a run pinned to
@@ -718,15 +692,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                         else args.policy_version
                     ),
                     code_revision=args.code_revision,
-                    alignment_version=args.alignment_version,
                 )
                 evaluator = TecDocDryRunEvaluator(
                     catalog,
                     manufacturer_rules,
                     ReviewedModelAliasIndex(rule_set),
-                    fuel_alignment=load_fuel_alignment(
-                        connection, alignment_version=args.alignment_version
-                    ),
+                    fuel_alignment=load_fuel_alignment(connection),
+                    drive_alignment=load_drive_alignment(connection),
                     context_policy=context_policy,
                 )
                 if args.source_mode == "raw":

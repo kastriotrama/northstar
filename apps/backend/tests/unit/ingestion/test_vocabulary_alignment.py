@@ -46,7 +46,6 @@ def test_align_catalog_is_a_no_op_without_a_mapping() -> None:
 
 def test_alignment_row_rejects_an_unsupported_vocabulary_or_relation() -> None:
     common = {
-        "alignment_version": "v1",
         "source_system": "transportstyrelsen",
         "source_term": "electricity",
         "canonical_term": "electric",
@@ -60,56 +59,17 @@ def test_alignment_row_rejects_an_unsupported_vocabulary_or_relation() -> None:
 
 def test_alignment_row_builds_a_stable_assertion_identity() -> None:
     row = VocabularyAlignment(
-        alignment_version="v1",
         vocabulary="fuel",
         source_system="transportstyrelsen",
         source_term="electricity",
         canonical_term="electric",
         relation="equivalent",
         support=None,
-    ).graph_row()
+    ).graph_row(promoted_at="2026-09-09T00:00:00+00:00")
 
     assert row["alias_text"] == "electricity"
     assert row["canonical_term"] == "electric"
-    # Identity must carry the version, so a later alignment set cannot silently
-    # overwrite an earlier promoted alias.
-    assert "v1" in str(row["assertion_identity"])
-    assert str(row["assertion_identity"]).startswith("v1:")
-
-
-def test_seed_set_is_internally_consistent() -> None:
-    from ingestion.vocabulary_seed import INITIAL_FUEL_ALIGNMENT, SEED_SETS
-
-    for version, (rows, note) in SEED_SETS.items():
-        assert version.strip() and note.strip()
-        assert rows, f"{version} must define rows"
-        # One ruling per source term: a term cannot be both equivalent to a
-        # concept and merely compatible with it.
-        terms = [(r.vocabulary, r.source_system, r.source_term) for r in rows]
-        assert len(terms) == len(set(terms))
-        for row in rows:
-            assert row.relation in {"equivalent", "compatible"}
-            assert row.evidence_note.strip(), "a reviewer needs the rationale"
-            # The schema enforces this too; assert it here so a bad seed fails
-            # before it reaches a database.
-            if row.relation == "compatible":
-                assert row.support is not None
-
-    equivalences = {r.source_term: r.canonical_term
-                    for r in INITIAL_FUEL_ALIGNMENT if r.relation == "equivalent"}
-    # A canonical target must not itself be a source term, or canonicalisation
-    # would depend on iteration order.
-    assert not set(equivalences) & set(equivalences.values())
-
-
-def test_unknown_seed_version_is_rejected() -> None:
-    import pytest as _pytest
-
-    from ingestion.vocabulary_seed import apply_vocabulary_seed
-
-    with _pytest.raises(ValueError, match="unknown alignment version"):
-        apply_vocabulary_seed(
-            None,  # type: ignore[arg-type]
-            alignment_version="align-does-not-exist",
-            activated_by="tester",
-        )
+    # Identity is scoped to the vocabulary/relation/terms, not to when it was
+    # promoted -- re-promoting the same live ruling must MERGE onto the same
+    # alias node, never mint a second one.
+    assert "fuel" in str(row["assertion_identity"])

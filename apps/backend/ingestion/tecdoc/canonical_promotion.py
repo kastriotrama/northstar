@@ -71,6 +71,33 @@ def _year(value: str | None) -> int | None:
     return None if value is None else int(value[:4])
 
 
+#: KT082 (Table 120's own `drive_type_code`) codes that are not a wheel-drive
+#: configuration at all -- a motorcycle's belt, chain, cardan or direct final
+#: drive, per the official TecDoc labels (`reference_data.official_drive_type_labels`).
+#: 001-005/011 are the wheel-drive codes cars actually carry.
+_NON_WHEEL_DRIVE_TYPE_CODES: frozenset[str] = frozenset(
+    {"006", "007", "008", "009", "010", "012"}
+)
+
+#: KT086 (`body_type_code`) 051 is "Motorcycle". Table 110's own `is_pc` flag
+#: cannot exclude it: TecAlliance's format spec requires every model series to
+#: set is_pc, is_cv or is_axle, and a motorcycle is neither of the other two,
+#: so it lands in is_pc by the schema's own rule -- confirmed against a
+#: manufacturer (Harley-Davidson) that makes nothing else, where every model
+#: still carries is_pc='1'. The proper distinction TecAlliance documents
+#: (Table 115, `LTTypeExtended` code 3 = "TecDoc Motorcycle") is not present in
+#: every source drop, so this reads the two fields Table 120 always carries
+#: instead. Measured against a real 72,570-ktype drop: body_type_code=051 and
+#: a non-wheel drive_type_code identify exactly the same 9,800 ktypes in
+#: either direction -- zero disagreement -- so requiring both adds a safety
+#: margin at no measured cost.
+def _is_non_passenger_vehicle(record: TecDocHierarchyRecord) -> bool:
+    return (
+        record.body_type_code == "051"
+        and record.drive_type_code in _NON_WHEEL_DRIVE_TYPE_CODES
+    )
+
+
 def prepare_canonical_promotions(
     connection: Connection,
     *,
@@ -110,6 +137,9 @@ def prepare_canonical_promotions(
         for record in materialized:
             if promotion_limit is not None and len(promotions) >= promotion_limit:
                 break
+            if _is_non_passenger_vehicle(record):
+                skipped["non_passenger_vehicle"] += 1
+                continue
             active_engines = [engine for engine in record.engines if not engine.deleted]
             vehicle_fuel_type = (vehicle_fuels or {}).get(record.fuel_type_code or "")
             if not active_engines:
@@ -121,6 +151,11 @@ def prepare_canonical_promotions(
                             connection, batch_id, record, reason="year_missing",
                             vehicle_fuel_type=vehicle_fuel_type,
                             engine_fuel_labels=engine_fuel_labels,
+                            transmission_type_labels=transmission_type_labels,
+                            bodywork_labels=bodywork_labels,
+                            bodywork_canonical=bodywork_canonical,
+                            drive_labels=drive_labels,
+                            drive_canonical=drive_canonical,
                         )
                     continue
                 candidates = _vehicle_candidates(
@@ -175,6 +210,11 @@ def prepare_canonical_promotions(
                         connection, batch_id, record, reason="engine_ambiguous",
                         vehicle_fuel_type=vehicle_fuel_type,
                         engine_fuel_labels=engine_fuel_labels,
+                        transmission_type_labels=transmission_type_labels,
+                        bodywork_labels=bodywork_labels,
+                        bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             engine = active_engines[0]
@@ -202,6 +242,11 @@ def prepare_canonical_promotions(
                         connection, batch_id, record, reason="fuel_unresolved",
                         vehicle_fuel_type=vehicle_fuel_type,
                         engine_fuel_labels=engine_fuel_labels,
+                        transmission_type_labels=transmission_type_labels,
+                        bodywork_labels=bodywork_labels,
+                        bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             exact_displacement = None
@@ -223,6 +268,11 @@ def prepare_canonical_promotions(
                         connection, batch_id, record, reason="displacement_unresolved",
                         vehicle_fuel_type=vehicle_fuel_type,
                         engine_fuel_labels=engine_fuel_labels,
+                        transmission_type_labels=transmission_type_labels,
+                        bodywork_labels=bodywork_labels,
+                        bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             year_from = _year(record.year_from)
@@ -233,6 +283,11 @@ def prepare_canonical_promotions(
                         connection, batch_id, record, reason="year_missing",
                         vehicle_fuel_type=vehicle_fuel_type,
                         engine_fuel_labels=engine_fuel_labels,
+                        transmission_type_labels=transmission_type_labels,
+                        bodywork_labels=bodywork_labels,
+                        bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
 
@@ -291,10 +346,82 @@ def _candidate_only_vehicle_candidates(
     reason: str,
     vehicle_fuel_type: str | None = None,
     engine_fuel_labels: Mapping[str, str] | None = None,
+    transmission_type_labels: Mapping[str, str] | None = None,
+    bodywork_labels: Mapping[str, str] | None = None,
+    bodywork_canonical: Mapping[str, str] | None = None,
+    drive_labels: Mapping[str, str] | None = None,
+    drive_canonical: Mapping[str, str] | None = None,
 ) -> tuple[CanonicalCandidate, ...]:
-    """Retain an active KType for matching without making it graph-promotable."""
+    """Retain an active KType for matching without making it graph-promotable.
 
-    return (
+    Being excluded from graph promotion is an engine/fuel/displacement problem
+    (`reason`); it says nothing about whether Table 547 allocates this ktype a
+    transmission. Transmission status used to go unset here entirely, which
+    read through `coalesce(..., 'allocation_missing')` as "checked, found
+    nothing" -- indistinguishable from every ktype that genuinely has zero
+    rows. Calling the same `_transmission_summary` the promoted path uses
+    answers that question honestly for the reason this record was set aside,
+    rather than defaulting a question nobody asked.
+
+    `engine_link_status` used to read `reason` instead of `record.engines`: any
+    non-`engine_ambiguous` exclusion (a fuel, displacement or year problem
+    elsewhere) reported `review_required`, whether or not this ktype actually
+    has an engine. A ktype excluded for `displacement_unresolved` typically has
+    exactly one named Table 155 engine -- known, just set aside for something
+    that has nothing to do with the engine -- and reads the same as a ktype
+    with zero engine rows at all under that scheme. Counting active engines
+    directly answers the question this field is actually asked, and stays
+    correct even for an exclusion reason that happens to coincide with zero
+    engines (`year_missing` can).
+
+    `bodywork_link_status` was never computed here at all: every candidate-only
+    row read as `bodywork_form`'s gap predicate sees it, `IS NULL` on a join
+    that never had a row to find, whether or not `record.body_type_code`
+    actually maps. Measured against the real drop, 13,954 of 14,957
+    candidate-only ktypes carry a body_type_code the canonical table already
+    resolves -- counted as "no canonical bodywork" only because this function
+    never asked. Computed and joined exactly as `_vehicle_candidates` already
+    does, so a candidate-only ktype and a promoted one answer the same
+    question the same way.
+
+    `drive_type` had the identical gap, worse in degree: this function never
+    accepted `drive_labels`/`drive_canonical` at all, so `attributes` carried
+    the raw `tecdoc_drive_type_code` but never the mapped value -- every one
+    of a real 62,770-ktype batch's 14,957 candidate-only rows read as
+    `drive_type`'s gap predicate sees `variant_attributes->>'drive_type' IS
+    NULL`, whether or not `record.drive_type_code` maps. All 14,957 carry
+    code `001`/`002`/`003` (fwd/rwd/awd), every one resolvable. Computed
+    exactly as `_vehicle_candidates` does for the same reason bodywork is.
+    """
+
+    (
+        transmission_link_status,
+        transmission_type_name,
+        transmission_type_source,
+        transmission_candidates,
+        transmission_common_type_code,
+    ) = _transmission_summary(
+        record, _resolved_transmission(record), transmission_type_labels
+    )
+    active_engine_count = sum(1 for engine in record.engines if not engine.deleted)
+    engine_link_status = (
+        "allocation_missing" if active_engine_count == 0
+        else "ambiguous" if active_engine_count > 1
+        else "review_required"
+    )
+    canonical_bodywork = (bodywork_canonical or {}).get(record.body_type_code or "")
+    bodywork_source_key = (
+        f"bodywork:tecdoc-086:{record.body_type_code}" if canonical_bodywork else None
+    )
+    bodywork_name = (bodywork_labels or {}).get(record.body_type_code or "")
+    bodywork_link_status = (
+        "linked" if bodywork_source_key
+        else "review_required" if record.body_type_code
+        else "code_missing"
+    )
+    drive_type = (drive_canonical or {}).get(record.drive_type_code or "")
+    drive_official_label = (drive_labels or {}).get(record.drive_type_code or "")
+    candidates: list[CanonicalCandidate] = [
         CanonicalCandidate(
             "manufacturer",
             f"manufacturer:{record.manufacturer_id}",
@@ -318,8 +445,27 @@ def _candidate_only_vehicle_candidates(
                 "source_name": record.ktype_name,
                 "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
                 "model_family_source_key": f"model:{record.model_id}",
-                "engine_link_status": (
-                    "ambiguous" if reason == "engine_ambiguous" else "review_required"
+                "engine_link_status": engine_link_status,
+                "transmission_link_status": transmission_link_status,
+                **(
+                    {"transmission_type_name": transmission_type_name}
+                    if transmission_type_name
+                    else {}
+                ),
+                **(
+                    {"transmission_candidates": transmission_candidates}
+                    if transmission_candidates
+                    else {}
+                ),
+                **(
+                    {"transmission_common_type_code": transmission_common_type_code}
+                    if transmission_common_type_code
+                    else {}
+                ),
+                **(
+                    {"transmission_type_source": transmission_type_source}
+                    if transmission_type_source
+                    else {}
                 ),
                 "promotion_status": "candidate_only",
                 "candidate_only_reason": reason,
@@ -339,9 +485,24 @@ def _candidate_only_vehicle_candidates(
                 "tecdoc_fuel_code": record.fuel_type_code,
                 "vehicle_fuel_type": vehicle_fuel_type,
                 "tecdoc_engine_type_code": record.engine_type_code,
+                "drive_type": drive_type,
                 "tecdoc_drive_type_code": record.drive_type_code,
+                "tecdoc_drive_official_label": drive_official_label,
+                "drive_normalization_status": (
+                    "mapped" if drive_type else "review_required"
+                ),
                 "tecdoc_transmission_type_code": record.transmission_type_code,
                 "tecdoc_body_type_code": record.body_type_code,
+                "bodywork_link_status": bodywork_link_status,
+                "bodywork_normalization_status": (
+                    "mapped" if canonical_bodywork else "review_required"
+                ),
+                "tecdoc_bodywork_official_label": bodywork_name,
+                **(
+                    {"bodywork_source_key": bodywork_source_key}
+                    if bodywork_source_key
+                    else {}
+                ),
                 "hierarchy_link_status": "model_family_linked_platform_optional",
             },
         ),
@@ -357,7 +518,21 @@ def _candidate_only_vehicle_candidates(
                 "candidate_only_reason": reason,
             },
         ),
-    )
+    ]
+    if bodywork_source_key is not None:
+        candidates.append(
+            CanonicalCandidate(
+                "bodywork",
+                bodywork_source_key,
+                {
+                    "canonical_name": canonical_bodywork,
+                    "official_label": bodywork_name,
+                    "tecdoc_body_type_code": record.body_type_code,
+                    "terminology_status": "canonical_mapped_from_official_english",
+                },
+            )
+        )
+    return tuple(candidates)
 
 
 def _write_candidate_only(
@@ -368,6 +543,11 @@ def _write_candidate_only(
     reason: str,
     vehicle_fuel_type: str | None,
     engine_fuel_labels: Mapping[str, str] | None = None,
+    transmission_type_labels: Mapping[str, str] | None = None,
+    bodywork_labels: Mapping[str, str] | None = None,
+    bodywork_canonical: Mapping[str, str] | None = None,
+    drive_labels: Mapping[str, str] | None = None,
+    drive_canonical: Mapping[str, str] | None = None,
 ) -> int:
     _, written = _write_candidates(
         connection,
@@ -375,6 +555,11 @@ def _write_candidate_only(
         _candidate_only_vehicle_candidates(
             record, reason=reason, vehicle_fuel_type=vehicle_fuel_type,
             engine_fuel_labels=engine_fuel_labels,
+            transmission_type_labels=transmission_type_labels,
+            bodywork_labels=bodywork_labels,
+            bodywork_canonical=bodywork_canonical,
+            drive_labels=drive_labels,
+            drive_canonical=drive_canonical,
         ),
         record,
         None,
@@ -414,9 +599,13 @@ def _vehicle_candidates(
         else None
     )
     bodywork_name = (bodywork_labels or {}).get(record.body_type_code or "")
-    transmission_type_name = (transmission_type_labels or {}).get(
-        transmission.transmission_type_code or "" if transmission else ""
-    )
+    (
+        transmission_link_status,
+        transmission_type_name,
+        transmission_type_source,
+        transmission_candidates,
+        transmission_common_type_code,
+    ) = _transmission_summary(record, transmission, transmission_type_labels)
     drive_type = (drive_canonical or {}).get(record.drive_type_code or "")
     drive_official_label = (drive_labels or {}).get(record.drive_type_code or "")
     candidates = [
@@ -451,10 +640,26 @@ def _vehicle_candidates(
                 ),
                 **({"bodywork_source_key": bodywork_source_key} if bodywork_source_key else {}),
                 "engine_link_status": engine_link_status,
-                "transmission_link_status": (
-                    "linked"
-                    if transmission
-                    else "ambiguous" if record.transmissions else "allocation_missing"
+                "transmission_link_status": transmission_link_status,
+                **(
+                    {"transmission_type_name": transmission_type_name}
+                    if transmission_type_name
+                    else {}
+                ),
+                **(
+                    {"transmission_candidates": transmission_candidates}
+                    if transmission_candidates
+                    else {}
+                ),
+                **(
+                    {"transmission_common_type_code": transmission_common_type_code}
+                    if transmission_common_type_code
+                    else {}
+                ),
+                **(
+                    {"transmission_type_source": transmission_type_source}
+                    if transmission_type_source
+                    else {}
                 ),
                 "bodywork_link_status": (
                     "linked"
@@ -657,3 +862,65 @@ def _resolved_transmission(record: TecDocHierarchyRecord) -> TransmissionAllocat
     """Return a transmission only when Table 547 resolves one distinct Table 544 row."""
 
     return record.transmissions[0] if len(record.transmissions) == 1 else None
+
+
+def _transmission_summary(
+    record: TecDocHierarchyRecord,
+    transmission: TransmissionAllocation | None,
+    transmission_type_labels: Mapping[str, str] | None,
+) -> tuple[str, str | None, str | None, list[dict[str, object]] | None, str | None]:
+    """Report every Table 547 allocation rather than only a single resolved one.
+
+    A ktype with two allocations is not the same fact as a ktype with none: the
+    first says the source names two real options and does not say which one
+    fits a given car; the second says the source names nothing at all. Folding
+    both into one "ambiguous"/"missing" pair, as this used to, reported the
+    same "no transmission" story for both and discarded the two option codes
+    a reviewer could otherwise see and a later match could disambiguate against
+    (e.g. from the TS registry's own manual/automatic gearbox field).
+
+    `transmission_common_type_code` is the one thing safe to promote without
+    picking a specific transmission: the KT085 category every listed option
+    agrees on, or nothing when they do not. It is never a guess at which
+    physical part is fitted, only at which category all the named options
+    share.
+
+    When Table 547 has no allocation at all, Table 120 carries the ktype's own
+    `transmission_type_code` directly -- read but previously never looked up
+    against `transmission_type_labels`, so a real, cheap answer sat unused
+    beside "no transmission allocation" on every affected ktype.
+    """
+
+    labels = transmission_type_labels or {}
+    if transmission is not None:
+        return (
+            "linked",
+            labels.get(transmission.transmission_type_code or ""),
+            None,
+            None,
+            None,
+        )
+    if record.transmissions:
+        type_codes = {item.transmission_type_code for item in record.transmissions}
+        common_type_code = next(iter(type_codes)) if len(type_codes) == 1 else None
+        candidates: list[dict[str, object]] = [
+            {
+                "id": item.transmission_id,
+                "code": item.transmission_code,
+                "type_code": item.transmission_type_code,
+                "speeds": item.speeds,
+            }
+            for item in record.transmissions
+        ]
+        return (
+            "linked_multiple",
+            labels.get(common_type_code or "") if common_type_code else None,
+            None,
+            candidates,
+            common_type_code,
+        )
+    own_code = record.transmission_type_code
+    own_label = labels.get(own_code or "") if own_code else None
+    if own_label:
+        return ("type_known", own_label, "ktype_technical_data", None, None)
+    return ("allocation_missing", None, None, None, None)

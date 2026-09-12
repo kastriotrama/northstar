@@ -28,6 +28,7 @@ NODE_LABELS_BY_PREFIX: dict[NodeIdPrefix, str] = {
     NodeIdPrefix.TRANSMISSION: "Transmission",
     NodeIdPrefix.BODY_TYPE: "BodyType",
     NodeIdPrefix.FUEL_TYPE: "FuelType",
+    NodeIdPrefix.DRIVE_TYPE: "DriveType",
     NodeIdPrefix.VEHICLE_VARIANT: "VehicleVariant",
     NodeIdPrefix.ALIAS: "Alias",
 }

@@ -643,9 +643,12 @@ _STAGES: Mapping[str, _StageSpec] = {
     "ts.drive": _StageSpec(
         summary=(
             "Reads the registry all-wheel-drive flag and compares it with marketing drive "
-            "names, sending a contradiction to review rather than picking one."
+            "names, sending a contradiction to review rather than picking one. An "
+            "unconfirmed negative writes `2wd` -- not all-wheel-drive, front vs. rear left "
+            "for matching-time alignment rather than guessed here."
         ),
         rule_areas=("drive_flag", "drive_marketing"),
+        writes=("drive_type",),
         review_reasons=("drive_registry_marketing_conflict", "is_4wd_malformed"),
     ),
     "ts.fuel": _StageSpec(

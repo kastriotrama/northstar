@@ -82,7 +82,46 @@ def pg_connection() -> Iterator[Connection]:
     run_tecdoc_migrations(connection)
     run_tecdoc_rule_migrations(connection)
     yield connection
+    _remove_test_rows(connection)
     connection.close()
+
+
+def _remove_test_rows(connection: Connection) -> None:
+    """Delete everything this module wrote, so a shared database stays usable.
+
+    These tests may run against a real database, and the rows they seal are
+    versions like any other. `fetch_tecdoc_rules` reads the *newest* sealed
+    version, so leaving them behind makes a sixteen-rule fixture outrank the
+    real catalog scan and the Rules screen shows the fixture -- which is exactly
+    what happened before this teardown existed.
+
+    The immutability trigger has to come off to do it. That is the point of the
+    trigger and it stays on for everyone else; a test that seals throwaway
+    versions is the one caller entitled to take its own rows back out.
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"ALTER TABLE {TECDOC_RULES_TABLE} DISABLE TRIGGER tecdoc_rules_immutable")
+        cursor.execute(
+            f"ALTER TABLE {TECDOC_RULE_VERSIONS_TABLE} DISABLE TRIGGER tecdoc_rule_versions_guard"
+        )
+        cursor.execute(f"DELETE FROM {TECDOC_RULES_TABLE} WHERE rule_version LIKE 'test-%'")
+        cursor.execute(
+            f"DELETE FROM {TECDOC_RULE_VERSIONS_TABLE} WHERE rule_version LIKE 'test-%'"
+        )
+        cursor.execute(
+            "DELETE FROM core.tecdoc_canonical_candidates WHERE batch_id IN "
+            "(SELECT batch_id FROM core.tecdoc_source_batches WHERE source_version = %s)",
+            (RELEASE,),
+        )
+        cursor.execute(
+            "DELETE FROM core.tecdoc_source_batches WHERE source_version = %s", (RELEASE,)
+        )
+        cursor.execute(f"ALTER TABLE {TECDOC_RULES_TABLE} ENABLE TRIGGER tecdoc_rules_immutable")
+        cursor.execute(
+            f"ALTER TABLE {TECDOC_RULE_VERSIONS_TABLE} ENABLE TRIGGER tecdoc_rule_versions_guard"
+        )
+    connection.commit()
 
 
 @pytest.fixture
