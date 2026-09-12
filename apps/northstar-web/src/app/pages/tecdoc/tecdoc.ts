@@ -151,6 +151,18 @@ export class TecDocPage {
   protected readonly gapValues = signal<TecDocGapValuesResponse | null>(null);
   protected readonly gapValuesLoading = signal(false);
 
+  /** `transmission_missing`/`transmission_multiple` (and `engine_missing`/
+   * `engine_multiple`) are each two slices of one underlying question -- does
+   * this ktype resolve to one, several named options, a category/engine known
+   * without a clean allocation, or nothing at all. No single gap tile shows
+   * that whole picture, so all four open the same breakdown, keyed on which
+   * `_link_status` field they ask about: the plain facet already computed for
+   * every other condition on this screen, not a new count. */
+  protected readonly linkStatusBreakdownOpen = signal(false);
+  protected readonly linkStatusBreakdownKind = signal<'transmission' | 'engine' | null>(null);
+  protected readonly linkStatusBreakdown = signal<TecDocVehicleFacet | null>(null);
+  protected readonly linkStatusBreakdownLoading = signal(false);
+
   // --- resolving one value ----------------------------------------------------------
   protected readonly resolving = signal<TecDocGapValue | null>(null);
   protected readonly resolveDecision = signal<'accepted' | 'excluded'>('accepted');
@@ -432,6 +444,85 @@ export class TecDocPage {
         this.error.set(TecDocPage.describe(err, 'Could not read that gap.'));
       },
     });
+  }
+
+  /** The full `transmission_link_status` distribution for the current filter --
+   * what both transmission gap tiles are two slices of. Reuses the same facet
+   * endpoint the filter panel's own facets already call; this is not a new
+   * count, just the one question neither tile answers alone. */
+  protected openLinkStatusBreakdown(kind: 'transmission' | 'engine'): void {
+    this.linkStatusBreakdownKind.set(kind);
+    this.linkStatusBreakdownOpen.set(true);
+    this.linkStatusBreakdownLoading.set(true);
+    const field = kind === 'transmission' ? 'transmission_link_status' : 'engine_link_status';
+    this.api.tecdocVehicleFacet(this.vehicleRequest(), field, 10).subscribe({
+      next: (facet) => {
+        this.linkStatusBreakdown.set(facet);
+        this.linkStatusBreakdownLoading.set(false);
+      },
+      error: (err: unknown) => {
+        this.linkStatusBreakdownLoading.set(false);
+        this.error.set(TecDocPage.describe(err, 'Could not read that breakdown.'));
+      },
+    });
+  }
+
+  /** Dispatches to whichever field's own label function matches the open
+   * breakdown -- one dialog, two vocabularies. */
+  protected linkStatusLabel(value: string): { label: string; hint: string } {
+    return this.linkStatusBreakdownKind() === 'engine'
+      ? this.engineStatusLabel(value)
+      : this.transmissionStatusLabel(value);
+  }
+
+  /** Label + one-line meaning for a `transmission_link_status` facet value --
+   * the same four states `ingestion.tecdoc.canonical_promotion._transmission_summary`
+   * assigns, spelled out for a reviewer rather than left as the raw status string. */
+  protected transmissionStatusLabel(value: string): { label: string; hint: string } {
+    switch (value) {
+      case 'linked':
+        return { label: 'Single transmission', hint: 'Table 547 resolves to exactly one.' };
+      case 'linked_multiple':
+        return {
+          label: 'Multiple options',
+          hint: 'Table 547 names two or more; none selected for this ktype.',
+        };
+      case 'type_known':
+        return {
+          label: 'Category known, no allocation',
+          hint: "Read from the ktype's own Table 120 field, not an allocation.",
+        };
+      case 'allocation_missing':
+        return { label: 'No transmission data', hint: 'Zero rows in Table 547 for this ktype.' };
+      default:
+        return { label: value, hint: '' };
+    }
+  }
+
+  /** Same four-state question as `transmissionStatusLabel`, for
+   * `engine_link_status`: `review_required` means a real, single Table 155
+   * engine excluded for a fuel/displacement/year reason that has nothing to
+   * do with the engine -- known, just not graph-promotable, the same as
+   * `type_known` on the transmission side. */
+  protected engineStatusLabel(value: string): { label: string; hint: string } {
+    switch (value) {
+      case 'linked':
+        return { label: 'Single engine', hint: 'Exactly one active Table 155 engine.' };
+      case 'ambiguous':
+        return {
+          label: 'Multiple engines',
+          hint: 'Two or more active engines; none selected for this ktype.',
+        };
+      case 'review_required':
+        return {
+          label: 'Engine known, set aside',
+          hint: 'One real engine, excluded for an unrelated fuel/displacement/year reason.',
+        };
+      case 'allocation_missing':
+        return { label: 'No engine data', hint: 'Zero active engines for this ktype.' };
+      default:
+        return { label: value, hint: '' };
+    }
   }
 
   protected openResolve(value: TecDocGapValue): void {

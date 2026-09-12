@@ -226,6 +226,24 @@
                   {{ gapField() === gap.field ? 'hide values' : 'browse values →' }}
                 </button>
               }
+              @if (gap.field === 'transmission_missing') {
+                <button
+                  type="button"
+                  class="linkish linkish--strong"
+                  (click)="openLinkStatusBreakdown('transmission')"
+                >
+                  breakdown →
+                </button>
+              }
+              @if (gap.field === 'engine_missing') {
+                <button
+                  type="button"
+                  class="linkish linkish--strong"
+                  (click)="openLinkStatusBreakdown('engine')"
+                >
+                  breakdown →
+                </button>
+              }
             </span>
           </li>
         } @empty {
@@ -435,6 +453,46 @@
       </tr>
     }
   </table>
+</p-dialog>
+
+<!-- ---------------------------------------------------------------- link status breakdown -->
+<p-dialog
+  [header]="linkStatusBreakdownKind() === 'engine' ? 'Engine link status' : 'Transmission link status'"
+  [visible]="linkStatusBreakdownOpen()"
+  (visibleChange)="linkStatusBreakdownOpen.set($event)"
+  [modal]="true"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [dismissableMask]="true"
+>
+  <p class="muted" style="margin-top: 0">
+    Every promoted or candidate ktype matching the current filter, by whether it resolves
+    to one {{ linkStatusBreakdownKind() }}, several named options, a known value with no
+    clean allocation, or nothing.
+  </p>
+  @if (linkStatusBreakdownLoading()) {
+    <p class="muted" role="status" aria-live="polite">Reading the breakdown…</p>
+  } @else if (linkStatusBreakdown(); as facet) {
+    <table class="kv">
+      @for (row of facet.values; track row.value) {
+        <tr>
+          <td class="kv__key">
+            {{ linkStatusLabel(row.value).label }}
+            <div class="muted" style="font-size: 0.85em; font-weight: normal">
+              {{ linkStatusLabel(row.value).hint }}
+            </div>
+          </td>
+          <td class="mono" style="text-align: right; vertical-align: top">
+            {{ row.count | number }}
+            <span class="muted">
+              ({{ facet.matched_rows ? (row.count / facet.matched_rows * 100 | number: '1.0-1') : 0 }}%)
+            </span>
+          </td>
+        </tr>
+      } @empty {
+        <tr><td class="muted">No ktypes matched.</td></tr>
+      }
+    </table>
+  }
 </p-dialog>
 
 <!-- ---------------------------------------------------------------------- resolve -->

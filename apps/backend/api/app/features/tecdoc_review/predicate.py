@@ -75,22 +75,44 @@ GAP_FIELDS: dict[str, tuple[str, str]] = {
         "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type') IS NULL",
     ),
     "bodywork_form": (
-        "No canonical bodywork.",
+        "Has a body type code; canonical mapping needs review.",
         "coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value) IS NULL",
     ),
     "drive_type": (
         "No canonical drive type.",
         "coalesce(variant_attributes->>'drive_type', drive_resolution_value) IS NULL",
     ),
-    "engine": (
-        "No engine allocation.",
-        "coalesce(variant_attributes->>'engine_link_status', 'allocation_missing') <> 'linked'",
+    # Split from one "engine" gap for the same reason "transmission" was: a
+    # ktype set aside for `engine_ambiguous` has 2+ real, named Table 155
+    # engines, and one set aside for `fuel_unresolved`/`displacement_unresolved`
+    # typically has exactly one -- neither is "no engine allocation", the label
+    # this used to report for both alongside genuine zero-engine ktypes.
+    # `review_required` (a real single engine, excluded for a reason that has
+    # nothing to do with the engine) is deliberately excluded, same as
+    # `type_known` is for transmission below: it is not an engine gap.
+    # `ambiguous` (2+ named engines, none selected) is deliberately not its own
+    # tile here either -- it is not "missing" anything, and the breakdown
+    # already reachable from this tile's own button reports it, from the
+    # same `engine_link_status` facet, without a second top-level number for
+    # what is really one underlying question.
+    "engine_missing": (
+        "No engine data in TecDoc at all.",
+        "coalesce(variant_attributes->>'engine_link_status', 'allocation_missing') = 'allocation_missing'",
     ),
-    "transmission": (
-        "No transmission allocation.",
+    # Split from one "transmission" gap: a ktype with zero Table 547 rows and a
+    # ktype with two is not the same fact, and folding both into "no
+    # transmission allocation" hid the second group's real, named options from
+    # a reviewer entirely. `type_known` -- a category read off the ktype's own
+    # Table 120 field rather than an allocation -- is deliberately excluded:
+    # it is not an allocation gap, it already answers the question this
+    # screen asks. `linked_multiple` is likewise not its own tile, for the
+    # same reason `ambiguous` is not above: its own breakdown already reports
+    # it from the same `transmission_link_status` facet.
+    "transmission_missing": (
+        "No transmission data in TecDoc at all.",
         (
             "coalesce(variant_attributes->>'transmission_link_status', 'allocation_missing') "
-            "<> 'linked'"
+            "= 'allocation_missing'"
         ),
     ),
 }
