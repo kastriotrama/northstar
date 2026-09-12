@@ -54,6 +54,12 @@ class RulesImportResult:
     ts_already_present: int
     ts_skipped_invalid: int
     ts_target_build: str | None
+    #: Newly-inserted TS rule ids -- the caller (the import endpoint) schedules
+    #: each one's own apply job against just the rows its condition matches,
+    #: the same run a reviewer gets by clicking Apply after saving a rule by
+    #: hand. A rule already present is left alone: it either already ran or is
+    #: mid-run, and re-queuing it would duplicate that work.
+    ts_created_rule_ids: tuple[str, ...] = ()
 
 
 class SettingsFactory(Protocol):

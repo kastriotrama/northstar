@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -72,6 +73,17 @@ def _already_present(
     )
 
 
+@dataclass(frozen=True)
+class TsRuleLoadResult:
+    created: int
+    already_present: int
+    skipped_invalid: int
+    #: Rules actually inserted this call -- what a caller (e.g. the rules-bundle
+    #: import endpoint) needs to know which ones to run against the population,
+    #: as opposed to one that was already present and needs no re-run.
+    created_rule_ids: tuple[UUID, ...]
+
+
 def load_rules(
     service: MatchReviewService,
     repository: MatchReviewRepository,
@@ -79,14 +91,17 @@ def load_rules(
     *,
     build_id: UUID,
     commit: bool,
-) -> dict[str, int]:
-    counts = {"created": 0, "already_present": 0, "skipped_invalid": 0}
+) -> TsRuleLoadResult:
+    created = 0
+    already_present = 0
+    skipped_invalid = 0
+    created_rule_ids: list[UUID] = []
     for rule in rules:
         if _already_present(repository, build_id=build_id, rule=rule):
-            counts["already_present"] += 1
+            already_present += 1
             continue
         if not commit:
-            counts["created"] += 1
+            created += 1
             continue
         request = ResolutionRuleRequest(
             build_id=build_id,
@@ -99,13 +114,19 @@ def load_rules(
             note=rule.get("note"),
         )
         try:
-            service.save_resolution_rule(request)
+            saved = service.save_resolution_rule(request)
         except MatchReviewConflictError as error:
             print(f"  skipped {rule['source_field']}={rule['source_value']!r}: {error}")
-            counts["skipped_invalid"] += 1
+            skipped_invalid += 1
             continue
-        counts["created"] += 1
-    return counts
+        created += 1
+        created_rule_ids.append(saved.rule_id)
+    return TsRuleLoadResult(
+        created=created,
+        already_present=already_present,
+        skipped_invalid=skipped_invalid,
+        created_rule_ids=tuple(created_rule_ids),
+    )
 
 
 def main() -> None:
@@ -132,12 +153,12 @@ def main() -> None:
         raise SystemExit("No completed build in this database -- nothing to attach rules to.")
     build_id = latest_build["build_id"]
 
-    counts = load_rules(service, repository, rules, build_id=build_id, commit=args.commit)
+    result = load_rules(service, repository, rules, build_id=build_id, commit=args.commit)
 
     verb = "Created" if args.commit else "Would create"
     print(
-        f"{verb}: {counts['created']}, already present: {counts['already_present']}, "
-        f"skipped (invalid here): {counts['skipped_invalid']}"
+        f"{verb}: {result.created}, already present: {result.already_present}, "
+        f"skipped (invalid here): {result.skipped_invalid}"
     )
     print(f"Target build: {build_id}")
     if not args.commit:
