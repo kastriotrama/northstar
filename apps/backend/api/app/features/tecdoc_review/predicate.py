@@ -27,7 +27,10 @@ SUPPORTED_OPERATORS: frozenset[str] = TEXT_OPERATORS | NUMERIC_OPERATORS
 FILTERABLE_FIELDS: dict[str, str] = {
     "manufacturer": "manufacturer_attributes->>'canonical_name'",
     "model_family": "family_attributes->>'canonical_name'",
-    "fuel_type": "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type')",
+    "fuel_type": (
+        "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type', "
+        "variant_attributes->>'vehicle_fuel_type')"
+    ),
     # Falls back to a live ruling from `core.tecdoc_resolution_rules` (joined
     # into the CTE as `bodywork_resolution_value`/`drive_resolution_value`)
     # before the promoted batch's own value -- the Tier 1 promotion-loop
@@ -45,7 +48,18 @@ FILTERABLE_FIELDS: dict[str, str] = {
         "IS NOT NULL THEN 'mapped' "
         "ELSE coalesce(variant_attributes->>'drive_normalization_status', 'review_required') END"
     ),
-    "transmission_type_name": "transmission_attributes->>'transmission_type_name'",
+    # `transmission_attributes` (the joined `transmission` entity) only ever
+    # exists for a `linked` -- single, unambiguous -- allocation: neither
+    # `linked_multiple` nor `type_known` nor a candidate-only `linked` gets one
+    # written (see `canonical_promotion._vehicle_candidates`/
+    # `_candidate_only_vehicle_candidates`). `_transmission_summary` already
+    # writes the same value onto `variant_attributes` for every one of those
+    # cases, so read that first -- the same fix `energy_sources`/`drive_type`
+    # needed for their own candidate-only blind spot.
+    "transmission_type_name": (
+        "coalesce(transmission_attributes->>'transmission_type_name', "
+        "variant_attributes->>'transmission_type_name')"
+    ),
     "transmission_link_status": (
         "coalesce(variant_attributes->>'transmission_link_status', 'allocation_missing')"
     ),
@@ -72,7 +86,10 @@ _NUMERIC_FIELDS: frozenset[str] = frozenset({"year_from", "year_to"})
 GAP_FIELDS: dict[str, tuple[str, str]] = {
     "energy_sources": (
         "No canonical fuel.",
-        "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type') IS NULL",
+        (
+            "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type', "
+            "variant_attributes->>'vehicle_fuel_type') IS NULL"
+        ),
     ),
     "bodywork_form": (
         "Has a body type code; canonical mapping needs review.",

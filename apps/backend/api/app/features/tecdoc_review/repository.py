@@ -80,7 +80,8 @@ _VEHICLES_CTE = """
 _SEARCH_CONDITION = """concat_ws(' ', source_key,
     variant_attributes->>'source_name', manufacturer_attributes->>'canonical_name',
     family_attributes->>'canonical_name', engine_attributes->>'engine_code',
-    engine_attributes->>'fuel_type', transmission_attributes->>'transmission_code',
+    engine_attributes->>'fuel_type', variant_attributes->>'vehicle_fuel_type',
+    transmission_attributes->>'transmission_code',
     bodywork_attributes->>'tecdoc_body_type_code') ILIKE %s"""
 
 
@@ -92,7 +93,10 @@ _SEARCH_CONDITION = """concat_ws(' ', source_key,
 _PROMOTED_VALUE_EXPR: dict[str, str] = {
     "bodywork_form": "coalesce(bodywork_attributes->>'canonical_name', bodywork_resolution_value)",
     "drive_type": "coalesce(variant_attributes->>'drive_type', drive_resolution_value)",
-    "energy_sources": "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type')",
+    "energy_sources": (
+        "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type', "
+        "variant_attributes->>'vehicle_fuel_type')"
+    ),
     "transmission_type": "NULL",
 }
 
@@ -300,9 +304,12 @@ class TecDocReviewRepository:
                 "e.attributes",
             ),
             "fuel": (
-                "'fuel:' || coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type')",
-                "coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type')",
-                "jsonb_build_object('fuel_type', coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type'))",
+                "'fuel:' || coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
+                "v.attributes->>'vehicle_fuel_type')",
+                "coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
+                "v.attributes->>'vehicle_fuel_type')",
+                "jsonb_build_object('fuel_type', coalesce(e.attributes->>'fuel_type', "
+                "v.attributes->>'fuel_type', v.attributes->>'vehicle_fuel_type'))",
             ),
             "bodywork": (
                 "bw.source_key",

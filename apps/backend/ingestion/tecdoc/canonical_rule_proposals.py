@@ -91,6 +91,14 @@ class FieldSource:
 FIELD_SOURCES: tuple[FieldSource, ...] = (
     FieldSource("engine", "fuel_type", "energy_sources", "fuel", key_table="088"),
     FieldSource("vehicle_variant", "fuel_type", "energy_sources", "fuel", key_table="182"),
+    # `canonical_promotion` writes a candidate-only vehicle's KT182 fuel to
+    # `vehicle_fuel_type`, never to `fuel_type` -- `fuel_type` is reserved for
+    # an engine-resolved single fuel, which a candidate-only ktype by
+    # definition does not have (that is what candidate-only means for
+    # `fuel_unresolved`/`engine_ambiguous`). Without this entry the scan never
+    # saw those ktypes' vehicle-level fuel at all, the same blind spot the
+    # read-side gap queries had (see `tecdoc_review.predicate.GAP_FIELDS`).
+    FieldSource("vehicle_variant", "vehicle_fuel_type", "energy_sources", "fuel", key_table="182"),
     FieldSource("bodywork", "canonical_name", "bodywork_form", "bodywork", key_table="086"),
     FieldSource("vehicle_variant", "drive_type", "drive_type", "drive", key_table="082"),
     # Two writers fill `core.tecdoc_canonical_candidates` and they do not agree
@@ -103,6 +111,18 @@ FIELD_SOURCES: tuple[FieldSource, ...] = (
     FieldSource("transmission", "type", "transmission_type", "transmission", key_table="085"),
     FieldSource(
         "transmission", "transmission_type_name", "transmission_type", "transmission",
+        key_table="085",
+    ),
+    # The `transmission` entity above only exists for a `linked` -- single,
+    # unambiguous -- allocation. `_transmission_summary` writes the same KT085
+    # label onto `variant_attributes` for `linked_multiple` and `type_known`
+    # too, and for every candidate-only ktype regardless of status, none of
+    # which ever get a `transmission` entity. Without this entry the scan
+    # never saw that majority's transmission type at all, the same blind spot
+    # `energy_sources`/`drive_type` had (see `tecdoc_review.predicate` and
+    # `tecdoc_review.gaps`).
+    FieldSource(
+        "vehicle_variant", "transmission_type_name", "transmission_type", "transmission",
         key_table="085",
     ),
     FieldSource(

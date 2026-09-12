@@ -561,7 +561,15 @@ class TecDocReviewService:
             engine_code=engine.get("engine_code"),
             transmission_code=transmission.get("transmission_code"),
             transmission_type_code=transmission.get("tecdoc_transmission_type_code"),
-            transmission_type_name=transmission.get("transmission_type_name"),
+            # `transmission` (the joined entity) is only ever populated for a
+            # `linked` allocation -- `linked_multiple`/`type_known` and every
+            # candidate-only ktype never get one, even though
+            # `_transmission_summary` already put the same label on the
+            # variant itself. Same fallback pattern as `bodywork_code` below.
+            transmission_type_name=(
+                transmission.get("transmission_type_name")
+                or variant.get("transmission_type_name")
+            ),
             transmission_speeds=transmission.get("speeds"),
             transmission_link_status=str(
                 variant.get("transmission_link_status") or "allocation_missing"

@@ -95,7 +95,8 @@ GAP_VALUE_SPECS: dict[str, GapValueSpec] = {
         ),
         label_expr=None,
         unresolved_sql=(
-            "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type') "
+            "coalesce(engine_attributes->>'fuel_type', variant_attributes->>'fuel_type', "
+            "variant_attributes->>'vehicle_fuel_type') "
             "IS NULL AND coalesce(variant_attributes->>'tecdoc_engine_fuel_label', "
             "variant_attributes->>'tecdoc_fuel_code') IS NOT NULL"
         ),
@@ -104,12 +105,27 @@ GAP_VALUE_SPECS: dict[str, GapValueSpec] = {
     # TecDoc-side reviewed dict to gate on, unlike bodywork/drive -- so the
     # transmission entity's own label always survives unconditionally, and
     # every KType carrying one counts as open until a reviewer rules on it.
+    #
+    # `transmission_attributes` (the joined `transmission` entity) only exists
+    # for a `linked` allocation -- `linked_multiple`/`type_known` ktypes, and
+    # every candidate-only one regardless of status, never get one written,
+    # even though `_transmission_summary` already put the same label on
+    # `variant_attributes` for all of them. Reading `transmission_attributes`
+    # alone silently hid that majority from this browser and from
+    # `generate-tecdoc-rules`' scan -- the same blind spot fixed for
+    # `energy_sources`/`drive_type`.
     "transmission_type": GapValueSpec(
         canonical_field="transmission_type",
         key_table="085",
-        value_expr="transmission_attributes->>'transmission_type_name'",
+        value_expr=(
+            "coalesce(transmission_attributes->>'transmission_type_name', "
+            "variant_attributes->>'transmission_type_name')"
+        ),
         label_expr=None,
-        unresolved_sql="transmission_attributes->>'transmission_type_name' IS NOT NULL",
+        unresolved_sql=(
+            "coalesce(transmission_attributes->>'transmission_type_name', "
+            "variant_attributes->>'transmission_type_name') IS NOT NULL"
+        ),
     ),
 }
 

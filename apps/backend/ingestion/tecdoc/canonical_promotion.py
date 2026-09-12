@@ -154,6 +154,8 @@ def prepare_canonical_promotions(
                             transmission_type_labels=transmission_type_labels,
                             bodywork_labels=bodywork_labels,
                             bodywork_canonical=bodywork_canonical,
+                            drive_labels=drive_labels,
+                            drive_canonical=drive_canonical,
                         )
                     continue
                 candidates = _vehicle_candidates(
@@ -211,6 +213,8 @@ def prepare_canonical_promotions(
                         transmission_type_labels=transmission_type_labels,
                         bodywork_labels=bodywork_labels,
                         bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             engine = active_engines[0]
@@ -241,6 +245,8 @@ def prepare_canonical_promotions(
                         transmission_type_labels=transmission_type_labels,
                         bodywork_labels=bodywork_labels,
                         bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             exact_displacement = None
@@ -265,6 +271,8 @@ def prepare_canonical_promotions(
                         transmission_type_labels=transmission_type_labels,
                         bodywork_labels=bodywork_labels,
                         bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
             year_from = _year(record.year_from)
@@ -278,6 +286,8 @@ def prepare_canonical_promotions(
                         transmission_type_labels=transmission_type_labels,
                         bodywork_labels=bodywork_labels,
                         bodywork_canonical=bodywork_canonical,
+                        drive_labels=drive_labels,
+                        drive_canonical=drive_canonical,
                     )
                 continue
 
@@ -339,6 +349,8 @@ def _candidate_only_vehicle_candidates(
     transmission_type_labels: Mapping[str, str] | None = None,
     bodywork_labels: Mapping[str, str] | None = None,
     bodywork_canonical: Mapping[str, str] | None = None,
+    drive_labels: Mapping[str, str] | None = None,
+    drive_canonical: Mapping[str, str] | None = None,
 ) -> tuple[CanonicalCandidate, ...]:
     """Retain an active KType for matching without making it graph-promotable.
 
@@ -371,6 +383,15 @@ def _candidate_only_vehicle_candidates(
     never asked. Computed and joined exactly as `_vehicle_candidates` already
     does, so a candidate-only ktype and a promoted one answer the same
     question the same way.
+
+    `drive_type` had the identical gap, worse in degree: this function never
+    accepted `drive_labels`/`drive_canonical` at all, so `attributes` carried
+    the raw `tecdoc_drive_type_code` but never the mapped value -- every one
+    of a real 62,770-ktype batch's 14,957 candidate-only rows read as
+    `drive_type`'s gap predicate sees `variant_attributes->>'drive_type' IS
+    NULL`, whether or not `record.drive_type_code` maps. All 14,957 carry
+    code `001`/`002`/`003` (fwd/rwd/awd), every one resolvable. Computed
+    exactly as `_vehicle_candidates` does for the same reason bodywork is.
     """
 
     (
@@ -398,6 +419,8 @@ def _candidate_only_vehicle_candidates(
         else "review_required" if record.body_type_code
         else "code_missing"
     )
+    drive_type = (drive_canonical or {}).get(record.drive_type_code or "")
+    drive_official_label = (drive_labels or {}).get(record.drive_type_code or "")
     candidates: list[CanonicalCandidate] = [
         CanonicalCandidate(
             "manufacturer",
@@ -462,7 +485,12 @@ def _candidate_only_vehicle_candidates(
                 "tecdoc_fuel_code": record.fuel_type_code,
                 "vehicle_fuel_type": vehicle_fuel_type,
                 "tecdoc_engine_type_code": record.engine_type_code,
+                "drive_type": drive_type,
                 "tecdoc_drive_type_code": record.drive_type_code,
+                "tecdoc_drive_official_label": drive_official_label,
+                "drive_normalization_status": (
+                    "mapped" if drive_type else "review_required"
+                ),
                 "tecdoc_transmission_type_code": record.transmission_type_code,
                 "tecdoc_body_type_code": record.body_type_code,
                 "bodywork_link_status": bodywork_link_status,
@@ -518,6 +546,8 @@ def _write_candidate_only(
     transmission_type_labels: Mapping[str, str] | None = None,
     bodywork_labels: Mapping[str, str] | None = None,
     bodywork_canonical: Mapping[str, str] | None = None,
+    drive_labels: Mapping[str, str] | None = None,
+    drive_canonical: Mapping[str, str] | None = None,
 ) -> int:
     _, written = _write_candidates(
         connection,
@@ -528,6 +558,8 @@ def _write_candidate_only(
             transmission_type_labels=transmission_type_labels,
             bodywork_labels=bodywork_labels,
             bodywork_canonical=bodywork_canonical,
+            drive_labels=drive_labels,
+            drive_canonical=drive_canonical,
         ),
         record,
         None,
