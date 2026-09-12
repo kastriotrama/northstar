@@ -1,16 +1,23 @@
+from functools import lru_cache
 from typing import Annotated, Literal
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
 from api.app.features.tecdoc_review.gaps import TecDocResolveError
 from api.app.features.tecdoc_review.predicate import UnknownTecDocFieldError
+from api.app.features.tecdoc_review.reimport import (
+    TecDocReimportAlreadyRunningError,
+    TecDocReimportNotConfiguredError,
+    TecDocReimportRunner,
+)
 from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 from api.app.features.tecdoc_review.schemas import (
     TecDocEntityPage,
     TecDocGapValuesResponse,
+    TecDocReimportStatus,
     TecDocResolution,
     TecDocResolveRequest,
     TecDocReviewPage,
@@ -23,6 +30,15 @@ from api.app.features.tecdoc_review.schemas import (
 from api.app.features.tecdoc_review.service import TecDocReviewService
 
 router = APIRouter(prefix="/v1/normalization-review/tecdoc", tags=["tecdoc-review"])
+
+
+@lru_cache(maxsize=1)
+def _cached_reimport_runner() -> TecDocReimportRunner:
+    return TecDocReimportRunner()
+
+
+def get_tecdoc_reimport_runner() -> TecDocReimportRunner:
+    return _cached_reimport_runner()
 
 
 def get_tecdoc_review_service(
@@ -223,3 +239,59 @@ def list_tecdoc_entities(
         raise HTTPException(
             status_code=503, detail="TecDoc entity data is temporarily unavailable."
         ) from error
+
+
+@router.post("/reimport", response_model=TecDocReimportStatus, status_code=202)
+def start_tecdoc_reimport(
+    background: BackgroundTasks,
+    runner: Annotated[TecDocReimportRunner, Depends(get_tecdoc_reimport_runner)],
+) -> TecDocReimportStatus:
+    """Start a full reimport: fresh `.dat` extraction, written to Postgres and the graph.
+
+    Returns as soon as the run is claimed, not when it finishes -- the full
+    drop takes several minutes. Poll `GET /reimport/latest` until it settles.
+    """
+
+    try:
+        run = runner.start()
+    except TecDocReimportNotConfiguredError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except TecDocReimportAlreadyRunningError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    background.add_task(runner.run, job_id=run.job_id, batch_id=run.batch_id)
+    return TecDocReimportStatus(
+        job_id=run.job_id,
+        batch_id=run.batch_id,
+        status=run.status,
+        source_ktypes=run.source_ktypes,
+        graph_rows_written=run.graph_rows_written,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        error_summary=run.error_summary,
+    )
+
+
+@router.get("/reimport/latest", response_model=TecDocReimportStatus)
+def get_latest_tecdoc_reimport(
+    runner: Annotated[TecDocReimportRunner, Depends(get_tecdoc_reimport_runner)],
+) -> TecDocReimportStatus:
+    """The latest reimport run -- what the screen polls while it works."""
+
+    try:
+        run = runner.latest()
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    if run is None:
+        raise HTTPException(status_code=404, detail="No reimport has been run yet.")
+    return TecDocReimportStatus(
+        job_id=run.job_id,
+        batch_id=run.batch_id,
+        status=run.status,
+        source_ktypes=run.source_ktypes,
+        graph_rows_written=run.graph_rows_written,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        error_summary=run.error_summary,
+    )

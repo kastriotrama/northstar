@@ -649,6 +649,22 @@ export interface ResolutionRuleApplication {
 }
 
 /**
+ * A run of a full TecDoc reimport -- fresh `.dat` extraction written to
+ * Postgres and the live graph. Also a background job: the full drop takes
+ * several minutes, so the screen polls this until it settles.
+ */
+export interface TecDocReimportStatus {
+  job_id: number;
+  batch_id: string;
+  status: 'running' | 'completed' | 'failed';
+  source_ktypes: number;
+  graph_rows_written: number;
+  started_at: string;
+  finished_at: string | null;
+  error_summary: string | null;
+}
+
+/**
  * Populations of a gap collapsed by the shape of their value.
  *
  * Grouping by exact value is what the original worklist did, and it hid the largest

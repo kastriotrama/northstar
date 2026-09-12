@@ -228,8 +228,8 @@ def load_postgres_ktype_catalog(
             relationship_fuel_components.setdefault(ktype, set()).update(
                 _flatten_strings(row["fuel_components"])
             )
-    drive_by_code = canonical_drive_by_kt082()
-    bodywork_by_code = canonical_bodywork_by_kt086()
+    drive_by_code = canonical_drive_by_kt082(connection)
+    bodywork_by_code = canonical_bodywork_by_kt086(connection)
     candidates = tuple(
         VehicleCandidate(
             candidate_reference=str(row["ktype"]),

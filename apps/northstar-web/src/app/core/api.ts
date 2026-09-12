@@ -27,6 +27,7 @@ import type {
   TecDocEntityPage,
   TecDocGapValuesResponse,
   TecDocPage,
+  TecDocReimportStatus,
   TecDocResolution,
   TecDocResolveRequest,
   TecDocUnresolvedSummary,
@@ -191,6 +192,25 @@ export class Api {
     return this.http.get<TecDocVehicleDetail>(
       `${this.base}/v1/normalization-review/tecdoc/vehicles/detail`,
       { params: params({ source_key: sourceKey }) },
+    );
+  }
+
+  /**
+   * Starts a full TecDoc reimport: fresh `.dat` extraction, written to Postgres
+   * and the live graph. Returns as soon as the run is claimed, not when it
+   * finishes -- the full drop takes several minutes. Poll `tecdocReimportStatus`
+   * until it settles.
+   */
+  startTecDocReimport(): Observable<TecDocReimportStatus> {
+    return this.http.post<TecDocReimportStatus>(
+      `${this.base}/v1/normalization-review/tecdoc/reimport`,
+      {},
+    );
+  }
+
+  tecdocReimportStatus(): Observable<TecDocReimportStatus> {
+    return this.http.get<TecDocReimportStatus>(
+      `${this.base}/v1/normalization-review/tecdoc/reimport/latest`,
     );
   }
 

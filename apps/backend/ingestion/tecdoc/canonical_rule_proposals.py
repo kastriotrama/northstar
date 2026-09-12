@@ -100,7 +100,34 @@ FIELD_SOURCES: tuple[FieldSource, ...] = (
     # read-side gap queries had (see `tecdoc_review.predicate.GAP_FIELDS`).
     FieldSource("vehicle_variant", "vehicle_fuel_type", "energy_sources", "fuel", key_table="182"),
     FieldSource("bodywork", "canonical_name", "bodywork_form", "bodywork", key_table="086"),
+    # The two entries above scan a value only *after* `canonical_promotion`
+    # has already resolved it: a `bodywork` entity's `canonical_name` and
+    # `vehicle_variant.drive_type` are both written from
+    # `reference_data.canonical_bodywork_by_kt086`/`canonical_drive_by_kt082`
+    # in the first place, so their observed term is already a canonical
+    # spelling. Every one of those rows resolves via the
+    # "already spells a canonical token" branch, `proposed`, never
+    # `accepted` -- `reviewed_by_field` is keyed by the raw KT086/KT082 code,
+    # which an already-canonical string never matches. A version generated
+    # from only these two would have zero accepted bodywork_form/drive_type
+    # rows to read back, which is silent in exactly the way this registry's
+    # own tests exist to catch.
+    #
+    # `tecdoc_body_type_code`/`tecdoc_drive_type_code` are the same record's
+    # *raw* codes, written unconditionally by `canonical_promotion` (both the
+    # promoted and candidate-only paths) alongside the canonical ones. Scanning
+    # those instead makes `reviewed_by_field`'s lookup actually hit: a code in
+    # `canonical_bodywork_by_kt086`/`canonical_drive_by_kt082` is `accepted`,
+    # anything else (Municipal Vehicle, Truck Tractor, ...) is `proposed` with
+    # `support` -- the raw-code mapping a promotion or matcher run needs back,
+    # not an identity restating what promotion already decided.
+    FieldSource(
+        "vehicle_variant", "tecdoc_body_type_code", "bodywork_form", "bodywork", key_table="086",
+    ),
     FieldSource("vehicle_variant", "drive_type", "drive_type", "drive", key_table="082"),
+    FieldSource(
+        "vehicle_variant", "tecdoc_drive_type_code", "drive_type", "drive", key_table="082",
+    ),
     # Two writers fill `core.tecdoc_canonical_candidates` and they do not agree
     # on this attribute's name: `tecdoc.mapping.candidates_for_row` writes the
     # raw extract value as `type`, while `tecdoc.canonical_promotion` writes the
@@ -609,3 +636,57 @@ def store_rules(
         )
     connection.commit()
     return {"version_created": int(created), "rules_inserted": inserted, "sealed": 1}
+
+
+def load_accepted_tecdoc_rules(
+    connection: Connection,
+    *,
+    entity_type: str,
+    source_field: str,
+    canonical_field: str,
+) -> dict[str, str] | None:
+    """The newest sealed version's accepted code->canonical mapping for one field.
+
+    Reads back exactly what `reference_data.canonical_bodywork_by_kt086`/
+    `canonical_drive_by_kt082` need: a flat raw-code dict, not the full rule
+    row. Scoped to one `(entity_type, source_field)` pair because the same
+    `canonical_field` can be observed from more than one attribute -- an
+    already-canonicalized one (`bodywork.canonical_name`,
+    `vehicle_variant.drive_type`) and the raw code this reads instead; mixing
+    both in would let the identity rows from the first stand in for the
+    second's real mapping.
+
+    None when the table does not exist, no version is sealed, or this
+    (entity_type, source_field) never contributed an accepted row -- the
+    caller's Python dict is the correct answer in every one of those cases,
+    not an error.
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT to_regclass(%s) IS NOT NULL AND to_regclass(%s) IS NOT NULL",
+            (TECDOC_RULES_TABLE, TECDOC_RULE_VERSIONS_TABLE),
+        )
+        row = cursor.fetchone()
+        if not (row and row[0]):
+            return None
+
+        cursor.execute(
+            f"SELECT rule_version FROM {TECDOC_RULE_VERSIONS_TABLE} "
+            "WHERE sealed IS TRUE ORDER BY generated_at DESC, rule_version DESC LIMIT 1"
+        )
+        version_row = cursor.fetchone()
+        if version_row is None:
+            return None
+        rule_version = str(version_row[0])
+
+        cursor.execute(
+            f"SELECT source_term, canonical_value FROM {TECDOC_RULES_TABLE} "
+            "WHERE rule_version = %s AND entity_type = %s AND source_field = %s "
+            "AND canonical_field = %s AND decision = 'accepted'",
+            (rule_version, entity_type, source_field, canonical_field),
+        )
+        rows = cursor.fetchall()
+    if not rows:
+        return None
+    return {str(term): str(value) for term, value in rows}

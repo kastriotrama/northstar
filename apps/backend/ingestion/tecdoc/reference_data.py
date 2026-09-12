@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ingestion.tecdoc.fixed_width import ParsedRow, read_table
+
+if TYPE_CHECKING:
+    from psycopg import Connection
 
 
 def _required(row: ParsedRow, field: str) -> str:
@@ -205,10 +208,37 @@ _BODYWORK_CANONICAL_BY_KT086: dict[str, str] = {
 }
 
 
-def canonical_bodywork_by_kt086() -> dict[str, str]:
-    """Return reviewed TecDoc body codes that safely map to NorthStar vocabulary."""
+def canonical_bodywork_by_kt086(connection: Connection | None = None) -> dict[str, str]:
+    """Return reviewed TecDoc body codes that safely map to NorthStar vocabulary.
 
-    return dict(_BODYWORK_CANONICAL_BY_KT086)
+    Prefers the newest sealed `core.tecdoc_rules` version's accepted rows for
+    this exact (entity_type, source_field) when a connection is given, so a
+    rule generated from a real release reaches promotion and the matcher
+    without a code deploy.
+
+    Merged onto this Python dict, not swapped for it: `generate-tecdoc-rules`
+    only proposes a rule for a code the *scanned batch* actually observed, so
+    a real code this dict already covers safely can be absent from any one
+    generation (a rarer drive-type code may simply not appear in a given
+    sample). Replacing outright would make a promotion or match run regress
+    on that code the moment a rule version happened not to observe it; a
+    database row is only ever additional, reviewed evidence layered on top,
+    and wins on a code where the two disagree.
+    """
+
+    merged = dict(_BODYWORK_CANONICAL_BY_KT086)
+    if connection is not None:
+        from ingestion.tecdoc.canonical_rule_proposals import load_accepted_tecdoc_rules
+
+        stored = load_accepted_tecdoc_rules(
+            connection,
+            entity_type="vehicle_variant",
+            source_field="tecdoc_body_type_code",
+            canonical_field="bodywork_form",
+        )
+        if stored is not None:
+            merged.update(stored)
+    return merged
 
 
 def official_drive_type_labels(reference_directory: Path) -> dict[str, str]:
@@ -227,10 +257,28 @@ _DRIVE_CANONICAL_BY_KT082: dict[str, str] = {
 }
 
 
-def canonical_drive_by_kt082() -> dict[str, str]:
-    """Map only wheel-drive classifications to NorthStar drive vocabulary."""
+def canonical_drive_by_kt082(connection: Connection | None = None) -> dict[str, str]:
+    """Map only wheel-drive classifications to NorthStar drive vocabulary.
 
-    return dict(_DRIVE_CANONICAL_BY_KT082)
+    Same database-first merge as `canonical_bodywork_by_kt086`: a generated
+    rule version only covers the codes its scan actually observed, so a rarer
+    code (e.g. "Permanent All-wheel Drive") absent from one release's sample
+    must not disappear from what this returns.
+    """
+
+    merged = dict(_DRIVE_CANONICAL_BY_KT082)
+    if connection is not None:
+        from ingestion.tecdoc.canonical_rule_proposals import load_accepted_tecdoc_rules
+
+        stored = load_accepted_tecdoc_rules(
+            connection,
+            entity_type="vehicle_variant",
+            source_field="tecdoc_drive_type_code",
+            canonical_field="drive_type",
+        )
+        if stored is not None:
+            merged.update(stored)
+    return merged
 
 
 @dataclass(frozen=True)

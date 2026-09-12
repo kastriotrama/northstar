@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,24 @@ class TecDocPromotionSummary(BaseModel):
     model_families: int = 0
     engines: int = 0
     hierarchy_status: str = "model_family_linked_platform_optional"
+
+
+class TecDocReimportStatus(BaseModel):
+    """A run of the full reimport, for a screen to poll while it works.
+
+    Re-extracting every `.dat` file and re-writing the graph takes several
+    minutes for the full drop, so the request that starts it returns this
+    rather than the finished result.
+    """
+
+    job_id: int
+    batch_id: str
+    status: Literal["running", "completed", "failed"]
+    source_ktypes: int
+    graph_rows_written: int
+    started_at: datetime
+    finished_at: datetime | None
+    error_summary: str | None
 
 
 class TecDocVehicle(BaseModel):

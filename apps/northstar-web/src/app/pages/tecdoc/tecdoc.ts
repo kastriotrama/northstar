@@ -2,7 +2,16 @@ import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject, catchError, debounceTime, forkJoin, of, switchMap } from 'rxjs';
+import {
+  Subject,
+  catchError,
+  debounceTime,
+  forkJoin,
+  interval,
+  of,
+  switchMap,
+  takeWhile,
+} from 'rxjs';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { DialogModule } from '@openng/optimus-ui/dialog';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
@@ -21,6 +30,7 @@ import type {
   TecDocGapValue,
   TecDocGapValuesResponse,
   TecDocPage as TecDocVehiclePage,
+  TecDocReimportStatus,
   TecDocResolvableField,
   TecDocUnresolvedField,
   TecDocVehicleDetail,
@@ -172,6 +182,11 @@ export class TecDocPage {
   protected readonly resolveSaving = signal(false);
   protected readonly resolveError = signal<string | null>(null);
 
+  // --- reimport: re-extract every .dat file, written to Postgres and the graph ----------
+  protected readonly reimportStatus = signal<TecDocReimportStatus | null>(null);
+  protected readonly reimportStarting = signal(false);
+  protected readonly reimportError = signal<string | null>(null);
+
   protected readonly filterLabel = computed(() => {
     const conditions = this.filter.conditions();
     if (conditions.length === 0) {
@@ -267,6 +282,71 @@ export class TecDocPage {
       });
 
     this.reload();
+
+    // Resume watching a reimport that was already running before this page loaded
+    // (a reload, or another reviewer starting it) -- the job survives in
+    // `core.ingest_job_runs` even though nothing about it lives in this component.
+    this.api
+      .tecdocReimportStatus()
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(),
+      )
+      .subscribe((status) => {
+        if (!status) {
+          return;
+        }
+        this.reimportStatus.set(status);
+        if (status.status === 'running') {
+          this.pollReimport();
+        }
+      });
+  }
+
+  /** Kicks off a full reimport: fresh `.dat` extraction, written to Postgres and the
+   * live graph the matcher reads. Fixes made since the last import (a corrected
+   * bodywork/drive rule, a code newly mapped) only reach the matcher once this has
+   * run -- editing the source data alone does not. */
+  protected startReimport(): void {
+    if (this.reimportStatus()?.status === 'running') {
+      return;
+    }
+    this.reimportStarting.set(true);
+    this.reimportError.set(null);
+    this.api
+      .startTecDocReimport()
+      .pipe(
+        catchError((err: unknown) => {
+          this.reimportError.set(
+            TecDocPage.describe(err, 'Could not start the reimport.'),
+          );
+          return of(null);
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((status) => {
+        this.reimportStarting.set(false);
+        if (!status) {
+          return;
+        }
+        this.reimportStatus.set(status);
+        this.pollReimport();
+      });
+  }
+
+  /** Polls the reimport job every few seconds until it leaves "running". */
+  private pollReimport(): void {
+    interval(5000)
+      .pipe(
+        switchMap(() => this.api.tecdocReimportStatus().pipe(catchError(() => of(null)))),
+        takeWhile((status) => !status || status.status === 'running', true),
+        takeUntilDestroyed(),
+      )
+      .subscribe((status) => {
+        if (status) {
+          this.reimportStatus.set(status);
+        }
+      });
   }
 
   private vehicleRequest(): TecDocVehicleFilter {

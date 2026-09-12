@@ -6,6 +6,39 @@
         The promoted TecDoc catalogue. Filter the ktype population, see what it still
         cannot say about itself, and open a row for the full payload.
       </p>
+      <div class="reimport">
+        <p-button
+          label="Reimport from TecDoc"
+          size="small"
+          [outlined]="true"
+          [loading]="reimportStarting() || reimportStatus()?.status === 'running'"
+          (onClick)="startReimport()"
+        />
+        @if (reimportStatus(); as run) {
+          @switch (run.status) {
+            @case ('running') {
+              <span class="reimport__hint">
+                Reimporting batch {{ run.batch_id }} -- writing to Postgres and the graph.
+                This runs several minutes; feel free to keep working.
+              </span>
+            }
+            @case ('completed') {
+              <span class="reimport__hint">
+                Last reimport ({{ run.batch_id }}): {{ run.graph_rows_written | number }} ktypes
+                written to the graph, of {{ run.source_ktypes | number }} extracted.
+              </span>
+            }
+            @case ('failed') {
+              <span class="reimport__hint reimport__hint--error">
+                Last reimport ({{ run.batch_id }}) failed: {{ run.error_summary }}
+              </span>
+            }
+          }
+        }
+        @if (reimportError(); as message) {
+          <span class="reimport__hint reimport__hint--error">{{ message }}</span>
+        }
+      </div>
     </div>
     @if (vehiclePage()?.summary; as summary) {
       <div class="stats" style="min-width: 520px">
