@@ -7,7 +7,10 @@ import pytest
 from psycopg import Connection
 
 from ingestion.config import get_ingestion_settings
-from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
+from ingestion.tecdoc.resolution_migrations import (
+    TECDOC_RESOLUTION_RULES_TABLE,
+    run_tecdoc_resolution_migrations,
+)
 from ingestion.vocabulary_alignment import load_fuel_alignment
 from scripts.port_vocabulary_alignment_seed import port_seed
 
@@ -19,8 +22,15 @@ def connection() -> Iterator[Connection]:
         pytest.skip("requires explicitly isolated test environment")
     with psycopg.connect(settings.database_url) as connection:
         run_tecdoc_resolution_migrations(connection)
+        # Several tests here commit (the seed port, a reviewer correction), so a
+        # rollback cannot undo them. Each test starts from an empty table, or a
+        # test that expects no rulings sees the previous test's rows.
+        connection.execute(f"DELETE FROM {TECDOC_RESOLUTION_RULES_TABLE}")
+        connection.commit()
         yield connection
         connection.rollback()
+        connection.execute(f"DELETE FROM {TECDOC_RESOLUTION_RULES_TABLE}")
+        connection.commit()
 
 
 def test_seed_port_is_idempotent_and_live_rules_are_loaded(connection: Connection) -> None:

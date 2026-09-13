@@ -237,8 +237,14 @@ class NormalizationReviewRepository:
                         {payload} #>> '{{normalized,bodywork_form}}',
                         {payload} #>> '{{normalized,transmission_type}}',
                         {payload} #> '{{normalized,energy_sources}}',
-                        source_brand,
-                        source_evidence->>'plate'
+                        -- Brand and plate live on the staged row, which the CTE no
+                        -- longer carries. Looked up here, the join runs only while
+                        -- a search is active; a plain page never pays for it.
+                        (
+                            SELECT concat_ws(' ', raw.raw_record->>'brand', raw.raw_record->>'plate')
+                            FROM staging.transportstyrelsen_raw AS raw
+                            WHERE raw.id = source_record_id
+                        )
                     ) ILIKE %s
                     """
                 )
