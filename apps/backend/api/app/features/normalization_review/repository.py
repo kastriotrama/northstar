@@ -57,6 +57,11 @@ class NormalizationReviewRepository:
         conditions, parameters = self._filter_conditions(filters)
         where_clause = sql.SQL(" AND ").join(conditions) if conditions else sql.SQL("TRUE")
         batch_condition, batch_parameters = self._batch_condition(batch_id)
+        # The staging lookup is deliberately not in this CTE. Collapsing an
+        # all-parts view spans every part of a dump -- 6.5M rows once the whole
+        # registry is normalized -- and a correlated raw_record subquery inside
+        # the CTE runs once per row before LIMIT applies, and again for the
+        # count. The page is joined to staging after it has been cut to size.
         cte = (
             sql.SQL(
             f"""
@@ -68,17 +73,7 @@ class NormalizationReviewRepository:
                     confidence,
                     normalized_payload,
                     applied_rule_ids,
-                    review_reasons,
-                    (
-                        SELECT raw.raw_record
-                        FROM staging.transportstyrelsen_raw AS raw
-                        WHERE raw.id = source_record_id
-                    ) AS source_evidence,
-                        (
-                        SELECT raw.raw_record->>'brand'
-                        FROM staging.transportstyrelsen_raw AS raw
-                        WHERE raw.id = source_record_id
-                    ) AS source_brand
+                    review_reasons
                 FROM {NORMALIZATION_RESULTS_TABLE}
                 WHERE
             """
@@ -101,11 +96,19 @@ class NormalizationReviewRepository:
             cursor.execute(
                 cte
                 + sql.SQL(
-                    "SELECT source_record_id, status, confidence, normalized_payload, "
-                    "applied_rule_ids, review_reasons, source_evidence, source_brand, source_batch_id FROM latest WHERE "
+                    "SELECT page.source_record_id, page.status, page.confidence, "
+                    "page.normalized_payload, page.applied_rule_ids, page.review_reasons, "
+                    "raw.raw_record AS source_evidence, "
+                    "raw.raw_record->>'brand' AS source_brand, page.source_batch_id "
+                    "FROM (SELECT * FROM latest WHERE "
                 )
                 + where_clause
-                + sql.SQL(" ORDER BY source_record_id LIMIT %s OFFSET %s"),
+                + sql.SQL(
+                    " ORDER BY source_record_id LIMIT %s OFFSET %s) AS page "
+                    "LEFT JOIN staging.transportstyrelsen_raw AS raw "
+                    "ON raw.id = page.source_record_id "
+                    "ORDER BY page.source_record_id"
+                ),
                 (*batch_parameters, *parameters, filters.limit, filters.offset),
             )
             rows = cursor.fetchall()
