@@ -6,24 +6,21 @@ import { ButtonModule } from '@openng/optimus-ui/button';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 
 import { Api } from '../core/api';
-import type { RulesBundleExport, RulesBundleImportResult } from '../core/models';
+import type { RulesBundleImportResult } from '../core/models';
 
 const LIVE_URL_STORAGE_KEY = 'rules-bundle-live-url';
 const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
 
 /**
- * Export/import every manually-authored rule (TecDoc gap rulings + TS resolution
- * rules) as one JSON file, plus sync straight against a live server.
+ * Sync every manually-authored rule (TecDoc gap rulings + TS resolution rules)
+ * straight against a live server -- no file ever touches disk.
  *
- * The DB is always the source of truth for what's live; export/import is a carrier
- * between databases -- a rule added on one machine reaches another with a click
- * instead of running `scripts/export_resolution_rules.py` / `load_resolution_rules.py`
- * by hand. Pull/Push do the same round trip server-to-server against whatever URL is
- * typed in below (remembered per browser), so three people working at once -- two
- * local, one live -- can move rules around without a file ever touching disk. A
- * genuine edit collision (both sides changed the same TecDoc rule) is never silently
- * overwritten: the older side's write is refused and reported back as a conflict --
- * see `tecdoc_conflicts` on the result.
+ * The DB is always the source of truth for what's live. Pull/Push run the same
+ * round trip server-to-server against whatever URL is typed in below (remembered
+ * per browser), so three people working at once -- two local, one live -- can
+ * move rules around directly. A genuine edit collision (both sides changed the
+ * same TecDoc rule) is never silently overwritten: the older side's write is
+ * refused and reported back as a conflict -- see `tecdoc_conflicts` on the result.
  *
  * Shared between `/tecdoc` (where a rule is usually first written) and `/rules`
  * (which already browses both sources together) so either screen can move rules
@@ -34,29 +31,6 @@ const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
   imports: [FormsModule, ButtonModule, InputTextModule],
   template: `
     <div class="rules-bundle">
-      <div class="rules-bundle__row">
-        <p-button
-          label="Export rules"
-          size="small"
-          [outlined]="true"
-          [loading]="exporting()"
-          (onClick)="export()"
-        />
-        <p-button
-          label="Import rules"
-          size="small"
-          [outlined]="true"
-          [loading]="importing()"
-          (onClick)="fileInput.click()"
-        />
-        <input
-          #fileInput
-          type="file"
-          accept="application/json"
-          hidden
-          (change)="import($event)"
-        />
-      </div>
       <div class="rules-bundle__row">
         <input
           pInputText
@@ -129,8 +103,6 @@ const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
 export class RulesBundleControls {
   private readonly api = inject(Api);
 
-  protected readonly exporting = signal(false);
-  protected readonly importing = signal(false);
   protected readonly pulling = signal(false);
   protected readonly pushing = signal(false);
   protected readonly liveUrl = signal(RulesBundleControls.remembered(LIVE_URL_STORAGE_KEY));
@@ -229,76 +201,6 @@ export class RulesBundleControls {
           `is older than what's already here. Review before overwriting by hand.`,
       );
     }
-  }
-
-  protected export(): void {
-    this.exporting.set(true);
-    this.error.set(null);
-    this.api
-      .exportResolutionRules(this.syncToken().trim() || undefined)
-      .pipe(
-        catchError((err: unknown) => {
-          this.error.set(RulesBundleControls.describe(err, 'Could not export the rules.'));
-          return of(null);
-        }),
-        takeUntilDestroyed(),
-      )
-      .subscribe((bundle) => {
-        this.exporting.set(false);
-        if (!bundle) {
-          return;
-        }
-        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `tecdoc-rules-${bundle.exported_at.slice(0, 10)}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-        this.message.set(
-          `Exported ${bundle.tecdoc_rules.length} TecDoc rule(s), ${bundle.ts_rules.length} TS rule(s).`,
-        );
-      });
-  }
-
-  protected import(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    this.importing.set(true);
-    this.error.set(null);
-    this.conflictMessage.set(null);
-    file
-      .text()
-      .then((text) => {
-        const bundle = JSON.parse(text) as RulesBundleExport;
-        this.api
-          .importResolutionRules(bundle, this.syncToken().trim() || undefined)
-          .pipe(
-            catchError((err: unknown) => {
-              this.error.set(RulesBundleControls.describe(err, 'Could not import the rules.'));
-              return of(null);
-            }),
-            takeUntilDestroyed(),
-          )
-          .subscribe((result) => {
-            this.importing.set(false);
-            input.value = '';
-            if (!result) {
-              return;
-            }
-            this.reportImportResult(result, 'Imported');
-          });
-      })
-      .catch(() => {
-        this.importing.set(false);
-        input.value = '';
-        this.error.set('That file is not valid JSON.');
-      });
   }
 
   private static describe(error: unknown, fallback: string): string {

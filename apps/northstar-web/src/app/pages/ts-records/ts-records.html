@@ -19,6 +19,27 @@
         </div>
         <div class="stat__hint">of {{ total() ?? 0 | number }} cars</div>
       </div>
+      <div class="stat">
+        <div class="stat__label">Resolved</div>
+        <div class="stat__value" style="color: var(--p-green-600, #16a34a)">
+          {{ statusCount('resolved') | number }}
+        </div>
+        <div class="stat__hint">by normalization or a rule</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Provisional</div>
+        <div class="stat__value" style="color: var(--p-yellow-600, #ca8a04)">
+          {{ statusCount('provisional') | number }}
+        </div>
+        <div class="stat__hint">a guess, not yet confirmed</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Review required</div>
+        <div class="stat__value" style="color: var(--p-red-600, #dc2626)">
+          {{ statusCount('review_required') | number }}
+        </div>
+        <div class="stat__hint">normalization could not decide</div>
+      </div>
       @if (unresolvedField(); as field) {
         <div class="stat">
           <div class="stat__label">Restricted to</div>

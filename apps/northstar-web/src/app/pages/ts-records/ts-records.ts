@@ -85,6 +85,8 @@ export class TsRecordsPage {
   protected readonly total = signal<number | null>(null);
   protected readonly unresolved = signal<UnresolvedFieldCount[]>([]);
   protected readonly facet = signal<VehicleFacet | null>(null);
+  /** resolved / provisional / review_required / failed, for the matched set. */
+  protected readonly statusBreakdown = signal<VehicleFacet | null>(null);
   protected readonly loading = signal(false);
   protected readonly summaryLoading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -178,6 +180,7 @@ export class TsRecordsPage {
             count: this.api.countVehicles(request),
             page: this.api.vehiclePage(request, { cursor: 0, limit: 100 }),
             facet: this.api.vehicleFacet(request, this.draftField(), 12),
+            status: this.api.vehicleFacet(request, 'norm_status', 10),
           }).pipe(
             catchError((err: unknown) => {
               this.error.set(TsRecordsPage.describe(err, 'Could not read the population.'));
@@ -198,6 +201,7 @@ export class TsRecordsPage {
         this.rows.set(result.page.items);
         this.hasMore.set(result.page.has_more);
         this.facet.set(result.facet);
+        this.statusBreakdown.set(result.status);
         this.cursors.set([0]);
         this.pageIndex.set(0);
       });
@@ -477,6 +481,11 @@ export class TsRecordsPage {
       return 'success';
     }
     return status === 'rule_resolved' ? 'info' : 'warn';
+  }
+
+  /** How many matched cars sit in each `norm_status`, for the overview cards. */
+  protected statusCount(status: string): number {
+    return this.statusBreakdown()?.values.find((entry) => entry.value === status)?.count ?? 0;
   }
 
   // --- the handoff ----------------------------------------------------------------------

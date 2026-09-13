@@ -62,6 +62,8 @@ def _column(layer: str, field: str) -> tuple[str, bool]:
     """
 
     if layer == "source":
+        if field == "norm_status":
+            return field, False
         if field not in _SOURCE_COLUMNS:
             raise UnknownFieldError(f"{field!r} is not a projected source column")
         return field, field in _INTEGER_COLUMNS
@@ -176,8 +178,10 @@ def count_statement(predicate: CompiledPredicate) -> str:
 def facet_statement(predicate: CompiledPredicate, field: str, *, limit: int = 12) -> str:
     """Top values of one column inside the filtered set."""
 
-    column, _ = _column("source", field) if field in _SOURCE_COLUMNS else _column(
-        "normalized", field
+    column, _ = (
+        _column("source", field)
+        if field in _SOURCE_COLUMNS or field == "norm_status"
+        else _column("normalized", field)
     )
     return (
         f"SELECT {column} AS value, count(*) AS rows FROM {VEHICLE_FACTS_TABLE} "
