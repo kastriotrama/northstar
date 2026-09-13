@@ -61,6 +61,13 @@ function params(source: Record<string, string | number | null | undefined>): Htt
   return result;
 }
 
+/** Attaches the rules-bundle sync token, if any -- checked only when the
+ * receiving server's own RULES_SYNC_TOKEN is set; a plain shared-secret
+ * compare, not real auth. */
+function syncTokenHeader(token: string | undefined): Record<string, string> {
+  return token ? { 'X-Rules-Sync-Token': token } : {};
+}
+
 @Injectable({ providedIn: 'root' })
 export class Api {
   private readonly http = inject(HttpClient);
@@ -216,37 +223,48 @@ export class Api {
     );
   }
 
-  /** Every manually-authored rule (TecDoc + TS) in this database, as one file. */
-  exportResolutionRules(): Observable<RulesBundleExport> {
+  /** Every manually-authored rule (TecDoc + TS) in this database, as one file.
+   * `token` is only checked when this server's own RULES_SYNC_TOKEN is set. */
+  exportResolutionRules(token?: string): Observable<RulesBundleExport> {
     return this.http.get<RulesBundleExport>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/export`,
+      { headers: syncTokenHeader(token) },
     );
   }
 
-  /** Applies a bundle from `exportResolutionRules` (this DB or another) here. */
-  importResolutionRules(bundle: RulesBundleExport): Observable<RulesBundleImportResult> {
+  /** Applies a bundle from `exportResolutionRules` (this DB or another) here.
+   * `token` is only checked when this server's own RULES_SYNC_TOKEN is set. */
+  importResolutionRules(
+    bundle: RulesBundleExport,
+    token?: string,
+  ): Observable<RulesBundleImportResult> {
     return this.http.post<RulesBundleImportResult>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/import`,
       { tecdoc_rules: bundle.tecdoc_rules, ts_rules: bundle.ts_rules },
+      { headers: syncTokenHeader(token) },
     );
   }
 
   /** Fetches `liveBaseUrl`'s own rules bundle (server to server, no CORS) and
    * imports it here. A row this DB edited more recently is left untouched --
-   * see `tecdoc_conflicts` on the result. */
-  pullResolutionRules(liveBaseUrl: string): Observable<RulesBundleImportResult> {
+   * see `tecdoc_conflicts` on the result. The same shared token is both sent
+   * as this call's own header (checked only if this server sets one) and
+   * forwarded in the body for the other server to check on its own export. */
+  pullResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
     return this.http.post<RulesBundleImportResult>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/pull`,
-      { live_base_url: liveBaseUrl },
+      { live_base_url: liveBaseUrl, token: token || null },
+      { headers: syncTokenHeader(token) },
     );
   }
 
   /** Exports this DB's bundle and hands it to `liveBaseUrl`'s own import
    * endpoint. The conflict check runs there, against its data. */
-  pushResolutionRules(liveBaseUrl: string): Observable<RulesBundleImportResult> {
+  pushResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
     return this.http.post<RulesBundleImportResult>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/push`,
-      { live_base_url: liveBaseUrl },
+      { live_base_url: liveBaseUrl, token: token || null },
+      { headers: syncTokenHeader(token) },
     );
   }
 

@@ -74,6 +74,10 @@ class RulesBundleImportResult(BaseModel):
 
 class RulesSyncRequest(BaseModel):
     live_base_url: str = Field(min_length=1, max_length=300)
+    #: Forwarded as-is to the other server's own export/import endpoint. Not
+    #: validated here -- the other server's own token (or lack of one)
+    #: decides whether the call succeeds.
+    token: str | None = Field(default=None, max_length=200)
 
 
 class TecDocVehicle(BaseModel):

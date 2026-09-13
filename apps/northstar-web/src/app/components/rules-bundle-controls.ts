@@ -9,6 +9,7 @@ import { Api } from '../core/api';
 import type { RulesBundleExport, RulesBundleImportResult } from '../core/models';
 
 const LIVE_URL_STORAGE_KEY = 'rules-bundle-live-url';
+const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
 
 /**
  * Export/import every manually-authored rule (TecDoc gap rulings + TS resolution
@@ -64,6 +65,14 @@ const LIVE_URL_STORAGE_KEY = 'rules-bundle-live-url';
           [ngModel]="liveUrl()"
           (ngModelChange)="onLiveUrlChange($event)"
           style="min-width: 260px"
+        />
+        <input
+          pInputText
+          type="password"
+          placeholder="sync token"
+          [ngModel]="syncToken()"
+          (ngModelChange)="onSyncTokenChange($event)"
+          style="min-width: 160px"
         />
         <p-button
           label="Pull from live"
@@ -124,25 +133,35 @@ export class RulesBundleControls {
   protected readonly importing = signal(false);
   protected readonly pulling = signal(false);
   protected readonly pushing = signal(false);
-  protected readonly liveUrl = signal(RulesBundleControls.rememberedLiveUrl());
+  protected readonly liveUrl = signal(RulesBundleControls.remembered(LIVE_URL_STORAGE_KEY));
+  protected readonly syncToken = signal(RulesBundleControls.remembered(SYNC_TOKEN_STORAGE_KEY));
   protected readonly message = signal<string | null>(null);
   protected readonly conflictMessage = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
 
   protected onLiveUrlChange(value: string): void {
     this.liveUrl.set(value);
+    RulesBundleControls.remember(LIVE_URL_STORAGE_KEY, value);
+  }
+
+  protected onSyncTokenChange(value: string): void {
+    this.syncToken.set(value);
+    RulesBundleControls.remember(SYNC_TOKEN_STORAGE_KEY, value);
+  }
+
+  private static remembered(key: string): string {
     try {
-      localStorage.setItem(LIVE_URL_STORAGE_KEY, value);
+      return localStorage.getItem(key) ?? '';
     } catch {
-      // Private browsing or storage disabled -- the field still works for this session.
+      return '';
     }
   }
 
-  private static rememberedLiveUrl(): string {
+  private static remember(key: string, value: string): void {
     try {
-      return localStorage.getItem(LIVE_URL_STORAGE_KEY) ?? '';
+      localStorage.setItem(key, value);
     } catch {
-      return '';
+      // Private browsing or storage disabled -- the field still works for this session.
     }
   }
 
@@ -155,7 +174,7 @@ export class RulesBundleControls {
     this.error.set(null);
     this.conflictMessage.set(null);
     this.api
-      .pullResolutionRules(url)
+      .pullResolutionRules(url, this.syncToken().trim() || undefined)
       .pipe(
         catchError((err: unknown) => {
           this.error.set(RulesBundleControls.describe(err, 'Could not pull from that server.'));
@@ -181,7 +200,7 @@ export class RulesBundleControls {
     this.error.set(null);
     this.conflictMessage.set(null);
     this.api
-      .pushResolutionRules(url)
+      .pushResolutionRules(url, this.syncToken().trim() || undefined)
       .pipe(
         catchError((err: unknown) => {
           this.error.set(RulesBundleControls.describe(err, 'Could not push to that server.'));
@@ -216,7 +235,7 @@ export class RulesBundleControls {
     this.exporting.set(true);
     this.error.set(null);
     this.api
-      .exportResolutionRules()
+      .exportResolutionRules(this.syncToken().trim() || undefined)
       .pipe(
         catchError((err: unknown) => {
           this.error.set(RulesBundleControls.describe(err, 'Could not export the rules.'));
@@ -258,7 +277,7 @@ export class RulesBundleControls {
       .then((text) => {
         const bundle = JSON.parse(text) as RulesBundleExport;
         this.api
-          .importResolutionRules(bundle)
+          .importResolutionRules(bundle, this.syncToken().trim() || undefined)
           .pipe(
             catchError((err: unknown) => {
               this.error.set(RulesBundleControls.describe(err, 'Could not import the rules.'));

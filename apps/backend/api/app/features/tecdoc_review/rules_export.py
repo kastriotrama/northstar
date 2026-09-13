@@ -155,16 +155,16 @@ class RulesBundleService:
             tecdoc_conflicts=tecdoc_result.conflicts,
         )
 
-    def pull_from(self, live_base_url: str) -> RulesImportResult:
+    def pull_from(self, live_base_url: str, token: str | None = None) -> RulesImportResult:
         """Fetch the other server's bundle and import it here."""
 
-        payload = _get_json(live_base_url, _EXPORT_PATH)
+        payload = _get_json(live_base_url, _EXPORT_PATH, token=token)
         return self.import_bundle(
             tecdoc_rules=payload.get("tecdoc_rules", []),
             ts_rules=payload.get("ts_rules", []),
         )
 
-    def push_to(self, live_base_url: str) -> RulesImportResult:
+    def push_to(self, live_base_url: str, token: str | None = None) -> RulesImportResult:
         """Export this database's bundle and hand it to the other server's own
         import endpoint -- the conflict check runs *there*, against *its* data,
         exactly as it would if that server imported a file pulled from here."""
@@ -177,6 +177,7 @@ class RulesBundleService:
                 "tecdoc_rules": _jsonable_rows(bundle.tecdoc_rules),
                 "ts_rules": bundle.ts_rules,
             },
+            token=token,
         )
         return RulesImportResult(
             tecdoc_single_target=result.get("tecdoc_single_target", 0),
@@ -202,20 +203,26 @@ def _jsonable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _get_json(base_url: str, path: str) -> dict[str, Any]:
+def _token_headers(token: str | None) -> dict[str, str]:
+    return {"X-Rules-Sync-Token": token} if token else {}
+
+
+def _get_json(base_url: str, path: str, *, token: str | None = None) -> dict[str, Any]:
     url = base_url.rstrip("/") + path
     try:
-        response = httpx.get(url, timeout=30.0)
+        response = httpx.get(url, headers=_token_headers(token), timeout=30.0)
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error
     return response.json()
 
 
-def _post_json(base_url: str, path: str, body: dict[str, Any]) -> dict[str, Any]:
+def _post_json(
+    base_url: str, path: str, body: dict[str, Any], *, token: str | None = None
+) -> dict[str, Any]:
     url = base_url.rstrip("/") + path
     try:
-        response = httpx.post(url, json=body, timeout=60.0)
+        response = httpx.post(url, json=body, headers=_token_headers(token), timeout=60.0)
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error

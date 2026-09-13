@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
@@ -67,6 +67,23 @@ def _cached_rules_bundle_service() -> RulesBundleService:
 
 def get_rules_bundle_service() -> RulesBundleService:
     return _cached_rules_bundle_service()
+
+
+def require_rules_sync_token(
+    settings: Annotated[Settings, Depends(get_settings)],
+    x_rules_sync_token: Annotated[str | None, Header()] = None,
+) -> None:
+    """Plain shared-secret compare, not real auth.
+
+    Unset RULES_SYNC_TOKEN on this server and these endpoints stay exactly as
+    open as they always were -- a placeholder until something real replaces
+    it, not a security boundary in its own right.
+    """
+
+    if not settings.rules_sync_token:
+        return
+    if x_rules_sync_token != settings.rules_sync_token:
+        raise HTTPException(status_code=401, detail="Invalid or missing sync token.")
 
 
 def get_tecdoc_review_service(
@@ -325,7 +342,11 @@ def get_latest_tecdoc_reimport(
     )
 
 
-@router.get("/resolution-rules/export", response_model=RulesBundleExport)
+@router.get(
+    "/resolution-rules/export",
+    response_model=RulesBundleExport,
+    dependencies=[Depends(require_rules_sync_token)],
+)
 def export_resolution_rules(
     service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
 ) -> RulesBundleExport:
@@ -386,7 +407,11 @@ def _queue_ts_rule_applications(
     return queued
 
 
-@router.post("/resolution-rules/import", response_model=RulesBundleImportResult)
+@router.post(
+    "/resolution-rules/import",
+    response_model=RulesBundleImportResult,
+    dependencies=[Depends(require_rules_sync_token)],
+)
 def import_resolution_rules(
     request: RulesBundleImportRequest,
     background: BackgroundTasks,
@@ -436,7 +461,7 @@ def pull_resolution_rules(
     """
 
     try:
-        result = service.pull_from(request.live_base_url)
+        result = service.pull_from(request.live_base_url, token=request.token)
     except (RemoteSyncError, NoCompletedBuildError) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except psycopg.Error as error:
@@ -464,7 +489,7 @@ def push_resolution_rules(
     this call only reports back whatever that server decided."""
 
     try:
-        result = service.push_to(request.live_base_url)
+        result = service.push_to(request.live_base_url, token=request.token)
     except RemoteSyncError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except psycopg.Error as error:
