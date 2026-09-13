@@ -220,7 +220,9 @@ def refresh_vehicle_facts(
             row = cursor.fetchone()
         connection.commit()
 
-        written = int(row[0]) if row else 0
+        if row is None:
+            break
+        written = int(row[0])
         if written <= 0:
             break
 

@@ -64,8 +64,19 @@ export class FilterState {
     this.targetField.set(targetField);
   }
 
-  /** Same field clicked again means OR, not a replacement. */
-  addTerm(field: string, value: string, layer: 'source' | 'normalized' = 'source'): void {
+  /**
+   * Same field clicked again means OR, not a replacement.
+   *
+   * `operator` only takes effect when this is the field's first value -- an existing
+   * clause keeps whatever operator it already has, since that is what the values being
+   * OR-ed into it actually mean.
+   */
+  addTerm(
+    field: string,
+    value: string,
+    layer: 'source' | 'normalized' = 'source',
+    operator: RuleOperator = 'equals',
+  ): void {
     const conditions = [...this.conditions()];
     const existing = conditions.find(
       (item) => item.field === field && item.layer === layer && !item.locked,
@@ -78,7 +89,7 @@ export class FilterState {
           : [...existing.values, value];
       conditions[conditions.indexOf(existing)] = { ...existing, values };
     } else {
-      conditions.push({ field, operator: 'equals', layer, values: [value], locked: false });
+      conditions.push({ field, operator, layer, values: [value], locked: false });
     }
     this.conditions.set(conditions);
   }
@@ -109,11 +120,16 @@ export class FilterState {
     );
   }
 
-  toggleTerm(field: string, value: string, layer: 'source' | 'normalized' = 'source'): void {
+  toggleTerm(
+    field: string,
+    value: string,
+    layer: 'source' | 'normalized' = 'source',
+    operator: RuleOperator = 'equals',
+  ): void {
     if (this.covers(field, value, layer)) {
       this.removeTerm(field, value, layer);
     } else {
-      this.addTerm(field, value, layer);
+      this.addTerm(field, value, layer, operator);
     }
   }
 

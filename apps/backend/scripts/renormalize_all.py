@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import time
+from typing import Any
 
 import psycopg
 
@@ -34,14 +35,21 @@ LEFT JOIN {NORMALIZATION_RESULTS_TABLE} r
 GROUP BY 1 ORDER BY 1
 """
 
-# A completed run is never re-claimed; a failed one is retried. Reopening is the
-# sanctioned path, and the reason is recorded rather than silently overwritten.
-REOPEN = """
+# A completed run is never re-claimed and a failed one is retried, so reopening
+# is the sanctioned path and the reason is recorded rather than overwritten. A
+# row left 'running' by a killed process would block its batch forever; a claim
+# older than the stale window is reopened too. The window is generous precisely
+# so a live claim is never stolen.
+STALE_CLAIM_MINUTES = 30
+REOPEN = f"""
 UPDATE core.ingest_job_runs
    SET status = 'failed', finished_at = now(), updated_at = now(),
        error_code = 'pipeline_version_reopen',
        error_summary = %s
- WHERE job_name = 'normalize' AND batch_id = %s AND status = 'completed'
+ WHERE job_name = 'normalize' AND batch_id = %s
+   AND (status = 'completed'
+        OR (status = 'running'
+            AND updated_at < now() - interval '{STALE_CLAIM_MINUTES} minutes'))
 """
 
 PRUNE = f"""
@@ -60,6 +68,31 @@ DELETE FROM {NORMALIZATION_RESULTS_TABLE}
 """
 
 
+def _run_batch(url: str, batch_id: str) -> tuple[Any, int]:
+    """Reopen, normalize and prune one batch on its own connection."""
+
+    with psycopg.connect(url, connect_timeout=60) as connection:
+        connection.execute("SET statement_timeout = 0")
+        rule_set, entity_rules = load_active_rules(connection)
+        with connection.cursor() as cursor:
+            cursor.execute(REOPEN, (f"Reopened for {PIPELINE_VERSION}", batch_id))
+        connection.commit()
+
+        summary = normalize_batch(
+            connection,
+            batch_id=batch_id,
+            rule_set=rule_set,
+            manufacturer_entity_rules=entity_rules,
+        )
+        connection.commit()
+
+        with connection.cursor() as cursor:
+            cursor.execute(PRUNE, (batch_id, SOURCE_TABLE))
+            pruned = cursor.rowcount
+        connection.commit()
+    return summary, max(pruned, 0)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=0, help="Stop after N batches (0 = all).")
@@ -73,7 +106,7 @@ def main() -> int:
             cursor.execute(BATCH_INVENTORY, (PIPELINE_VERSION, SOURCE_TABLE))
             inventory = cursor.fetchall()
 
-    pending = [(b, staged) for b, staged, done in inventory if done < staged]
+    pending = [(batch, staged) for batch, staged, done in inventory if done < staged]
     total_rows = sum(staged for _, staged in pending)
     print(
         f"pipeline {PIPELINE_VERSION}: {len(pending)} batches pending, {total_rows:,} rows",
@@ -83,42 +116,40 @@ def main() -> int:
         return 0
 
     started = time.monotonic()
-    processed = pruned_total = 0
-    for index, (batch_id, staged) in enumerate(pending, start=1):
+    processed = pruned_total = failures = 0
+    for index, (batch_id, _staged) in enumerate(pending, start=1):
         if arguments.limit and index > arguments.limit:
             break
-        with psycopg.connect(url, connect_timeout=60) as connection:
-            connection.execute("SET statement_timeout = 0")
-            rule_set, entity_rules = load_active_rules(connection)
-            with connection.cursor() as cursor:
-                cursor.execute(REOPEN, (f"Reopened for {PIPELINE_VERSION}", batch_id))
-            connection.commit()
-            summary = normalize_batch(
-                connection,
-                batch_id=batch_id,
-                rule_set=rule_set,
-                manufacturer_entity_rules=entity_rules,
+        try:
+            summary, pruned = _run_batch(url, batch_id)
+        # One unusable batch out of hundreds must not end an eight-hour sweep.
+        except Exception as error:  # noqa: BLE001
+            failures += 1
+            print(
+                f"[{index}/{len(pending)}] {batch_id} FAILED "
+                f"{type(error).__name__}: {error}",
+                flush=True,
             )
-            connection.commit()
-            with connection.cursor() as cursor:
-                cursor.execute(PRUNE, (batch_id, SOURCE_TABLE))
-                pruned = cursor.rowcount
-            connection.commit()
+            continue
+
         processed += summary.processed
-        pruned_total += max(pruned, 0)
+        pruned_total += pruned
         elapsed = time.monotonic() - started
-        rate = processed / elapsed if elapsed else 0
-        remaining = (total_rows - processed) / rate / 3600 if rate else 0
+        rate = processed / elapsed if elapsed else 0.0
+        remaining = (total_rows - processed) / rate / 3600 if rate else 0.0
         print(
             f"[{index}/{len(pending)}] {batch_id} "
             f"processed={summary.processed} resolved={summary.resolved} "
             f"provisional={summary.provisional} review={summary.review_required} "
-            f"pruned={max(pruned, 0)} | {processed:,} rows, "
-            f"{rate:.0f} rows/s, ~{remaining:.1f}h left",
+            f"pruned={pruned} | {processed:,} rows, {rate:.0f} rows/s, "
+            f"~{remaining:.1f}h left",
             flush=True,
         )
+
     print(
-        f"done: {processed:,} rows normalized, {pruned_total:,} superseded rows pruned", flush=True
+        f"done: {processed:,} rows normalized, {pruned_total:,} superseded rows pruned, "
+        f"{failures} batches failed",
+        flush=True,
     )
     return 0
 

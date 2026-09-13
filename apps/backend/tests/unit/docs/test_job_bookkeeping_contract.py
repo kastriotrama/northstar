@@ -1,8 +1,10 @@
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[5]
+
 
 def test_job_bookkeeping_document_covers_required_contract() -> None:
-    content = Path("docs/job-bookkeeping-design.md").read_text()
+    content = (REPO_ROOT / "docs" / "job-bookkeeping-design.md").read_text()
 
     for required in (
         "core.ingest_job_runs",

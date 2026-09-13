@@ -1,3 +1,5 @@
+from typing import Self
+
 import pytest
 
 from ingestion.vehicle_facts_dedupe import (
@@ -13,7 +15,7 @@ class _FakeCursor:
         self.rowcount = 0
         self.executed: list[tuple[str, tuple[object, ...]]] = []
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

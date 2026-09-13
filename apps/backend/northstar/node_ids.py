@@ -24,7 +24,7 @@ EntropySource = Callable[[int], bytes]
 
 
 class NodeIdPrefix(StrEnum):
-    """Accepted prefixes for the nine canonical graph node labels."""
+    """Accepted prefixes for the ten canonical graph node labels."""
 
     MANUFACTURER = "MFR"
     MODEL_FAMILY = "FAM"
@@ -33,6 +33,7 @@ class NodeIdPrefix(StrEnum):
     TRANSMISSION = "TRN"
     BODY_TYPE = "BDY"
     FUEL_TYPE = "FUL"
+    DRIVE_TYPE = "DRV"
     VEHICLE_VARIANT = "VEH"
     ALIAS = "ALI"
 

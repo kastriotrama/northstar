@@ -15,7 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
-from api.app.features.match_review.chunk_schemas import FieldValueCount, RuleAdvice
+from api.app.features.match_review.chunk_schemas import (
+    FieldValueCount,
+    RuleAdvice,
+    RuleCondition,
+)
 from api.app.features.match_review.field_resolution import CANDIDATE_DISCRIMINATORS
 from api.app.features.match_review.integrations import GeminiJsonLlm
 from api.app.features.match_review.rule_advisor import (
@@ -234,7 +238,7 @@ def advise_for_filter(
         )
 
     first = request.conditions[0] if request.conditions else None
-    return advisor.advise(
+    advice = advisor.advise(
         source_field=first.field if first else request.target_field,
         source_value=first.terms[0] if first and first.terms else "",
         target_field=request.target_field,
@@ -246,6 +250,23 @@ def advise_for_filter(
         # value" rather than inventing one.
         oem_samples=[],
         resolved_profile=profile,
+    )
+    return RuleAdvice(
+        advisor=advice.advisor,
+        confident=advice.confident,
+        conditions=[
+            RuleCondition(
+                field=condition.field,
+                values=list(condition.values),
+                layer=condition.layer,  # type: ignore[arg-type]
+                operator=condition.operator,  # type: ignore[arg-type]
+            )
+            for condition in advice.conditions
+        ],
+        target_field=advice.target_field,
+        target_value=advice.target_value,
+        reasoning=advice.reasoning,
+        evidence=advice.evidence,
     )
 
 

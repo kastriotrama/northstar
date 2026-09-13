@@ -30,7 +30,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.normalized["model_family"] == "V60"
     assert "model_family" not in outcome.candidates
-    assert outcome.pipeline_version == "normalization-pipeline-v10"
+    assert outcome.pipeline_version == "normalization-pipeline-v11"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -1125,9 +1125,26 @@ def test_reviewed_fuel_and_registry_awd_are_accepted() -> None:
 def test_registry_zero_does_not_guess_fwd_or_rwd() -> None:
     outcome = normalize_ts_record({"manufacturer": "BMW", "is_4wd": "0"})
 
-    assert "drive_type" not in outcome.normalized
+    # `2wd` records exactly what the registry flag says -- not
+    # all-wheel-drive -- and no more. It is deliberately not `fwd` or `rwd`:
+    # the flag cannot tell those apart, so reconciling `2wd` against TecDoc's
+    # finer split is a matching-time question (`core.vocabulary_alignments`,
+    # vocabulary="drive"), never a normalization guess.
+    assert outcome.normalized["drive_type"] == "2wd"
+    assert outcome.normalized["all_wheel_drive"] == "no"
     assert "drive_type" not in outcome.candidates
     assert "is_4wd_malformed" not in outcome.review_reasons
+
+
+def test_registry_zero_with_marketing_conflict_still_does_not_guess() -> None:
+    # A badge that disagrees with the flag is a real conflict needing review
+    # -- `2wd` must not be asserted underneath an open question.
+    outcome = normalize_ts_record(
+        {"brand": "Mercedes-Benz", "model": "CLS 350 D 4MATIC", "is_4wd": "0"}
+    )
+
+    assert "drive_type" not in outcome.normalized
+    assert "drive_registry_marketing_conflict" in outcome.review_reasons
 
 
 def test_explicit_hybrid_marker_adds_electricity_to_petrol_carrier() -> None:

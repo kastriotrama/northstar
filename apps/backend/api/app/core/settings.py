@@ -47,6 +47,13 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
 
+    #: Gate for the rules-bundle export/import endpoints (api.app.features.
+    #: tecdoc_review.router). A plain shared-secret compare, not real auth --
+    #: unset means those endpoints stay exactly as open as they are today.
+    #: Every environment that syncs rules with another one needs the same
+    #: value in its own .env.
+    rules_sync_token: str | None = Field(default=None, alias="RULES_SYNC_TOKEN")
+
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta",

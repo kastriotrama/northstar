@@ -310,11 +310,6 @@
   background: var(--p-primary-50, #eef4ff);
 }
 
-.facet__picked {
-  margin: 0;
-  font-size: 0.72rem;
-}
-
 /* The row that builds a new condition is an input, not a condition. Without a rule
    and a label it read as another clause of the filter -- a field name resting in its
    dropdown looked like "AND is_4wd = ...", which is the opposite of what it does. */
@@ -333,6 +328,12 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--p-text-muted-color);
+}
+
+.filter__values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 /* The gaps summary is deliberately off the critical path, so it lags the filter by a

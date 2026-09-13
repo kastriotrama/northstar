@@ -25,7 +25,17 @@ import type {
   TargetVocabulary,
   TecDocCoverageReport,
   TecDocEntityPage,
+  RulesBundleImportResult,
+  TecDocGapValuesResponse,
   TecDocPage,
+  TecDocReimportStatus,
+  TecDocResolution,
+  TecDocResolveRequest,
+  TecDocUnresolvedSummary,
+  TecDocVehicleCount,
+  TecDocVehicleDetail,
+  TecDocVehicleFacet,
+  TecDocVehicleFilter,
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
@@ -48,6 +58,13 @@ function params(source: Record<string, string | number | null | undefined>): Htt
     result = result.set(key, String(value));
   }
   return result;
+}
+
+/** Attaches the rules-bundle sync token, if any -- checked only when the
+ * receiving server's own RULES_SYNC_TOKEN is set; a plain shared-secret
+ * compare, not real auth. */
+function syncTokenHeader(token: string | undefined): Record<string, string> {
+  return token ? { 'X-Rules-Sync-Token': token } : {};
 }
 
 @Injectable({ providedIn: 'root' })
@@ -120,6 +137,114 @@ export class Api {
     });
   }
 
+  // --- TecDoc vehicles: filtered, ported from `/v1/vehicles` ----------------------------
+
+  tecdocVehiclePage(
+    filter: TecDocVehicleFilter,
+    options: { limit?: number; offset?: number } = {},
+  ): Observable<TecDocPage> {
+    return this.http.post<TecDocPage>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/page`,
+      filter,
+      { params: params({ limit: options.limit ?? 100, offset: options.offset ?? 0 }) },
+    );
+  }
+
+  countTecDocVehicles(filter: TecDocVehicleFilter): Observable<TecDocVehicleCount> {
+    return this.http.post<TecDocVehicleCount>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/count`,
+      filter,
+    );
+  }
+
+  /** What the filtered KTypes still cannot say about themselves -- the worklist. */
+  tecdocUnresolvedSummary(filter: TecDocVehicleFilter): Observable<TecDocUnresolvedSummary> {
+    return this.http.post<TecDocUnresolvedSummary>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/unresolved-summary`,
+      filter,
+    );
+  }
+
+  tecdocVehicleFacet(
+    filter: TecDocVehicleFilter,
+    field: string,
+    limit = 12,
+  ): Observable<TecDocVehicleFacet> {
+    return this.http.post<TecDocVehicleFacet>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/facets`,
+      filter,
+      { params: params({ field, limit }) },
+    );
+  }
+
+  /** The distinct raw values behind one canonical field's gap -- the Resolve click target. */
+  tecdocGapValues(field: string, limit = 100): Observable<TecDocGapValuesResponse> {
+    return this.http.get<TecDocGapValuesResponse>(
+      `${this.base}/v1/normalization-review/tecdoc/gaps`,
+      { params: params({ field, limit }) },
+    );
+  }
+
+  /** Write one reviewer's live ruling on one TecDoc value, or one cross-system
+   * synonym rule (fuel/bodywork/drive) -- same endpoint, same table. */
+  resolveTecDocGap(request: TecDocResolveRequest): Observable<TecDocResolution> {
+    return this.http.post<TecDocResolution>(
+      `${this.base}/v1/normalization-review/tecdoc/gaps/resolve`,
+      request,
+    );
+  }
+
+  /** One KType's canonical fields, each with its outcome -- opened from a row
+   * the same way TS's record panel opens from a car. */
+  tecdocVehicleDetail(sourceKey: string): Observable<TecDocVehicleDetail> {
+    return this.http.get<TecDocVehicleDetail>(
+      `${this.base}/v1/normalization-review/tecdoc/vehicles/detail`,
+      { params: params({ source_key: sourceKey }) },
+    );
+  }
+
+  /**
+   * Starts a full TecDoc reimport: fresh `.dat` extraction, written to Postgres
+   * and the live graph. Returns as soon as the run is claimed, not when it
+   * finishes -- the full drop takes several minutes. Poll `tecdocReimportStatus`
+   * until it settles.
+   */
+  startTecDocReimport(): Observable<TecDocReimportStatus> {
+    return this.http.post<TecDocReimportStatus>(
+      `${this.base}/v1/normalization-review/tecdoc/reimport`,
+      {},
+    );
+  }
+
+  tecdocReimportStatus(): Observable<TecDocReimportStatus> {
+    return this.http.get<TecDocReimportStatus>(
+      `${this.base}/v1/normalization-review/tecdoc/reimport/latest`,
+    );
+  }
+
+  /** Fetches `liveBaseUrl`'s own rules bundle (server to server, no CORS) and
+   * imports it here. A row this DB edited more recently is left untouched --
+   * see `tecdoc_conflicts` on the result. The same shared token is both sent
+   * as this call's own header (checked only if this server sets one) and
+   * forwarded in the body for the other server to check on its own export. */
+  pullResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
+    return this.http.post<RulesBundleImportResult>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/pull`,
+      { live_base_url: liveBaseUrl, token: token || null },
+      { headers: syncTokenHeader(token) },
+    );
+  }
+
+  /** Exports this DB's bundle and hands it to `liveBaseUrl`'s own import
+   * endpoint. The conflict check runs there, against its data. */
+  pushResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
+    return this.http.post<RulesBundleImportResult>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/push`,
+      { live_base_url: liveBaseUrl, token: token || null },
+      { headers: syncTokenHeader(token) },
+    );
+  }
+
   // --- Page 3: rules -------------------------------------------------------------------
   // Uses the paginated catalog, not GET /rules: that endpoint returns ~12MB in ~25s
   // because it also aggregates the newest normalization batch.
@@ -129,6 +254,8 @@ export class Api {
     canonicalField?: string | null;
     decision?: string | null;
     origin?: string | null;
+    source?: string | null;
+    includeInventory?: boolean;
     transformerId?: string | null;
     limit?: number;
     offset?: number;
@@ -142,6 +269,8 @@ export class Api {
           canonical_field: options.canonicalField,
           decision: options.decision,
           origin: options.origin,
+          source: options.source,
+          include_inventory: options.includeInventory ? 'true' : undefined,
           transformer_id: options.transformerId,
           limit: options.limit ?? 100,
           offset: options.offset ?? 0,

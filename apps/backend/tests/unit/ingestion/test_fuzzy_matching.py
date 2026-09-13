@@ -308,6 +308,49 @@ def test_drive_and_bodywork_context_separate_candidates() -> None:
     assert result.candidates[0].conflicting_fields == ()
 
 
+def test_drive_compatible_pair_is_neutral_not_a_conflict() -> None:
+    """Regression test: matching a query against a candidate that falls into
+    `drive_compatible_pairs` used to raise `UnboundLocalError` on
+    `drive_comparison` -- that branch never set it, but the shared return
+    statement at the end of `_score` reads it unconditionally alongside
+    `body_comparison`. Only surfaced once TS's undifferentiated `2wd` was
+    actually compared against a real TecDoc `fwd`/`rwd` candidate."""
+
+    fwd = VehicleCandidate("KTYPE-FWD", "Volvo", "XC90", drive_type="fwd")
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((fwd,)),
+        drive_compatible_pairs=frozenset({("2wd", "fwd")}),
+    )
+
+    result = matcher.match(
+        VehicleMatchQuery(manufacturer="Volvo", model="XC90", drive_type="2wd")
+    )
+
+    candidate = result.candidates[0]
+    assert "drive_type_compatible_not_confirmed" in candidate.missing_fields
+    assert "drive_type" not in candidate.conflicting_fields
+    assert "drive_type" not in candidate.matched_fields
+
+
+def test_fuel_compatible_pair_is_neutral_not_a_conflict() -> None:
+    petrol_only = VehicleCandidate(
+        "KTYPE-PETROL", "Saab", "9-3", fuels=frozenset({"petrol"})
+    )
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((petrol_only,)),
+        fuel_compatible_pairs=frozenset({("ethanol", "petrol")}),
+    )
+
+    result = matcher.match(
+        VehicleMatchQuery("9-3", manufacturer="Saab", fuels=frozenset({"ethanol"}))
+    )
+
+    candidate = result.candidates[0]
+    assert "fuels_compatible_not_confirmed" in candidate.missing_fields
+    assert "fuels" not in candidate.conflicting_fields
+    assert "fuels" not in candidate.matched_fields
+
+
 @pytest.mark.parametrize(
     ("query", "conflicting_field"),
     [
@@ -616,14 +659,20 @@ def test_exact_power_still_outranks_a_within_tolerance_sibling() -> None:
     assert result.candidates[0].candidate_reference == "KTYPE-EXACT"
 
 
-def test_reviewed_fuel_vocabulary_equivalents_match_exactly() -> None:
-    for ts_fuel, tecdoc_fuel in (("electricity", "electric"), ("methane", "cng")):
+def test_reviewed_fuel_vocabulary_equivalents_match_once_pre_aligned() -> None:
+    # Reconciling TS's "electricity" with TecDoc's "electric" is now the live
+    # `tecdoc_resolution_rules` vocabulary rules' job (see
+    # `ingestion/vocabulary_alignment.py`, exercised by
+    # `tests/unit/ingestion/test_vocabulary_alignment.py`), applied to the
+    # query and candidate catalog *before* either reaches the matcher -- the
+    # matcher itself only ever compares already-canonicalized text.
+    for shared_term in ("electric", "cng"):
         candidate = VehicleCandidate(
-            "KTYPE-1", "Volvo", "XC40", fuels=frozenset({tecdoc_fuel})
+            "KTYPE-1", "Volvo", "XC40", fuels=frozenset({shared_term})
         )
         result = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,))).match(
             VehicleMatchQuery(
-                manufacturer="Volvo", model="XC40", fuels=frozenset({ts_fuel})
+                manufacturer="Volvo", model="XC40", fuels=frozenset({shared_term})
             )
         )
 
@@ -637,16 +686,20 @@ def test_hybrid_category_requires_both_underlying_ts_carriers() -> None:
     )
     matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
 
+    # "electric" here is the canonical term the live vocabulary rules
+    # normalize TS's "electricity" into -- this test exercises the matcher's
+    # own hybrid-detection logic on already-canonicalized input, not the
+    # alignment step itself.
     compatible = matcher.match(
         VehicleMatchQuery(
             manufacturer="Volvo",
             model="XC60",
-            fuels=frozenset({"petrol", "electricity"}),
+            fuels=frozenset({"petrol", "electric"}),
         )
     ).candidates[0]
     incomplete = matcher.match(
         VehicleMatchQuery(
-            manufacturer="Volvo", model="XC60", fuels=frozenset({"electricity"})
+            manufacturer="Volvo", model="XC60", fuels=frozenset({"electric"})
         )
     ).candidates[0]
 

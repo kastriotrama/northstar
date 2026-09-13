@@ -44,10 +44,6 @@ from api.app.features.match_review.chunk_schemas import (
     TargetVocabulary,
     UnresolvedOverview,
 )
-from api.app.features.match_review.rule_application import (
-    RuleAlreadyRunningError,
-    RuleApplicationRunner,
-)
 from api.app.features.match_review.chunk_service import (
     MatchReviewConflictError,
     MatchReviewNotFoundError,
@@ -67,6 +63,10 @@ from api.app.features.match_review.rule_advisor import (
     LlmRuleAdvisor,
     PatternRuleAdvisor,
     RuleAdvisor,
+)
+from api.app.features.match_review.rule_application import (
+    RuleAlreadyRunningError,
+    RuleApplicationRunner,
 )
 
 api_router = APIRouter(prefix="/v1/match-review", tags=["match-review"])

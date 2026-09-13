@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validate_local_matcher_cohort import (
+    compare_alignment_activation_reports,
     compare_catalog_activation_reports,
     compare_reports,
     digest,
@@ -102,3 +103,67 @@ def test_catalog_activation_comparison_rejects_source_change() -> None:
 
     with pytest.raises(ValueError, match="source_digest"):
         compare_catalog_activation_reports(before, after)
+
+
+def test_alignment_activation_comparison_allows_only_alignment_to_change() -> None:
+    """The mirror of the catalog-activation test: here the intentional
+    variable is `alignment_version` (vocabulary alignment turned on), so
+    `catalog_digest` must stay pinned instead of `alignment_version`."""
+
+    before = report()
+    before.update(
+        source_prefix="source-", rule_version="rules-v1",
+        context_policy_version="context-v1", source_model_policy_version="models-v1",
+    )
+    after = deepcopy(before)
+    after["alignment_version"] = "some-content-digest"
+    after["records"][0] = {
+        **after["records"][0],
+        "terminal": "resolved",
+        "top_candidate_reference": "42",
+    }
+    after["counts"] = {"resolved": 1}
+
+    comparison = compare_alignment_activation_reports(before, after)
+
+    assert comparison["transitions"] == {"review_required->resolved": 1}
+    assert comparison["changed_record_count"] == 1
+    assert comparison["newly_matched_by_alignment"] == 1
+    assert comparison["before_alignment_version"] == "unpinned-legacy"
+    assert comparison["after_alignment_version"] == "some-content-digest"
+
+
+def test_alignment_activation_comparison_rejects_catalog_change() -> None:
+    before = report()
+    before.update(
+        source_prefix="source-", rule_version="rules-v1",
+        context_policy_version="context-v1", source_model_policy_version="models-v1",
+    )
+    after = deepcopy(before)
+    after["alignment_version"] = "some-content-digest"
+    after["catalog_digest"] = "changed-catalog"
+
+    with pytest.raises(ValueError, match="catalog_digest"):
+        compare_alignment_activation_reports(before, after)
+
+
+def test_alignment_activation_only_counts_transitions_into_a_successful_terminal() -> None:
+    """A car that moves between two non-successful terminals (say
+    review_required -> hard_conflict) is not "newly matched" -- only a move
+    into resolved/provisional counts toward the number this tool exists to
+    answer."""
+
+    before = report()
+    before.update(
+        source_prefix="source-", rule_version="rules-v1",
+        context_policy_version="context-v1", source_model_policy_version="models-v1",
+    )
+    after = deepcopy(before)
+    after["alignment_version"] = "some-content-digest"
+    after["records"][0] = {**after["records"][0], "terminal": "hard_conflict"}
+    after["counts"] = {"hard_conflict": 1}
+
+    comparison = compare_alignment_activation_reports(before, after)
+
+    assert comparison["newly_matched_by_alignment"] == 0
+    assert comparison["transitions"] == {"review_required->hard_conflict": 1}

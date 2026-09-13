@@ -1,6 +1,8 @@
 from pathlib import Path
 
-DOCUMENT = Path("docs/review-queue-design.md")
+REPO_ROOT = Path(__file__).resolve().parents[5]
+
+DOCUMENT = REPO_ROOT / "docs" / "review-queue-design.md"
 
 
 def test_review_queue_document_covers_story_contract() -> None:

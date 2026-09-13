@@ -41,6 +41,10 @@ const CATALOG: RuleCatalogResponse = {
   catalog_total: 1,
   code_total: 1,
   resolution_total: 1,
+  tecdoc_total: 0,
+  tecdoc_inventory_total: 0,
+  tecdoc_resolution_total: 0,
+  tecdoc_rule_version: null,
   pipeline_version: 'normalization-pipeline-v10',
   limit: 100,
   offset: 0,
@@ -81,6 +85,9 @@ const CATALOG: RuleCatalogResponse = {
       transformer_id: null,
       editable: true,
       notes: null,
+      source: 'transportstyrelsen',
+      support: null,
+      inventory_only: false,
     },
     {
       rule_id: 'CODE:TYC:ZR',
@@ -100,6 +107,9 @@ const CATALOG: RuleCatalogResponse = {
       transformer_id: 'ts.tyres',
       editable: false,
       notes: 'Construction letter inside a tyre size.',
+      source: 'transportstyrelsen',
+      support: null,
+      inventory_only: false,
     },
     {
       rule_id: 'RES:25ceeb43-0cb2-4d5c-87a5-10e9af147cd2',
@@ -119,6 +129,9 @@ const CATALOG: RuleCatalogResponse = {
       transformer_id: null,
       editable: false,
       notes: 'Authored by Valon Shabani on the projection. Matched 2,704 rows.',
+      source: 'transportstyrelsen',
+      support: null,
+      inventory_only: false,
     },
   ],
 };
@@ -179,7 +192,10 @@ describe('RulesPage', () => {
     expect(text).toContain('engine_code');
     expect(text).toContain('CUUB');
     expect(row?.querySelector('.origin-tag--resolution')).not.toBeNull();
-    expect((row?.querySelector('.origin-tag')?.textContent ?? '').trim()).toBe('projection');
+    // 'resolution' now covers a live ruling from either source (TS or TecDoc), so the
+    // badge reads 'live' rather than a TS-specific word; source_tag still says TS.
+    expect((row?.querySelector('.origin-tag')?.textContent ?? '').trim()).toBe('live');
+    expect((row?.querySelector('.source-tag')?.textContent ?? '').trim()).toBe('TS');
   });
 
   it('marks which rules come from the pipeline rather than the catalog', async () => {
@@ -205,7 +221,8 @@ describe('RulesPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Reviewed catalog');
     expect(text).toContain('In the pipeline');
-    expect(text).toContain('On the projection');
+    expect(text).toContain('Live on TS');
+    expect(text).toContain('Live on TecDoc');
     expect(text).toContain('normalization-pipeline-v10');
   });
 

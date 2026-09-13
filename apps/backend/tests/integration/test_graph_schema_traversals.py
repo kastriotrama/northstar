@@ -9,7 +9,7 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from api.app.core.settings import get_settings
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 SCHEMA_DOC = REPO_ROOT / "docs" / "graph-schema-design.md"
 
 SEED_QUERY = """

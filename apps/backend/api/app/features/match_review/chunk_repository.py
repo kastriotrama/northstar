@@ -32,7 +32,7 @@ from ingestion.vehicle_facts_migrations import (
     VEHICLE_FACTS_TABLE,
 )
 from ingestion.vehicle_facts_query import CompiledPredicate, compile_predicate
-from ingestion.vehicle_facts_rules import apply_rule, retire_rule
+from ingestion.vehicle_facts_rules import retire_rule
 
 _BUILD_COLUMNS = (
     "build_id, source_batch_id, signature_version, status, "

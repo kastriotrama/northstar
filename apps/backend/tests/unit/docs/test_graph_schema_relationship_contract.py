@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 SCHEMA_DOC = REPO_ROOT / "docs" / "graph-schema-design.md"
 
 EXPECTED_RELATIONSHIPS = {

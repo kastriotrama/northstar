@@ -7,10 +7,6 @@ from psycopg.types.json import Jsonb
 
 from api.app.features.normalization_review.repository import ConnectionFactory
 from ingestion.match_chunk_migrations import MATCH_RESOLUTION_RULES_TABLE
-from ingestion.tecdoc.canonical_rule_migrations import (
-    TECDOC_RULE_VERSIONS_TABLE,
-    TECDOC_RULES_TABLE,
-)
 from ingestion.normalization_migrations import (
     MANUFACTURER_ENTITY_DRAFTS_TABLE,
     NORMALIZATION_RESULTS_TABLE,
@@ -18,6 +14,11 @@ from ingestion.normalization_migrations import (
     TRANSLATION_RULE_VERSIONS_TABLE,
     run_normalization_migrations,
 )
+from ingestion.tecdoc.canonical_rule_migrations import (
+    TECDOC_RULE_VERSIONS_TABLE,
+    TECDOC_RULES_TABLE,
+)
+from ingestion.tecdoc.resolution_migrations import TECDOC_RESOLUTION_RULES_TABLE
 
 
 class RuleReviewRepository:
@@ -463,6 +464,53 @@ class RuleReviewRepository:
                 "derivation": str(row[9]),
                 "support": int(row[10]),
                 "evidence": dict(row[11] or {}),
+            }
+            for row in rows
+        ]
+
+    def fetch_tecdoc_resolution_rules(self, limit: int = 2000) -> list[dict[str, Any]]:
+        """Rules a reviewer authored live against one TecDoc value.
+
+        TecDoc's sibling of `fetch_resolution_rules`: not sealed, not generated
+        from a batch scan, effective immediately. `to_regclass` first for the
+        same reason as `fetch_tecdoc_rules` -- this table is created on first
+        write by `tecdoc_review`, which the rule review schema does not run.
+        """
+
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass(%s) IS NOT NULL", (TECDOC_RESOLUTION_RULES_TABLE,)
+            )
+            row = cursor.fetchone()
+            if not (row and row[0]):
+                return []
+            cursor.execute(
+                f"""
+                SELECT canonical_field, comparison_key, source_term, key_table, decision,
+                       canonical_value, note, reviewed_by, created_at, updated_at,
+                       source_system, relation, support
+                FROM {TECDOC_RESOLUTION_RULES_TABLE}
+                ORDER BY updated_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "canonical_field": str(row[0]),
+                "comparison_key": str(row[1]),
+                "source_term": str(row[2]),
+                "key_table": str(row[3]) if row[3] is not None else None,
+                "decision": str(row[4]),
+                "canonical_value": str(row[5]) if row[5] is not None else None,
+                "note": str(row[6] or ""),
+                "reviewed_by": str(row[7]),
+                "created_at": row[8],
+                "updated_at": row[9],
+                "source_system": str(row[10]),
+                "relation": str(row[11]),
+                "support": row[12],
             }
             for row in rows
         ]
