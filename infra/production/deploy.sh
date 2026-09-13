@@ -27,7 +27,7 @@ fi
 chmod 0644 infra/production/htpasswd
 
 docker compose --env-file "$environment_file" -f "$compose_file" config --quiet
-docker compose --env-file "$environment_file" -f "$compose_file" build api ingestion
+docker compose --env-file "$environment_file" -f "$compose_file" build api ingestion gateway
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps
 
