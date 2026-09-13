@@ -36,3 +36,24 @@ FROM base AS ingestion
 
 ENTRYPOINT ["python", "-m", "ingestion.cli"]
 CMD ["list-commands"]
+
+# Angular UI, built here so the server never needs Node installed.
+FROM node:24-bookworm-slim AS web-build
+
+ENV NX_DAEMON=false \
+    NX_NO_CLOUD=true \
+    CI=true
+
+WORKDIR /workspace
+
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY apps/northstar-web ./apps/northstar-web
+RUN npx nx build northstar-web --configuration=production
+
+# Gateway: nginx serving the built UI. Its config and password file are mounted
+# at runtime (see docker-compose.production.yml), so neither is baked in here.
+FROM nginx:1.27-alpine AS web
+
+COPY --from=web-build /workspace/dist/apps/northstar-web/browser /usr/share/nginx/html
