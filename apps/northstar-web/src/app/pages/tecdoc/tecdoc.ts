@@ -202,16 +202,6 @@ export class TecDocPage {
       .join(' AND ');
   });
 
-  /** Every field the current rows carry, so nothing in the payload is hidden. */
-  protected readonly vehicleColumns = computed(() => {
-    const items = this.vehiclePage()?.items ?? [];
-    const keys = new Set<string>();
-    for (const item of items) {
-      Object.keys(item).forEach((key) => keys.add(key));
-    }
-    return [...keys];
-  });
-
   protected readonly entityColumns = computed(() => {
     const items = this.entityPage()?.items ?? [];
     const keys = new Set<string>();
@@ -776,6 +766,27 @@ export class TecDocPage {
         this.vehicleDetailLoading.set(false);
       },
     });
+  }
+
+  /** Same three-severity scale `ts-records` uses for `norm_status`: a clean link
+   * reads as success, a known-but-unallocated case as a caution, and no data at
+   * all as the loudest state -- one glance tells a reviewer which rows to open. */
+  protected vehicleStatusSeverity(status: string): 'success' | 'warn' | 'danger' {
+    if (status === 'linked') {
+      return 'success';
+    }
+    return status === 'allocation_missing' ? 'danger' : 'warn';
+  }
+
+  /** `year_from`–`year_to` as one column, the same compression `ts-records` does
+   * not need (TS carries a single `vehicle_year`) but TecDoc's Table 120 range does. */
+  protected yearRange(row: Record<string, unknown>): string {
+    const from = row['year_from'];
+    const to = row['year_to'];
+    if (!from && !to) {
+      return '—';
+    }
+    return from && to && from !== to ? `${from}–${to}` : String(from ?? to);
   }
 
   protected cell(row: Record<string, unknown>, column: string): string {

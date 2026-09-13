@@ -361,25 +361,41 @@
     >
       <ng-template #header>
         <tr>
-          @for (column of vehicleColumns(); track column) {
-            <th class="nowrap">{{ column }}</th>
-          }
+          <th>KType</th>
+          <th>Manufacturer</th>
+          <th>Model family</th>
+          <th>Engine</th>
+          <th class="num">Year</th>
+          <th class="num">Displacement</th>
+          <th>Status</th>
           <th style="width: 70px"></th>
         </tr>
       </ng-template>
       <ng-template #body let-row>
         <tr (click)="open(row)" style="cursor: pointer">
-          @for (column of vehicleColumns(); track column) {
-            <td class="truncate" [title]="cell(row, column)">{{ cell(row, column) }}</td>
-          }
+          <td class="mono">{{ row.ktype }}</td>
+          <td class="truncate">{{ row.manufacturer ?? '—' }}</td>
+          <td class="truncate">{{ row.model_family ?? '—' }}</td>
+          <td class="truncate">
+            {{ row.engine_code ?? '—' }}
+            @if (row.fuel_type) {
+              <span class="muted"> · {{ row.fuel_type }}</span>
+            }
+          </td>
+          <td class="num">{{ yearRange(row) }}</td>
+          <td class="num">{{ row.displacement_cc ?? '—' }}</td>
+          <td>
+            <p-tag
+              [value]="engineStatusLabel(row.engine_link_status).label"
+              [severity]="vehicleStatusSeverity(row.engine_link_status)"
+            />
+          </td>
           <td><p-button label="Open" [text]="true" size="small" (onClick)="open(row)" /></td>
         </tr>
       </ng-template>
       <ng-template #emptymessage>
         <tr>
-          <td [attr.colspan]="vehicleColumns().length + 1" class="muted" style="padding: 1rem">
-            No TecDoc vehicles matched.
-          </td>
+          <td colspan="8" class="muted" style="padding: 1rem">No TecDoc vehicles matched.</td>
         </tr>
       </ng-template>
     </p-table>
