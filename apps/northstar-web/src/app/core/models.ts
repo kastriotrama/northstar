@@ -679,6 +679,10 @@ export interface RulesBundleImportResult {
   ts_already_present: number;
   ts_skipped_invalid: number;
   ts_target_build: string | null;
+  ts_rules_queued_for_apply: string[];
+  /** TecDoc rows this database's own copy was newer than -- left untouched.
+   * Non-empty means a real edit collision, not a plain one-way copy. */
+  tecdoc_conflicts: Record<string, unknown>[];
 }
 
 /**

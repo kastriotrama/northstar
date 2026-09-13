@@ -2,7 +2,7 @@ from scripts.export_resolution_rules import _COLUMNS, export_rules
 
 _ROW = (
     "fuel", "ELECTRICITY", "electricity", None, "accepted", "electric", "",
-    "pytest", "transportstyrelsen", "equivalent", None,
+    "pytest", "transportstyrelsen", "equivalent", None, "2026-09-13T09:00:00+00:00",
 )
 
 

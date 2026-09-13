@@ -231,6 +231,25 @@ export class Api {
     );
   }
 
+  /** Fetches `liveBaseUrl`'s own rules bundle (server to server, no CORS) and
+   * imports it here. A row this DB edited more recently is left untouched --
+   * see `tecdoc_conflicts` on the result. */
+  pullResolutionRules(liveBaseUrl: string): Observable<RulesBundleImportResult> {
+    return this.http.post<RulesBundleImportResult>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/pull`,
+      { live_base_url: liveBaseUrl },
+    );
+  }
+
+  /** Exports this DB's bundle and hands it to `liveBaseUrl`'s own import
+   * endpoint. The conflict check runs there, against its data. */
+  pushResolutionRules(liveBaseUrl: string): Observable<RulesBundleImportResult> {
+    return this.http.post<RulesBundleImportResult>(
+      `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/push`,
+      { live_base_url: liveBaseUrl },
+    );
+  }
+
   // --- Page 3: rules -------------------------------------------------------------------
   // Uses the paginated catalog, not GET /rules: that endpoint returns ~12MB in ~25s
   // because it also aggregates the newest normalization batch.

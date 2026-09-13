@@ -26,12 +26,14 @@ from api.app.features.match_review.rule_application import RuleAlreadyRunningErr
 from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 from api.app.features.tecdoc_review.rules_export import (
     NoCompletedBuildError,
+    RemoteSyncError,
     RulesBundleService,
 )
 from api.app.features.tecdoc_review.schemas import (
     RulesBundleExport,
     RulesBundleImportRequest,
     RulesBundleImportResult,
+    RulesSyncRequest,
     TecDocEntityPage,
     TecDocGapValuesResponse,
     TecDocReimportStatus,
@@ -415,4 +417,65 @@ def import_resolution_rules(
         ts_skipped_invalid=result.ts_skipped_invalid,
         ts_target_build=result.ts_target_build,
         ts_rules_queued_for_apply=queued,
+        tecdoc_conflicts=list(result.tecdoc_conflicts),
+    )
+
+
+@router.post("/resolution-rules/sync/pull", response_model=RulesBundleImportResult)
+def pull_resolution_rules(
+    request: RulesSyncRequest,
+    background: BackgroundTasks,
+    service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
+) -> RulesBundleImportResult:
+    """Fetch `live_base_url`'s own rules bundle and import it here.
+
+    Server-to-server: this process calls the other one's `GET
+    /resolution-rules/export` directly, no browser download/upload step and
+    no CORS to configure. The conflict check runs here, against this
+    database's own rows, exactly as a local file import would.
+    """
+
+    try:
+        result = service.pull_from(request.live_base_url)
+    except (RemoteSyncError, NoCompletedBuildError) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    queued = _queue_ts_rule_applications(background, result.ts_created_rule_ids)
+    return RulesBundleImportResult(
+        tecdoc_single_target=result.tecdoc_single_target,
+        tecdoc_compatible=result.tecdoc_compatible,
+        ts_created=result.ts_created,
+        ts_already_present=result.ts_already_present,
+        ts_skipped_invalid=result.ts_skipped_invalid,
+        ts_target_build=result.ts_target_build,
+        ts_rules_queued_for_apply=queued,
+        tecdoc_conflicts=list(result.tecdoc_conflicts),
+    )
+
+
+@router.post("/resolution-rules/sync/push", response_model=RulesBundleImportResult)
+def push_resolution_rules(
+    request: RulesSyncRequest,
+    service: Annotated[RulesBundleService, Depends(get_rules_bundle_service)],
+) -> RulesBundleImportResult:
+    """Export this database's bundle and hand it to `live_base_url`'s own
+    import endpoint. The conflict check runs *there*, against *its* data --
+    this call only reports back whatever that server decided."""
+
+    try:
+        result = service.push_to(request.live_base_url)
+    except RemoteSyncError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    return RulesBundleImportResult(
+        tecdoc_single_target=result.tecdoc_single_target,
+        tecdoc_compatible=result.tecdoc_compatible,
+        ts_created=result.ts_created,
+        ts_already_present=result.ts_already_present,
+        ts_skipped_invalid=result.ts_skipped_invalid,
+        ts_target_build=result.ts_target_build,
+        ts_rules_queued_for_apply=list(result.ts_created_rule_ids),
+        tecdoc_conflicts=list(result.tecdoc_conflicts),
     )

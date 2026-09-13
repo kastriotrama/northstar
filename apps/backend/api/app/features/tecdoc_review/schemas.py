@@ -66,6 +66,14 @@ class RulesBundleImportResult(BaseModel):
     #: Apply on a rule saved by hand. Poll `GET /match-review/resolution-rules/
     #: {rule_id}/application` for any of these to see it finish.
     ts_rules_queued_for_apply: list[str] = Field(default_factory=list)
+    #: TecDoc rows this database's own copy was newer than -- left untouched
+    #: rather than overwritten. Non-empty means a real edit collision: two
+    #: different rulings on the same value, not a plain one-way copy.
+    tecdoc_conflicts: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RulesSyncRequest(BaseModel):
+    live_base_url: str = Field(min_length=1, max_length=300)
 
 
 class TecDocVehicle(BaseModel):

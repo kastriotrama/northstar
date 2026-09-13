@@ -10,6 +10,13 @@ Only the natural-key columns are written (not the surrogate `id`, which is
 per-database and meaningless elsewhere). Re-exporting is always safe -- it
 just overwrites the file with the table's current contents.
 
+`updated_at` rides along too, unlike everywhere else this pattern is used
+(TS's own export deliberately drops it): a sync between two live databases
+needs it to tell a genuine edit collision -- two different reviewers changing
+the same value -- from an ordinary one-way copy, so `load_resolution_rules.py`
+can refuse to overwrite a newer local edit with an older one arriving from
+the other side.
+
 Usage:
     python -m scripts.export_resolution_rules --out resolution_rules_export.json
 """
@@ -37,6 +44,7 @@ from ingestion.tecdoc.resolution_migrations import (
 _COLUMNS = (
     "canonical_field", "comparison_key", "source_term", "key_table", "decision",
     "canonical_value", "note", "reviewed_by", "source_system", "relation", "support",
+    "updated_at",
 )
 
 
