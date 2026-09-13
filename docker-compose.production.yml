@@ -107,7 +107,10 @@ services:
     restart: unless-stopped
 
   gateway:
-    image: nginx:1.27-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
     ports:
       - "${NORTHSTAR_HTTP_PORT:-8765}:80"
     volumes:

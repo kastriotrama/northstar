@@ -312,6 +312,31 @@ def fetch_normalized_ts_page(
     )
 
 
+@dataclass(frozen=True)
+class ResolvedMatchQuery:
+    """Everything the matcher keys on, resolved from one normalized row.
+
+    Exposed so that consumers which need to know whether two rows evaluate
+    identically -- signature chunking, for one -- can ask the evaluator instead
+    of reimplementing its key. Two definitions of "equivalent rows" drift the
+    moment either side gains a derivation the other cannot see.
+    """
+
+    key: tuple[object, ...]
+    scope_manufacturer: str
+    model_values: tuple[str, ...]
+    year: int | None
+    fuels: frozenset[str]
+    engine_code: str | None
+    displacement_cc: int | None
+    power_kw: int | None
+    drive_type: str | None
+    bodywork: str | None
+    recovery_reason: str | None
+    source_context: tuple[tuple[str, str], ...]
+    source_model_resolution: Any
+
+
 class TecDocDryRunEvaluator:
     """Classify normalized TS rows using the existing matcher and confidence router."""
 
@@ -375,8 +400,10 @@ class TecDocDryRunEvaluator:
     def __call__(self, record: MatchSourceRecord) -> MatchTerminal:
         return self.evaluate(record).terminal
 
-    def evaluate(self, record: MatchSourceRecord) -> MatchEvaluation:
-        """Evaluate one row without retaining its plate, VIN, or raw payload."""
+    def _resolve_query(
+        self, record: MatchSourceRecord
+    ) -> MatchEvaluation | ResolvedMatchQuery:
+        """Resolve the matcher inputs, or terminate the row before matching."""
 
         payload = record.payload
         status = str(payload.get("normalization_status") or "")
@@ -526,6 +553,52 @@ class TecDocDryRunEvaluator:
             source_context,
             source_model_resolution.rule_ids,
         )
+        return ResolvedMatchQuery(
+            key=cache_key,
+            scope_manufacturer=scope_manufacturer,
+            model_values=tuple(model_values),
+            year=year,
+            fuels=fuels,
+            engine_code=engine_code,
+            displacement_cc=displacement_cc,
+            power_kw=power_kw,
+            drive_type=drive_type,
+            bodywork=bodywork,
+            recovery_reason=recovery_reason,
+            source_context=source_context,
+            source_model_resolution=source_model_resolution,
+        )
+
+    def evaluation_key(self, record: MatchSourceRecord) -> tuple[object, ...] | None:
+        """The key two rows must share to be guaranteed the same evaluation.
+
+        None when the row terminates before matching -- a normalization failure,
+        a policy route, or missing model evidence -- because such rows are not
+        grouped by anything the matcher computed.
+        """
+
+        resolved = self._resolve_query(record)
+        return resolved.key if isinstance(resolved, ResolvedMatchQuery) else None
+
+    def evaluate(self, record: MatchSourceRecord) -> MatchEvaluation:
+        """Evaluate one row without retaining its plate, VIN, or raw payload."""
+
+        resolved = self._resolve_query(record)
+        if isinstance(resolved, MatchEvaluation):
+            return resolved
+        scope_manufacturer = resolved.scope_manufacturer
+        model_values = resolved.model_values
+        year = resolved.year
+        fuels = resolved.fuels
+        engine_code = resolved.engine_code
+        displacement_cc = resolved.displacement_cc
+        power_kw = resolved.power_kw
+        drive_type = resolved.drive_type
+        bodywork = resolved.bodywork
+        source_context = resolved.source_context
+        recovery_reason = resolved.recovery_reason
+        source_model_resolution = resolved.source_model_resolution
+        cache_key = resolved.key
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
