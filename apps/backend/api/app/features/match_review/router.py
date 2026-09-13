@@ -95,13 +95,27 @@ def list_match_review_patterns(
         raise HTTPException(status_code=503, detail="Match review patterns are unavailable.") from error
 
 
-@router.post("/patterns/{pattern_key}/decision", response_model=MatchReviewPatternDecision)
+@router.post(
+    "/patterns/{pattern_key}/decision",
+    response_model=MatchReviewPatternDecision,
+    deprecated=True,
+)
 def decide_match_review_pattern(
     pattern_key: str,
     request: MatchReviewPatternDecisionRequest,
     service: Annotated[MatchReviewService, Depends(get_match_review_service)],
     operation_id: str = Query(max_length=80),
 ) -> MatchReviewPatternDecision:
+    """Deprecated: record rulings against a chunk instead.
+
+    `pattern_key` groups rows by a hand-built hash over evidence fields, which
+    carries no guarantee that the matcher evaluates its members alike -- the
+    same drift that over-grouped 143 chunks before chunk signatures were
+    aligned to `TecDocDryRunEvaluator.evaluation_key`. Existing decisions stay
+    readable; new ones belong on a chunk, via
+    `GET /v1/match-review/patterns/{pattern_key}/chunks`.
+    """
+
     try:
         return service.decide_pattern(operation_id, pattern_key, request)
     except KeyError as error:
