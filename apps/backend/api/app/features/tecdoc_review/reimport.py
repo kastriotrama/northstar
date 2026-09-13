@@ -20,9 +20,9 @@ name rather than one keyed to the new batch it is about to create.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 from uuid import uuid4
 
 from ingestion.config import IngestionSettings, get_ingestion_settings
@@ -47,13 +47,16 @@ class TecDocReimportAlreadyRunningError(RuntimeError):
     """A reimport is already in flight; a second one would race the same graph write."""
 
 
+ReimportState = Literal["running", "completed", "failed"]
+
+
 @dataclass(frozen=True)
 class TecDocReimportRun:
     """A single reimport run, as the screen sees it."""
 
     job_id: int
     batch_id: str
-    status: str
+    status: ReimportState
     source_ktypes: int
     graph_rows_written: int
     started_at: datetime
@@ -68,7 +71,8 @@ class TecDocReimportRun:
 def _row(row: tuple[Any, ...]) -> TecDocReimportRun:
     return TecDocReimportRun(
         job_id=int(row[0]),
-        status=str(row[1]),
+        # ingest_job_runs_status_values constrains the column to exactly these three.
+        status=cast(ReimportState, str(row[1])),
         batch_id=str(row[2]),
         source_ktypes=int(row[3]),
         graph_rows_written=int(row[4]),
@@ -111,7 +115,7 @@ class TecDocReimportRunner:
                 "TECDOC_SOURCE_PATH is not set. Point it at the extracted .dat drop "
                 "before reimporting."
             )
-        batch_id = f"tecdoc-reimport-{datetime.now(timezone.utc):%Y%m%d%H%M%S}-{uuid4().hex[:8]}"
+        batch_id = f"tecdoc-reimport-{datetime.now(UTC):%Y%m%d%H%M%S}-{uuid4().hex[:8]}"
         datastores = DatastoreClients.from_settings(settings)
         with datastores.postgres.connect() as connection:
             run_job_bookkeeping_migrations(connection)

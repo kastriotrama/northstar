@@ -7,13 +7,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import Settings, get_settings
-from api.app.features.tecdoc_review.gaps import TecDocResolveError
-from api.app.features.tecdoc_review.predicate import UnknownTecDocFieldError
-from api.app.features.tecdoc_review.reimport import (
-    TecDocReimportAlreadyRunningError,
-    TecDocReimportNotConfiguredError,
-    TecDocReimportRunner,
-)
 from api.app.features.match_review.chunk_router import (
     get_match_review_service,
     get_rule_application_runner,
@@ -23,6 +16,13 @@ from api.app.features.match_review.chunk_service import (
     MatchReviewNotFoundError,
 )
 from api.app.features.match_review.rule_application import RuleAlreadyRunningError
+from api.app.features.tecdoc_review.gaps import TecDocResolveError
+from api.app.features.tecdoc_review.predicate import UnknownTecDocFieldError
+from api.app.features.tecdoc_review.reimport import (
+    TecDocReimportAlreadyRunningError,
+    TecDocReimportNotConfiguredError,
+    TecDocReimportRunner,
+)
 from api.app.features.tecdoc_review.repository import TecDocReviewRepository
 from api.app.features.tecdoc_review.rules_export import (
     NoCompletedBuildError,
@@ -390,6 +390,11 @@ def _queue_ts_rule_applications(
             application = runner.start(rule_id)
         except (MatchReviewNotFoundError, MatchReviewConflictError, RuleAlreadyRunningError):
             continue
+
+        def on_finish(rows: int, rid: UUID = rule_id) -> None:
+            # Bound per iteration: the default freezes this loop's rule_id.
+            service.record_rule_applied(rid, rows_written=rows, applied_by="rules-bundle-import")
+
         background.add_task(
             runner.run,
             job_id=application.job_id,
@@ -399,9 +404,7 @@ def _queue_ts_rule_applications(
             target_field=plan.target_field,
             target_value=plan.target_value,
             applied_by="rules-bundle-import",
-            on_finish=lambda rows, rid=rule_id: service.record_rule_applied(
-                rid, rows_written=rows, applied_by="rules-bundle-import"
-            ),
+            on_finish=on_finish,
         )
         queued.append(raw_id)
     return queued

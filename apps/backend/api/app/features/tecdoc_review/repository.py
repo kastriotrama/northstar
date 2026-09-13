@@ -304,12 +304,12 @@ class TecDocReviewRepository:
                 "e.attributes",
             ),
             "fuel": (
-                "'fuel:' || coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
-                "v.attributes->>'vehicle_fuel_type')",
-                "coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
-                "v.attributes->>'vehicle_fuel_type')",
-                "jsonb_build_object('fuel_type', coalesce(e.attributes->>'fuel_type', "
-                "v.attributes->>'fuel_type', v.attributes->>'vehicle_fuel_type'))",
+                ("'fuel:' || coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
+                "v.attributes->>'vehicle_fuel_type')"),
+                ("coalesce(e.attributes->>'fuel_type', v.attributes->>'fuel_type', "
+                "v.attributes->>'vehicle_fuel_type')"),
+                ("jsonb_build_object('fuel_type', coalesce(e.attributes->>'fuel_type', "
+                "v.attributes->>'fuel_type', v.attributes->>'vehicle_fuel_type'))"),
             ),
             "bodywork": (
                 "bw.source_key",

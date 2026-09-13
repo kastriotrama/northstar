@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ingestion.staging_migrations import STAGING_MIGRATION_STATEMENTS
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 SCHEMA_DOC = REPO_ROOT / "docs" / "staging-schema-design.md"
 
 

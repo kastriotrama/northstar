@@ -3,7 +3,7 @@ from pathlib import Path
 
 from northstar.node_ids import NodeIdPrefix, is_valid_node_id
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 SCHEMA_DOC = REPO_ROOT / "docs" / "graph-schema-design.md"
 
 
@@ -14,7 +14,7 @@ def schema_text() -> str:
 def test_documented_prefixes_match_the_shared_utility() -> None:
     text = schema_text()
     prefix_rows = re.findall(
-        r"^\| `(?:Manufacturer|ModelFamily|Platform|Engine|Transmission|BodyType|FuelType|VehicleVariant|Alias)` "
+        r"^\| `(?:Manufacturer|ModelFamily|Platform|Engine|Transmission|BodyType|FuelType|DriveType|VehicleVariant|Alias)` "
         r"\| `([A-Z]{3})` \| `[A-Z]{3}-<ULID>` \|$",
         text,
         flags=re.MULTILINE,

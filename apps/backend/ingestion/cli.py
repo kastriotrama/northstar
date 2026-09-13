@@ -550,7 +550,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             with datastores.postgres.connect() as connection:
                 run_vehicle_facts_migrations(connection)
 
-                def report(rows: int, cursor: int) -> None:
+                def report_progress(rows: int, cursor: int) -> None:
                     # A backfill over millions of rows is worth watching, and a
                     # resumable job is only resumable if its cursor is visible.
                     logger.info(
@@ -558,12 +558,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                         extra={"rows_written": rows, "cursor": cursor},
                     )
 
-                summary = refresh_vehicle_facts(
+                refresh_summary = refresh_vehicle_facts(
                     connection,
                     since_source_record_id=args.since,
                     page_size=args.page_size,
                     max_pages=args.max_pages,
-                    progress=report,
+                    progress=report_progress,
                 )
         except Exception as error:  # noqa: BLE001
             logger.error(
@@ -571,7 +571,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 extra={"error_code": type(error).__name__},
             )
             return 1
-        print(json.dumps(asdict(summary), sort_keys=True))
+        print(json.dumps(asdict(refresh_summary), sort_keys=True))
         return 0
 
     if args.command == "build-match-chunks":

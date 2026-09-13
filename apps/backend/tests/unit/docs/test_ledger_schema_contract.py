@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ingestion.ledger_migrations import LEDGER_MIGRATION_STATEMENTS
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 SCHEMA_DOC = REPO_ROOT / "docs" / "ledger-schema-design.md"
 
 

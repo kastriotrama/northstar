@@ -1,3 +1,5 @@
+from typing import Self
+
 from scripts.export_ts_resolution_rules import _COLUMNS, export_rules
 
 _ROW = ("brand", "BMW", "drive_type", "fwd", [{"field": "brand", "value": "BMW"}], "pytest", None)
@@ -8,7 +10,7 @@ class _FakeCursor:
         self._rows = rows
         self.executed: list[str] = []
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

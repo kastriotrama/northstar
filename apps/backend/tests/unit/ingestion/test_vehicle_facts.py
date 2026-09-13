@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Self
 
 import pytest
 
@@ -15,7 +15,7 @@ class _FakeCursor:
         self._pages = pages
         self.executed: list[tuple[str, tuple[Any, ...]]] = []
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

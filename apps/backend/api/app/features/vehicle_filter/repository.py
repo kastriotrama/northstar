@@ -21,10 +21,10 @@ from ingestion.vehicle_facts_migrations import (
 from ingestion.vehicle_facts_query import (
     CompiledPredicate,
     UnknownFieldError,
-    group_statement,
     compile_predicate,
     count_statement,
     facet_statement,
+    group_statement,
     page_statement,
 )
 

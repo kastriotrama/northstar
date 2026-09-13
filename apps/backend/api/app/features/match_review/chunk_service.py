@@ -221,15 +221,8 @@ class ChunkRepository(Protocol):
         limit: int = 100,
     ) -> list[dict[str, Any]]: ...
     def fetch_resolution_rule(self, rule_id: UUID) -> dict[str, Any] | None: ...
-    def apply_resolution_rule(
-        self,
-        rule_id: UUID,
-        *,
-        build_id: UUID,
-        conditions: list[PredicateTerm],
-        target_field: str,
-        target_value: str,
-        applied_by: str,
+    def mark_resolution_rule_applied(
+        self, rule_id: UUID, *, rows_written: int, applied_by: str
     ) -> dict[str, Any]: ...
     def retire_resolution_rule(
         self, rule_id: UUID, *, retired_by: str

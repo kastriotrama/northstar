@@ -682,6 +682,7 @@ limited to `0` through `7` so the payload fits exactly 128 bits.
 | `Transmission` | `TRN` | `TRN-<ULID>` |
 | `BodyType` | `BDY` | `BDY-<ULID>` |
 | `FuelType` | `FUL` | `FUL-<ULID>` |
+| `DriveType` | `DRV` | `DRV-<ULID>` |
 | `VehicleVariant` | `VEH` | `VEH-<ULID>` |
 | `Alias` | `ALI` | `ALI-<ULID>` |
 
@@ -806,6 +807,7 @@ below are a stable contract asserted by the doc contract tests.
 | `transmission_id_unique` | `Transmission.id` | Internal ID uniqueness |
 | `body_type_id_unique` | `BodyType.id` | Internal ID uniqueness |
 | `fuel_type_id_unique` | `FuelType.id` | Internal ID uniqueness |
+| `drive_type_id_unique` | `DriveType.id` | Internal ID uniqueness |
 | `vehicle_variant_id_unique` | `VehicleVariant.id` | Internal ID uniqueness |
 | `alias_id_unique` | `Alias.id` | Internal ID uniqueness |
 | `alias_assertion_identity_unique` | `Alias.assertion_identity` | Enforces the `(source_system, source_assertion_key)` identity |

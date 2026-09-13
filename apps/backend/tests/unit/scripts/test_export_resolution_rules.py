@@ -1,3 +1,5 @@
+from typing import Self
+
 from scripts.export_resolution_rules import _COLUMNS, export_rules
 
 _ROW = (
@@ -11,7 +13,7 @@ class _FakeCursor:
         self._rows = rows
         self.executed: list[str] = []
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

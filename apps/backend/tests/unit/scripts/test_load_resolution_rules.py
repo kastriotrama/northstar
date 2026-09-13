@@ -1,12 +1,14 @@
+from typing import Self
+
 from scripts.load_resolution_rules import load_rules
 
 _STALE_RULE = {
-    **{
+    
         "canonical_field": "fuel", "comparison_key": "ELECTRICITY", "source_term": "electricity",
         "key_table": None, "decision": "accepted", "canonical_value": "electric", "note": "",
         "reviewed_by": "pytest", "source_system": "transportstyrelsen", "relation": "equivalent",
-        "support": None,
-    },
+        "support": None
+    ,
     "updated_at": "2020-01-01T00:00:00+00:00",
 }
 
@@ -30,7 +32,7 @@ class _FakeCursor:
         self.executed: list[tuple[str, dict[str, object]]] = []
         self._applies = applies
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

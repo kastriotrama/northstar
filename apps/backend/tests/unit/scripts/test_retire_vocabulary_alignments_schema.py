@@ -1,3 +1,5 @@
+from typing import Self
+
 from scripts.retire_vocabulary_alignments_schema import _FUNCTIONS, _TABLES, retire_schema
 
 
@@ -7,7 +9,7 @@ class _FakeCursor:
         self.executed: list[str] = []
         self._last_regclass_table: str | None = None
 
-    def __enter__(self) -> "_FakeCursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

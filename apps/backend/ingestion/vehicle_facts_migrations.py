@@ -157,25 +157,25 @@ def _migrations() -> tuple[tuple[str, str], ...]:
         statements.append(
             (
                 f"create_vehicle_facts_{column}_index",
-                f"CREATE INDEX IF NOT EXISTS vehicle_facts_{column}_idx "
-                f"ON {VEHICLE_FACTS_TABLE} ({column})",
+                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{column}_idx "
+                f"ON {VEHICLE_FACTS_TABLE} ({column})"),
             )
         )
     for field in _EFFECTIVE_VALUE_INDEX_FIELDS:
         statements.append(
             (
                 f"create_vehicle_facts_{field}_effective_index",
-                f"CREATE INDEX IF NOT EXISTS vehicle_facts_{field}_effective_idx "
-                f"ON {VEHICLE_FACTS_TABLE} (coalesce(n_{field}, r_{field}))",
+                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{field}_effective_idx "
+                f"ON {VEHICLE_FACTS_TABLE} (coalesce(n_{field}, r_{field}))"),
             )
         )
     for field in _PARTIAL_INDEX_FIELDS:
         statements.append(
             (
                 f"create_vehicle_facts_unresolved_{field}_index",
-                f"CREATE INDEX IF NOT EXISTS vehicle_facts_unresolved_{field}_idx "
+                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_unresolved_{field}_idx "
                 f"ON {VEHICLE_FACTS_TABLE} (source_record_id) "
-                f"WHERE {unresolved_predicate(field)}",
+                f"WHERE {unresolved_predicate(field)}"),
             )
         )
     return tuple(statements)

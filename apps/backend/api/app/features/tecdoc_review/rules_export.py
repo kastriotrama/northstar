@@ -214,7 +214,10 @@ def _get_json(base_url: str, path: str, *, token: str | None = None) -> dict[str
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error
-    return response.json()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise RemoteSyncError(f"{url} returned {type(payload).__name__}, expected a JSON object")
+    return payload
 
 
 def _post_json(
@@ -226,4 +229,7 @@ def _post_json(
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error
-    return response.json()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise RemoteSyncError(f"{url} returned {type(payload).__name__}, expected a JSON object")
+    return payload
