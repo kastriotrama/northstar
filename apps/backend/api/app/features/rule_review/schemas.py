@@ -123,7 +123,7 @@ class RuleCatalogEntry(BaseModel):
     has_draft: bool = False
     change_note: str | None = None
     origin: Literal[
-        "catalog", "code", "resolution", "reviewed_mapping", "generated"
+        "catalog", "code", "resolution", "reviewed_mapping", "generated", "policy"
     ] = "catalog"
     transformer_id: str | None = None
     editable: bool = True
@@ -167,6 +167,7 @@ class RuleCatalogResponse(BaseModel):
     catalog_total: int = 0
     code_total: int = 0
     resolution_total: int = 0
+    policy_total: int = 0
     tecdoc_total: int = 0
     tecdoc_inventory_total: int = 0
     tecdoc_resolution_total: int = 0

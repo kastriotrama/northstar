@@ -34,6 +34,11 @@
           <div class="stat__hint">authored on the projection</div>
         </div>
         <div class="stat">
+          <div class="stat__label">Policies</div>
+          <div class="stat__value">{{ catalog.policy_total | number }}</div>
+          <div class="stat__hint">VIN/brand &amp; safety overrides used in normalization</div>
+        </div>
+        <div class="stat">
           <div class="stat__label">TecDoc</div>
           <div class="stat__value">{{ catalog.tecdoc_total | number }}</div>
           <div class="stat__hint mono">{{ catalog.tecdoc_rule_version ?? 'no sealed version' }}</div>
@@ -255,6 +260,7 @@
             [class.origin-tag--resolution]="rule.origin === 'resolution'"
             [class.origin-tag--reviewed_mapping]="rule.origin === 'reviewed_mapping'"
             [class.origin-tag--generated]="rule.origin === 'generated'"
+            [class.origin-tag--policy]="rule.origin === 'policy'"
             [title]="rule.transformer_id ?? ''"
           >
             {{ originLabel(rule.origin) }}
@@ -336,6 +342,13 @@
         }
         Generation never accepts a value on its own; this stays a proposal until a
         reviewer rules on it.
+      </div>
+    }
+    @if (rule.origin === 'policy') {
+      <div class="notice" style="margin-bottom: 0.8rem">
+        A free-standing override (a VIN/brand-scoped correction or a safety policy), not a
+        decision on a catalog rule -- it targets no `rule_id` in the reviewed catalog, but
+        normalization applies it all the same. Not editable here.
       </div>
     }
     @if (rule.inventory_only) {

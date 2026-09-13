@@ -73,6 +73,7 @@ export class RulesPage {
     { label: 'Reviewed catalog', value: 'catalog' },
     { label: 'Compiled into the pipeline', value: 'code' },
     { label: 'Authored live (TS or TecDoc)', value: 'resolution' },
+    { label: 'Policy (VIN/brand & safety overrides)', value: 'policy' },
     { label: 'TecDoc: reviewed mapping', value: 'reviewed_mapping' },
     { label: 'TecDoc: generated proposal', value: 'generated' },
   ];
@@ -198,6 +199,8 @@ export class RulesPage {
         return 'reviewed';
       case 'generated':
         return 'generated';
+      case 'policy':
+        return 'policy';
       default:
         return origin;
     }

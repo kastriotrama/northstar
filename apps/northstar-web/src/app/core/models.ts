@@ -277,7 +277,13 @@ export interface TecDocResolveRequest {
   support?: number | null;
 }
 
-export type RuleOrigin = 'catalog' | 'code' | 'resolution' | 'reviewed_mapping' | 'generated';
+export type RuleOrigin =
+  | 'catalog'
+  | 'code'
+  | 'resolution'
+  | 'reviewed_mapping'
+  | 'generated'
+  | 'policy';
 
 /** Which dataset a rule normalizes. Both are normalized into the same canonical
  * vocabulary, so they share one catalog rather than two. */
@@ -332,6 +338,7 @@ export interface RuleCatalogResponse {
   catalog_total: number;
   code_total: number;
   resolution_total: number;
+  policy_total: number;
   tecdoc_total: number;
   tecdoc_inventory_total: number;
   tecdoc_resolution_total: number;

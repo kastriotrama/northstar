@@ -161,6 +161,22 @@ class RuleReviewService:
         ]
         entries.extend(resolution)
 
+        # Overrides carry two different things: a `decision` on one of `self._base.rules`
+        # (already reflected above, per rule_id) and free-standing policies -- a VIN+brand
+        # correction, a special-vehicle safety policy, a manufacturer match policy -- that
+        # target no catalog rule_id at all and so never appear in the loop above. They are
+        # applied during normalization all the same (see `active_rules.load_active_rules`),
+        # so a reviewer auditing "everything normalization actually uses" needs them listed
+        # too, not just the 1.26k catalog decisions.
+        policies = [
+            self._policy_entry(entity_id, override)
+            for entity_id, override in active_overrides.items()
+            if isinstance(override, dict)
+            and override.get("kind")
+            in {"reviewed_record_policy", "special_vehicle_policy", "manufacturer_match_policy"}
+        ]
+        entries.extend(policies)
+
         tecdoc_version, tecdoc_rows = self._repository.fetch_tecdoc_rules()
         tecdoc = [self._tecdoc_entry(rule) for rule in tecdoc_rows]
         tecdoc_inventory_total = sum(1 for entry in tecdoc if entry.inventory_only)
@@ -221,6 +237,7 @@ class RuleReviewService:
             catalog_total=catalog_total,
             code_total=len(embedded),
             resolution_total=len(resolution),
+            policy_total=len(policies),
             tecdoc_total=len(tecdoc),
             tecdoc_inventory_total=tecdoc_inventory_total,
             tecdoc_resolution_total=len(tecdoc_resolution),
@@ -232,6 +249,7 @@ class RuleReviewService:
                 {rule.area for rule in self._base.rules}
                 | {entry.area for entry in embedded}
                 | {entry.area for entry in resolution}
+                | {entry.area for entry in policies}
                 | {entry.area for entry in tecdoc}
                 | {entry.area for entry in tecdoc_resolution}
             ),
@@ -239,6 +257,7 @@ class RuleReviewService:
                 {rule.canonical_field for rule in self._base.rules}
                 | {entry.canonical_field for entry in embedded}
                 | {entry.canonical_field for entry in resolution}
+                | {entry.canonical_field for entry in policies}
                 | {entry.canonical_field for entry in tecdoc}
                 | {entry.canonical_field for entry in tecdoc_resolution}
             ),
@@ -306,6 +325,90 @@ class RuleReviewService:
             origin="resolution",
             editable=False,
             notes=f"Authored by {rule['author']} on the projection. {counts}{note}",
+        )
+
+    @staticmethod
+    def _policy_entry(entity_id: str, override: dict[str, Any]) -> RuleCatalogEntry:
+        """Render one free-standing override policy as a catalog row.
+
+        Unlike a catalog decision, these target no `rule_id` on `self._base.rules` --
+        a VIN+brand correction, a special-vehicle safety policy -- so they never
+        surface through the per-rule loop above even though `active_rules.load_active_rules`
+        applies every one of them during normalization.
+        """
+
+        kind = str(override.get("kind") or "policy")
+        change_note = override.get("change_note")
+
+        if kind == "reviewed_record_policy":
+            match_fields = override.get("match_fields") or {}
+            normalized_updates = override.get("normalized_updates") or {}
+            normalized_remove = override.get("normalized_remove") or []
+            candidate_remove = override.get("candidate_remove") or []
+            fields_changed = sorted(
+                set(normalized_updates) | set(normalized_remove) | set(candidate_remove)
+            )
+            summary_parts = []
+            if normalized_updates:
+                summary_parts.append(
+                    ", ".join(f"{k}={v}" for k, v in normalized_updates.items())
+                )
+            if normalized_remove:
+                summary_parts.append(f"clears {', '.join(normalized_remove)}")
+            if candidate_remove:
+                summary_parts.append(f"removes candidate {', '.join(candidate_remove)}")
+            return RuleCatalogEntry(
+                rule_id=str(entity_id),
+                area="reviewed_record_policy",
+                source_fields=sorted(match_fields.keys()),
+                source_terms=[f"{k}={v}" for k, v in match_fields.items()],
+                canonical_field=", ".join(fields_changed) or "—",
+                base_canonical_value=None,
+                effective_canonical_value="; ".join(summary_parts) or None,
+                effective_decision="accepted",
+                origin="policy",
+                editable=False,
+                notes=change_note,
+            )
+
+        if kind == "special_vehicle_policy":
+            flags: dict[str, str] = {}
+            for key in ("special_body_code_flags", "safety_text_code_flags"):
+                value = override.get(key)
+                if isinstance(value, dict):
+                    flags.update(value)
+            codes = override.get("special_modified_text_codes") or []
+            return RuleCatalogEntry(
+                rule_id=str(entity_id),
+                area="special_vehicle_policy",
+                source_fields=["body_code", "type_text"],
+                source_terms=sorted({*flags.keys(), *codes}),
+                canonical_field="parts_matching_policy",
+                base_canonical_value=None,
+                effective_canonical_value=(
+                    override.get("parts_matching_policy")
+                    or override.get("tecdoc_match_policy")
+                ),
+                effective_decision="accepted",
+                origin="policy",
+                editable=False,
+                notes=change_note or f"{len(flags)} body/text safety-code flags.",
+            )
+
+        # manufacturer_match_policy, or any future policy kind: describe generically
+        # rather than silently dropping it from the overview.
+        return RuleCatalogEntry(
+            rule_id=str(entity_id),
+            area=kind,
+            source_fields=[],
+            source_terms=[],
+            canonical_field=kind,
+            base_canonical_value=None,
+            effective_canonical_value=None,
+            effective_decision="accepted",
+            origin="policy",
+            editable=False,
+            notes=change_note,
         )
 
     @staticmethod
