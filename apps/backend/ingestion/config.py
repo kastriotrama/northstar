@@ -1,9 +1,19 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SUPPORTED_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
+# ingestion/config.py -> apps/backend -> apps -> <monorepo root>. A relative
+# ".env" only resolves when the process's cwd happens to be the repo root --
+# not true for uvicorn started from apps/backend, or from anywhere else --
+# and silently falls back to this class's own defaults (DATABASE_URL on
+# port 5432, not the real 5433) instead of raising. Resolved absolutely so
+# these settings agree with `api.app.core.settings.Settings`, which already
+# does this, regardless of where the process was launched from.
+_MONOREPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class IngestionSettings(BaseSettings):
@@ -36,7 +46,7 @@ class IngestionSettings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(_MONOREPO_ROOT / ".env", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
