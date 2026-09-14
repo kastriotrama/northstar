@@ -235,7 +235,9 @@ export class RulesBundleControls {
         `${result.ts_created} new TS rule(s) (${result.ts_already_present} already present, ` +
         `${result.ts_skipped_invalid} skipped), ` +
         `${result.policy_versions_created} new policy version(s) ` +
-        `(${result.policy_versions_already_present} already present).`,
+        `(${result.policy_versions_already_present} already present), ` +
+        `${result.tecdoc_rule_versions_created} new TecDoc rule catalog version(s) ` +
+        `(${result.tecdoc_rule_versions_already_present} already present).`,
     );
     const notices: string[] = [];
     if (result.tecdoc_conflicts.length > 0) {

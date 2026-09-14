@@ -49,9 +49,11 @@ from ingestion.config import IngestionSettings, get_ingestion_settings
 from ingestion.datastores import DatastoreClients
 from scripts.export_policy_versions import export_versions as _export_policy_versions
 from scripts.export_resolution_rules import export_rules as _export_tecdoc_rules
+from scripts.export_tecdoc_rule_catalog import export_catalog as _export_tecdoc_rule_catalog
 from scripts.export_ts_resolution_rules import export_rules as _export_ts_rules
 from scripts.load_policy_versions import load_versions as _load_policy_versions
 from scripts.load_resolution_rules import load_rules as _load_tecdoc_rules
+from scripts.load_tecdoc_rule_catalog import load_catalog as _load_tecdoc_rule_catalog
 from scripts.load_ts_resolution_rules import TsRuleLoadResult
 from scripts.load_ts_resolution_rules import load_rules as _load_ts_rules
 
@@ -77,6 +79,12 @@ class RulesBundle:
     #: policies) the `/rules` catalog counts separately from the 1.26k
     #: catalog decisions. See `scripts.export_policy_versions`.
     policy_versions: list[dict[str, Any]]
+    #: `core.tecdoc_rule_versions` + `core.tecdoc_rules` -- the sealed,
+    #: generated TecDoc rule catalog (`tecdoc_total` on the `/rules` page).
+    #: A separate mechanism from `tecdoc_resolution_rules` above (reviewer
+    #: gap rulings) -- see `scripts.export_tecdoc_rule_catalog`.
+    tecdoc_rule_versions: list[dict[str, Any]]
+    tecdoc_rule_catalog: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -104,6 +112,8 @@ class RulesImportResult:
     ts_skipped_no_build: int = 0
     policy_versions_created: int = 0
     policy_versions_already_present: int = 0
+    tecdoc_rule_versions_created: int = 0
+    tecdoc_rule_versions_already_present: int = 0
 
 
 class SettingsFactory(Protocol):
@@ -123,11 +133,14 @@ class RulesBundleService:
             tecdoc_rules = _export_tecdoc_rules(connection)
             ts_rules = _export_ts_rules(connection)
             policy_versions = _export_policy_versions(connection)
+            tecdoc_catalog = _export_tecdoc_rule_catalog(connection)
         return RulesBundle(
             exported_at=datetime.now(UTC).isoformat(),
             tecdoc_rules=tecdoc_rules,
             ts_rules=ts_rules,
             policy_versions=policy_versions,
+            tecdoc_rule_versions=tecdoc_catalog["tecdoc_rule_versions"],
+            tecdoc_rule_catalog=tecdoc_catalog["tecdoc_rules"],
         )
 
     def import_bundle(
@@ -136,6 +149,8 @@ class RulesBundleService:
         tecdoc_rules: list[dict[str, Any]],
         ts_rules: list[dict[str, Any]],
         policy_versions: list[dict[str, Any]] | None = None,
+        tecdoc_rule_versions: list[dict[str, Any]] | None = None,
+        tecdoc_rule_catalog: list[dict[str, Any]] | None = None,
         require_ts_build: bool = True,
     ) -> RulesImportResult:
         settings = self._settings_factory()
@@ -145,6 +160,12 @@ class RulesBundleService:
             tecdoc_result = _load_tecdoc_rules(connection, tecdoc_rules, commit=True)
             policy_result = _load_policy_versions(
                 connection, policy_versions or [], commit=True
+            )
+            tecdoc_catalog_result = _load_tecdoc_rule_catalog(
+                connection,
+                versions=tecdoc_rule_versions or [],
+                rules=tecdoc_rule_catalog or [],
+                commit=True,
             )
 
         repository = MatchReviewRepository(datastores.postgres.connect)
@@ -188,6 +209,8 @@ class RulesBundleService:
             ts_skipped_no_build=ts_skipped_no_build,
             policy_versions_created=policy_result.created,
             policy_versions_already_present=policy_result.already_present,
+            tecdoc_rule_versions_created=tecdoc_catalog_result.versions_created,
+            tecdoc_rule_versions_already_present=tecdoc_catalog_result.versions_already_present,
             ts_created=ts_result.created,
             ts_already_present=ts_result.already_present,
             ts_skipped_invalid=ts_result.skipped_invalid,
@@ -209,6 +232,8 @@ class RulesBundleService:
             tecdoc_rules=payload.get("tecdoc_rules", []),
             ts_rules=payload.get("ts_rules", []),
             policy_versions=payload.get("policy_versions", []),
+            tecdoc_rule_versions=payload.get("tecdoc_rule_versions", []),
+            tecdoc_rule_catalog=payload.get("tecdoc_rule_catalog", []),
             require_ts_build=False,
         )
 
@@ -230,6 +255,8 @@ class RulesBundleService:
                 "tecdoc_rules": _jsonable_rows(bundle.tecdoc_rules),
                 "ts_rules": bundle.ts_rules,
                 "policy_versions": _jsonable_rows(bundle.policy_versions),
+                "tecdoc_rule_versions": _jsonable_rows(bundle.tecdoc_rule_versions),
+                "tecdoc_rule_catalog": _jsonable_rows(bundle.tecdoc_rule_catalog),
             },
             token=token,
             basic_auth=basic_auth,
@@ -245,6 +272,10 @@ class RulesBundleService:
             tecdoc_conflicts=tuple(result.get("tecdoc_conflicts", [])),
             policy_versions_created=result.get("policy_versions_created", 0),
             policy_versions_already_present=result.get("policy_versions_already_present", 0),
+            tecdoc_rule_versions_created=result.get("tecdoc_rule_versions_created", 0),
+            tecdoc_rule_versions_already_present=result.get(
+                "tecdoc_rule_versions_already_present", 0
+            ),
         )
 
 
