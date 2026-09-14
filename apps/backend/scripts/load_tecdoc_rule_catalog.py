@@ -45,8 +45,12 @@ _INSERT_VERSION = f"""
         (rule_version, tecdoc_release, source_note, generated_by, rule_count,
          content_fingerprint, sealed, generated_at)
     VALUES (%(rule_version)s, %(tecdoc_release)s, %(source_note)s, %(generated_by)s,
-            %(rule_count)s, %(content_fingerprint)s, %(sealed)s, %(generated_at)s)
+            %(rule_count)s, %(content_fingerprint)s, FALSE, %(generated_at)s)
     ON CONFLICT (rule_version) DO NOTHING
+"""
+
+_SEAL_VERSION = f"""
+    UPDATE {TECDOC_RULE_VERSIONS_TABLE} SET sealed = TRUE WHERE rule_version = %s
 """
 
 _INSERT_RULE = f"""
@@ -100,12 +104,18 @@ def load_catalog(
         for version in versions:
             if version["rule_version"] not in new_versions:
                 continue
+            # Inserted unsealed, exactly as `canonical_rule_proposals.store_rules`
+            # does its own generation -- `core.guard_tecdoc_rule_seal()` rejects
+            # any rule row landing under an already-sealed version, so every
+            # rule insert below would fail if this row started out sealed.
             cursor.execute(_INSERT_VERSION, _parsed_timestamp(version, "generated_at"))
         for rule in rules:
             if rule["rule_version"] not in new_versions:
                 continue
             row = _parsed_timestamp(rule, "created_at")
             cursor.execute(_INSERT_RULE, {**row, "evidence": Jsonb(row["evidence"])})
+        for rule_version in new_versions:
+            cursor.execute(_SEAL_VERSION, (rule_version,))
     connection.commit()
     return TecDocCatalogLoadResult(
         versions_created=versions_created,
