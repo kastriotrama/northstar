@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
@@ -120,6 +120,12 @@ const BASIC_AUTH_PASSWORD_STORAGE_KEY = 'rules-bundle-basic-auth-password';
 })
 export class RulesBundleControls {
   private readonly api = inject(Api);
+  // `takeUntilDestroyed()` needs an injection context; `pull()`/`push()` run
+  // from a click handler, well outside one, so the DestroyRef has to be
+  // captured here (a field initializer, which *is* an injection context)
+  // and passed explicitly below -- calling it unparameterized from inside
+  // either method throws NG0203 before the request is ever sent.
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly pulling = signal(false);
   protected readonly pushing = signal(false);
@@ -192,7 +198,7 @@ export class RulesBundleControls {
           this.error.set(RulesBundleControls.describe(err, 'Could not pull from that server.'));
           return of(null);
         }),
-        takeUntilDestroyed(),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
         this.pulling.set(false);
@@ -218,7 +224,7 @@ export class RulesBundleControls {
           this.error.set(RulesBundleControls.describe(err, 'Could not push to that server.'));
           return of(null);
         }),
-        takeUntilDestroyed(),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
         this.pushing.set(false);
