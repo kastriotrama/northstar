@@ -699,6 +699,10 @@ export interface RulesBundleImportResult {
    * the table is append-only, so there's no edit-collision case. */
   policy_versions_created: number;
   policy_versions_already_present: number;
+  /** New sealed `core.tecdoc_rule_versions` (the generated `tecdoc_total`
+   * catalog) added by this import, plus how many already existed here. */
+  tecdoc_rule_versions_created: number;
+  tecdoc_rule_versions_already_present: number;
 }
 
 /**

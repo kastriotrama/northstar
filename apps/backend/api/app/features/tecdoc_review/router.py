@@ -375,6 +375,8 @@ def export_resolution_rules(
         tecdoc_rules=bundle.tecdoc_rules,
         ts_rules=bundle.ts_rules,
         policy_versions=bundle.policy_versions,
+        tecdoc_rule_versions=bundle.tecdoc_rule_versions,
+        tecdoc_rule_catalog=bundle.tecdoc_rule_catalog,
     )
 
 
@@ -445,6 +447,8 @@ def import_resolution_rules(
             tecdoc_rules=request.tecdoc_rules,
             ts_rules=request.ts_rules,
             policy_versions=request.policy_versions,
+            tecdoc_rule_versions=request.tecdoc_rule_versions,
+            tecdoc_rule_catalog=request.tecdoc_rule_catalog,
         )
     except NoCompletedBuildError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
@@ -462,6 +466,8 @@ def import_resolution_rules(
         tecdoc_conflicts=list(result.tecdoc_conflicts),
         policy_versions_created=result.policy_versions_created,
         policy_versions_already_present=result.policy_versions_already_present,
+        tecdoc_rule_versions_created=result.tecdoc_rule_versions_created,
+        tecdoc_rule_versions_already_present=result.tecdoc_rule_versions_already_present,
     )
 
 
@@ -502,6 +508,8 @@ def pull_resolution_rules(
         ts_skipped_no_build=result.ts_skipped_no_build,
         policy_versions_created=result.policy_versions_created,
         policy_versions_already_present=result.policy_versions_already_present,
+        tecdoc_rule_versions_created=result.tecdoc_rule_versions_created,
+        tecdoc_rule_versions_already_present=result.tecdoc_rule_versions_already_present,
     )
 
 
@@ -535,4 +543,6 @@ def push_resolution_rules(
         tecdoc_conflicts=list(result.tecdoc_conflicts),
         policy_versions_created=result.policy_versions_created,
         policy_versions_already_present=result.policy_versions_already_present,
+        tecdoc_rule_versions_created=result.tecdoc_rule_versions_created,
+        tecdoc_rule_versions_already_present=result.tecdoc_rule_versions_already_present,
     )

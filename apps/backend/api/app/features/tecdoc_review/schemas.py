@@ -50,12 +50,18 @@ class RulesBundleExport(BaseModel):
     tecdoc_rules: list[dict[str, Any]]
     ts_rules: list[dict[str, Any]]
     policy_versions: list[dict[str, Any]] = Field(default_factory=list)
+    #: `core.tecdoc_rule_versions` + `core.tecdoc_rules` -- the sealed,
+    #: generated TecDoc rule catalog (see `scripts.export_tecdoc_rule_catalog`).
+    tecdoc_rule_versions: list[dict[str, Any]] = Field(default_factory=list)
+    tecdoc_rule_catalog: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RulesBundleImportRequest(BaseModel):
     tecdoc_rules: list[dict[str, Any]] = Field(default_factory=list)
     ts_rules: list[dict[str, Any]] = Field(default_factory=list)
     policy_versions: list[dict[str, Any]] = Field(default_factory=list)
+    tecdoc_rule_versions: list[dict[str, Any]] = Field(default_factory=list)
+    tecdoc_rule_catalog: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RulesBundleImportResult(BaseModel):
@@ -85,6 +91,10 @@ class RulesBundleImportResult(BaseModel):
     #: instead, since the table is append-only and immutable.
     policy_versions_created: int = 0
     policy_versions_already_present: int = 0
+    #: New sealed `core.tecdoc_rule_versions` (+ their `core.tecdoc_rules`
+    #: rows) added by this import -- the `tecdoc_total` generated catalog.
+    tecdoc_rule_versions_created: int = 0
+    tecdoc_rule_versions_already_present: int = 0
 
 
 class RulesSyncRequest(BaseModel):
