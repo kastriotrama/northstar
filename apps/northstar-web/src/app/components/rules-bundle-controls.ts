@@ -10,6 +10,8 @@ import type { RulesBundleImportResult } from '../core/models';
 
 const LIVE_URL_STORAGE_KEY = 'rules-bundle-live-url';
 const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
+const BASIC_AUTH_USER_STORAGE_KEY = 'rules-bundle-basic-auth-user';
+const BASIC_AUTH_PASSWORD_STORAGE_KEY = 'rules-bundle-basic-auth-password';
 
 /**
  * Sync every manually-authored rule (TecDoc gap rulings + TS resolution rules)
@@ -47,6 +49,22 @@ const SYNC_TOKEN_STORAGE_KEY = 'rules-bundle-sync-token';
           [ngModel]="syncToken()"
           (ngModelChange)="onSyncTokenChange($event)"
           style="min-width: 160px"
+        />
+        <input
+          pInputText
+          type="text"
+          placeholder="basic auth user (if nginx-gated)"
+          [ngModel]="basicAuthUser()"
+          (ngModelChange)="onBasicAuthUserChange($event)"
+          style="min-width: 140px"
+        />
+        <input
+          pInputText
+          type="password"
+          placeholder="basic auth password"
+          [ngModel]="basicAuthPassword()"
+          (ngModelChange)="onBasicAuthPasswordChange($event)"
+          style="min-width: 140px"
         />
         <p-button
           label="Pull from live"
@@ -107,6 +125,12 @@ export class RulesBundleControls {
   protected readonly pushing = signal(false);
   protected readonly liveUrl = signal(RulesBundleControls.remembered(LIVE_URL_STORAGE_KEY));
   protected readonly syncToken = signal(RulesBundleControls.remembered(SYNC_TOKEN_STORAGE_KEY));
+  protected readonly basicAuthUser = signal(
+    RulesBundleControls.remembered(BASIC_AUTH_USER_STORAGE_KEY),
+  );
+  protected readonly basicAuthPassword = signal(
+    RulesBundleControls.remembered(BASIC_AUTH_PASSWORD_STORAGE_KEY),
+  );
   protected readonly message = signal<string | null>(null);
   protected readonly conflictMessage = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -119,6 +143,22 @@ export class RulesBundleControls {
   protected onSyncTokenChange(value: string): void {
     this.syncToken.set(value);
     RulesBundleControls.remember(SYNC_TOKEN_STORAGE_KEY, value);
+  }
+
+  protected onBasicAuthUserChange(value: string): void {
+    this.basicAuthUser.set(value);
+    RulesBundleControls.remember(BASIC_AUTH_USER_STORAGE_KEY, value);
+  }
+
+  protected onBasicAuthPasswordChange(value: string): void {
+    this.basicAuthPassword.set(value);
+    RulesBundleControls.remember(BASIC_AUTH_PASSWORD_STORAGE_KEY, value);
+  }
+
+  private basicAuth(): { user: string; password: string } | undefined {
+    const user = this.basicAuthUser().trim();
+    const password = this.basicAuthPassword().trim();
+    return user && password ? { user, password } : undefined;
   }
 
   private static remembered(key: string): string {
@@ -146,7 +186,7 @@ export class RulesBundleControls {
     this.error.set(null);
     this.conflictMessage.set(null);
     this.api
-      .pullResolutionRules(url, this.syncToken().trim() || undefined)
+      .pullResolutionRules(url, this.syncToken().trim() || undefined, this.basicAuth())
       .pipe(
         catchError((err: unknown) => {
           this.error.set(RulesBundleControls.describe(err, 'Could not pull from that server.'));
@@ -172,7 +212,7 @@ export class RulesBundleControls {
     this.error.set(null);
     this.conflictMessage.set(null);
     this.api
-      .pushResolutionRules(url, this.syncToken().trim() || undefined)
+      .pushResolutionRules(url, this.syncToken().trim() || undefined, this.basicAuth())
       .pipe(
         catchError((err: unknown) => {
           this.error.set(RulesBundleControls.describe(err, 'Could not push to that server.'));
@@ -193,13 +233,25 @@ export class RulesBundleControls {
     this.message.set(
       `${verb}: ${result.tecdoc_single_target + result.tecdoc_compatible} TecDoc rule(s), ` +
         `${result.ts_created} new TS rule(s) (${result.ts_already_present} already present, ` +
-        `${result.ts_skipped_invalid} skipped).`,
+        `${result.ts_skipped_invalid} skipped), ` +
+        `${result.policy_versions_created} new policy version(s) ` +
+        `(${result.policy_versions_already_present} already present).`,
     );
+    const notices: string[] = [];
     if (result.tecdoc_conflicts.length > 0) {
-      this.conflictMessage.set(
+      notices.push(
         `${result.tecdoc_conflicts.length} rule(s) were NOT applied -- the other side's copy ` +
           `is older than what's already here. Review before overwriting by hand.`,
       );
+    }
+    if (result.ts_skipped_no_build > 0) {
+      notices.push(
+        `${result.ts_skipped_no_build} TS rule(s) were NOT applied -- this database has no ` +
+          `completed build to attach them to yet. Run a build here, then pull again.`,
+      );
+    }
+    if (notices.length > 0) {
+      this.conflictMessage.set(notices.join(' '));
     }
   }
 

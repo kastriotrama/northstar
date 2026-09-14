@@ -227,20 +227,38 @@ export class Api {
    * see `tecdoc_conflicts` on the result. The same shared token is both sent
    * as this call's own header (checked only if this server sets one) and
    * forwarded in the body for the other server to check on its own export. */
-  pullResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
+  pullResolutionRules(
+    liveBaseUrl: string,
+    token?: string,
+    basicAuth?: { user: string; password: string },
+  ): Observable<RulesBundleImportResult> {
     return this.http.post<RulesBundleImportResult>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/pull`,
-      { live_base_url: liveBaseUrl, token: token || null },
+      {
+        live_base_url: liveBaseUrl,
+        token: token || null,
+        basic_auth_user: basicAuth?.user || null,
+        basic_auth_password: basicAuth?.password || null,
+      },
       { headers: syncTokenHeader(token) },
     );
   }
 
   /** Exports this DB's bundle and hands it to `liveBaseUrl`'s own import
    * endpoint. The conflict check runs there, against its data. */
-  pushResolutionRules(liveBaseUrl: string, token?: string): Observable<RulesBundleImportResult> {
+  pushResolutionRules(
+    liveBaseUrl: string,
+    token?: string,
+    basicAuth?: { user: string; password: string },
+  ): Observable<RulesBundleImportResult> {
     return this.http.post<RulesBundleImportResult>(
       `${this.base}/v1/normalization-review/tecdoc/resolution-rules/sync/push`,
-      { live_base_url: liveBaseUrl, token: token || null },
+      {
+        live_base_url: liveBaseUrl,
+        token: token || null,
+        basic_auth_user: basicAuth?.user || null,
+        basic_auth_password: basicAuth?.password || null,
+      },
       { headers: syncTokenHeader(token) },
     );
   }

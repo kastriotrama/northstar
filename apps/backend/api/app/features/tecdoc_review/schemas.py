@@ -40,18 +40,22 @@ class RulesBundleExport(BaseModel):
 
     `tecdoc_rules` is `core.tecdoc_resolution_rules` verbatim (see
     `scripts.export_resolution_rules`); `ts_rules` is TS's own active
-    resolution rules (see `scripts.export_ts_resolution_rules`). Save the
-    response as JSON and hand it to the import endpoint on another database.
+    resolution rules (see `scripts.export_ts_resolution_rules`);
+    `policy_versions` is `core.translation_rule_versions` verbatim (see
+    `scripts.export_policy_versions`). Save the response as JSON and hand it
+    to the import endpoint on another database.
     """
 
     exported_at: str
     tecdoc_rules: list[dict[str, Any]]
     ts_rules: list[dict[str, Any]]
+    policy_versions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RulesBundleImportRequest(BaseModel):
     tecdoc_rules: list[dict[str, Any]] = Field(default_factory=list)
     ts_rules: list[dict[str, Any]] = Field(default_factory=list)
+    policy_versions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RulesBundleImportResult(BaseModel):
@@ -70,6 +74,17 @@ class RulesBundleImportResult(BaseModel):
     #: rather than overwritten. Non-empty means a real edit collision: two
     #: different rulings on the same value, not a plain one-way copy.
     tecdoc_conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    #: TS rules the bundle carried that were left out because this database
+    #: has no completed build to attach them to yet (a `sync/pull` only --
+    #: the TecDoc half above still committed). Run a build here, then pull
+    #: again, to pick these up.
+    ts_skipped_no_build: int = 0
+    #: New `core.translation_rule_versions` rows added by this import --
+    #: the `policy_total` overlay. A version this database already had
+    #: (same `version` string) is counted in `policy_versions_already_present`
+    #: instead, since the table is append-only and immutable.
+    policy_versions_created: int = 0
+    policy_versions_already_present: int = 0
 
 
 class RulesSyncRequest(BaseModel):
@@ -78,6 +93,12 @@ class RulesSyncRequest(BaseModel):
     #: validated here -- the other server's own token (or lack of one)
     #: decides whether the call succeeds.
     token: str | None = Field(default=None, max_length=200)
+    #: HTTP Basic Auth credentials for `live_base_url` itself -- distinct from
+    #: `token`, which the *application* checks. A deployment fronted by nginx
+    #: `auth_basic` (see infra/production/nginx.conf) rejects every request
+    #: before it reaches the app, so reaching such a server needs both.
+    basic_auth_user: str | None = Field(default=None, max_length=200)
+    basic_auth_password: str | None = Field(default=None, max_length=200)
 
 
 class TecDocVehicle(BaseModel):
