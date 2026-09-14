@@ -86,6 +86,17 @@ def require_rules_sync_token(
         raise HTTPException(status_code=401, detail="Invalid or missing sync token.")
 
 
+def _basic_auth(request: RulesSyncRequest) -> tuple[str, str] | None:
+    """`live_base_url` may sit behind nginx `auth_basic` (production does --
+    see infra/production/nginx.conf), which rejects the request before the
+    app-level sync token is ever checked. Distinct credential, only sent when
+    both halves are given."""
+
+    if request.basic_auth_user and request.basic_auth_password:
+        return (request.basic_auth_user, request.basic_auth_password)
+    return None
+
+
 def get_tecdoc_review_service(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TecDocReviewService:
@@ -363,6 +374,7 @@ def export_resolution_rules(
         exported_at=bundle.exported_at,
         tecdoc_rules=bundle.tecdoc_rules,
         ts_rules=bundle.ts_rules,
+        policy_versions=bundle.policy_versions,
     )
 
 
@@ -430,7 +442,9 @@ def import_resolution_rules(
 
     try:
         result = service.import_bundle(
-            tecdoc_rules=request.tecdoc_rules, ts_rules=request.ts_rules
+            tecdoc_rules=request.tecdoc_rules,
+            ts_rules=request.ts_rules,
+            policy_versions=request.policy_versions,
         )
     except NoCompletedBuildError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
@@ -446,6 +460,8 @@ def import_resolution_rules(
         ts_target_build=result.ts_target_build,
         ts_rules_queued_for_apply=queued,
         tecdoc_conflicts=list(result.tecdoc_conflicts),
+        policy_versions_created=result.policy_versions_created,
+        policy_versions_already_present=result.policy_versions_already_present,
     )
 
 
@@ -464,7 +480,11 @@ def pull_resolution_rules(
     """
 
     try:
-        result = service.pull_from(request.live_base_url, token=request.token)
+        result = service.pull_from(
+            request.live_base_url,
+            token=request.token,
+            basic_auth=_basic_auth(request),
+        )
     except (RemoteSyncError, NoCompletedBuildError) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except psycopg.Error as error:
@@ -479,6 +499,9 @@ def pull_resolution_rules(
         ts_target_build=result.ts_target_build,
         ts_rules_queued_for_apply=queued,
         tecdoc_conflicts=list(result.tecdoc_conflicts),
+        ts_skipped_no_build=result.ts_skipped_no_build,
+        policy_versions_created=result.policy_versions_created,
+        policy_versions_already_present=result.policy_versions_already_present,
     )
 
 
@@ -492,7 +515,11 @@ def push_resolution_rules(
     this call only reports back whatever that server decided."""
 
     try:
-        result = service.push_to(request.live_base_url, token=request.token)
+        result = service.push_to(
+            request.live_base_url,
+            token=request.token,
+            basic_auth=_basic_auth(request),
+        )
     except RemoteSyncError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except psycopg.Error as error:
@@ -506,4 +533,6 @@ def push_resolution_rules(
         ts_target_build=result.ts_target_build,
         ts_rules_queued_for_apply=list(result.ts_created_rule_ids),
         tecdoc_conflicts=list(result.tecdoc_conflicts),
+        policy_versions_created=result.policy_versions_created,
+        policy_versions_already_present=result.policy_versions_already_present,
     )

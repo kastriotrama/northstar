@@ -10,7 +10,7 @@ round trip, reused as-is (not reimplemented) so the two paths can never drift,
 wired to one pair of buttons: export downloads the bundle, import applies one
 back.
 
-Two independent shapes travel in one bundle for convenience only:
+Three independent shapes travel in one bundle for convenience only:
 `tecdoc_rules` are plain upserts into `core.tecdoc_resolution_rules` (see
 `load_resolution_rules.load_rules`), refused per-row when this database's own
 copy was edited more recently than the one arriving (`tecdoc_conflicts`
@@ -18,7 +18,12 @@ below); `ts_rules` instead replay each rule through
 `MatchReviewService.save_resolution_rule` against *this* database's own
 latest completed build, since a TS rule's counts and build reference are
 only meaningful there, and a TS rule is only ever added, never overwritten
-(see `load_ts_resolution_rules.load_rules`) -- so it carries no such conflict.
+(see `load_ts_resolution_rules.load_rules`) -- so it carries no such conflict;
+`policy_versions` are `core.translation_rule_versions` rows -- the
+`policy_total` overlay a reviewer activates from drafts -- inserted only when
+the exact `version` isn't already present, since the table is append-only and
+immutable (see `load_policy_versions.load_versions`), so it carries no
+conflict case either.
 
 `pull_from`/`push_to` extend the same round trip across a network instead of
 a file: pulling calls another server's own export endpoint and imports the
@@ -42,8 +47,10 @@ from api.app.features.match_review.chunk_service import MatchReviewService
 from api.app.features.match_review.integrations import UnconfiguredOemVinProvider
 from ingestion.config import IngestionSettings, get_ingestion_settings
 from ingestion.datastores import DatastoreClients
+from scripts.export_policy_versions import export_versions as _export_policy_versions
 from scripts.export_resolution_rules import export_rules as _export_tecdoc_rules
 from scripts.export_ts_resolution_rules import export_rules as _export_ts_rules
+from scripts.load_policy_versions import load_versions as _load_policy_versions
 from scripts.load_resolution_rules import load_rules as _load_tecdoc_rules
 from scripts.load_ts_resolution_rules import TsRuleLoadResult
 from scripts.load_ts_resolution_rules import load_rules as _load_ts_rules
@@ -65,6 +72,11 @@ class RulesBundle:
     exported_at: str
     tecdoc_rules: list[dict[str, Any]]
     ts_rules: list[dict[str, Any]]
+    #: `core.translation_rule_versions` rows -- the `policy_total` overlay
+    #: (free-standing VIN/brand, special-vehicle, and manufacturer-match
+    #: policies) the `/rules` catalog counts separately from the 1.26k
+    #: catalog decisions. See `scripts.export_policy_versions`.
+    policy_versions: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -85,6 +97,13 @@ class RulesImportResult:
     #: A non-empty list here is the whole point of timestamp-aware sync: a
     #: real edit collision surfaced instead of one side silently winning.
     tecdoc_conflicts: tuple[dict[str, Any], ...] = ()
+    #: TS rules the bundle carried that were left out because this database
+    #: has no completed build to attach them to yet -- only ever set when
+    #: `import_bundle` was told not to treat that as fatal (see
+    #: `require_ts_build`). The TecDoc half above still committed.
+    ts_skipped_no_build: int = 0
+    policy_versions_created: int = 0
+    policy_versions_already_present: int = 0
 
 
 class SettingsFactory(Protocol):
@@ -103,20 +122,30 @@ class RulesBundleService:
         with datastores.postgres.connect() as connection:
             tecdoc_rules = _export_tecdoc_rules(connection)
             ts_rules = _export_ts_rules(connection)
+            policy_versions = _export_policy_versions(connection)
         return RulesBundle(
             exported_at=datetime.now(UTC).isoformat(),
             tecdoc_rules=tecdoc_rules,
             ts_rules=ts_rules,
+            policy_versions=policy_versions,
         )
 
     def import_bundle(
-        self, *, tecdoc_rules: list[dict[str, Any]], ts_rules: list[dict[str, Any]]
+        self,
+        *,
+        tecdoc_rules: list[dict[str, Any]],
+        ts_rules: list[dict[str, Any]],
+        policy_versions: list[dict[str, Any]] | None = None,
+        require_ts_build: bool = True,
     ) -> RulesImportResult:
         settings = self._settings_factory()
         datastores = DatastoreClients.from_settings(settings)
 
         with datastores.postgres.connect() as connection:
             tecdoc_result = _load_tecdoc_rules(connection, tecdoc_rules, commit=True)
+            policy_result = _load_policy_versions(
+                connection, policy_versions or [], commit=True
+            )
 
         repository = MatchReviewRepository(datastores.postgres.connect)
         latest_build = repository.fetch_latest_build()
@@ -124,29 +153,41 @@ class RulesBundleService:
             created=0, already_present=0, skipped_invalid=0, created_rule_ids=()
         )
         target_build: str | None = None
+        ts_skipped_no_build = 0
         if ts_rules:
             if latest_build is None:
-                raise NoCompletedBuildError(
-                    "No completed TS build exists here yet -- import the TecDoc rules "
-                    "on their own, or run a TS build first."
+                if require_ts_build:
+                    raise NoCompletedBuildError(
+                        "No completed TS build exists here yet -- import the TecDoc rules "
+                        "on their own, or run a TS build first."
+                    )
+                # A sync pull's TecDoc half already committed above; a build
+                # missing on *this* machine (a fresh clone, a teammate who
+                # hasn't run one yet) shouldn't discard that by failing the
+                # whole call -- the TS rules are simply left for a later pull
+                # once a build exists here to attach them to.
+                ts_skipped_no_build = len(ts_rules)
+            else:
+                target_build = str(latest_build["build_id"])
+                service = MatchReviewService(
+                    repository,
+                    oem_provider=UnconfiguredOemVinProvider(),
+                    adjudicator=HeuristicAdjudicator(),
                 )
-            target_build = str(latest_build["build_id"])
-            service = MatchReviewService(
-                repository,
-                oem_provider=UnconfiguredOemVinProvider(),
-                adjudicator=HeuristicAdjudicator(),
-            )
-            ts_result = _load_ts_rules(
-                service,
-                repository,
-                ts_rules,
-                build_id=latest_build["build_id"],
-                commit=True,
-            )
+                ts_result = _load_ts_rules(
+                    service,
+                    repository,
+                    ts_rules,
+                    build_id=latest_build["build_id"],
+                    commit=True,
+                )
 
         return RulesImportResult(
             tecdoc_single_target=tecdoc_result.single_target,
             tecdoc_compatible=tecdoc_result.compatible,
+            ts_skipped_no_build=ts_skipped_no_build,
+            policy_versions_created=policy_result.created,
+            policy_versions_already_present=policy_result.already_present,
             ts_created=ts_result.created,
             ts_already_present=ts_result.already_present,
             ts_skipped_invalid=ts_result.skipped_invalid,
@@ -155,16 +196,28 @@ class RulesBundleService:
             tecdoc_conflicts=tecdoc_result.conflicts,
         )
 
-    def pull_from(self, live_base_url: str, token: str | None = None) -> RulesImportResult:
+    def pull_from(
+        self,
+        live_base_url: str,
+        token: str | None = None,
+        basic_auth: tuple[str, str] | None = None,
+    ) -> RulesImportResult:
         """Fetch the other server's bundle and import it here."""
 
-        payload = _get_json(live_base_url, _EXPORT_PATH, token=token)
+        payload = _get_json(live_base_url, _EXPORT_PATH, token=token, basic_auth=basic_auth)
         return self.import_bundle(
             tecdoc_rules=payload.get("tecdoc_rules", []),
             ts_rules=payload.get("ts_rules", []),
+            policy_versions=payload.get("policy_versions", []),
+            require_ts_build=False,
         )
 
-    def push_to(self, live_base_url: str, token: str | None = None) -> RulesImportResult:
+    def push_to(
+        self,
+        live_base_url: str,
+        token: str | None = None,
+        basic_auth: tuple[str, str] | None = None,
+    ) -> RulesImportResult:
         """Export this database's bundle and hand it to the other server's own
         import endpoint -- the conflict check runs *there*, against *its* data,
         exactly as it would if that server imported a file pulled from here."""
@@ -176,8 +229,10 @@ class RulesBundleService:
             {
                 "tecdoc_rules": _jsonable_rows(bundle.tecdoc_rules),
                 "ts_rules": bundle.ts_rules,
+                "policy_versions": _jsonable_rows(bundle.policy_versions),
             },
             token=token,
+            basic_auth=basic_auth,
         )
         return RulesImportResult(
             tecdoc_single_target=result.get("tecdoc_single_target", 0),
@@ -188,6 +243,8 @@ class RulesBundleService:
             ts_target_build=result.get("ts_target_build"),
             ts_created_rule_ids=tuple(result.get("ts_rules_queued_for_apply", [])),
             tecdoc_conflicts=tuple(result.get("tecdoc_conflicts", [])),
+            policy_versions_created=result.get("policy_versions_created", 0),
+            policy_versions_already_present=result.get("policy_versions_already_present", 0),
         )
 
 
@@ -207,10 +264,18 @@ def _token_headers(token: str | None) -> dict[str, str]:
     return {"X-Rules-Sync-Token": token} if token else {}
 
 
-def _get_json(base_url: str, path: str, *, token: str | None = None) -> dict[str, Any]:
+def _get_json(
+    base_url: str,
+    path: str,
+    *,
+    token: str | None = None,
+    basic_auth: tuple[str, str] | None = None,
+) -> dict[str, Any]:
     url = base_url.rstrip("/") + path
     try:
-        response = httpx.get(url, headers=_token_headers(token), timeout=30.0)
+        response = httpx.get(
+            url, headers=_token_headers(token), auth=basic_auth, timeout=30.0
+        )
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error
@@ -221,11 +286,18 @@ def _get_json(base_url: str, path: str, *, token: str | None = None) -> dict[str
 
 
 def _post_json(
-    base_url: str, path: str, body: dict[str, Any], *, token: str | None = None
+    base_url: str,
+    path: str,
+    body: dict[str, Any],
+    *,
+    token: str | None = None,
+    basic_auth: tuple[str, str] | None = None,
 ) -> dict[str, Any]:
     url = base_url.rstrip("/") + path
     try:
-        response = httpx.post(url, json=body, headers=_token_headers(token), timeout=60.0)
+        response = httpx.post(
+            url, json=body, headers=_token_headers(token), auth=basic_auth, timeout=60.0
+        )
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise RemoteSyncError(f"Could not reach {url}: {error}") from error

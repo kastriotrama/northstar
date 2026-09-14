@@ -690,6 +690,15 @@ export interface RulesBundleImportResult {
   /** TecDoc rows this database's own copy was newer than -- left untouched.
    * Non-empty means a real edit collision, not a plain one-way copy. */
   tecdoc_conflicts: Record<string, unknown>[];
+  /** TS rules the pull carried that were left out because this database has
+   * no completed build to attach them to yet. The TecDoc half still landed --
+   * run a build here, then pull again, to pick these up. */
+  ts_skipped_no_build: number;
+  /** New `translation_rule_versions` rows (the `policy_total` overlay) added
+   * by this import. A version already present here is left untouched --
+   * the table is append-only, so there's no edit-collision case. */
+  policy_versions_created: number;
+  policy_versions_already_present: number;
 }
 
 /**
