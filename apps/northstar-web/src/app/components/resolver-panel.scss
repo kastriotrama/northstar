@@ -71,6 +71,13 @@
   background: #f2faf4;
 }
 
+/* Correcting reaches cars that already have an answer, which is the one thing in
+   this panel a reviewer can do by accident. It reads as a warning because it is. */
+.verdict--override {
+  border-left-color: #b4452f;
+  background: #fdf3f1;
+}
+
 .advice {
   border: 1px solid #f5c86a;
   background: #fff8e8;
@@ -129,6 +136,11 @@
   border-radius: 6px;
   padding: 0.5rem 0.6rem;
   background: var(--p-surface-50);
+}
+
+.preview--override {
+  border-color: #e6b3a7;
+  background: #fdf3f1;
 }
 
 .preview__headline {

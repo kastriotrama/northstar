@@ -436,6 +436,8 @@ export class Api {
     conditions: RuleCondition[];
     target_field: string;
     target_value: string;
+    /** Count against cars that already carry a value, rather than only gaps. */
+    override?: boolean;
   }): Observable<RulePreview> {
     return this.http.post<RulePreview>(`${this.base}/v1/match-review/rule-preview`, body);
   }
@@ -450,6 +452,8 @@ export class Api {
     target_value: string;
     author: string;
     note: string | null;
+    /** Rewrite matched cars that already carry a different value. */
+    override?: boolean;
   }): Observable<ResolutionRule> {
     return this.http.post<ResolutionRule>(`${this.base}/v1/match-review/resolution-rules`, body);
   }

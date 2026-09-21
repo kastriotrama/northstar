@@ -22,6 +22,7 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_TABLE,
+    effective_value,
     unresolved_predicate,
 )
 
@@ -55,10 +56,10 @@ class CompiledPredicate:
 def _column(layer: str, field: str) -> tuple[str, bool]:
     """Resolve one term to a column expression, and whether it holds integers.
 
-    A `normalized` term reads the *effective* value: what normalization derived,
-    or failing that what an applied rule filled in. A rule must see the world as
-    it stands, including the resolutions other rules already wrote -- otherwise
-    two rules could each claim the same cars.
+    A `normalized` term reads the *effective* value: what an applied rule
+    asserted, or failing that what normalization derived. A rule must see the
+    world as it stands, including the resolutions other rules already wrote --
+    otherwise two rules could each claim the same cars.
     """
 
     if layer == "source":
@@ -70,7 +71,7 @@ def _column(layer: str, field: str) -> tuple[str, bool]:
     if layer == "normalized":
         if field not in RESOLVABLE_FIELDS:
             raise UnknownFieldError(f"{field!r} is not a resolvable normalized field")
-        return f"coalesce(n_{field}, r_{field})", field in _NORMALIZED_INTEGER_FIELDS
+        return effective_value(field), field in _NORMALIZED_INTEGER_FIELDS
     raise UnknownFieldError(f"{layer!r} is not a known condition layer")
 
 

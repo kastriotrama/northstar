@@ -192,11 +192,22 @@ class RuleCondition(BaseModel):
         return tuple(item for item in source if item and item.strip())
 
 
+#: Rewrite cars that already carry a different value instead of only filling
+#: gaps. A correction, not a fill: the registry derives an XC40 as an estate and
+#: a reviewer is saying it is an SUV. Off by default, so no existing caller can
+#: overwrite a decision by omission.
+_OVERRIDE_DESCRIPTION = (
+    "Rewrite matched cars that already carry a different value, instead of "
+    "only filling gaps."
+)
+
+
 class RulePreviewRequest(BaseModel):
     build_id: UUID
     conditions: list[RuleCondition] = Field(min_length=1, max_length=6)
     target_field: str = Field(min_length=1, max_length=60)
     target_value: str = Field(min_length=1, max_length=80)
+    override: bool = Field(default=False, description=_OVERRIDE_DESCRIPTION)
 
 
 class RulePreview(BaseModel):
@@ -206,6 +217,13 @@ class RulePreview(BaseModel):
     matched_rows: int
     would_resolve: int
     already_resolved: int
+    would_overwrite: int = Field(
+        default=0,
+        description=(
+            "Matched cars already carrying a different value — what an override "
+            "rule would rewrite, and what an ordinary one would leave alone."
+        ),
+    )
     sample_plates: list[str]
 
 
@@ -220,6 +238,7 @@ class ResolutionRuleRequest(BaseModel):
     target_value: str = Field(min_length=1, max_length=80)
     author: str = Field(min_length=1, max_length=120)
     note: str | None = Field(default=None, max_length=2000)
+    override: bool = Field(default=False, description=_OVERRIDE_DESCRIPTION)
 
 
 class ResolutionRuleActionRequest(BaseModel):
@@ -263,6 +282,13 @@ class ResolutionRule(BaseModel):
     superseded_rows: int | None = Field(
         default=None,
         description="Rows this call reopened; null unless the call retired it.",
+    )
+    override: bool = Field(
+        default=False,
+        description=(
+            "This rule rewrites cars that already carry a different value. "
+            "Fixed when the rule is authored; running it never re-decides."
+        ),
     )
 
 

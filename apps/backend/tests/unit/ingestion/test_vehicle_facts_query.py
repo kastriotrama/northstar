@@ -41,7 +41,16 @@ def test_normalized_terms_read_the_effective_value() -> None:
 
     compiled = compile_term("normalized", "drive_type", "equals", ("fwd",))
 
-    assert compiled.sql == "coalesce(n_drive_type, r_drive_type) = ANY(%s)"
+    assert compiled.sql == "coalesce(r_drive_type, n_drive_type) = ANY(%s)"
+
+
+def test_a_rules_assertion_outranks_the_derivation_it_corrects() -> None:
+    """An override rule fills `r_` on a car whose `n_` is already wrong, so a
+    filter reading the derivation first would not find what it just changed."""
+
+    compiled = compile_term("normalized", "bodywork_form", "equals", ("suv",))
+
+    assert compiled.sql.startswith("coalesce(r_bodywork_form, n_bodywork_form)")
 
 
 def test_values_within_a_term_are_or_ed() -> None:

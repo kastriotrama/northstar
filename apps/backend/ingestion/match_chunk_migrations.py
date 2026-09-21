@@ -234,6 +234,13 @@ MATCH_CHUNK_MIGRATIONS: tuple[tuple[str, str], ...] = (
         """,
     ),
     (
+        "add_match_resolution_rules_override_column",
+        (
+            f"ALTER TABLE {MATCH_RESOLUTION_RULES_TABLE} "
+            f"ADD COLUMN IF NOT EXISTS override BOOLEAN NOT NULL DEFAULT false"
+        ),
+    ),
+    (
         "create_match_resolution_rules_population_index",
         (
             f"CREATE INDEX IF NOT EXISTS match_resolution_rules_population_idx "
@@ -256,12 +263,12 @@ MATCH_CHUNK_MIGRATIONS: tuple[tuple[str, str], ...] = (
                 NEW.build_id, NEW.source_field, NEW.source_value,
                 NEW.target_field, NEW.target_value, NEW.conditions,
                 NEW.author, NEW.created_at, NEW.matched_rows,
-                NEW.would_resolve, NEW.already_resolved
+                NEW.would_resolve, NEW.already_resolved, NEW.override
             ) IS DISTINCT FROM (
                 OLD.build_id, OLD.source_field, OLD.source_value,
                 OLD.target_field, OLD.target_value, OLD.conditions,
                 OLD.author, OLD.created_at, OLD.matched_rows,
-                OLD.would_resolve, OLD.already_resolved
+                OLD.would_resolve, OLD.already_resolved, OLD.override
             ) THEN
                 RAISE EXCEPTION
                     'resolution rule % is immutable; author a new rule instead',

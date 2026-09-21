@@ -221,13 +221,16 @@ class FakeRepository:
         *,
         conditions: list[PredicateTerm],
         signature_field: str,
+        target_value: str = "",
         sample_limit: int = 5,
     ) -> dict[str, Any]:
         self.previewed_conditions = conditions
+        self.previewed_value = target_value
         return {
             "matched_rows": 44_253,
             "would_resolve": 44_253,
             "already_resolved": 0,
+            "would_overwrite": 0,
             "sample_plates": ["ABS229"],
         }
 
@@ -246,6 +249,7 @@ class FakeRepository:
         matched_rows: int,
         would_resolve: int,
         already_resolved: int,
+        override: bool = False,
     ) -> dict[str, Any]:
         stored = {
             "rule_id": rule_id,
@@ -267,6 +271,7 @@ class FakeRepository:
             "applied_by": None,
             "retired_at": None,
             "retired_by": None,
+            "override": override,
         }
         self.rules[rule_id] = stored
         return dict(stored)
@@ -727,7 +732,11 @@ def test_rule_preview_rejects_unknown_source_field() -> None:
 
 
 def _saved_rule(
-    service: MatchReviewService, build_id: UUID, *, target_value: str = "fwd"
+    service: MatchReviewService,
+    build_id: UUID,
+    *,
+    target_value: str = "fwd",
+    override: bool = False,
 ) -> Any:
     return service.save_resolution_rule(
         ResolutionRuleRequest(
@@ -742,6 +751,7 @@ def _saved_rule(
             target_value=target_value,
             author="valon",
             note="Volvo is front-wheel drive unless flagged 4wd.",
+            override=override,
         )
     )
 
@@ -787,6 +797,54 @@ def test_planning_a_run_compiles_the_rule_without_writing() -> None:
     assert ["0"] in plan.predicate.parameters
     assert ["VO"] in plan.predicate.parameters
     assert repository.applied_conditions is None, "planning must not write"
+
+
+def test_a_rule_fills_gaps_unless_it_was_authored_to_correct() -> None:
+    """Overwriting a value somebody already decided is never the default: it
+    has to be asked for when the rule is written."""
+
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+
+    ordinary = _saved_rule(service, uuid4())
+    correcting = _saved_rule(service, uuid4(), override=True)
+
+    assert ordinary.override is False
+    assert repository.rules[ordinary.rule_id]["override"] is False
+    assert correcting.override is True
+    assert repository.rules[correcting.rule_id]["override"] is True
+
+
+def test_the_run_takes_the_mode_from_the_saved_rule() -> None:
+    """The reviewer who runs a rule is not asked again what it does; a rule
+    that was saved as a correction corrects, whoever presses run."""
+
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+    rule = _saved_rule(service, uuid4(), override=True)
+
+    plan = service.plan_resolution_rule_application(rule.rule_id)
+
+    assert plan.override is True
+
+
+def test_a_preview_counts_against_the_value_being_asserted() -> None:
+    """"412 cars already have a value" and "412 cars say something else" are
+    different claims, and only the second is what a correction would rewrite."""
+
+    repository = FakeRepository()
+    service, _, _ = _service(repository)
+
+    service.preview_rule(
+        RulePreviewRequest(
+            build_id=uuid4(),
+            conditions=[RuleCondition(field="fab_code", value="VO")],
+            target_field="drive_type",
+            target_value="fwd",
+        )
+    )
+
+    assert repository.previewed_value == "fwd"
 
 
 def test_recording_a_finished_run_closes_the_rule_out() -> None:

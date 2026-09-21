@@ -184,6 +184,7 @@ class ChunkRepository(Protocol):
         *,
         conditions: list[PredicateTerm],
         signature_field: str,
+        target_value: str = "",
         sample_limit: int = 5,
     ) -> dict[str, Any]: ...
     def fetch_population_attributes(
@@ -211,6 +212,7 @@ class ChunkRepository(Protocol):
         matched_rows: int,
         would_resolve: int,
         already_resolved: int,
+        override: bool = False,
     ) -> dict[str, Any]: ...
     def fetch_resolution_rules(
         self,
@@ -280,6 +282,10 @@ class RuleApplicationPlan:
     predicate: CompiledPredicate
     target_field: str
     target_value: str
+    #: Rewrite cars that already carry a different value, rather than only
+    #: filling gaps. Read off the saved rule, never off the request that runs
+    #: it: what a rule does is settled when it is authored.
+    override: bool = False
 
 
 class MatchReviewNotFoundError(LookupError):
@@ -770,6 +776,7 @@ class MatchReviewService:
             matched_rows=result["matched_rows"],
             would_resolve=result["would_resolve"],
             already_resolved=result["already_resolved"],
+            would_overwrite=result["would_overwrite"],
             sample_plates=result["sample_plates"],
         )
 
@@ -821,6 +828,7 @@ class MatchReviewService:
             build_id,
             conditions=_predicate_terms(conditions),
             signature_field=target_field,
+            target_value=target_value,
         )
 
     def save_resolution_rule(self, request: ResolutionRuleRequest) -> ResolutionRule:
@@ -851,6 +859,7 @@ class MatchReviewService:
             matched_rows=counts["matched_rows"],
             would_resolve=counts["would_resolve"],
             already_resolved=counts["already_resolved"],
+            override=request.override,
         )
         return _resolution_rule(stored)
 
@@ -903,6 +912,7 @@ class MatchReviewService:
             ),
             target_field=str(rule["target_field"]),
             target_value=str(rule["target_value"]),
+            override=bool(rule["override"]),
         )
 
     def record_rule_applied(

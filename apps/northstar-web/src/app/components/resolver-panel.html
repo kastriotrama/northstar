@@ -2,10 +2,21 @@
   <header class="resolver__head">
     <div>
       <h2 class="resolver__title">
-        Resolve <span class="mono">{{ targetField() }}</span>
+        @if (override()) {
+          Correct <span class="mono">{{ targetField() }}</span>
+        } @else {
+          Resolve <span class="mono">{{ targetField() }}</span>
+        }
       </h2>
       <p class="resolver__sub muted">
-        {{ unresolvedRows() | number }} matched cars still lack it
+        @if (override()) {
+          Rewrites matched cars that already say something else
+          @if (currentValue(); as value) {
+            — this one says <span class="mono">{{ value }}</span>
+          }
+        } @else {
+          {{ unresolvedRows() | number }} matched cars still lack it
+        }
       </p>
     </div>
     <button type="button" class="resolver__close" aria-label="Close" (click)="closed.emit()">
@@ -25,6 +36,16 @@
   <!-- The rule as a sentence: the filter is the predicate, so this is just the filter
        read back with the assignment on the end. -->
   <p class="statement mono">{{ statement() }}</p>
+
+  @if (override()) {
+    <!-- The count that matters here is not the gap but the population: a correction
+         reaches every matched car, including ones another rule already decided. -->
+    <div class="verdict verdict--override" aria-live="polite">
+      Correcting {{ matchedRows() | number }} matched cars — this overwrites values
+      normalization derived and values earlier rules wrote. Preview first; Retire puts
+      the derived value back.
+    </div>
+  }
 
   <div class="verdict" [class.verdict--coherent]="coherent()" aria-live="polite">
     @if (coherent()) {
@@ -112,13 +133,18 @@
   </div>
 
   <div class="toolbar">
-    <p-button
-      label="AI Suggest"
-      size="small"
-      [outlined]="true"
-      [loading]="advising()"
-      (onClick)="askAdvisor()"
-    />
+    <!-- The advisor reasons about what a population cannot say yet; asked about a
+         population that has already answered, it refuses. Offering it here would
+         only produce that refusal. -->
+    @if (!override()) {
+      <p-button
+        label="AI Suggest"
+        size="small"
+        [outlined]="true"
+        [loading]="advising()"
+        (onClick)="askAdvisor()"
+      />
+    }
     <p-button
       label="Preview"
       size="small"
@@ -136,31 +162,53 @@
       (onClick)="saveRule(false)"
     />
     <p-button
-      label="Save &amp; run"
+      [label]="override() ? 'Save &amp; rewrite' : 'Save &amp; run'"
       size="small"
+      [severity]="override() ? 'danger' : 'primary'"
       [loading]="saving() || applying()"
-      [disabled]="!canWrite()"
+      [disabled]="!canRun()"
       (onClick)="saveRule(true)"
     />
   </div>
 
+  @if (override() && canWrite() && !previewedValue()) {
+    <p class="muted field__hint">
+      Preview this value before rewriting — the count it returns is the number of cars
+      that would change.
+    </p>
+  }
+
   @if (applying()) {
     <p class="muted" role="status" aria-live="polite">
-      Running over every matching car — {{ appliedRows() | number }} resolved so far…
+      Running over every matching car — {{ appliedRows() | number }}
+      {{ override() ? 'rewritten' : 'resolved' }} so far…
     </p>
   }
 
   @if (preview(); as result) {
-    <div class="preview">
-      <p class="preview__headline">
-        Would resolve {{ result.would_resolve | number }} cars as
-        {{ result.target_field }} = {{ result.target_value }}.
-      </p>
-      <p class="preview__detail muted">
-        {{ result.matched_rows | number }} match the conditions;
-        {{ result.already_resolved | number }} already have a value and would not be
-        overwritten.
-      </p>
+    <div class="preview" [class.preview--override]="override()">
+      @if (override()) {
+        <p class="preview__headline">
+          Would rewrite {{ result.would_overwrite | number }} cars to
+          {{ result.target_field }} = {{ result.target_value }}, and fill
+          {{ result.would_resolve | number }} that have no value yet.
+        </p>
+        <p class="preview__detail muted">
+          {{ result.matched_rows | number }} match the conditions;
+          {{ result.matched_rows - result.would_overwrite - result.would_resolve | number }}
+          already say this and stay as they are.
+        </p>
+      } @else {
+        <p class="preview__headline">
+          Would resolve {{ result.would_resolve | number }} cars as
+          {{ result.target_field }} = {{ result.target_value }}.
+        </p>
+        <p class="preview__detail muted">
+          {{ result.matched_rows | number }} match the conditions;
+          {{ result.already_resolved | number }} already have a value and would not be
+          overwritten.
+        </p>
+      }
       @if (result.sample_plates.length) {
         <p class="preview__detail mono muted">
           Spot-check: {{ result.sample_plates.join(', ') }}
@@ -184,6 +232,9 @@
               <strong class="rule__statement mono">
                 {{ rule.target_field }} = {{ rule.target_value }}
               </strong>
+              @if (rule.override) {
+                <p-tag value="correction" severity="danger" />
+              }
               <p-tag [value]="rule.status" [severity]="ruleSeverity(rule)" />
             </div>
             <p class="rule__meta muted">{{ ruleMeta(rule) }}</p>

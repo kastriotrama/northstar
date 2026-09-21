@@ -23,6 +23,7 @@ import type {
   UnresolvedFieldCount,
   VehicleDetail,
   VehicleFacet,
+  VehicleFieldStatus,
   VehicleFilterRequest,
   VehicleRow,
 } from '../../core/models';
@@ -123,6 +124,17 @@ export class TsRecordsPage {
   // --- the resolver, as a panel rather than a page ---------------------------------------
   protected readonly resolving = signal<string | null>(null);
   protected readonly buildId = signal<string | null>(null);
+  /**
+   * Whether the open panel is correcting a value rather than filling a gap.
+   *
+   * The registry is wrong about cars as often as it is silent about them -- an XC40
+   * carried as an estate -- and a screen that can only fill gaps leaves a reviewer
+   * looking at an error they cannot touch. Correcting is the same act as resolving,
+   * so it is the same panel, told which of the two it is doing.
+   */
+  protected readonly correcting = signal(false);
+  /** What the car the reviewer opened the panel from says for that field today. */
+  protected readonly correctingFrom = signal<string | null>(null);
 
   /** How many matched cars lack the field being resolved. */
   protected readonly resolvingUnresolved = computed(() => {
@@ -498,11 +510,42 @@ export class TsRecordsPage {
    */
   protected resolve(field: string): void {
     this.detail.set(null);
+    this.correcting.set(false);
+    this.correctingFrom.set(null);
     this.resolving.set(field);
   }
 
   protected closeResolver(): void {
     this.resolving.set(null);
+    this.correcting.set(false);
+    this.correctingFrom.set(null);
+  }
+
+  /**
+   * From the record panel: this field already has a value and it is wrong.
+   *
+   * The car's brand and model are pinned first, because they are what makes the
+   * correction about these cars rather than about the filter that happened to be open
+   * -- a reviewer who clicked into a car from an unfiltered list is not asking to
+   * rewrite the register. Everything after that is the resolver's ordinary flow:
+   * narrow further, name the value, preview, run.
+   */
+  protected correctFrom(field: VehicleFieldStatus): void {
+    const car = this.detail();
+    const row = car
+      ? this.rows().find((item) => item.source_record_id === car.source_record_id)
+      : undefined;
+    if (row?.brand) {
+      this.filter.addTerm('brand', row.brand);
+    }
+    if (row?.model) {
+      this.filter.addTerm('model', row.model);
+    }
+    this.detail.set(null);
+    this.correctingFrom.set(field.resolved_value ?? field.normalized_value);
+    this.correcting.set(true);
+    this.resolving.set(field.field);
+    this.reload();
   }
 
   /** From the record panel: adopt this car's value for the field, then resolve it. */

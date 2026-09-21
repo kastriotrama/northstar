@@ -2,84 +2,46 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-21 — Correcting a value the TS data screen already has
+
+- Added an override mode to resolution rules so a reviewer can fix a wrong value, not
+  only fill a missing one: the record panel on `/ts-data` now offers **Edit** beside
+  every resolved field, which pins the car's brand and model into the filter and opens
+  the same resolver panel in correction mode. An override rule selects cars whose
+  effective value differs from the one asserted, supersedes the resolution they carried,
+  and writes its own; the projection now reads `coalesce(r_x, n_x)`, so a reviewer's
+  assertion outranks the derivation it corrects, and Retire puts the derived value back.
+  Correcting is opt-in, stored immutably on the rule (`core.match_resolution_rules.override`),
+  and refuses to run until the exact value has been previewed. Validation: ruff, strict
+  mypy, 1213 backend unit tests, 18 web tests, Angular build. Remaining step: the flipped
+  effective-value index ships with the next `refresh-vehicle-facts` run, which runs the
+  vehicle-facts migrations first; until then a `normalized manufacturer` filter is
+  unindexed. Nothing in production was changed.
+
 ## 2026-09-06 — Corrected unresolved-fields ownership
 
 - Confirmed from historical implementation `25cc983` that the intended rule generator is the population-first **Unresolved fields** workflow: unresolved field/value populations, discriminators, rule preview, save, and save-and-run. Corrected Angular navigation and copy so `/coverage` is **Unresolved fields** and `/chunks` is **Match review** for TS-to-TecDoc blockers. The population-first backend endpoints (`/v1/match-review/unresolved`, `/discriminators`, `/rule-preview`, resolution-rule save/apply) are not yet present in the current backend branch; only the coverage shell is currently wired. Angular build passes.
-
 ## 2026-09-06 — Completed Angular unresolved-pattern rule review
 
 - Replaced the non-existent Angular advisor/chunk endpoints with the live match-review contract: operation summary, blocker patterns, evidence, and versioned `accept_pattern` / `keep_blocked` / `change_rule` decisions. The Angular Match review page now owns the unresolved TS-to-TecDoc rule-proposal workflow; the Rules page remains the catalog browser. Validation: Nx Angular development build and backend compile pass. The current local API reports no active match-review operation, so pattern data remains empty until an audit run is started.
-
 ## 2026-09-06 — Angular agent and MCP standards
 
 - Added repository-level Angular frontend guidance covering standalone components, signals, strict typing, modern template control flow, DI, observable lifetimes, accessibility, focused tests, and CLI validation. Added tracked `.vscode/mcp.json` to start the installed Angular CLI MCP server from `apps/northstar-web`, with `.vscode` otherwise remaining local-only. Validation: confirmed the installed CLI contains the `mcp` command; Angular build/test remain blocked by local Node 18 versus Angular CLI 22's Node 22.22.3 minimum.
-
 ## 2026-08-31 — Exhaustive blocker-pattern inventory
 
 - Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, idempotent batch markers, and a paginated `core.match_run_pattern_members` drill-down. Local and remote audit batches now record every blocker pattern with occurrence totals, safe manufacturer/model/KType examples, and source-row membership; the API/frontend label persisted entries `exhaustive` and let stakeholders page through every member vehicle while retaining plates only in the restricted local view. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 23 focused/API tests pass. The audit and historical backfill remain active; no rules, decisions, aliases, Neo4j state, or push changed.
-
 ## 2026-08-31 — Full 6.5M audit and stakeholder blocker workspace
 
 - Started a resumable, release-pinned audit of all 6,515,471 local passenger rows against the 72,570-candidate v6 catalog. Added mutually exclusive blocker aggregation, a bounded review sampler, API endpoints and a pattern-first frontend for recurring category triage plus plate-level evidence. Each item now explains why matching stopped, compares TS/TecDoc fields, lists evidence gaps, and states the stakeholder decision required; category proposals remain append-only and cannot persist match decisions, attach aliases or write Neo4j. The latest exact checkpoint is 175,000 rows (2.686%), with 17,717 resolved, 15,723 provisional, 125,825 review-required, 20 unmatched, and 13,165 hard conflicts. The full audit remains running. See `docs/TS_TECDOC_FULL_AUDIT_REVIEW_WORKSPACE_2026-08-31.md`.
-
 ## 2026-08-31 — Remote qualifier-loss work merged and reconciled
 
 - Merged remote commit `36a29b0` locally as merge `d1470fd`; no push. Added a digest-pinned, read-only v6 qualifier-loss audit and tests. On the frozen 20k cohort, 1,195 rows lose a trailing qualifier; 430 name a unique specific catalog family, of which 189 already resolve, 59 are provisional, 172 remain review-required and 10 are hard conflicts. C3 Picasso mostly already recovers from raw model evidence; C4 Picasso is commonly blocked by bodywork/conflict gates. No rule, decision, alias, PostgreSQL or Neo4j state changed. See `docs/TS_MODEL_QUALIFIER_LOSS_V6_RECONCILIATION_2026-08-31.md`.
-
 ## 2026-08-31 — SCRUM-170/171 promotion cohort dry-run
 
 - Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, computes planned v6 immutable decision IDs, excludes aliases requiring retirement, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The corrected private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-v2-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible, 4,005 without an active alias, 467 requiring retirement, 1,000 selected, and 1,000/1,000 Neo4j-preflighted with planned v6 IDs. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (6), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.
-
 ## 2026-08-31 — Mixed-fuel hard-conflict adjudication
 
 - Applied the product-owner authorization to all 28 v5→v6 changes touching a hard-conflict terminal. Approved removal of 11 false fuel conflicts where TS single fuel is a component of the TecDoc mixed set, while preserving provisional/review routing and no score. Rejected four Peugeot 3008 III hybrid and 13 MINI petrol candidate-derived hard conflicts; all 17 remain unresolved with no identity approval. Added a versioned plate-free reviewed manifest, exact checksum/count audit and tests. The other 504 changed cases and full v6 policy remain unapproved; no runtime rule, decision, alias, Neo4j state or push changed. See `docs/TS_TECDOC_HARD_CONFLICT_ADJUDICATION_2026-08-31.md`.
-
 ## 2026-08-31 — Persisted-decision replay and safe alias retirement
 
 - Replayed all 9,122 current TS decision heads against the v6 complete catalog, active normalization rules and approved Volvo context policy: 4,472 remain resolved on the same KType, 4,533 become review-required, 116 provisional and one a hard year conflict; all 356 KType identity changes are non-resolved. Reconciled 1,000 graph aliases: 467 fresh, 518 now review-required and 15 provisional; 35/105 promoted variants have only stale support, while 4,005 resolved decisions remain unpromoted. Added privacy-safe read-only audit tools and immutable, idempotent alias retirement that preserves historical targets and restores `:Provisional` after the last active assertion. Focused unit/integration tests, Ruff and strict mypy pass. No existing decision, alias, graph edge, push or production state changed. See `docs/SCRUM_170_171_SUPERSESSION_AUDIT_2026-08-31.md`.
-
-## 2026-08-30 — Reviewed Volvo bodywork rules activated locally
-
-- Treated the user's instruction as product-owner approval for all 47 exact Volvo XC40/XC60 II AC/estate→SUV compatibility proposals; Golf still gets no invented KType/scoring rule. Added committed reviewed manifest `volvo-bodywork-reviewed-v1-20260830` and wired manifest/version/SHA pins into the integrated matcher and immutable policy pin. Indexed context rules by exact scope. Same v6 20k: resolved 2,346→2,492, provisional 1,883→1,990, review 14,068→13,815, hard conflicts unchanged at 1,590; all 253 changes are exactly in runtime rule scope, all move from review, and zero selected KTypes change. Five additional XC60 siblings share an exact approved scope beyond the 403 proposal rows. Active 1k performance was 117s vs 98s disabled locally. Frozen holdout, ledger, aliases, Neo4j, push and production remain untouched; broader mixed-fuel catalog adjudication still blocks rollout. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`.
-
-- Replayed the 146 review→resolved Volvo cases with the pinned active manifest into private `outputs/scrum101-volvo-bodywork-activated-review-packet-20260830.json`; the packet contains raw source evidence, normalized fields, matcher attempts and candidate evidence but remains pending human review. The audit passed all safety gates: 146/146 exact-scope gains, 4–5 technical fields observed per case, no prohibited conflicts, and no independent verdicts assigned. Extended the replay tool to require and verify reviewed context manifest pins for activated reports. No decision-ledger, alias, Neo4j, push or production writes.
-
-- Replayed fresh v5 and v6-disabled controls under current matcher digest `fe252a5b5972959e06ba10aa54a3a4a09b1ce8ffb39af7d7627c2d7a149fbb6b`; counts exactly reproduce the prior catalog A/B. Replayed all 532 catalog changes into private `outputs/scrum101-multifuel-catalog-all-change-review-packet-20260830.json`; audit classifies 222 gains, 160 losses, 128 terminal/conflict changes and 22 unresolved-identity changes, all pending review. Extended replay/audit scope to include non-resolved identity/conflict changes with explicit opt-in. No decisions, aliases, graph writes, push or production activation.
-
-- Added `docs/TS_TECDOC_MIXED_FUEL_ADJUDICATION_2026-08-30.md` with current-code controls, transition breakdown, repeated KType cohorts and required domain decisions. The v6 catalog remains held until independent adjudication approves mixed-fuel treatment; frozen holdout, SCRUM-171 ledger persistence, SCRUM-170 alias attachment and Neo4j reconciliation remain blocked.
-
-## 2026-08-30 — Controlled mixed-fuel/engine-set activation held at 20k gate
-
-- Implemented set-valued TecDoc mixed-fuel persistence/scoring and full KType engine-set loading, plus a PostgreSQL-only complete-catalog rebuild mode. Rebuilt immutable local v6 catalog: 72,570 KTypes, 57,613 graph-safe, 14,957 candidate-only, 1,805 mixed-fuel promotions, zero Neo4j writes. Volvo activated 0/47 unreviewed bodywork proposals; Golf activated zero redundant/unsupported scoring rules. Same pinned 20k: resolved 2,284→2,346, provisional 2,218→1,883, review 13,788→14,068, hard conflicts 1,597→1,590; 532 changed rows, 22 identity changes, 160 resolved→review. Activation is held before the unscored holdout pending independent review. Ruff, targeted mypy, compilation, focused PostgreSQL/Neo4j integrations and 813 effective tests pass; one unrelated broad-mypy baseline error remains in `scripts/generate_golden_corpus.py`. Added evidence comments to SCRUM-170/173/174/175 without status changes. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`. No push, decision persistence, alias attachment or graph mutation.
-
-## 2026-08-30 — PR #32 green and Jira acceptance audit
-
-- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
-
-## 2026-08-28 — PR #32 published
-
-- Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
-
-## 2026-08-31 — Frozen mixed-fuel candidate validated locally
-
-- Completed all four requested gates. Reviewed and checksum-pinned all 532 v5→v6 development changes: 222 stable-identity gains, 277 conservative downgrades, 11 false fuel-conflict removals, and 22 rejected candidate identity changes. Added exact Peugeot HNSU source-model repair rules; the final v6 control is 2,492 resolved, 1,990 provisional, 13,819 review-required, 1,586 hard conflicts, 112 policy exclusions and one normalization review out of 20,000. The 11,629-row / 11,107-group frozen holdout passed: zero new hard conflicts, zero changed resolved identities, zero unsafe resolution gains and zero resolved conflict reasons. Final pins are recorded in `ingestion/release_manifests/ts_tecdoc_matcher_candidate_v1_20260831.json`; implementation commits are `d1ed4b0` and `823a830`. 763 tests, Ruff, strict mypy, compile and read-only PostgreSQL integration pass. Match decisions, aliases, Neo4j, production activation and pushes remain untouched.
-
-## 2026-08-31 — Added exhaustive blocker pattern drilldown
-
-- Added persisted, plate-free pattern inventory members and a paginated local review drilldown so stakeholders can inspect every vehicle in a grouped blocker pattern, including restricted local plate evidence and source record IDs. The API and review UI now expose exhaustive pattern coverage with per-pattern vehicle pages; the full audit and member backfill remain active from the 400,000-row checkpoint. Focused tests, Ruff, strict mypy and frontend syntax checks pass. No push, match-decision persistence, alias activation or Neo4j mutation was performed.
-
-## 2026-08-31 — Defaulted pattern review to a compact top-10 view
-
-- The blocker-pattern table now shows the ten highest-occurrence patterns first, with explicit Top 25, Top 50, and All patterns choices. The complete inventory and per-pattern vehicle drilldown remain available. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Added general domain decision summary
-
-- Added a compact review-screen summary for the three cross-vehicle decisions that drive the merge: TS bodywork vocabulary, mixed-fuel representation, and `is_4wd=0` drive ambiguity. Each card shows one plain-language example and links to grouped patterns; no plate-level data is shown in the summary. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Expanded hard technical conflict explanations
-
-- Added a hard-conflict-only technical breakdown in the pattern inspector. It translates conflicting fields into plain-language causes and required independent evidence for power, displacement, fuel, engine, drive, year, and bodywork, while keeping plate-level details behind the existing member drilldown. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Added exact hard-conflict field comparisons
-
-- Added a plate-free technical-evidence endpoint and inspector section that compares representative TS values with actual TecDoc candidate values per conflicting field, including KType references. This makes the review decision actionable instead of reporting only a generic mismatch. Focused tests, Ruff, strict mypy and JavaScript syntax checks pass; no matcher data or graph state changed.

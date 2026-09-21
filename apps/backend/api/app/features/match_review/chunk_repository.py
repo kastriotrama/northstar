@@ -30,6 +30,7 @@ from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.vehicle_facts_migrations import (
     RESOLVABLE_FIELDS,
     VEHICLE_FACTS_TABLE,
+    effective_value,
 )
 from ingestion.vehicle_facts_query import CompiledPredicate, compile_predicate
 from ingestion.vehicle_facts_rules import retire_rule
@@ -47,7 +48,7 @@ _RESOLUTION_RULE_COLUMNS = (
     "rule_id, build_id, source_field, source_value, target_field, "
     "target_value, conditions, author, note, matched_rows, would_resolve, "
     "already_resolved, status, resolved_rows, created_at, applied_at, "
-    "applied_by, retired_at, retired_by"
+    "applied_by, retired_at, retired_by, override"
 )
 
 # A row counts as still unresolved only while nothing has filled the gap: not
@@ -143,6 +144,7 @@ def _resolution_rule_row(row: tuple[Any, ...]) -> dict[str, Any]:
         "applied_by": str(row[16]) if row[16] is not None else None,
         "retired_at": row[17],
         "retired_by": str(row[18]) if row[18] is not None else None,
+        "override": bool(row[19]),
     }
 
 
@@ -848,13 +850,20 @@ class MatchReviewRepository:
         *,
         conditions: list[PredicateTerm],
         signature_field: str,
+        target_value: str = "",
         sample_limit: int = 5,
     ) -> dict[str, Any]:
         """Count what a candidate rule would resolve, and what it would contradict.
 
         `already_resolved` rows already carry a value — from normalization, or
-        from a resolution rule someone has already run — so the rule would be
-        asserting over an existing decision rather than filling a gap.
+        from a resolution rule someone has already run — so an ordinary rule
+        would be asserting over an existing decision rather than filling a gap
+        and skips them. `would_overwrite` is the part of that an override rule
+        would actually rewrite: rows carrying a value that is not the one being
+        asserted. The difference matters when a reviewer is correcting a wrong
+        derivation, because "412 cars already have a value" and "412 cars
+        currently say the wrong thing" are the same number for very different
+        reasons, and only the second is what the run will touch.
 
         Counted over the whole projection, not one build: a rule now resolves
         every car matching it, so a preview that counted only one build's rows
@@ -863,22 +872,26 @@ class MatchReviewRepository:
 
         predicate = _projection_predicate(conditions)
         field = _resolvable_field(signature_field)
+        existing = effective_value(field, cast="text")
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 f"""
                 WITH matched AS (
-                    SELECT plate,
-                           coalesce(n_{field}::text, r_{field}::text) AS existing_value
+                    SELECT plate, {existing} AS existing_value
                     FROM {VEHICLE_FACTS_TABLE}
                     WHERE {predicate.sql}
                 )
                 SELECT count(*),
                        count(*) FILTER (WHERE existing_value IS NULL),
                        count(*) FILTER (WHERE existing_value IS NOT NULL),
+                       count(*) FILTER (
+                           WHERE existing_value IS NOT NULL
+                             AND existing_value IS DISTINCT FROM %s
+                       ),
                        (array_agg(plate) FILTER (WHERE plate IS NOT NULL))[1:%s]
                 FROM matched
                 """,
-                (*predicate.parameters, sample_limit),
+                (*predicate.parameters, target_value, sample_limit),
             )
             row = cursor.fetchone()
         if row is None:
@@ -886,13 +899,15 @@ class MatchReviewRepository:
                 "matched_rows": 0,
                 "would_resolve": 0,
                 "already_resolved": 0,
+                "would_overwrite": 0,
                 "sample_plates": [],
             }
         return {
             "matched_rows": int(row[0]),
             "would_resolve": int(row[1]),
             "already_resolved": int(row[2]),
-            "sample_plates": [str(plate) for plate in (row[3] or [])],
+            "would_overwrite": int(row[3]),
+            "sample_plates": [str(plate) for plate in (row[4] or [])],
         }
 
     def insert_resolution_rule(
@@ -910,6 +925,7 @@ class MatchReviewRepository:
         matched_rows: int,
         would_resolve: int,
         already_resolved: int,
+        override: bool = False,
     ) -> dict[str, Any]:
         """Persist a saved rule. Definition columns are immutable thereafter."""
 
@@ -919,8 +935,8 @@ class MatchReviewRepository:
                 INSERT INTO {MATCH_RESOLUTION_RULES_TABLE}
                     (rule_id, build_id, source_field, source_value,
                      target_field, target_value, conditions, author, note,
-                     matched_rows, would_resolve, already_resolved)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     matched_rows, would_resolve, already_resolved, override)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING {_RESOLUTION_RULE_COLUMNS}
                 """,
                 (
@@ -936,6 +952,7 @@ class MatchReviewRepository:
                     matched_rows,
                     would_resolve,
                     already_resolved,
+                    override,
                 ),
             )
             row = cursor.fetchone()

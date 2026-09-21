@@ -415,6 +415,9 @@
         [targetField]="field"
         [buildId]="buildId()"
         [unresolvedRows]="resolvingUnresolved()"
+        [matchedRows]="matched() ?? 0"
+        [override]="correcting()"
+        [currentValue]="correctingFrom()"
         [varyingFields]="varyingIdentity()"
         (closed)="closeResolver()"
         (changed)="reload()"
@@ -452,13 +455,24 @@
                       Resolve →
                     </button>
                   } @else {
+                    <!-- A rule's value is what the car carries, so it is what shows:
+                         the derivation it corrected is history, not the answer. -->
                     <span class="mono">{{
-                      field.normalized_value ?? field.resolved_value
+                      field.resolved_value ?? field.normalized_value
                     }}</span>
                     <p-tag
                       [value]="field.status === 'rule_resolved' ? 'by rule' : 'ok'"
                       [severity]="statusSeverity(field.status)"
                     />
+                    <!-- Having a value is not the same as having the right one. -->
+                    <button
+                      type="button"
+                      class="linkish record__edit"
+                      [attr.aria-label]="'Edit ' + field.field"
+                      (click)="correctFrom(field)"
+                    >
+                      Edit
+                    </button>
                   }
                 </td>
               </tr>

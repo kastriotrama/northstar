@@ -11,7 +11,8 @@ of work with a status, a running count and a terminal error, and whose
 constraints refuse the states this must never reach. Nothing here is in memory,
 so progress survives a reload of the page or a restart of the process -- the
 work itself does not survive a restart, but its record does, and a rule can
-simply be run again: applying only ever fills gaps.
+simply be run again: applying is idempotent, whether the rule fills gaps or
+overrides values that disagree with it.
 """
 
 from __future__ import annotations
@@ -131,6 +132,7 @@ class RuleApplicationRunner:
         target_field: str,
         target_value: str,
         applied_by: str,
+        override: bool = False,
         on_finish: Callable[[int], None] | None = None,
     ) -> None:
         """Do the work, keeping the job row current as batches land.
@@ -153,6 +155,7 @@ class RuleApplicationRunner:
                     predicate=predicate,
                     target_field=target_field,
                     target_value=target_value,
+                    override=override,
                     progress=report,
                 )
             self._finish(job_id, summary.rows_written)

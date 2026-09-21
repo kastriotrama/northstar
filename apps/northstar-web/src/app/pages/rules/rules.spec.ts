@@ -41,6 +41,7 @@ const CATALOG: RuleCatalogResponse = {
   catalog_total: 1,
   code_total: 1,
   resolution_total: 1,
+  policy_total: 0,
   tecdoc_total: 0,
   tecdoc_inventory_total: 0,
   tecdoc_resolution_total: 0,

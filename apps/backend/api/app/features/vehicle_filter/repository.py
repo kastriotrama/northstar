@@ -16,6 +16,7 @@ from psycopg import Connection
 from ingestion.vehicle_facts_migrations import (
     RESOLVABLE_FIELDS,
     VEHICLE_FACTS_TABLE,
+    effective_value,
     unresolved_predicate,
 )
 from ingestion.vehicle_facts_query import (
@@ -206,10 +207,13 @@ class VehicleFilterRepository:
             resolved = row[offset + index * 2 + 1]
             source_field = SOURCE_FOR_FIELD.get(field)
             source_value = sources.get(source_field) if source_field else None
-            if derived is not None:
-                state = "resolved"
-            elif resolved is not None:
+            # A reviewer's assertion outranks the derivation it corrects, so
+            # the row reports the rule whenever one has spoken -- otherwise the
+            # panel would keep showing the estate this car was corrected out of.
+            if resolved is not None:
                 state = "rule_resolved"
+            elif derived is not None:
+                state = "resolved"
             else:
                 state = "unresolved"
             fields.append(
@@ -292,8 +296,8 @@ class VehicleFilterRepository:
         predicate = self._predicate(conditions, None)
         fields = [f for f in RESOLVABLE_FIELDS]
         selects = ", ".join(
-            f"count(DISTINCT coalesce(n_{f}::text, r_{f}::text)) AS d_{f}, "
-            f"min(coalesce(n_{f}::text, r_{f}::text)) AS v_{f}"
+            f"count(DISTINCT {effective_value(f, cast='text')}) AS d_{f}, "
+            f"min({effective_value(f, cast='text')}) AS v_{f}"
             for f in fields
         )
         with self._connection_factory() as connection, connection.cursor() as cursor:

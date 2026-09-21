@@ -74,3 +74,24 @@ def test_field_resolutions_are_append_only_and_one_per_field() -> None:
 def test_migration_names_are_unique() -> None:
     names = [name for name, _ in MATCH_CHUNK_MIGRATIONS]
     assert len(names) == len(set(names))
+
+
+def test_a_rule_records_whether_it_overrides_existing_values() -> None:
+    """Whether a rule corrects or only fills is part of what it is, so it is
+    stored with the rule and immutable with the rest of its definition."""
+
+    statements = dict(MATCH_CHUNK_MIGRATIONS)
+    column = statements["add_match_resolution_rules_override_column"]
+    trigger = statements["protect_match_resolution_rule_definitions"]
+
+    assert "ADD COLUMN IF NOT EXISTS override BOOLEAN NOT NULL DEFAULT false" in column
+    assert "NEW.override" in trigger
+    assert "OLD.override" in trigger
+
+
+def test_the_override_column_exists_before_the_trigger_reads_it() -> None:
+    names = [name for name, _ in MATCH_CHUNK_MIGRATIONS]
+
+    assert names.index("add_match_resolution_rules_override_column") < names.index(
+        "protect_match_resolution_rule_definitions"
+    )

@@ -16,6 +16,13 @@ applied resolution rule has filled it (`r_...`). Both halves are needed: without
 the second, a rule would resolve rows and the screen would keep reporting them.
 The partial indexes below are built over exactly that predicate, so the
 unresolved population is the index rather than something filtered out of a scan.
+
+When both halves are filled the rule wins: `r_...` is a reviewer's explicit
+assertion about these cars, `n_...` is what the normalizer derived from registry
+text, and a reviewer correcting a derivation that is simply wrong -- an XC40
+derived as an estate -- is the case `effective_value` exists to serve. Until
+override rules existed nothing could fill both halves, so the precedence is
+observable only on rows a reviewer has deliberately corrected.
 """
 
 from __future__ import annotations
@@ -100,7 +107,7 @@ _DIMENSION_INDEX_COLUMNS: tuple[str, ...] = (
     "type_text",
 )
 
-# A `normalized` condition reads coalesce(n_x, r_x), so a plain column index
+# A `normalized` condition reads `effective_value`, so a plain column index
 # cannot serve it -- the expression has to be indexed as written. Only
 # manufacturer earns one: it is the normalized field filters actually name.
 _EFFECTIVE_VALUE_INDEX_FIELDS: tuple[str, ...] = ("manufacturer",)
@@ -130,6 +137,21 @@ def _column_definitions() -> str:
         ]
     )
     return ",\n            ".join(parts)
+
+
+def effective_value(field: str, *, alias: str = "", cast: str = "") -> str:
+    """SQL for the value this car actually carries, rule before derivation.
+
+    Every read of a resolvable field goes through here, so the precedence is
+    stated once: a filter, a facet, a preview and the detail panel can never
+    disagree about which of the two halves a car is showing.
+    """
+
+    if field not in RESOLVABLE_FIELDS:
+        raise ValueError(f"{field!r} is not a resolvable field")
+    prefix = f"{alias}." if alias else ""
+    suffix = f"::{cast}" if cast else ""
+    return f"coalesce({prefix}r_{field}{suffix}, {prefix}n_{field}{suffix})"
 
 
 def unresolved_predicate(field: str, *, alias: str = "") -> str:
@@ -162,11 +184,21 @@ def _migrations() -> tuple[tuple[str, str], ...]:
             )
         )
     for field in _EFFECTIVE_VALUE_INDEX_FIELDS:
+        # The expression is indexed as written, so flipping the precedence
+        # orphaned the old index rather than changing it. Dropped by name and
+        # rebuilt under a new one: a drop that is already done costs nothing,
+        # while recreating the same name every startup would rebuild the index.
+        statements.append(
+            (
+                f"drop_vehicle_facts_{field}_derived_first_index",
+                f"DROP INDEX IF EXISTS core.vehicle_facts_{field}_effective_idx",
+            )
+        )
         statements.append(
             (
                 f"create_vehicle_facts_{field}_effective_index",
-                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{field}_effective_idx "
-                f"ON {VEHICLE_FACTS_TABLE} (coalesce(n_{field}, r_{field}))"),
+                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{field}_asserted_idx "
+                f"ON {VEHICLE_FACTS_TABLE} ({effective_value(field)})"),
             )
         )
     for field in _PARTIAL_INDEX_FIELDS:
