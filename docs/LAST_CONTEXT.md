@@ -83,3 +83,8 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Added exact hard-conflict field comparisons
 
 - Added a plate-free technical-evidence endpoint and inspector section that compares representative TS values with actual TecDoc candidate values per conflicting field, including KType references. This makes the review decision actionable instead of reporting only a generic mismatch. Focused tests, Ruff, strict mypy and JavaScript syntax checks pass; no matcher data or graph state changed.
+
+## 2026-09-21 — Car search menu
+- Added `POST /v1/vehicles/search` (canonical values + free text over plate/VIN/make/model, keyset paged) and a `/car-search` toolbar page (Angular) with canonical filters and a record panel showing registry vs canonical.
+- Validation: backend unit suite (1204) + mypy pass; web tests pass. SQL not run against real data — `core.vehicle_facts` is not built in the local DB.
+- Not done: pulling live rules — needs the live URL, sync token and nginx basic-auth credentials.

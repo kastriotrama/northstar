@@ -30,6 +30,10 @@ from api.app.features.match_review.rule_advisor import (
 from api.app.features.vehicle_filter.repository import VehicleFilterRepository
 from api.app.features.vehicle_filter.schemas import (
     AdviseRequest,
+    CanonicalVehicleRow,
+    CarSearchPage,
+    CarSearchRequest,
+    FullVehicleRecord,
     GapGroup,
     GapGroupReport,
     UnresolvedField,
@@ -193,6 +197,54 @@ def page_vehicles(
         next_cursor=items[-1].source_record_id if items and has_more else None,
         has_more=has_more,
     )
+
+
+@router.post("/search", response_model=CarSearchPage)
+def search_cars(
+    request: CarSearchRequest,
+    repository: RepositoryDependency,
+    cursor: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> CarSearchPage:
+    """Find cars by their canonical values. `matched_rows` is sent on the first page only."""
+
+    try:
+        rows = repository.search_page(
+            request.conditions, request.text, cursor_id=cursor, limit=limit
+        )
+        matched = (
+            repository.search_count(request.conditions, request.text)
+            if cursor == 0
+            else None
+        )
+    except UnknownFieldError as error:
+        raise _bad_field(error) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+    items = [CanonicalVehicleRow(**row) for row in rows]
+    has_more = len(items) == limit
+    return CarSearchPage(
+        items=items,
+        matched_rows=matched,
+        next_cursor=items[-1].source_record_id if items and has_more else None,
+        has_more=has_more,
+    )
+
+
+@router.get("/{source_record_id}/full", response_model=FullVehicleRecord)
+def get_full_vehicle(
+    source_record_id: int, repository: RepositoryDependency
+) -> FullVehicleRecord:
+    try:
+        record = repository.full_record(source_record_id)
+    except psycopg.Error as error:
+        raise _unavailable() from error
+    if record is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found.")
+    return FullVehicleRecord(**record)
 
 
 @router.get("/{source_record_id}", response_model=VehicleDetail)

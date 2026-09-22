@@ -20,6 +20,7 @@ from psycopg import Connection
 from ingestion.match_chunk_migrations import MATCH_FIELD_RESOLUTIONS_TABLE
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.vehicle_facts_migrations import (
+    canonical_only_columns,
     NORMALIZED_INTEGER_FIELDS,
     NORMALIZED_TEXT_FIELDS,
     RESOLVABLE_FIELDS,
@@ -95,6 +96,7 @@ def projected_columns() -> tuple[tuple[str, str], ...]:
     columns.extend(
         (f"r_{name}", _integer(f"res.{name}")) for name in NORMALIZED_INTEGER_FIELDS
     )
+    columns.extend((name, _text(expression)) for name, expression in canonical_only_columns())
     columns.extend(
         [
             ("norm_status", _text("nr.status")),
