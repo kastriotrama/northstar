@@ -1,0 +1,271 @@
+<div class="search">
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Vehicles</h2>
+      <span class="muted">
+        @if (matched() !== null) {
+          {{ matched() | number }} cars
+        }
+      </span>
+    </div>
+
+    <input
+      pInputText
+      type="search"
+      class="search__box"
+      placeholder="Plate, VIN, manufacturer or model — e.g. “volvo v70”"
+      aria-label="Search cars"
+      [ngModel]="text()"
+      (ngModelChange)="onText($event)"
+    />
+
+    <div class="search__filters">
+      @for (facet of facets; track facet.key) {
+        <label class="field">
+          <span class="field__label">{{ facet.label }}</span>
+          <select
+            class="field__select"
+            [attr.aria-label]="facet.label"
+            [value]="selected()[facet.key]"
+            (change)="onFacet(facet.key, $any($event.target).value)"
+          >
+            <option value="">Any</option>
+            @for (option of options()[facet.key]; track option.value) {
+              <option [value]="option.value" [selected]="selected()[facet.key] === option.value">
+                {{ option.value }} ({{ option.count | number }})
+              </option>
+            }
+          </select>
+        </label>
+      }
+      @for (range of ranges; track range.key) {
+        <div class="field">
+          <span class="field__label">{{ range.label }}</span>
+          <span class="field__range">
+            <input
+              pInputText
+              inputmode="numeric"
+              placeholder="from"
+              [attr.aria-label]="range.label + ' from'"
+              [ngModel]="rangeFrom()[range.key]"
+              (ngModelChange)="onRangeFrom(range.key, $event)"
+            />
+            <input
+              pInputText
+              inputmode="numeric"
+              placeholder="to"
+              [attr.aria-label]="range.label + ' to'"
+              [ngModel]="rangeTo()[range.key]"
+              (ngModelChange)="onRangeTo(range.key, $event)"
+            />
+          </span>
+        </div>
+      }
+      <p-button
+        label="Clear"
+        size="small"
+        [outlined]="true"
+        [disabled]="!hasFilter()"
+        (onClick)="reset()"
+      />
+    </div>
+  </section>
+
+  @if (error(); as text) {
+    <p class="error" role="alert">{{ text }}</p>
+  }
+
+  <div class="results" [class.results--panel]="openRow()">
+    <section class="card">
+      <p-table [value]="rows()" [scrollable]="true" scrollHeight="62vh" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Plate</th>
+            <th>Manufacturer</th>
+            <th>Model family</th>
+            <th class="num">Year</th>
+            <th class="num">kW</th>
+            <th class="num">cc</th>
+            <th>Engine</th>
+            <th>Drive</th>
+            <th>Bodywork</th>
+            <th>Fuel</th>
+            <th>Transmission</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
+          <tr
+            (click)="open(row)"
+            [class.row--active]="openRow()?.source_record_id === row.source_record_id"
+            style="cursor: pointer"
+          >
+            <td class="mono">{{ row.plate }}</td>
+            <td [class.rule]="isRuleFilled(row, 'manufacturer')">{{ row.manufacturer ?? '—' }}</td>
+            <td [class.rule]="isRuleFilled(row, 'model_family')">{{ row.model_family ?? '—' }}</td>
+            <td class="num" [class.rule]="isRuleFilled(row, 'production_year')">
+              {{ row.production_year ?? '—' }}
+            </td>
+            <td class="num" [class.rule]="isRuleFilled(row, 'power_kw')">
+              {{ row.power_kw ?? '—' }}
+            </td>
+            <td class="num" [class.rule]="isRuleFilled(row, 'displacement_cc')">
+              {{ row.displacement_cc ?? '—' }}
+            </td>
+            <td class="mono" [class.rule]="isRuleFilled(row, 'engine_code')">
+              {{ row.engine_code ?? '—' }}
+            </td>
+            <td [class.rule]="isRuleFilled(row, 'drive_type')">{{ row.drive_type ?? '—' }}</td>
+            <td [class.rule]="isRuleFilled(row, 'bodywork_form')">
+              {{ row.bodywork_form ?? '—' }}
+            </td>
+            <td>{{ row.fuel ?? '—' }}</td>
+            <td>{{ row.transmission ?? '—' }}</td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="11" class="muted" style="padding: 1rem">
+              @if (loading()) {
+                Searching…
+              } @else {
+                No cars match.
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+
+      <div class="toolbar">
+        <span class="muted">
+          Showing {{ rows().length | number }}
+          @if (matched() !== null) {
+            of {{ matched() | number }}
+          }
+          · <span class="rule-key">underlined</span> = value supplied by a live rule
+        </span>
+        @if (nextCursor() !== null) {
+          <p-button
+            label="Load more"
+            size="small"
+            [outlined]="true"
+            [loading]="loading()"
+            (onClick)="loadMore()"
+          />
+        }
+      </div>
+    </section>
+
+    @if (openRow(); as car) {
+      <aside class="card record" aria-label="Car record">
+        <div class="card__head">
+          <h3 class="card__title mono">{{ car.plate ?? 'No plate' }}</h3>
+          <p-button label="Close" size="small" [text]="true" (onClick)="close()" />
+        </div>
+        <dl class="record__ids">
+          <dt>VIN</dt>
+          <dd class="mono">{{ car.vin ?? '—' }}</dd>
+          <dt>Fuel</dt>
+          <dd>{{ car.fuel ?? '—' }}</dd>
+          <dt>Transmission</dt>
+          <dd>{{ car.transmission ?? '—' }}</dd>
+          <dt>Euro class</dt>
+          <dd>{{ car.euro_class ?? '—' }}</dd>
+          <dt>Normalization</dt>
+          <dd>
+            <p-tag
+              [value]="car.norm_status ?? '—'"
+              [severity]="car.norm_status === 'resolved' ? 'success' : 'warn'"
+            />
+          </dd>
+        </dl>
+
+        @if (detailLoading()) {
+          <p class="muted">Loading…</p>
+        } @else if (detail(); as record) {
+          <details class="section" open>
+            <summary>Canonical fields <span class="muted">registry → canonical</span></summary>
+            <table class="record__fields">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Registry said</th>
+                  <th>Canonical</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (field of record.fields; track field.field) {
+                  <tr>
+                    <td>{{ fieldLabels[field.field] ?? field.field }}</td>
+                    <td class="mono muted">{{ field.source_value ?? '—' }}</td>
+                    <td>
+                      <span>{{ field.normalized_value ?? field.resolved_value ?? '—' }}</span>
+                      <span
+                        class="badge"
+                        [class.badge--rule]="field.status === 'rule_resolved'"
+                        [class.badge--gap]="field.status === 'unresolved'"
+                      >
+                        {{ statusLabel(field.status) }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </details>
+
+          <details class="section" open>
+            <summary>
+              All normalized values
+              <span class="muted">{{ filled(record.normalized) }} of {{ entries(record.normalized).length }} set</span>
+            </summary>
+            <dl class="kv">
+              @for (entry of entries(record.normalized); track entry[0]) {
+                <dt>{{ entry[0] }}</dt>
+                <dd [class.kv__empty]="show(entry[1]) === '—'">{{ show(entry[1]) }}</dd>
+              }
+            </dl>
+          </details>
+
+          <details class="section" open>
+            <summary>
+              Registry record
+              <span class="muted">{{ filled(record.registry) }} of {{ entries(record.registry).length }} fields set</span>
+            </summary>
+            <dl class="kv">
+              @for (entry of entries(record.registry); track entry[0]) {
+                <dt>{{ entry[0] }}</dt>
+                <dd class="mono" [class.kv__empty]="show(entry[1]) === '—'">{{ show(entry[1]) }}</dd>
+              }
+            </dl>
+          </details>
+
+          @if (record.normalization; as run) {
+            <details class="section">
+              <summary>Normalization run</summary>
+              <dl class="kv">
+                <dt>status</dt>
+                <dd>{{ run.status }}</dd>
+                <dt>confidence</dt>
+                <dd>{{ run.confidence }}</dd>
+                <dt>mapping</dt>
+                <dd class="mono">{{ run.mapping_version ?? '—' }}</dd>
+                <dt>rules</dt>
+                <dd class="mono">{{ run.rule_version ?? '—' }}</dd>
+                <dt>pipeline</dt>
+                <dd class="mono">{{ run.pipeline_version ?? '—' }}</dd>
+                <dt>applied rules</dt>
+                <dd class="mono">{{ show(run.applied_rule_ids) }}</dd>
+                <dt>review reasons</dt>
+                <dd>{{ show(run.review_reasons) }}</dd>
+                <dt>ingested</dt>
+                <dd>{{ record.ingested_at ?? '—' }}</dd>
+                <dt>batch</dt>
+                <dd class="mono">{{ record.source_batch_id ?? '—' }}</dd>
+              </dl>
+            </details>
+          }
+        }
+      </aside>
+    }
+  </div>
+</div>

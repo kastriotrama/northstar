@@ -39,6 +39,9 @@ import type {
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
+  CarSearchPage,
+  CarSearchRequest,
+  FullVehicleRecord,
   VehicleCount,
   VehicleDetail,
   VehicleFacet,
@@ -536,6 +539,21 @@ export class Api {
     return this.http.post<VehiclePage>(`${this.base}/v1/vehicles/page`, filter, {
       params: params({ cursor: options.cursor ?? 0, limit: options.limit ?? 100 }),
     });
+  }
+
+  /** Cars found by their canonical values, plus optional free text (plate, VIN, make, model). */
+  searchCars(
+    request: CarSearchRequest,
+    options: { cursor?: number; limit?: number } = {},
+  ): Observable<CarSearchPage> {
+    return this.http.post<CarSearchPage>(`${this.base}/v1/vehicles/search`, request, {
+      params: params({ cursor: options.cursor ?? 0, limit: options.limit ?? 50 }),
+    });
+  }
+
+  /** Everything known about one car: the whole registry row and every normalized value. */
+  fullVehicle(sourceRecordId: number): Observable<FullVehicleRecord> {
+    return this.http.get<FullVehicleRecord>(`${this.base}/v1/vehicles/${sourceRecordId}/full`);
   }
 
   vehicleDetail(sourceRecordId: number): Observable<VehicleDetail> {

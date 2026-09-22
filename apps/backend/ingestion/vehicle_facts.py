@@ -26,6 +26,7 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_TABLE,
+    canonical_only_columns,
 )
 
 STAGING_TABLE = "staging.transportstyrelsen_raw"
@@ -95,6 +96,7 @@ def projected_columns() -> tuple[tuple[str, str], ...]:
     columns.extend(
         (f"r_{name}", _integer(f"res.{name}")) for name in NORMALIZED_INTEGER_FIELDS
     )
+    columns.extend((name, _text(expression)) for name, expression in canonical_only_columns())
     columns.extend(
         [
             ("norm_status", _text("nr.status")),

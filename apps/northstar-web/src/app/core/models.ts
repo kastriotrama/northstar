@@ -733,3 +733,56 @@ export interface GapGroupReport {
   groups: GapGroup[];
 }
 
+
+/** One car as normalization understands it -- canonical values, not registry spellings. */
+export interface CanonicalVehicleRow {
+  source_record_id: number;
+  plate: string | null;
+  vin: string | null;
+  manufacturer: string | null;
+  model_family: string | null;
+  drive_type: string | null;
+  bodywork_form: string | null;
+  engine_code: string | null;
+  power_kw: number | null;
+  displacement_cc: number | null;
+  production_year: number | null;
+  /** Canonical fields a live rule supplied because normalization could not derive them. */
+  rule_filled: string[];
+  /** Canonical values normalization derives but no rule can target -- no gap to fill. */
+  fuel: string | null;
+  transmission: string | null;
+  euro_class: string | null;
+  norm_status: string | null;
+}
+
+export interface CarSearchRequest extends VehicleFilterRequest {
+  text: string;
+}
+
+export interface CarSearchPage {
+  items: CanonicalVehicleRow[];
+  /** Sent on the first page only. */
+  matched_rows: number | null;
+  next_cursor: number | null;
+  has_more: boolean;
+}
+
+export interface NormalizationMeta {
+  status: string;
+  confidence: number;
+  applied_rule_ids: string[];
+  review_reasons: string[];
+  mapping_version: string | null;
+  rule_version: string | null;
+  pipeline_version: string | null;
+  updated_at: string | null;
+}
+
+/** One car in full: every registry field and every value normalization derived. */
+export interface FullVehicleRecord extends VehicleDetail {
+  ingested_at: string | null;
+  registry: Record<string, unknown>;
+  normalized: Record<string, unknown>;
+  normalization: NormalizationMeta | null;
+}
