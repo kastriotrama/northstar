@@ -20,13 +20,13 @@ from psycopg import Connection
 from ingestion.match_chunk_migrations import MATCH_FIELD_RESOLUTIONS_TABLE
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.vehicle_facts_migrations import (
-    canonical_only_columns,
     NORMALIZED_INTEGER_FIELDS,
     NORMALIZED_TEXT_FIELDS,
     RESOLVABLE_FIELDS,
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_TABLE,
+    canonical_only_columns,
 )
 
 STAGING_TABLE = "staging.transportstyrelsen_raw"

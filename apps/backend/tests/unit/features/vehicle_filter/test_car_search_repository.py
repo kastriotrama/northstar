@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Self
 
 from api.app.features.vehicle_filter.repository import VehicleFilterRepository
 from ingestion.vehicle_facts_migrations import RESOLVABLE_FIELDS
@@ -10,7 +10,7 @@ class _Cursor:
         self.rows = rows
         self.executed: list[tuple[str, list[Any]]] = []
 
-    def __enter__(self) -> "_Cursor":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -30,7 +30,7 @@ class _Connection:
     def __init__(self, cursor: _Cursor) -> None:
         self._cursor = cursor
 
-    def __enter__(self) -> "_Connection":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
