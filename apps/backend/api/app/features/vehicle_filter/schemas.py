@@ -9,8 +9,7 @@ screen what they had already expressed on the browse screen.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -119,63 +118,3 @@ class GapGroupReport(BaseModel):
     unresolved_field: str
     total_rows: int
     groups: list[GapGroup]
-
-
-class CarSearchRequest(VehicleFilter):
-    """Structured canonical filters plus optional free text (plate, VIN, make, model)."""
-
-    text: str = Field(default="", max_length=120)
-
-
-class CanonicalVehicleRow(BaseModel):
-    """One car as normalization understands it, not as the registry spelled it."""
-
-    source_record_id: int
-    plate: str | None
-    vin: str | None
-    manufacturer: str | None
-    model_family: str | None
-    drive_type: str | None
-    bodywork_form: str | None
-    engine_code: str | None
-    power_kw: int | None
-    displacement_cc: int | None
-    production_year: int | None
-    #: Canonical fields a live rule supplied because normalization could not.
-    rule_filled: list[str]
-    #: Canonical values normalization derives but no rule can target (no gap to fill).
-    #: `fuel` keeps only the first of a hybrid's energy sources; the full list is in
-    #: the record panel's normalized-values section.
-    fuel: str | None
-    transmission: str | None
-    euro_class: str | None
-    norm_status: str | None
-
-
-class CarSearchPage(BaseModel):
-    items: list[CanonicalVehicleRow]
-    matched_rows: int | None
-    next_cursor: int | None
-    has_more: bool
-
-
-class NormalizationMeta(BaseModel):
-    status: str
-    confidence: float
-    applied_rule_ids: list[str]
-    review_reasons: list[str]
-    mapping_version: str | None
-    rule_version: str | None
-    pipeline_version: str | None
-    updated_at: datetime | None
-
-
-class FullVehicleRecord(VehicleDetail):
-    """One car in full: every registry field, every normalized value."""
-
-    ingested_at: datetime | None
-    #: The registry row exactly as ingested, every key it carries.
-    registry: dict[str, Any]
-    #: Every value normalization derived (fuel, drive, type approval, tyres, ...).
-    normalized: dict[str, Any]
-    normalization: NormalizationMeta | None

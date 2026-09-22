@@ -15,11 +15,9 @@ describe('App', () => {
       (link.textContent ?? '').trim(),
     );
 
-    // Browsing a population and saying what it means are one workflow, so the page
-    // count is the thing most likely to creep back up. Car search is the one lookup
-    // screen: it reads canonical values and writes nothing.
-    expect(labels.length).toBe(5);
-    expect(labels.some((label) => label.startsWith('Vehicles'))).toBe(true);
+    // Four, not five: browsing a population and saying what it means are one workflow,
+    // and the page count is the thing most likely to creep back up.
+    expect(labels.length).toBe(4);
     expect(labels.some((label) => label.startsWith('TS data'))).toBe(true);
     expect(labels.some((label) => label.startsWith('Unresolved'))).toBe(false);
   });

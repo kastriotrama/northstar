@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ingestion.vehicle_facts_migrations import (
-    CANONICAL_ONLY_FIELDS,
     NORMALIZED_INTEGER_FIELDS,
     RESOLVABLE_FIELDS,
     SOURCE_INTEGER_COLUMNS,
@@ -70,13 +69,9 @@ def _column(layer: str, field: str) -> tuple[str, bool]:
             raise UnknownFieldError(f"{field!r} is not a projected source column")
         return field, field in _INTEGER_COLUMNS
     if layer == "normalized":
-        if field in RESOLVABLE_FIELDS:
-            return effective_value(field), field in _NORMALIZED_INTEGER_FIELDS
-        if field in CANONICAL_ONLY_FIELDS:
-            # No resolution rule can target these, so no r_ overlay to fall back to --
-            # the column is the whole story.
-            return field, False
-        raise UnknownFieldError(f"{field!r} is not a resolvable normalized field")
+        if field not in RESOLVABLE_FIELDS:
+            raise UnknownFieldError(f"{field!r} is not a resolvable normalized field")
+        return effective_value(field), field in _NORMALIZED_INTEGER_FIELDS
     raise UnknownFieldError(f"{layer!r} is not a known condition layer")
 
 
@@ -203,64 +198,6 @@ def page_statement(predicate: CompiledPredicate, *, limit: int = 100) -> str:
         "SELECT source_record_id, plate, brand, model, variant, version, "
         "vehicle_year, kw, norm_status "
         f"FROM {VEHICLE_FACTS_TABLE} WHERE {predicate.sql} "
-        "AND source_record_id > %s ORDER BY source_record_id LIMIT %s"
-    )
-
-
-MAX_SEARCH_TOKENS = 5
-
-
-def _escape_like(token: str) -> str:
-    return token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def compile_search_text(text: str) -> CompiledPredicate | None:
-    """Free-text car search over identity and the *canonical* make and model.
-
-    Every whitespace-separated token must match something (AND), and a token may
-    match a plate or VIN prefix, or appear in the effective manufacturer or model
-    family -- a rule's assertion, or failing that what normalization derived.
-    That is what lets "volvo v70" find a car whose registry brand column says
-    something else entirely, and also a car whose derivation was wrong until a
-    reviewer corrected it. Returns None when there is nothing to search for.
-    """
-
-    tokens = [token for token in text.split() if token][:MAX_SEARCH_TOKENS]
-    if not tokens:
-        return None
-    manufacturer = effective_value("manufacturer")
-    family = effective_value("model_family")
-    fragments: list[str] = []
-    parameters: list[Any] = []
-    for token in tokens:
-        escaped = _escape_like(token)
-        fragments.append(
-            "(upper(plate) LIKE upper(%s) OR upper(vin) LIKE upper(%s) "
-            f"OR {manufacturer} ILIKE %s OR {family} ILIKE %s)"
-        )
-        parameters.extend([f"{escaped}%", f"{escaped}%", f"%{escaped}%", f"%{escaped}%"])
-    return CompiledPredicate(" AND ".join(fragments), parameters)
-
-
-def canonical_page_statement(predicate: CompiledPredicate, *, limit: int = 100) -> str:
-    """One keyset page of cars, read as their canonical values.
-
-    Each canonical column is the effective value -- a rule's assertion, else what
-    normalization derived -- followed by whether a rule supplied it, so the screen
-    can tell a fact normalization derived from one a reviewer's rule asserted
-    (filling a gap, or correcting a wrong derivation).
-    """
-
-    canonical = ", ".join(
-        f"{effective_value(field)}, (r_{field} IS NOT NULL)" for field in RESOLVABLE_FIELDS
-    )
-    # Fuel, transmission and Euro class are projected straight into the table now
-    # (CANONICAL_ONLY_FIELDS), so no per-row join is needed to read them.
-    canonical_only = ", ".join(CANONICAL_ONLY_FIELDS)
-    return (
-        f"SELECT source_record_id, plate, vin, {canonical}, {canonical_only}, norm_status "
-        f"FROM {VEHICLE_FACTS_TABLE} "
-        f"WHERE {predicate.sql} "
         "AND source_record_id > %s ORDER BY source_record_id LIMIT %s"
     )
 

@@ -13,8 +13,6 @@ from typing import Any, Protocol
 
 from psycopg import Connection
 
-from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
-from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import (
     RESOLVABLE_FIELDS,
     VEHICLE_FACTS_TABLE,
@@ -24,9 +22,7 @@ from ingestion.vehicle_facts_migrations import (
 from ingestion.vehicle_facts_query import (
     CompiledPredicate,
     UnknownFieldError,
-    canonical_page_statement,
     compile_predicate,
-    compile_search_text,
     count_statement,
     facet_statement,
     group_statement,
@@ -181,127 +177,6 @@ class VehicleFilterRepository:
             }
             for row in rows
         ]
-
-    def search_page(
-        self,
-        conditions: Sequence[Any],
-        text: str,
-        *,
-        cursor_id: int,
-        limit: int,
-    ) -> list[dict[str, Any]]:
-        """Cars matching the filter and the free text, as canonical values."""
-
-        base = self._predicate(conditions, None)
-        search = compile_search_text(text)
-        predicate = (
-            base
-            if search is None
-            else CompiledPredicate(
-                f"({base.sql}) AND ({search.sql})",
-                [*base.parameters, *search.parameters],
-            )
-        )
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                canonical_page_statement(predicate, limit=limit),
-                [*predicate.parameters, cursor_id, limit],
-            )
-            rows = cursor.fetchall()
-        fields = RESOLVABLE_FIELDS
-        results = []
-        for row in rows:
-            canonical = {
-                field: row[3 + index * 2] for index, field in enumerate(fields)
-            }
-            rule_filled = [
-                field for index, field in enumerate(fields) if row[4 + index * 2]
-            ]
-            tail = 3 + len(fields) * 2
-            results.append(
-                {
-                    "source_record_id": int(row[0]),
-                    "plate": row[1],
-                    "vin": row[2],
-                    **canonical,
-                    "rule_filled": rule_filled,
-                    "fuel": row[tail],
-                    "transmission": row[tail + 1],
-                    "euro_class": row[tail + 2],
-                    "norm_status": row[tail + 3],
-                }
-            )
-        return results
-
-    def search_count(self, conditions: Sequence[Any], text: str) -> int:
-        base = self._predicate(conditions, None)
-        search = compile_search_text(text)
-        predicate = (
-            base
-            if search is None
-            else CompiledPredicate(
-                f"({base.sql}) AND ({search.sql})",
-                [*base.parameters, *search.parameters],
-            )
-        )
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(count_statement(predicate), predicate.parameters)
-            row = cursor.fetchone()
-        return int(row[0]) if row else 0
-
-    def full_record(self, source_record_id: int) -> dict[str, Any] | None:
-        """Everything known about one car: the registry row, every normalized value.
-
-        `detail` answers "which canonical fields did rules or normalization settle";
-        this answers "what is this car". It reads the raw registry row and the latest
-        normalization result by primary key, so nothing is scanned.
-        """
-
-        facts = self.detail(source_record_id)
-        if facts is None:
-            return None
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"SELECT source_batch_id, ingested_at, raw_record "
-                f"FROM {STAGING_TABLE} WHERE id = %s",
-                (source_record_id,),
-            )
-            raw = cursor.fetchone()
-            cursor.execute(
-                f"""
-                SELECT status, confidence, normalized_payload, applied_rule_ids,
-                       review_reasons, mapping_version, rule_version, pipeline_version,
-                       updated_at
-                FROM {NORMALIZATION_RESULTS_TABLE}
-                WHERE source_table = %s AND source_record_id = %s
-                ORDER BY updated_at DESC, id DESC
-                LIMIT 1
-                """,
-                (STAGING_TABLE, source_record_id),
-            )
-            norm = cursor.fetchone()
-
-        payload = dict(norm[2] or {}) if norm else {}
-        return {
-            **facts,
-            "ingested_at": raw[1] if raw else None,
-            "registry": dict(raw[2] or {}) if raw else {},
-            "normalized": dict(payload.get("normalized") or {}),
-            "normalization": (
-                {
-                    "status": norm[0],
-                    "confidence": float(norm[1] or 0.0),
-                    "applied_rule_ids": [str(v) for v in (norm[3] or [])],
-                    "review_reasons": [str(v) for v in (norm[4] or [])],
-                    "mapping_version": norm[5],
-                    "rule_version": norm[6],
-                    "pipeline_version": norm[7],
-                    "updated_at": norm[8],
-                }
-                if norm
-                else None
-            ),
-        }
 
     def detail(self, source_record_id: int) -> dict[str, Any] | None:
         """One car, with each canonical field's origin and outcome."""

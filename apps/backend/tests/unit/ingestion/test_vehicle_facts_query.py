@@ -2,9 +2,7 @@ import pytest
 
 from ingestion.vehicle_facts_query import (
     UnknownFieldError,
-    canonical_page_statement,
     compile_predicate,
-    compile_search_text,
     compile_term,
     count_statement,
     page_statement,
@@ -139,73 +137,3 @@ def test_statements_embed_the_compiled_predicate() -> None:
     assert compiled.sql in count_statement(compiled)
     assert compiled.sql in page_statement(compiled)
     assert "source_record_id > %s" in page_statement(compiled)
-
-
-def test_search_text_empty_means_no_predicate() -> None:
-    assert compile_search_text("   ") is None
-
-
-def test_search_text_ands_tokens_and_searches_canonical_make_and_model() -> None:
-    compiled = compile_search_text("volvo v70")
-
-    assert compiled is not None
-    assert compiled.sql.count(" AND ") == 1
-    assert "coalesce(r_manufacturer, n_manufacturer) ILIKE" in compiled.sql
-    assert "coalesce(r_model_family, n_model_family) ILIKE" in compiled.sql
-    assert compiled.parameters[:4] == ["volvo%", "volvo%", "%volvo%", "%volvo%"]
-
-
-def test_search_text_escapes_like_wildcards_and_binds_values() -> None:
-    compiled = compile_search_text("100%_'; DROP TABLE x --")
-
-    assert compiled is not None
-    assert "DROP TABLE" not in compiled.sql
-    assert compiled.parameters[0] == "100\\%\\_';%"
-
-
-def test_search_text_caps_the_number_of_tokens() -> None:
-    compiled = compile_search_text("a b c d e f g h")
-
-    assert compiled is not None
-    assert len(compiled.parameters) == 4 * 5
-
-
-def test_canonical_page_statement_reports_which_fields_a_rule_filled() -> None:
-    """A rule's flag is `r_field IS NOT NULL` now -- true whether it filled a gap
-    or corrected a wrong derivation, since a rule always wins when present."""
-
-    compiled = compile_term("normalized", "manufacturer", "equals", ("VOLVO",))
-
-    statement = canonical_page_statement(compiled, limit=10)
-
-    assert "coalesce(r_manufacturer, n_manufacturer)" in statement
-    assert "(r_power_kw IS NOT NULL)" in statement
-    assert "ORDER BY source_record_id LIMIT %s" in statement
-
-
-def test_canonical_page_statement_reads_fuel_and_transmission_as_plain_columns() -> None:
-    """These are projected columns now (CANONICAL_ONLY_FIELDS), not a per-row join."""
-
-    compiled = compile_term("normalized", "manufacturer", "equals", ("VOLVO",))
-
-    statement = canonical_page_statement(compiled, limit=10)
-
-    assert "canonical_fuel" in statement
-    assert "canonical_transmission" in statement
-    assert "canonical_euro_class" in statement
-    assert "LATERAL" not in statement
-    assert "fuel1" not in statement
-    assert "gearbox" not in statement
-
-
-def test_canonical_only_fields_are_filterable_without_a_rule_overlay() -> None:
-    """No r_ column exists for these, so the column is used as-is."""
-
-    compiled = compile_term("normalized", "canonical_fuel", "equals", ("diesel",))
-
-    assert compiled.sql == "canonical_fuel = ANY(%s)"
-
-
-def test_unknown_canonical_field_is_still_refused() -> None:
-    with pytest.raises(UnknownFieldError):
-        compile_term("normalized", "canonical_color", "equals", ("red",))
