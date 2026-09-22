@@ -29,14 +29,22 @@ class FakeRepository:
     def fetch_build(self, build_id: UUID) -> dict | None:
         return {"build_id": build_id} if build_id == BUILD_ID else None
 
-    def preview_rule(self, build_id: UUID, *, conditions, signature_field: str) -> dict:
-        return {"matched_rows": 10, "would_resolve": 10, "already_resolved": 0, "sample_plates": []}
+    def preview_rule(
+        self, build_id: UUID, *, conditions, signature_field: str, target_value: str = ""
+    ) -> dict:
+        return {
+            "matched_rows": 10,
+            "would_resolve": 10,
+            "already_resolved": 0,
+            "would_overwrite": 0,
+            "sample_plates": [],
+        }
 
     def insert_resolution_rule(self, **kwargs) -> dict:
         row = {
             "rule_id": uuid4(), "status": "saved", "resolved_rows": 0,
             "created_at": datetime.now(UTC), "applied_at": None, "applied_by": None,
-            "retired_at": None, "retired_by": None, **kwargs,
+            "retired_at": None, "retired_by": None, "override": False, **kwargs,
         }
         self.inserted.append(row)
         return row

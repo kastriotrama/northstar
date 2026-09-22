@@ -23,6 +23,7 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_TABLE,
+    effective_value,
     unresolved_predicate,
 )
 
@@ -56,10 +57,10 @@ class CompiledPredicate:
 def _column(layer: str, field: str) -> tuple[str, bool]:
     """Resolve one term to a column expression, and whether it holds integers.
 
-    A `normalized` term reads the *effective* value: what normalization derived,
-    or failing that what an applied rule filled in. A rule must see the world as
-    it stands, including the resolutions other rules already wrote -- otherwise
-    two rules could each claim the same cars.
+    A `normalized` term reads the *effective* value: what an applied rule
+    asserted, or failing that what normalization derived. A rule must see the
+    world as it stands, including the resolutions other rules already wrote --
+    otherwise two rules could each claim the same cars.
     """
 
     if layer == "source":
@@ -70,7 +71,7 @@ def _column(layer: str, field: str) -> tuple[str, bool]:
         return field, field in _INTEGER_COLUMNS
     if layer == "normalized":
         if field in RESOLVABLE_FIELDS:
-            return f"coalesce(n_{field}, r_{field})", field in _NORMALIZED_INTEGER_FIELDS
+            return effective_value(field), field in _NORMALIZED_INTEGER_FIELDS
         if field in CANONICAL_ONLY_FIELDS:
             # No resolution rule can target these, so no r_ overlay to fall back to --
             # the column is the whole story.
@@ -218,16 +219,17 @@ def compile_search_text(text: str) -> CompiledPredicate | None:
 
     Every whitespace-separated token must match something (AND), and a token may
     match a plate or VIN prefix, or appear in the effective manufacturer or model
-    family -- what normalization derived, or failing that what a live rule filled.
+    family -- a rule's assertion, or failing that what normalization derived.
     That is what lets "volvo v70" find a car whose registry brand column says
-    something else entirely. Returns None when there is nothing to search for.
+    something else entirely, and also a car whose derivation was wrong until a
+    reviewer corrected it. Returns None when there is nothing to search for.
     """
 
     tokens = [token for token in text.split() if token][:MAX_SEARCH_TOKENS]
     if not tokens:
         return None
-    manufacturer = "coalesce(n_manufacturer, r_manufacturer)"
-    family = "coalesce(n_model_family, r_model_family)"
+    manufacturer = effective_value("manufacturer")
+    family = effective_value("model_family")
     fragments: list[str] = []
     parameters: list[Any] = []
     for token in tokens:
@@ -243,14 +245,14 @@ def compile_search_text(text: str) -> CompiledPredicate | None:
 def canonical_page_statement(predicate: CompiledPredicate, *, limit: int = 100) -> str:
     """One keyset page of cars, read as their canonical values.
 
-    Each canonical column is the effective value -- derived, else rule-filled --
-    followed by whether a rule supplied it, so the screen can tell a fact
-    normalization derived from one a reviewer's rule asserted.
+    Each canonical column is the effective value -- a rule's assertion, else what
+    normalization derived -- followed by whether a rule supplied it, so the screen
+    can tell a fact normalization derived from one a reviewer's rule asserted
+    (filling a gap, or correcting a wrong derivation).
     """
 
     canonical = ", ".join(
-        f"coalesce(n_{field}, r_{field}), (n_{field} IS NULL AND r_{field} IS NOT NULL)"
-        for field in RESOLVABLE_FIELDS
+        f"{effective_value(field)}, (r_{field} IS NOT NULL)" for field in RESOLVABLE_FIELDS
     )
     # Fuel, transmission and Euro class are projected straight into the table now
     # (CANONICAL_ONLY_FIELDS), so no per-row join is needed to read them.

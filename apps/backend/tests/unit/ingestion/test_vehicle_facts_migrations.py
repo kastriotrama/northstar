@@ -7,6 +7,7 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_MIGRATIONS,
+    effective_value,
     unresolved_predicate,
 )
 
@@ -93,3 +94,33 @@ def test_resolvable_fields_are_the_signature_fields() -> None:
         "displacement_cc",
         "production_year",
     }
+
+
+def test_a_reviewers_assertion_outranks_the_derivation_it_corrects() -> None:
+    """Override rules fill `r_` on cars whose `n_` is already wrong, so every
+    read has to take the rule first or the correction is invisible."""
+
+    assert effective_value("bodywork_form") == (
+        "coalesce(r_bodywork_form, n_bodywork_form)"
+    )
+    assert effective_value("power_kw", alias="vf", cast="text") == (
+        "coalesce(vf.r_power_kw::text, vf.n_power_kw::text)"
+    )
+
+
+def test_effective_value_rejects_unknown_fields() -> None:
+    with pytest.raises(ValueError):
+        effective_value("colour); DROP TABLE core.vehicle_facts --")
+
+
+def test_the_effective_value_index_is_rebuilt_for_the_new_precedence() -> None:
+    """An expression index cannot be altered in place, and recreating it under
+    its old name would rebuild it on every startup."""
+
+    statements = dict(VEHICLE_FACTS_MIGRATIONS)
+    dropped = statements["drop_vehicle_facts_manufacturer_derived_first_index"]
+    created = statements["create_vehicle_facts_manufacturer_effective_index"]
+
+    assert dropped == "DROP INDEX IF EXISTS core.vehicle_facts_manufacturer_effective_idx"
+    assert "vehicle_facts_manufacturer_asserted_idx" in created
+    assert effective_value("manufacturer") in created

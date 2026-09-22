@@ -43,7 +43,16 @@ def test_normalized_terms_read_the_effective_value() -> None:
 
     compiled = compile_term("normalized", "drive_type", "equals", ("fwd",))
 
-    assert compiled.sql == "coalesce(n_drive_type, r_drive_type) = ANY(%s)"
+    assert compiled.sql == "coalesce(r_drive_type, n_drive_type) = ANY(%s)"
+
+
+def test_a_rules_assertion_outranks_the_derivation_it_corrects() -> None:
+    """An override rule fills `r_` on a car whose `n_` is already wrong, so a
+    filter reading the derivation first would not find what it just changed."""
+
+    compiled = compile_term("normalized", "bodywork_form", "equals", ("suv",))
+
+    assert compiled.sql.startswith("coalesce(r_bodywork_form, n_bodywork_form)")
 
 
 def test_values_within_a_term_are_or_ed() -> None:
@@ -141,8 +150,8 @@ def test_search_text_ands_tokens_and_searches_canonical_make_and_model() -> None
 
     assert compiled is not None
     assert compiled.sql.count(" AND ") == 1
-    assert "coalesce(n_manufacturer, r_manufacturer) ILIKE" in compiled.sql
-    assert "coalesce(n_model_family, r_model_family) ILIKE" in compiled.sql
+    assert "coalesce(r_manufacturer, n_manufacturer) ILIKE" in compiled.sql
+    assert "coalesce(r_model_family, n_model_family) ILIKE" in compiled.sql
     assert compiled.parameters[:4] == ["volvo%", "volvo%", "%volvo%", "%volvo%"]
 
 
@@ -162,12 +171,15 @@ def test_search_text_caps_the_number_of_tokens() -> None:
 
 
 def test_canonical_page_statement_reports_which_fields_a_rule_filled() -> None:
+    """A rule's flag is `r_field IS NOT NULL` now -- true whether it filled a gap
+    or corrected a wrong derivation, since a rule always wins when present."""
+
     compiled = compile_term("normalized", "manufacturer", "equals", ("VOLVO",))
 
     statement = canonical_page_statement(compiled, limit=10)
 
-    assert "coalesce(n_manufacturer, r_manufacturer)" in statement
-    assert "(n_power_kw IS NULL AND r_power_kw IS NOT NULL)" in statement
+    assert "coalesce(r_manufacturer, n_manufacturer)" in statement
+    assert "(r_power_kw IS NOT NULL)" in statement
     assert "ORDER BY source_record_id LIMIT %s" in statement
 
 

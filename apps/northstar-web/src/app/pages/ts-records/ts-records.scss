@@ -300,6 +300,12 @@
   vertical-align: middle;
 }
 
+/* Sits after the value and its tag, quiet until wanted: the value is the answer,
+   editing it is the exception. */
+.record__edit {
+  margin-left: 0.4rem;
+}
+
 .record__arrow {
   color: var(--p-text-muted-color);
   width: 1.2rem;

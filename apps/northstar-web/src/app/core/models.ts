@@ -492,6 +492,8 @@ export interface RulePreview {
   matched_rows: number;
   would_resolve: number;
   already_resolved: number;
+  /** Matched cars already carrying a different value — what a correction rewrites. */
+  would_overwrite: number;
   sample_plates: string[];
 }
 
@@ -519,6 +521,8 @@ export interface ResolutionRule {
   resolved_now: number | null;
   /** Rows this call reopened; null unless the call retired it. */
   superseded_rows: number | null;
+  /** Whether this rule rewrites cars that already carry a different value. */
+  override: boolean;
 }
 
 export interface RuleAdvice {

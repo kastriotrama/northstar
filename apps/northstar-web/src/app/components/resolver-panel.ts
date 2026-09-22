@@ -38,6 +38,12 @@ const REVIEWER_STORAGE_KEY = 'match-review-reviewer';
  * What the browse screen already answers is deliberately absent. It shows which values
  * still vary and how large the population is, so this asks only the question it exists
  * for: what should the field be, and is the population coherent enough to say so.
+ *
+ * The same panel corrects. A field that already has a value can still have the wrong
+ * one -- an XC40 derived as an estate -- and fixing that is the same act as filling a
+ * gap: name the population, name the value. Correcting differs in what it costs to get
+ * wrong, so it is opt-in, it says how many cars it would rewrite rather than how many
+ * it would fill, and it refuses to run until that number has been previewed.
  */
 @Component({
   selector: 'ns-resolver-panel',
@@ -63,6 +69,16 @@ export class ResolverPanel {
   readonly buildId = input.required<string | null>();
   /** How many matched cars still lack the field, counted by the screen around this one. */
   readonly unresolvedRows = input<number>(0);
+  /** How many cars the filter matches at all -- the population a correction rewrites. */
+  readonly matchedRows = input<number>(0);
+  /**
+   * Correct rather than fill: rewrite matched cars that already carry a different
+   * value. Set from the record panel's Edit, where the field already has a value and
+   * "resolve the gap" is not what the reviewer is asking for.
+   */
+  readonly override = input<boolean>(false);
+  /** What the car the reviewer clicked Edit on says today, for the header line. */
+  readonly currentValue = input<string | null>(null);
   /** Identity-bearing fields the browse screen sees still varying in this population. */
   readonly varyingFields = input<string[]>([]);
 
@@ -110,8 +126,37 @@ export class ResolverPanel {
    */
   protected readonly coherent = computed(() => this.varyingFields().length === 0);
 
+  /**
+   * Cars this panel would write to. Filling reaches the gaps; correcting reaches
+   * every matched car whose value is not already the one being asserted -- a number
+   * only the preview knows, so until it has run the whole matched set stands in.
+   */
+  protected readonly targetRows = computed(() =>
+    this.override() ? this.matchedRows() : this.unresolvedRows(),
+  );
+
   protected readonly canWrite = computed(
-    () => this.unresolvedRows() > 0 && !this.targetProblem() && !this.filter.isEmpty(),
+    () => this.targetRows() > 0 && !this.targetProblem() && !this.filter.isEmpty(),
+  );
+
+  /**
+   * A preview of exactly this value, if one has been run.
+   *
+   * Choosing a value clears the preview, so this is never a stale count from the
+   * value before it -- which is what makes it usable as the gate on correcting.
+   */
+  protected readonly previewedValue = computed(() => {
+    const preview = this.preview();
+    return preview && preview.target_value === this.targetValue().trim() ? preview : null;
+  });
+
+  /**
+   * Correcting overwrites decisions somebody else made, across every car the filter
+   * matches rather than only the empty ones. Seeing that count first is the whole
+   * safeguard, so it is required rather than offered.
+   */
+  protected readonly canRun = computed(
+    () => this.canWrite() && (!this.override() || this.previewedValue() !== null),
   );
 
   protected readonly statement = computed(() => {
@@ -129,6 +174,9 @@ export class ResolverPanel {
     effect(() => {
       const field = this.targetField();
       const build = this.buildId();
+      // Switching between filling and correcting re-opens the panel on the same
+      // field; the value typed for the other mode must not survive that.
+      this.override();
       this.targetValue.set('');
       this.vocabulary.set(null);
       this.advice.set(null);
@@ -244,6 +292,7 @@ export class ResolverPanel {
         conditions: this.filter.payload(),
         target_field: this.targetField(),
         target_value: this.targetValue().trim(),
+        override: this.override(),
       })
       .subscribe({
         next: (preview) => {
@@ -283,14 +332,23 @@ export class ResolverPanel {
         target_value: this.targetValue().trim(),
         author,
         note: this.note().trim() || null,
+        override: this.override(),
       })
       .subscribe({
         next: (rule) => {
           this.saving.set(false);
           this.note.set('');
           if (!run) {
+            // Saved, not run: what it promises is the count from the preview that
+            // justified it, in the mode it was written in.
+            const rows = this.override()
+              ? (this.previewedValue()?.would_overwrite ?? 0)
+              : rule.would_resolve;
+            const verb = this.override()
+              ? 'Correction saved — it would rewrite'
+              : 'Rule saved — it would resolve';
             this.showFlash(
-              `Rule saved — it would resolve ${rule.would_resolve.toLocaleString()} cars when you run it.`,
+              `${verb} ${rows.toLocaleString()} cars when you run it.`,
               false,
             );
             this.afterChange(build);
@@ -376,13 +434,23 @@ export class ResolverPanel {
         this.showFlash(
           application.status === 'failed'
             ? (application.error_summary ?? 'The run failed part-way through.')
-            : application.rows_written
-              ? `Resolved ${application.rows_written.toLocaleString()} cars.`
-              : 'Nothing left to resolve — every car this rule covers already has a value.',
+            : this.runOutcome(application.rows_written),
           application.status === 'failed',
         );
         this.afterChange(buildId);
       });
+  }
+
+  /** What a finished run did, in the terms of the mode it ran in. */
+  private runOutcome(rows: number): string {
+    if (this.override()) {
+      return rows
+        ? `Rewrote ${rows.toLocaleString()} cars.`
+        : 'Nothing to rewrite — every car this rule covers already says this.';
+    }
+    return rows
+      ? `Resolved ${rows.toLocaleString()} cars.`
+      : 'Nothing left to resolve — every car this rule covers already has a value.';
   }
 
   private afterChange(buildId: string): void {
@@ -394,7 +462,8 @@ export class ResolverPanel {
   protected ruleMeta(rule: ResolutionRule): string {
     const when = new Date(rule.created_at).toLocaleString();
     if (rule.status === 'applied') {
-      return `${rule.resolved_rows.toLocaleString()} cars resolved · run by ${rule.applied_by} · saved by ${rule.author}, ${when}`;
+      const verb = rule.override ? 'rewritten' : 'resolved';
+      return `${rule.resolved_rows.toLocaleString()} cars ${verb} · run by ${rule.applied_by} · saved by ${rule.author}, ${when}`;
     }
     if (rule.status === 'retired') {
       return `retired by ${rule.retired_by} — no cars resolved · saved by ${rule.author}, ${when}`;

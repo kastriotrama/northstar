@@ -448,6 +448,7 @@ def apply_resolution_rule(
         target_field=plan.target_field,
         target_value=plan.target_value,
         applied_by=request.reviewer.strip(),
+        override=plan.override,
         on_finish=lambda rows: service.record_rule_applied(
             rule_id, rows_written=rows, applied_by=request.reviewer.strip()
         ),
