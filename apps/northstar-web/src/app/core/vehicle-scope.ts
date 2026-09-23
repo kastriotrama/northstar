@@ -56,18 +56,19 @@ export function vehicleScopeCondition(type: VehicleType): RuleCondition | null {
   return { field: 'vehicle_scope', layer: 'normalized', operator: 'equals', values: [type] };
 }
 
-/** Option text with its car count, when the column has been computed. */
+/**
+ * Option text with its car count, when the column has been computed.
+ *
+ * "All vehicles" carries no count: summing the scopes misses every row a backfill
+ * has not reached yet (live showed 2.7M against 6.5M matched mid-backfill), and the
+ * screen's own matched count already states the real total.
+ */
 export function vehicleTypeLabel(
   option: { value: VehicleType; label: string },
   counts: Record<string, number>,
 ): string {
-  let count: number | undefined;
-  if (option.value === 'all') {
-    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
-    count = total || undefined;
-  } else {
-    count = counts[option.value];
-  }
+  if (option.value === 'all') return option.label;
+  const count = counts[option.value];
   return count === undefined ? option.label : `${option.label} (${count.toLocaleString()})`;
 }
 

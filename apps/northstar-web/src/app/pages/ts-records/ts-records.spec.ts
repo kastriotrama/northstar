@@ -71,23 +71,8 @@ const scoped = (conditions: RuleCondition[]) =>
 describe('TsRecordsPage vehicle type', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('shows every vehicle by default, so counts match what a rule will touch', async () => {
+  it('shows passenger cars by default, on every browsing request', async () => {
     render();
-    const bodies = await settle();
-
-    expect(bodies.length).toBeGreaterThan(0);
-    expect(bodies.some(scoped)).toBe(false);
-  });
-
-  it('scopes every browsing request once a vehicle type is chosen', async () => {
-    const fixture = render();
-    await settle();
-
-    const select = (fixture.nativeElement as HTMLElement).querySelector(
-      'select[aria-label="Vehicle type"]',
-    ) as HTMLSelectElement;
-    select.value = 'passenger';
-    select.dispatchEvent(new Event('change'));
     const bodies = await settle();
 
     // count, page, facet, status facet and the unresolved summary
@@ -95,9 +80,26 @@ describe('TsRecordsPage vehicle type', () => {
     expect(bodies.every(scoped)).toBe(true);
   });
 
+  it('drops the scope when the reviewer asks for all vehicles', async () => {
+    const fixture = render();
+    await settle();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      'select[aria-label="Vehicle type"]',
+    ) as HTMLSelectElement;
+    select.value = 'all';
+    select.dispatchEvent(new Event('change'));
+    const bodies = await settle();
+
+    expect(bodies.length).toBeGreaterThanOrEqual(5);
+    expect(bodies.some(scoped)).toBe(false);
+  });
+
   it('never writes the vehicle type into the rule filter', async () => {
     const fixture = render();
     await settle();
+    // Passenger cars is on by default; it must already be absent from the rule filter.
+    expect(scoped(TestBed.inject(FilterState).payload())).toBe(false);
 
     const select = (fixture.nativeElement as HTMLElement).querySelector(
       'select[aria-label="Vehicle type"]',

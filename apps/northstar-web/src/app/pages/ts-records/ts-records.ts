@@ -89,11 +89,11 @@ export class TsRecordsPage {
   protected readonly operators = OPERATORS;
 
   // --- vehicle type: narrows what is browsed, never part of a rule ------------------------
-  // All vehicles by default here: this screen's counts are what a rule is authored from,
-  // and a rule applies to every car matching its conditions whatever is shown -- so the
-  // default view must be the population a rule will actually touch.
+  // Passenger cars by default, matching Vehicles. A rule still applies to every car
+  // matching its conditions whatever is shown here -- the bar's own hint says so -- so a
+  // rule's preview can count a few more cars than this screen does.
   protected readonly vehicleTypes = VEHICLE_TYPES;
-  protected readonly vehicleType = signal<VehicleType>('all');
+  protected readonly vehicleType = signal<VehicleType>('passenger');
   protected readonly scopeCounts = signal<Record<string, number>>({});
   protected readonly facetFields = FACET_FIELDS;
 
