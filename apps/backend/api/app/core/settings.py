@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     #: value in its own .env.
     rules_sync_token: str | None = Field(default=None, alias="RULES_SYNC_TOKEN")
 
+    #: TecDoc candidate catalog batch the Vehicles matching endpoints evaluate
+    #: against. Unset means the newest batch in core.tecdoc_canonical_candidates;
+    #: pin it to keep results comparable across a catalog re-promotion.
+    tecdoc_match_catalog_batch: str | None = Field(
+        default=None, alias="TECDOC_MATCH_CATALOG_BATCH"
+    )
+
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta",

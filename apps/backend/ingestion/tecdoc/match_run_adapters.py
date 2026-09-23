@@ -576,6 +576,17 @@ class TecDocDryRunEvaluator:
             source_model_resolution=source_model_resolution,
         )
 
+    def resolved_query(self, record: MatchSourceRecord) -> ResolvedMatchQuery | None:
+        """What the matcher keys on for this row, or None if it terminates first.
+
+        For diagnostics that must show *what the matcher saw* -- including values
+        it derived itself, such as an engine code from a reviewed fingerprint --
+        rather than re-deriving them and drifting from the real evaluation.
+        """
+
+        resolved = self._resolve_query(record)
+        return resolved if isinstance(resolved, ResolvedMatchQuery) else None
+
     def evaluation_key(self, record: MatchSourceRecord) -> tuple[object, ...] | None:
         """The key two rows must share to be guaranteed the same evaluation.
 

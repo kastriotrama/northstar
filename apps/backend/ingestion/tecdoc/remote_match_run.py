@@ -37,6 +37,21 @@ PASSENGER_FILTER_SQL = """
 """
 
 
+#: Raw registry fields the evaluator reads as `source_evidence`. Shared so that every
+#: caller building a match record from a raw row hands the matcher the same evidence.
+SOURCE_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "body_code",
+    "is_4wd",
+    "brand",
+    "model",
+    "variant",
+    "version",
+    "model_no",
+    "type_text",
+    "eeg_type_approval",
+)
+
+
 def run_remote_dry_match_audit(
     local: Connection,
     remote: Connection,
@@ -278,18 +293,7 @@ def _evaluate_raw_record(
                 "candidates": outcome.candidates,
                 "review_reasons": list(outcome.review_reasons),
                 "source_evidence": {
-                    field_name: raw.get(field_name)
-                    for field_name in (
-                        "body_code",
-                        "is_4wd",
-                        "brand",
-                        "model",
-                        "variant",
-                        "version",
-                        "model_no",
-                        "type_text",
-                        "eeg_type_approval",
-                    )
+                    field_name: raw.get(field_name) for field_name in SOURCE_EVIDENCE_FIELDS
                 },
             },
         )
