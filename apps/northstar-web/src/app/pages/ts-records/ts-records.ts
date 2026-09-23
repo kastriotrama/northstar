@@ -14,6 +14,13 @@ import { TagModule } from '@openng/optimus-ui/tag';
 import { Api } from '../../core/api';
 import { ResolverPanel } from '../../components/resolver-panel';
 import { FilterState, OPERATORS } from '../../core/filter-state';
+import {
+  VEHICLE_TYPES,
+  type VehicleType,
+  vehicleScopeCondition,
+  vehicleScopeCounts,
+  vehicleTypeLabel,
+} from '../../core/vehicle-scope';
 import type { EditableCondition } from '../../core/filter-state';
 import type {
   GapGroup,
@@ -25,6 +32,7 @@ import type {
   VehicleFacet,
   VehicleFieldStatus,
   VehicleFilterRequest,
+  RuleCondition,
   VehicleRow,
 } from '../../core/models';
 
@@ -79,6 +87,14 @@ export class TsRecordsPage {
   protected readonly filter = inject(FilterState);
 
   protected readonly operators = OPERATORS;
+
+  // --- vehicle type: narrows what is browsed, never part of a rule ------------------------
+  // All vehicles by default here: this screen's counts are what a rule is authored from,
+  // and a rule applies to every car matching its conditions whatever is shown -- so the
+  // default view must be the population a rule will actually touch.
+  protected readonly vehicleTypes = VEHICLE_TYPES;
+  protected readonly vehicleType = signal<VehicleType>('all');
+  protected readonly scopeCounts = signal<Record<string, number>>({});
   protected readonly facetFields = FACET_FIELDS;
 
   protected readonly rows = signal<VehicleRow[]>([]);
@@ -224,7 +240,7 @@ export class TsRecordsPage {
         switchMap(() => {
           this.summaryLoading.set(true);
           return this.api
-            .unresolvedSummary({ conditions: this.filter.payload() })
+            .unresolvedSummary({ conditions: this.browseConditions() })
             .pipe(catchError(() => of(null)));
         }),
         takeUntilDestroyed(),
@@ -239,14 +255,37 @@ export class TsRecordsPage {
       error: () => this.buildId.set(null),
     });
 
+    this.api.vehicleFacet({ conditions: [] }, 'vehicle_scope', 20).subscribe({
+      next: (facet) => this.scopeCounts.set(vehicleScopeCounts(facet.values)),
+      error: () => undefined,
+    });
+
     this.reload();
   }
 
   private request(): VehicleFilterRequest {
     return {
-      conditions: this.filter.payload(),
+      conditions: this.browseConditions(),
       unresolved_field: this.unresolvedField(),
     };
+  }
+
+  /**
+   * The filter plus the vehicle type, for everything this screen *shows*. The resolver
+   * reads `filter.payload()` directly, so the vehicle type never reaches a rule.
+   */
+  private browseConditions(): RuleCondition[] {
+    const scope = vehicleScopeCondition(this.vehicleType());
+    return scope ? [...this.filter.payload(), scope] : this.filter.payload();
+  }
+
+  protected onVehicleType(value: VehicleType): void {
+    this.vehicleType.set(value);
+    this.reload();
+  }
+
+  protected scopeLabel(option: { value: VehicleType; label: string }): string {
+    return vehicleTypeLabel(option, this.scopeCounts());
   }
 
   protected reload(): void {
@@ -283,7 +322,7 @@ export class TsRecordsPage {
     this.groupsLoading.set(true);
     this.api
       .gapGroups(
-        { conditions: this.filter.payload(), unresolved_field: target },
+        { conditions: this.browseConditions(), unresolved_field: target },
         { field: this.groupField(), mode: this.groupMode(), limit: 25 },
       )
       .subscribe({
