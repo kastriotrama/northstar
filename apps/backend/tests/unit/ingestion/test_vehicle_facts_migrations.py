@@ -154,7 +154,7 @@ def test_vehicle_scope_comes_from_the_pipelines_own_exclusion_decisions() -> Non
     assert "'exclude_from_passenger_car_dataset' THEN 'motorhome'" in expression
     assert "'quarantine_test_record' THEN 'test_record'" in expression
     assert "'special_modified_vehicle' THEN 'special_modified'" in expression
-    assert "left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'" in expression
+    assert "left(nullif(btrim(raw.raw_record ->> 'eu_category'), ''), 2) <> 'M1'" in expression
     assert expression.rstrip().endswith("ELSE 'passenger' END")
 
 
@@ -169,3 +169,16 @@ def test_every_excluded_scope_is_a_value_the_projection_can_produce() -> None:
 
     for scope in VEHICLE_SCOPE_EXCLUDED:
         assert f"THEN '{scope}'" in expression
+
+
+def test_vehicle_scope_falls_back_to_the_registry_vehicle_type() -> None:
+    """A Ducati registered with no EU category but vehicle_type MC read as a car."""
+
+    expression = dict(canonical_only_columns())["vehicle_scope"]
+
+    assert "raw.raw_record ->> 'vehicle_type'" in expression
+    assert "NOT IN ('PB', 'PERSONBIL')" in expression
+    # The EU category still decides whenever it is present.
+    eu_branch = expression.index("left(nullif(btrim(raw.raw_record ->> 'eu_category')")
+    type_branch = expression.index("raw.raw_record ->> 'vehicle_type'")
+    assert eu_branch < type_branch

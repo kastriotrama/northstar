@@ -111,6 +111,16 @@ VEHICLE_SCOPE_EXCLUDED: tuple[str, ...] = (
     "other_category",
 )
 
+# The registry states what a vehicle is in two places: `eu_category` (M1, N1, O2,
+# ...) and its own `vehicle_type` (PB = personbil, MC = motorcykel, TR = traktor,
+# ...). Most rows carry both and they agree; some carry only `vehicle_type` -- a
+# Ducati Supersport 900 registered with no EU category but vehicle_type MC read
+# as a passenger car while only eu_category was consulted. So the EU category
+# decides when present, `vehicle_type` when it is not, and a row that states
+# neither stays a passenger car rather than being hidden on no evidence.
+_EU_CATEGORY = "nullif(btrim(raw.raw_record ->> 'eu_category'), '')"
+_REGISTRY_VEHICLE_TYPE = "upper(nullif(btrim(raw.raw_record ->> 'vehicle_type'), ''))"
+
 _VEHICLE_SCOPE_EXPRESSION = (
     "CASE"
     " WHEN norm.payload ->> 'record_route' = 'exclude_from_passenger_car_dataset'"
@@ -119,11 +129,13 @@ _VEHICLE_SCOPE_EXPRESSION = (
     " THEN 'test_record'"
     " WHEN norm.payload ->> 'parts_matching_exclusion_reason' = 'special_modified_vehicle'"
     " THEN 'special_modified'"
-    " WHEN nullif(btrim(raw.raw_record ->> 'eu_category'), '') IS NOT NULL"
     # left(...) rather than LIKE 'M1%': this expression is embedded in statements
     # executed with %s parameters, where psycopg rejects a bare % as a malformed
     # placeholder -- which broke both the refresh and the canonical backfill.
-    " AND left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'"
+    f" WHEN {_EU_CATEGORY} IS NOT NULL AND left({_EU_CATEGORY}, 2) <> 'M1'"
+    " THEN 'other_category'"
+    f" WHEN {_EU_CATEGORY} IS NULL AND {_REGISTRY_VEHICLE_TYPE} IS NOT NULL"
+    f" AND {_REGISTRY_VEHICLE_TYPE} NOT IN ('PB', 'PERSONBIL')"
     " THEN 'other_category'"
     " ELSE 'passenger'"
     " END"

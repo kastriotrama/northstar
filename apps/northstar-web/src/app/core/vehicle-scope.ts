@@ -33,7 +33,7 @@ export const VEHICLE_TYPES: ReadonlyArray<{ value: VehicleType; label: string }>
   { value: 'motorhome', label: 'Motorhomes' },
   { value: 'special_modified', label: 'Special / modified' },
   { value: 'test_record', label: 'Test records' },
-  { value: 'other_category', label: 'Trucks, trailers, buses' },
+  { value: 'other_category', label: 'Other vehicles (motorcycles, trucks, trailers…)' },
 ];
 
 /**
