@@ -26,6 +26,7 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_TABLE,
+    canonical_only_columns,
 )
 
 STAGING_TABLE = "staging.transportstyrelsen_raw"
@@ -95,6 +96,7 @@ def projected_columns() -> tuple[tuple[str, str], ...]:
     columns.extend(
         (f"r_{name}", _integer(f"res.{name}")) for name in NORMALIZED_INTEGER_FIELDS
     )
+    columns.extend((name, _text(expression)) for name, expression in canonical_only_columns())
     columns.extend(
         [
             ("norm_status", _text("nr.status")),
@@ -184,6 +186,50 @@ def _free_space(path: str) -> int:
         return DEFAULT_MIN_FREE_BYTES + 1
 
 
+def build_canonical_backfill_statement() -> str:
+    """One page of the canonical-only columns, written onto rows already projected.
+
+    `refresh-vehicle-facts` rewrites every column of every row; a new canonical-only
+    column only needs its own values. This updates just those, so shipping one does
+    not require re-projecting the whole table. It never inserts: a car not yet in
+    the projection is the full refresh's job.
+
+    Reports the *page* size and cursor, not the rows updated, so the paging loop
+    keeps walking past stretches whose cars were deduplicated out of the table.
+    """
+
+    columns = canonical_only_columns()
+    selected = ",\n                   ".join(
+        f"{_text(expression)} AS {name}" for name, expression in columns
+    )
+    assignments = ", ".join(f"{name} = page.{name}" for name, _ in columns)
+    return f"""
+        WITH page AS (
+            SELECT nr.source_record_id,
+                   {selected}
+            FROM {NORMALIZATION_RESULTS_TABLE} AS nr
+            JOIN {STAGING_TABLE} AS raw ON raw.id = nr.source_record_id
+            CROSS JOIN LATERAL (
+                SELECT nr.normalized_payload -> 'normalized' AS payload
+            ) AS norm
+            WHERE nr.source_table = %s
+              AND nr.source_record_id > %s
+            ORDER BY nr.source_record_id
+            LIMIT %s
+        ),
+        updated AS (
+            UPDATE {VEHICLE_FACTS_TABLE} AS facts
+            SET {assignments}
+            FROM page
+            WHERE facts.source_record_id = page.source_record_id
+            RETURNING facts.source_record_id
+        )
+        SELECT (SELECT count(*) FROM page)::bigint,
+               coalesce((SELECT max(source_record_id) FROM page), 0)::bigint,
+               (SELECT count(*) FROM updated)::bigint
+    """
+
+
 def refresh_vehicle_facts(
     connection: Connection,
     *,
@@ -200,10 +246,66 @@ def refresh_vehicle_facts(
     everything. Re-running is safe: every page upserts by primary key.
     """
 
+    return _run_paged(
+        connection,
+        build_refresh_statement(),
+        since_source_record_id=since_source_record_id,
+        page_size=page_size,
+        max_pages=max_pages,
+        progress=progress,
+        free_bytes=free_bytes,
+        disk_path=disk_path,
+    )
+
+
+def backfill_canonical_columns(
+    connection: Connection,
+    *,
+    since_source_record_id: int = 0,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    max_pages: int | None = None,
+    progress: ProgressCallback | None = None,
+    free_bytes: int | None = DEFAULT_MIN_FREE_BYTES,
+    disk_path: str = "/",
+) -> RefreshSummary:
+    """Fill only the canonical-only columns, same paging and guards as a refresh.
+
+    `rows_written` counts rows *scanned* from the source, the unit the cursor moves
+    in; re-running is safe because each page overwrites the same values.
+    """
+
+    return _run_paged(
+        connection,
+        build_canonical_backfill_statement(),
+        since_source_record_id=since_source_record_id,
+        page_size=page_size,
+        max_pages=max_pages,
+        progress=progress,
+        free_bytes=free_bytes,
+        disk_path=disk_path,
+    )
+
+
+def _run_paged(
+    connection: Connection,
+    statement: str,
+    *,
+    since_source_record_id: int,
+    page_size: int,
+    max_pages: int | None,
+    progress: ProgressCallback | None,
+    free_bytes: int | None,
+    disk_path: str,
+) -> RefreshSummary:
+    """Keyset-page a statement over the source, committing each page on its own.
+
+    The statement takes (source_table, cursor, page_size) and returns a row whose
+    first two columns are the page's row count and highest source_record_id.
+    """
+
     if page_size < 1:
         raise ValueError("page_size must be positive")
 
-    statement = build_refresh_statement()
     cursor_position = since_source_record_id
     rows_written = 0
     pages = 0

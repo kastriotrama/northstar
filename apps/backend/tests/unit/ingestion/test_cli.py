@@ -227,3 +227,61 @@ def test_remote_passenger_import_uses_shared_contract_defaults() -> None:
     assert args.expected_source_count == 6_515_471
     assert args.retain_raw is True
     assert args.recover_stale_part is False
+
+
+def test_deploy_time_migration_applies_only_the_vehicle_facts_schema(
+    monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    """Runs on every deploy, so it must be the schema and nothing heavier."""
+
+    from contextlib import contextmanager
+
+    from ingestion import cli
+
+    calls: list[str] = []
+
+    class _Postgres:
+        @contextmanager
+        def connect(self):  # type: ignore[no-untyped-def]
+            yield "connection"
+
+    class _Datastores:
+        postgres = _Postgres()
+
+    monkeypatch.setattr(cli.DatastoreClients, "from_settings", lambda _settings: _Datastores())
+    monkeypatch.setattr(
+        cli,
+        "run_vehicle_facts_migrations",
+        lambda connection: calls.append(connection) or ("add_vehicle_facts_vehicle_scope_column",),
+    )
+    monkeypatch.setattr(cli, "refresh_vehicle_facts", lambda *a, **k: pytest.fail("no refresh"))
+    monkeypatch.setattr(cli, "backfill_canonical_columns", lambda *a, **k: pytest.fail("no backfill"))
+
+    assert main(["migrate-vehicle-facts"]) == 0
+    assert calls == ["connection"]
+    assert "add_vehicle_facts_vehicle_scope_column" in capsys.readouterr().out
+
+
+def test_deploy_time_migration_fails_the_deploy_when_the_schema_cannot_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """deploy.sh runs under `set -e`: a non-zero exit must stop the rollout
+    before an API that needs the new columns goes live without them."""
+
+    from ingestion import cli
+
+    def _boom(_settings: object) -> object:
+        raise RuntimeError("database unreachable")
+
+    monkeypatch.setattr(cli.DatastoreClients, "from_settings", _boom)
+
+    assert main(["migrate-vehicle-facts"]) == 1
+
+
+def test_canonical_backfill_parser_is_resumable() -> None:
+    args = build_parser().parse_args(
+        ["backfill-canonical-vehicle-facts", "--since", "4242", "--max-pages", "3"]
+    )
+
+    assert args.since == 4242
+    assert args.max_pages == 3

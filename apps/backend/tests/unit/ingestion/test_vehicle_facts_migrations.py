@@ -1,12 +1,15 @@
 import pytest
 
 from ingestion.vehicle_facts_migrations import (
+    CANONICAL_ONLY_FIELDS,
     NORMALIZED_INTEGER_FIELDS,
     NORMALIZED_TEXT_FIELDS,
     RESOLVABLE_FIELDS,
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_MIGRATIONS,
+    VEHICLE_SCOPE_EXCLUDED,
+    canonical_only_columns,
     effective_value,
     unresolved_predicate,
 )
@@ -124,3 +127,45 @@ def test_the_effective_value_index_is_rebuilt_for_the_new_precedence() -> None:
     assert dropped == "DROP INDEX IF EXISTS core.vehicle_facts_manufacturer_effective_idx"
     assert "vehicle_facts_manufacturer_asserted_idx" in created
     assert effective_value("manufacturer") in created
+
+
+def test_canonical_only_columns_are_added_to_a_table_that_predates_them() -> None:
+    """CREATE TABLE IF NOT EXISTS never alters a live table, which is how the first
+    Vehicles release shipped code reading columns production did not have."""
+
+    statements = _statements()
+    for name in CANONICAL_ONLY_FIELDS:
+        alter = statements[f"add_vehicle_facts_{name}_column"]
+        assert f"ADD COLUMN IF NOT EXISTS {name} TEXT" in alter
+        assert f"ON core.vehicle_facts ({name})" in statements[
+            f"create_vehicle_facts_{name}_index"
+        ]
+
+
+def test_column_additions_are_idempotent_so_every_deploy_can_run_them() -> None:
+    for name, statement in VEHICLE_FACTS_MIGRATIONS:
+        if statement.strip().startswith("ALTER TABLE"):
+            assert "IF NOT EXISTS" in statement, name
+
+
+def test_vehicle_scope_comes_from_the_pipelines_own_exclusion_decisions() -> None:
+    expression = dict(canonical_only_columns())["vehicle_scope"]
+
+    assert "'exclude_from_passenger_car_dataset' THEN 'motorhome'" in expression
+    assert "'quarantine_test_record' THEN 'test_record'" in expression
+    assert "'special_modified_vehicle' THEN 'special_modified'" in expression
+    assert "NOT LIKE 'M1%'" in expression
+    assert expression.rstrip().endswith("ELSE 'passenger' END")
+
+
+def test_vehicle_scope_never_reads_tecdocs_is_pc() -> None:
+    """is_pc marks every TecDoc model series, motorcycles included, as a car."""
+
+    assert "is_pc" not in dict(canonical_only_columns())["vehicle_scope"]
+
+
+def test_every_excluded_scope_is_a_value_the_projection_can_produce() -> None:
+    expression = dict(canonical_only_columns())["vehicle_scope"]
+
+    for scope in VEHICLE_SCOPE_EXCLUDED:
+        assert f"THEN '{scope}'" in expression

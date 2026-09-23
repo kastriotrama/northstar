@@ -85,6 +85,47 @@ RESOLVABLE_FIELDS: tuple[str, ...] = (
     NORMALIZED_TEXT_FIELDS + NORMALIZED_INTEGER_FIELDS
 )
 
+# Canonical values normalization derives but no resolution rule can target --
+# there is no gap for a reviewer to fill, so these carry no r_ overlay and no
+# unresolved predicate. Filterable read-only, same as a resolvable field once
+# derived. `canonical_fuel` keeps only the first of a hybrid's energy sources
+# (`normalized.energy_sources` is a list); the full list stays visible in the
+# record panel's normalized-values section.
+CANONICAL_ONLY_FIELDS: tuple[str, ...] = (
+    "canonical_fuel",
+    "canonical_transmission",
+    "canonical_euro_class",
+    "vehicle_scope",
+)
+
+# Values `vehicle_scope` can hold. `passenger` is the only in-scope one; the rest
+# are the pipeline's own exclusion decisions (normalization_rules sets
+# `record_route` / `parts_matching_exclusion_reason`) plus the registry's non-M1
+# EU categories. Deliberately not derived from TecDoc's `is_pc`, which marks
+# every model series -- motorcycles included -- as a passenger car.
+VEHICLE_SCOPE_PASSENGER = "passenger"
+VEHICLE_SCOPE_EXCLUDED: tuple[str, ...] = (
+    "motorhome",
+    "special_modified",
+    "test_record",
+    "other_category",
+)
+
+_VEHICLE_SCOPE_EXPRESSION = (
+    "CASE"
+    " WHEN norm.payload ->> 'record_route' = 'exclude_from_passenger_car_dataset'"
+    " THEN 'motorhome'"
+    " WHEN norm.payload ->> 'record_route' = 'quarantine_test_record'"
+    " THEN 'test_record'"
+    " WHEN norm.payload ->> 'parts_matching_exclusion_reason' = 'special_modified_vehicle'"
+    " THEN 'special_modified'"
+    " WHEN nullif(btrim(raw.raw_record ->> 'eu_category'), '') IS NOT NULL"
+    " AND btrim(raw.raw_record ->> 'eu_category') NOT LIKE 'M1%'"
+    " THEN 'other_category'"
+    " ELSE 'passenger'"
+    " END"
+)
+
 # Every resolvable field gets a partial index over its own unresolved population,
 # because that predicate is what the gaps sidebar counts and what a rule matches
 # against. Size follows the gap rather than the table: production_year covers 344
@@ -128,6 +169,7 @@ def _column_definitions() -> str:
     # join against it on every filter would put the scan back.
     parts.extend(f"r_{name} TEXT" for name in NORMALIZED_TEXT_FIELDS)
     parts.extend(f"r_{name} INTEGER" for name in NORMALIZED_INTEGER_FIELDS)
+    parts.extend(f"{name} TEXT" for name in CANONICAL_ONLY_FIELDS)
     parts.extend(
         [
             "norm_status TEXT",
@@ -139,12 +181,25 @@ def _column_definitions() -> str:
     return ",\n            ".join(parts)
 
 
+def canonical_only_columns() -> tuple[tuple[str, str], ...]:
+    """Column name paired with the JSON path that fills it, for the refresh projection."""
+
+    return (
+        ("canonical_fuel", "norm.payload -> 'energy_sources' ->> 0"),
+        ("canonical_transmission", "norm.payload ->> 'transmission_type'"),
+        ("canonical_euro_class", "norm.payload ->> 'emission_standard'"),
+        ("vehicle_scope", _VEHICLE_SCOPE_EXPRESSION),
+    )
+
+
 def effective_value(field: str, *, alias: str = "", cast: str = "") -> str:
     """SQL for the value this car actually carries, rule before derivation.
 
     Every read of a resolvable field goes through here, so the precedence is
     stated once: a filter, a facet, a preview and the detail panel can never
-    disagree about which of the two halves a car is showing.
+    disagree about which of the two halves a car is showing. Only for
+    RESOLVABLE_FIELDS -- a CANONICAL_ONLY_FIELDS column has no `r_` overlay to
+    prefer, so it is read as plain SQL, not through this helper.
     """
 
     if field not in RESOLVABLE_FIELDS:
@@ -175,12 +230,29 @@ def _migrations() -> tuple[tuple[str, str], ...]:
             """,
         ),
     ]
+    # A table created before CANONICAL_ONLY_FIELDS existed needs these added by hand;
+    # a fresh table already has them from _column_definitions, and this is then a no-op.
+    for name in CANONICAL_ONLY_FIELDS:
+        statements.append(
+            (
+                f"add_vehicle_facts_{name}_column",
+                f"ALTER TABLE {VEHICLE_FACTS_TABLE} ADD COLUMN IF NOT EXISTS {name} TEXT",
+            )
+        )
     for column in _DIMENSION_INDEX_COLUMNS:
         statements.append(
             (
                 f"create_vehicle_facts_{column}_index",
                 (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{column}_idx "
                 f"ON {VEHICLE_FACTS_TABLE} ({column})"),
+            )
+        )
+    for name in CANONICAL_ONLY_FIELDS:
+        statements.append(
+            (
+                f"create_vehicle_facts_{name}_index",
+                (f"CREATE INDEX IF NOT EXISTS vehicle_facts_{name}_idx "
+                f"ON {VEHICLE_FACTS_TABLE} ({name})"),
             )
         )
     for field in _EFFECTIVE_VALUE_INDEX_FIELDS:

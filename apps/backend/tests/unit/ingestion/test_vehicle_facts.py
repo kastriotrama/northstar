@@ -4,6 +4,8 @@ import pytest
 
 from ingestion.vehicle_facts import (
     RefreshSummary,
+    backfill_canonical_columns,
+    build_canonical_backfill_statement,
     build_refresh_statement,
     projected_columns,
     refresh_vehicle_facts,
@@ -184,3 +186,36 @@ def test_page_read_is_pinned_to_the_indexed_source_table() -> None:
     refresh_vehicle_facts(connection, free_bytes=None)  # type: ignore[arg-type]
 
     assert connection.executed[0][1][0] == STAGING_TABLE
+
+
+def test_canonical_backfill_updates_only_the_canonical_columns() -> None:
+    """Shipping one new canonical column must not mean re-projecting 6.5M rows."""
+
+    statement = build_canonical_backfill_statement()
+
+    assert "UPDATE core.vehicle_facts AS facts" in statement
+    assert "INSERT" not in statement
+    for name in ("canonical_fuel", "canonical_transmission", "canonical_euro_class", "vehicle_scope"):
+        assert f"{name} = page.{name}" in statement
+    assert "n_manufacturer" not in statement
+
+
+def test_canonical_backfill_pages_by_source_rows_not_rows_updated() -> None:
+    """A page whose cars were deduplicated away updates nothing but must not stop the walk."""
+
+    connection = _FakeConnection([(50_000, 812), (40, 999), (0, 0)])
+
+    summary = backfill_canonical_columns(connection, page_size=50_000, free_bytes=None)  # type: ignore[arg-type]
+
+    assert summary == RefreshSummary(rows_written=50_040, pages=2, highest_source_record_id=999)
+    assert [parameters[1] for _, parameters in connection.executed] == [0, 812, 999]
+    assert connection.commits == 3
+
+
+def test_canonical_backfill_is_pinned_to_the_indexed_source_table() -> None:
+    connection = _FakeConnection([(0, 0)])
+
+    backfill_canonical_columns(connection, free_bytes=None)  # type: ignore[arg-type]
+
+    assert connection.executed[0][1][0] == "staging.transportstyrelsen_raw"
+    assert "nr.source_table = %s" in build_canonical_backfill_statement()

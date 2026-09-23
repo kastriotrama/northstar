@@ -41,7 +41,11 @@ from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
-from ingestion.vehicle_facts import DEFAULT_PAGE_SIZE, refresh_vehicle_facts
+from ingestion.vehicle_facts import (
+    DEFAULT_PAGE_SIZE,
+    backfill_canonical_columns,
+    refresh_vehicle_facts,
+)
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.vocabulary_alignment import (
@@ -172,6 +176,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seal the generated version. Omitted means dry run.",
     )
 
+    subparsers.add_parser(
+        "migrate-vehicle-facts",
+        help=(
+            "Apply the vehicle_facts schema only -- add-column/create-index, no "
+            "data rewrite. Idempotent and fast; meant to run on every deploy so "
+            "a column a new feature added is never missing on the live schema."
+        ),
+    )
+
     dedupe_parser = subparsers.add_parser(
         "dedupe-vehicle-facts",
         help="Collapse the vehicle projection to one row per plate.",
@@ -191,6 +204,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     facts_parser.add_argument("--page-size", type=int, default=DEFAULT_PAGE_SIZE)
     facts_parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=None,
+        help="Stop after this many pages, for a sampled trial run.",
+    )
+
+    canonical_parser = subparsers.add_parser(
+        "backfill-canonical-vehicle-facts",
+        help=(
+            "Fill only the canonical-only columns (fuel, transmission, Euro class, "
+            "vehicle scope) on rows already projected. Lighter than a full refresh."
+        ),
+    )
+    canonical_parser.add_argument(
+        "--since",
+        type=int,
+        default=0,
+        help="Resume from this source_record_id. Default 0 walks everything.",
+    )
+    canonical_parser.add_argument("--page-size", type=int, default=DEFAULT_PAGE_SIZE)
+    canonical_parser.add_argument(
         "--max-pages",
         type=int,
         default=None,
@@ -331,6 +365,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "refresh-vehicle-facts\tnormalization_results+transportstyrelsen_raw\t"
             "Project every vehicle into the flat, indexed facts table."
+        )
+        print(
+            "migrate-vehicle-facts\tvehicle_facts\t"
+            "Apply the vehicle_facts schema only -- no data rewrite."
+        )
+        print(
+            "backfill-canonical-vehicle-facts\tnormalization_results+transportstyrelsen_raw\t"
+            "Fill only the canonical-only vehicle_facts columns on projected rows."
         )
         print(
             "dedupe-vehicle-facts\tvehicle_facts\t"
@@ -525,6 +567,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
 
+    if args.command == "migrate-vehicle-facts":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                applied = run_vehicle_facts_migrations(connection)
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle facts migration stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"applied": list(applied)}, sort_keys=True))
+        return 0
+
     if args.command == "dedupe-vehicle-facts":
         datastores = DatastoreClients.from_settings(settings)
         try:
@@ -572,6 +628,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         print(json.dumps(asdict(refresh_summary), sort_keys=True))
+        return 0
+
+    if args.command == "backfill-canonical-vehicle-facts":
+        datastores = DatastoreClients.from_settings(settings)
+        try:
+            with datastores.postgres.connect() as connection:
+                run_vehicle_facts_migrations(connection)
+
+                def report_backfill(rows: int, cursor: int) -> None:
+                    logger.info(
+                        "Canonical vehicle facts backfill progress",
+                        extra={"rows_scanned": rows, "cursor": cursor},
+                    )
+
+                backfill_summary = backfill_canonical_columns(
+                    connection,
+                    since_source_record_id=args.since,
+                    page_size=args.page_size,
+                    max_pages=args.max_pages,
+                    progress=report_backfill,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Canonical vehicle facts backfill stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(backfill_summary), sort_keys=True))
         return 0
 
     if args.command == "build-match-chunks":

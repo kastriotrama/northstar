@@ -1,8 +1,9 @@
 import { Routes } from '@angular/router';
 
 /**
- * Four pages, one per concern in the pipeline: TS data and its normalization, TecDoc
- * data, the rules that govern both, and the matching between them.
+ * One page per concern in the pipeline: TS data and its normalization, TecDoc data,
+ * looking a car up by its canonical values, the rules that govern them, and the
+ * matching between them.
  *
  * Browsing a population and saying what it means were two pages until they were one
  * workflow with a handoff between them, which was the tell. New capability belongs
@@ -23,6 +24,12 @@ export const routes: Routes = [
     title: 'TecDoc',
     loadComponent: () => import('./pages/tecdoc/tecdoc').then((m) => m.TecDocPage),
   },
+  {
+    path: 'vehicles',
+    title: 'Vehicles',
+    loadComponent: () => import('./pages/car-search/car-search').then((m) => m.CarSearchPage),
+  },
+  { path: 'car-search', pathMatch: 'full', redirectTo: 'vehicles' },
   {
     path: 'rules',
     title: 'Rules',

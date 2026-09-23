@@ -28,6 +28,11 @@ chmod 0644 infra/production/htpasswd
 
 docker compose --env-file "$environment_file" -f "$compose_file" config --quiet
 docker compose --env-file "$environment_file" -f "$compose_file" build api ingestion gateway
+# Schema before code: a new API that reads a column the live table does not have
+# yet answers 503 until someone remembers a manual refresh -- which is exactly how
+# the first Vehicles release broke. Add-column/create-index only, idempotent and
+# fast; the heavy data backfill (refresh-vehicle-facts) stays a deliberate step.
+docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-facts
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps
 
