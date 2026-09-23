@@ -120,7 +120,10 @@ _VEHICLE_SCOPE_EXPRESSION = (
     " WHEN norm.payload ->> 'parts_matching_exclusion_reason' = 'special_modified_vehicle'"
     " THEN 'special_modified'"
     " WHEN nullif(btrim(raw.raw_record ->> 'eu_category'), '') IS NOT NULL"
-    " AND btrim(raw.raw_record ->> 'eu_category') NOT LIKE 'M1%'"
+    # left(...) rather than LIKE 'M1%': this expression is embedded in statements
+    # executed with %s parameters, where psycopg rejects a bare % as a malformed
+    # placeholder -- which broke both the refresh and the canonical backfill.
+    " AND left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'"
     " THEN 'other_category'"
     " ELSE 'passenger'"
     " END"

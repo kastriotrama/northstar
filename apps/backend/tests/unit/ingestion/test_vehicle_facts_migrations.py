@@ -154,7 +154,7 @@ def test_vehicle_scope_comes_from_the_pipelines_own_exclusion_decisions() -> Non
     assert "'exclude_from_passenger_car_dataset' THEN 'motorhome'" in expression
     assert "'quarantine_test_record' THEN 'test_record'" in expression
     assert "'special_modified_vehicle' THEN 'special_modified'" in expression
-    assert "NOT LIKE 'M1%'" in expression
+    assert "left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'" in expression
     assert expression.rstrip().endswith("ELSE 'passenger' END")
 
 
