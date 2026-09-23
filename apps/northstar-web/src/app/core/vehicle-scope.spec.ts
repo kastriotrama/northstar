@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+
+import { vehicleScopeCondition, vehicleScopeCounts, vehicleTypeLabel } from './vehicle-scope';
+
+describe('vehicle scope', () => {
+  it('passenger keeps rows the backfill has not reached', () => {
+    // not_equals compiles to `IS NULL OR NOT IN`, so NULL rows still show.
+    expect(vehicleScopeCondition('passenger')).toEqual({
+      field: 'vehicle_scope',
+      layer: 'normalized',
+      operator: 'not_equals',
+      values: ['motorhome', 'special_modified', 'test_record', 'other_category'],
+    });
+  });
+
+  it('all vehicles applies no condition', () => {
+    expect(vehicleScopeCondition('all')).toBeNull();
+  });
+
+  it('one category is an exact match', () => {
+    expect(vehicleScopeCondition('motorhome')).toEqual({
+      field: 'vehicle_scope',
+      layer: 'normalized',
+      operator: 'equals',
+      values: ['motorhome'],
+    });
+  });
+
+  it('labels carry counts only once the column is computed', () => {
+    const option = { value: 'motorhome' as const, label: 'Motorhomes' };
+    expect(vehicleTypeLabel(option, {})).toBe('Motorhomes');
+    expect(vehicleTypeLabel(option, vehicleScopeCounts([{ value: 'motorhome', count: 38629 }]))).toBe(
+      `Motorhomes (${(38629).toLocaleString()})`,
+    );
+  });
+});

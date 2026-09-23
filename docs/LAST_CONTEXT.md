@@ -2,6 +2,17 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-23 — Vehicle type filter on TS data
+
+- Added the Vehicle type dropdown to `/ts-data`, sharing its definitions with Vehicles via
+  `core/vehicle-scope.ts`. It narrows everything the screen shows (count, list, facets,
+  unresolved summary, gap groups) but is never part of a rule: the resolver still reads
+  `FilterState.payload()`, and the rule endpoints reject `vehicle_scope` as a condition
+  anyway. Defaults to "All vehicles" here (Vehicles defaults to "Passenger cars") so the
+  counts a rule is authored from match what the rule will touch.
+- Validation: 30 web tests (7 new), production build; checked in the browser that the
+  scope changes the counts while "Which cars" stays unconditioned.
+
 ## 2026-09-23 — Vehicles tab rebuilt: passenger cars first, schema applied on deploy
 
 - Re-landed the Vehicles tab (reverted 2026-09-22 after its first release 503'd on live:

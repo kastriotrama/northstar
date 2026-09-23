@@ -58,6 +58,28 @@
     <div class="notice notice--error" role="alert">{{ message }}</div>
   }
 
+  <!-- -------------------------------------------------------------- vehicle type -->
+  <div class="scope-bar">
+    <label class="scope-bar__field">
+      <span class="scope-bar__label">Vehicle type</span>
+      <select
+        aria-label="Vehicle type"
+        [value]="vehicleType()"
+        (change)="onVehicleType($any($event.target).value)"
+      >
+        @for (option of vehicleTypes; track option.value) {
+          <option [value]="option.value" [selected]="vehicleType() === option.value">
+            {{ scopeLabel(option) }}
+          </option>
+        }
+      </select>
+    </label>
+    <span class="muted scope-bar__hint">
+      Narrows what you browse here. Not part of any rule — a rule applies to every car
+      matching the conditions below, whatever vehicle type is shown.
+    </span>
+  </div>
+
   <!-- ------------------------------------------------------------------- the filter -->
   <section class="card" aria-labelledby="filter-heading">
     <div class="card__head">

@@ -515,3 +515,37 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Browse-only scope, set apart from the filter card so it never reads as part of the
+   rule's IF side. */
+.scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+
+.scope-bar__field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+
+  select {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--p-surface-300);
+    border-radius: 6px;
+    background: var(--p-surface-0);
+    font: inherit;
+  }
+}
+
+.scope-bar__label {
+  font-weight: 600;
+}
+
+.scope-bar__hint {
+  font-size: 0.74rem;
+  max-width: 60ch;
+}
