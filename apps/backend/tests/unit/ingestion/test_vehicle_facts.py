@@ -219,3 +219,16 @@ def test_canonical_backfill_is_pinned_to_the_indexed_source_table() -> None:
 
     assert connection.executed[0][1][0] == "staging.transportstyrelsen_raw"
     assert "nr.source_table = %s" in build_canonical_backfill_statement()
+
+
+@pytest.mark.parametrize(
+    "build", [build_refresh_statement, build_canonical_backfill_statement]
+)
+def test_parameterised_statements_carry_no_bare_percent(build: Any) -> None:
+    """Both run with %s parameters; psycopg rejects any other % as a malformed
+    placeholder, so one LIKE 'M1%' took down the refresh and the backfill."""
+
+    statement = build()
+
+    assert statement.count("%s") == 3
+    assert "%" not in statement.replace("%s", "")
