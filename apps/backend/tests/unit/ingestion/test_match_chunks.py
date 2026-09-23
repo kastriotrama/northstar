@@ -127,22 +127,54 @@ def test_signature_falls_back_when_the_row_has_no_matcher_key() -> None:
     assert "evaluation_key" not in signature
 
 
-def test_resolutions_fill_only_the_gaps_a_rebuild_still_has() -> None:
+def test_resolutions_fill_the_gaps_a_rebuild_still_has() -> None:
     """A rule run in the dashboard must reach the next build's signatures."""
 
     from ingestion.match_chunks import apply_field_resolutions
 
     payload = _payload(manufacturer="VOLVO", model_family="V70", drive_type=None)
 
-    resolved = apply_field_resolutions(
-        payload, {"drive_type": "fwd", "manufacturer": "SAAB"}
-    )
+    resolved = apply_field_resolutions(payload, {"drive_type": "fwd"})
 
     assert resolved["normalized"]["drive_type"] == "fwd"
-    # Normalization already derived the manufacturer; a resolution fills gaps,
-    # it does not overrule a value the pipeline produced.
-    assert resolved["normalized"]["manufacturer"] == "VOLVO"
     assert compute_signature(resolved)["drive_type"] == "fwd"
+
+
+def test_a_resolution_overrides_the_derivation_it_corrects() -> None:
+    """Same precedence as effective_value: an override rule corrects a wrong
+    derivation, so the rebuild must put the car in its corrected chunk."""
+
+    from ingestion.match_chunks import apply_field_resolutions
+
+    payload = _payload(manufacturer="VOLVO", model_family="XC40", bodywork_form="estate")
+
+    resolved = apply_field_resolutions(payload, {"bodywork_form": "suv"})
+
+    assert resolved["normalized"]["bodywork_form"] == "suv"
+    assert compute_signature(resolved)["bodywork_form"] == "suv"
+    # Fields the rule does not speak to keep what normalization derived.
+    assert resolved["normalized"]["manufacturer"] == "VOLVO"
+
+
+@pytest.mark.parametrize("empty", [None, "", "   "])
+def test_an_empty_resolution_leaves_the_derived_value_alone(empty: object) -> None:
+    from ingestion.match_chunks import apply_field_resolutions
+
+    payload = _payload(manufacturer="VOLVO", bodywork_form="estate")
+
+    resolved = apply_field_resolutions(payload, {"bodywork_form": empty})
+
+    assert resolved["normalized"]["bodywork_form"] == "estate"
+
+
+def test_a_resolved_fuel_replaces_the_derived_list_and_stays_a_list() -> None:
+    from ingestion.match_chunks import apply_field_resolutions
+
+    payload = _payload(manufacturer="VOLVO", energy_sources=["petrol"])
+
+    resolved = apply_field_resolutions(payload, {"energy_sources": "diesel"})
+
+    assert compute_signature(resolved)["energy_sources"] == ["diesel"]
 
 
 def test_a_resolved_fuel_stays_a_list_in_the_signature() -> None:

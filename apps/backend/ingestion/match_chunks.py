@@ -257,10 +257,14 @@ def apply_field_resolutions(
 ) -> dict[str, Any]:
     """Overlay reviewer-authored resolutions onto one normalized payload.
 
-    A resolution states what a field means for one car — the gap normalization
-    could not close on its own — so a rebuild must see it, or running a rule in
-    the dashboard would never reach the chunks it was written for. Only empty
-    fields are filled: a resolution never overrides what normalization derived.
+    A resolution states what a field means for one car, so a rebuild must see
+    it, or running a rule in the dashboard would never reach the chunks it was
+    written for. The rule wins: a non-empty resolution replaces the derived
+    value, the same precedence as `effective_value` in vehicle_facts_migrations
+    (`coalesce(r_x, n_x)`). An override rule exists precisely to correct a
+    derivation that is wrong -- an XC40 derived as an estate -- so letting the
+    derivation win would rebuild the car into its old, wrong chunk. An empty
+    resolution asserts nothing and leaves the derived value alone.
     """
 
     if not resolutions:
@@ -268,8 +272,7 @@ def apply_field_resolutions(
     payload = dict(normalized_payload)
     normalized = dict(_mapping(payload.get("normalized")))
     for field_name, value in resolutions.items():
-        existing = normalized.get(field_name)
-        if existing not in (None, "", []):
+        if value is None or str(value).strip() == "":
             continue
         normalized[field_name] = (
             [str(value)]
