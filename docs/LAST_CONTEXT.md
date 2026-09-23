@@ -9,7 +9,8 @@ Keep the latest 10 task entries only.
   unresolved summary, gap groups) but is never part of a rule: the resolver still reads
   `FilterState.payload()`, and the rule endpoints reject `vehicle_scope` as a condition
   anyway. Defaults to "All vehicles" here (Vehicles defaults to "Passenger cars") so the
-  counts a rule is authored from match what the rule will touch.
+  counts a rule is authored from match what the rule will touch. Changed the same day
+  to default to "Passenger cars", matching Vehicles, at the user's request.
 - Validation: 30 web tests (7 new), production build; checked in the browser that the
   scope changes the counts while "Which cars" stays unconditioned.
 
