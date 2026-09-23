@@ -26,6 +26,14 @@ describe('vehicle scope', () => {
     });
   });
 
+  it('all vehicles never shows a partial sum of the scopes', () => {
+    const counts = vehicleScopeCounts([
+      { value: 'passenger', count: 2_700_000 },
+      { value: 'motorhome', count: 42_000 },
+    ]);
+    expect(vehicleTypeLabel({ value: 'all', label: 'All vehicles' }, counts)).toBe('All vehicles');
+  });
+
   it('labels carry counts only once the column is computed', () => {
     const option = { value: 'motorhome' as const, label: 'Motorhomes' };
     expect(vehicleTypeLabel(option, {})).toBe('Motorhomes');
