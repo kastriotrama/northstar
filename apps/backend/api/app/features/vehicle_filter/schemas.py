@@ -149,6 +149,9 @@ class CanonicalVehicleRow(BaseModel):
     fuel: str | None
     transmission: str | None
     euro_class: str | None
+    #: `passenger`, or why the car is not one (motorhome, special_modified,
+    #: test_record, other_category). NULL until the projection is backfilled.
+    vehicle_scope: str | None
     norm_status: str | None
 
 

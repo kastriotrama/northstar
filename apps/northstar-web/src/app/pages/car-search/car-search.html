@@ -20,6 +20,21 @@
     />
 
     <div class="search__filters">
+      <label class="field">
+        <span class="field__label">Vehicle type</span>
+        <select
+          class="field__select"
+          aria-label="Vehicle type"
+          [value]="vehicleType()"
+          (change)="onVehicleType($any($event.target).value)"
+        >
+          @for (option of vehicleTypes; track option.value) {
+            <option [value]="option.value" [selected]="vehicleType() === option.value">
+              {{ scopeLabel(option) }}
+            </option>
+          }
+        </select>
+      </label>
       @for (facet of facets; track facet.key) {
         <label class="field">
           <span class="field__label">{{ facet.label }}</span>
@@ -70,6 +85,13 @@
       />
     </div>
   </section>
+
+  @if (scopeNotComputed()) {
+    <p class="notice" role="status">
+      Vehicle type has not been computed on this server yet, so “Passenger cars” is
+      showing every vehicle. It takes effect once the canonical backfill has run.
+    </p>
+  }
 
   @if (error(); as text) {
     <p class="error" role="alert">{{ text }}</p>

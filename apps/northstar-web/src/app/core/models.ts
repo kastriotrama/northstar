@@ -753,6 +753,8 @@ export interface CanonicalVehicleRow {
   fuel: string | null;
   transmission: string | null;
   euro_class: string | null;
+  /** `passenger`, or why not (motorhome, special_modified, test_record, other_category). */
+  vehicle_scope: string | null;
   norm_status: string | null;
 }
 

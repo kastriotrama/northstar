@@ -50,6 +50,7 @@ const PAGE: CarSearchPage = {
       fuel: 'diesel',
       transmission: 'automatic',
       euro_class: 'Euro 6',
+      vehicle_scope: 'passenger',
       norm_status: 'resolved',
     },
   ],
@@ -101,10 +102,58 @@ describe('CarSearchPage', () => {
     expect(row?.querySelector('.rule')?.textContent).toContain('120');
   });
 
-  it('searches with no conditions until the reviewer narrows', async () => {
+  it('shows passenger cars first, keeping rows the backfill has not reached', async () => {
     const fixture = render();
     const [request] = await settle(fixture);
 
+    expect(request.request.body).toEqual({
+      conditions: [
+        {
+          field: 'vehicle_scope',
+          layer: 'normalized',
+          operator: 'not_equals',
+          values: ['motorhome', 'special_modified', 'test_record', 'other_category'],
+        },
+      ],
+      text: '',
+    });
+  });
+
+  it('drops the passenger filter when the reviewer asks for all vehicles', async () => {
+    const fixture = render();
+    await settle(fixture);
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      'select[aria-label="Vehicle type"]',
+    ) as HTMLSelectElement;
+    select.value = 'all';
+    select.dispatchEvent(new Event('change'));
+    const [request] = await settle(fixture);
+
     expect(request.request.body).toEqual({ conditions: [], text: '' });
+  });
+
+  it('narrows to one excluded category, e.g. motorhomes', async () => {
+    const fixture = render();
+    await settle(fixture);
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      'select[aria-label="Vehicle type"]',
+    ) as HTMLSelectElement;
+    select.value = 'motorhome';
+    select.dispatchEvent(new Event('change'));
+    const [request] = await settle(fixture);
+
+    expect(request.request.body.conditions).toEqual([
+      { field: 'vehicle_scope', layer: 'normalized', operator: 'equals', values: ['motorhome'] },
+    ]);
+  });
+
+  it('says so when the vehicle type has not been computed on this server', async () => {
+    const fixture = render();
+    await settle(fixture);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Vehicle type has not been computed on this server yet');
   });
 });

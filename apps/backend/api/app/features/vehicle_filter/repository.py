@@ -228,7 +228,8 @@ class VehicleFilterRepository:
                     "fuel": row[tail],
                     "transmission": row[tail + 1],
                     "euro_class": row[tail + 2],
-                    "norm_status": row[tail + 3],
+                    "vehicle_scope": row[tail + 3],
+                    "norm_status": row[tail + 4],
                 }
             )
         return results

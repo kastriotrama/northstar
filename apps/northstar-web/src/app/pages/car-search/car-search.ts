@@ -60,6 +60,30 @@ const FIELD_LABELS: Record<string, string> = {
   production_year: 'Production year',
 };
 
+/**
+ * The Vehicle type filter. Everything but "all" is a real predicate on
+ * `vehicle_scope`, which the projection derives from the pipeline's own exclusion
+ * decisions -- not from TecDoc's `is_pc`, which marks every model series,
+ * motorcycles included, as a passenger car.
+ */
+type VehicleType = 'passenger' | 'all' | 'motorhome' | 'special_modified' | 'test_record' | 'other_category';
+
+const EXCLUDED_SCOPES: readonly string[] = [
+  'motorhome',
+  'special_modified',
+  'test_record',
+  'other_category',
+];
+
+const VEHICLE_TYPES: ReadonlyArray<{ value: VehicleType; label: string }> = [
+  { value: 'passenger', label: 'Passenger cars' },
+  { value: 'all', label: 'All vehicles' },
+  { value: 'motorhome', label: 'Motorhomes' },
+  { value: 'special_modified', label: 'Special / modified' },
+  { value: 'test_record', label: 'Test records' },
+  { value: 'other_category', label: 'Trucks, trailers, buses' },
+];
+
 const PAGE_SIZE = 50;
 
 /**
@@ -84,6 +108,19 @@ export class CarSearchPage implements OnInit {
   private readonly api = inject(Api);
 
   protected readonly facets = FACETS;
+  protected readonly vehicleTypes = VEHICLE_TYPES;
+  /** Passenger cars first: the default view, still just a filter anyone can change. */
+  protected readonly vehicleType = signal<VehicleType>('passenger');
+  /** Cars per `vehicle_scope`, for the option labels. Empty until the column is backfilled. */
+  protected readonly scopeCounts = signal<Record<string, number>>({});
+  protected readonly scopeLoaded = signal(false);
+  /**
+   * The column exists but holds nothing yet on this server, so "Passenger cars"
+   * cannot exclude anything. Said out loud rather than silently showing everything.
+   */
+  protected readonly scopeNotComputed = computed(
+    () => this.scopeLoaded() && Object.keys(this.scopeCounts()).length === 0,
+  );
   protected readonly ranges = RANGES;
   protected readonly fieldLabels = FIELD_LABELS;
 
@@ -113,6 +150,7 @@ export class CarSearchPage implements OnInit {
 
   protected readonly hasFilter = computed(
     () =>
+      this.vehicleType() !== 'passenger' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -151,6 +189,7 @@ export class CarSearchPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadScopeCounts();
     for (const facet of this.facets) this.loadFacet(facet.key);
     this.search$.next();
   }
@@ -180,7 +219,24 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
+  protected onVehicleType(value: VehicleType): void {
+    this.vehicleType.set(value);
+    this.search$.next();
+  }
+
+  protected scopeLabel(option: { value: VehicleType; label: string }): string {
+    const counts = this.scopeCounts();
+    let count: number | undefined;
+    if (option.value === 'passenger') count = counts['passenger'];
+    else if (option.value === 'all') {
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      count = total || undefined;
+    } else count = counts[option.value];
+    return count === undefined ? option.label : `${option.label} (${count.toLocaleString()})`;
+  }
+
   protected reset(): void {
+    this.vehicleType.set('passenger');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -261,6 +317,8 @@ export class CarSearchPage implements OnInit {
 
   private conditions(): RuleCondition[] {
     const conditions: RuleCondition[] = [];
+    const scope = this.scopeCondition();
+    if (scope) conditions.push(scope);
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];
       if (value) {
@@ -283,6 +341,35 @@ export class CarSearchPage implements OnInit {
       }
     }
     return conditions;
+  }
+
+  private scopeCondition(): RuleCondition | null {
+    const type = this.vehicleType();
+    if (type === 'all') return null;
+    if (type === 'passenger') {
+      // "Not a known non-passenger category" rather than "= passenger": a row the
+      // backfill has not reached yet holds NULL and must still show, or a fresh
+      // deploy would present an empty screen until the backfill finished.
+      return {
+        field: 'vehicle_scope',
+        layer: 'normalized',
+        operator: 'not_equals',
+        values: [...EXCLUDED_SCOPES],
+      };
+    }
+    return { field: 'vehicle_scope', layer: 'normalized', operator: 'equals', values: [type] };
+  }
+
+  private loadScopeCounts(): void {
+    this.api.vehicleFacet({ conditions: [] }, 'vehicle_scope', 20).subscribe({
+      next: (facet) => {
+        const counts: Record<string, number> = {};
+        for (const { value, count } of facet.values) counts[value] = count ?? 0;
+        this.scopeCounts.set(counts);
+        this.scopeLoaded.set(true);
+      },
+      error: () => this.scopeLoaded.set(true),
+    });
   }
 
   private loadFacet(key: string): void {

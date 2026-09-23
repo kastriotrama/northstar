@@ -53,7 +53,7 @@ def _row() -> tuple[Any, ...]:
     for field in RESOLVABLE_FIELDS:
         # power_kw is the one field a rule supplied.
         values.extend([110 if field == "power_kw" else "X", field == "power_kw"])
-    values.extend(["diesel", "automatic", "Euro 6", "resolved"])
+    values.extend(["diesel", "automatic", "Euro 6", "passenger", "resolved"])
     return tuple(values)
 
 
@@ -79,6 +79,7 @@ def test_search_page_maps_canonical_values_and_rule_filled_fields() -> None:
             "fuel": "diesel",
             "transmission": "automatic",
             "euro_class": "Euro 6",
+            "vehicle_scope": "passenger",
             "norm_status": "resolved",
         }
     ]

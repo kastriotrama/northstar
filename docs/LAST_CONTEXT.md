@@ -2,6 +2,29 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-23 — Vehicles tab rebuilt: passenger cars first, schema applied on deploy
+
+- Re-landed the Vehicles tab (reverted 2026-09-22 after its first release 503'd on live:
+  the deploy shipped code reading `canonical_fuel`/`canonical_transmission`/
+  `canonical_euro_class`, but nothing ever added those columns to production's
+  `core.vehicle_facts`). Root fix: new `migrate-vehicle-facts` CLI command (schema only,
+  idempotent) now runs in `infra/production/deploy.sh` before `up -d`, so a column a
+  feature adds exists before the code that reads it goes live.
+- New `vehicle_scope` column (passenger / motorhome / special_modified / test_record /
+  other_category), derived from the pipeline's own `record_route` and
+  `parts_matching_exclusion_reason` plus non-M1 EU categories -- never TecDoc's `is_pc`,
+  which marks motorcycles as passenger cars. Vehicles defaults to "Passenger cars" via
+  `vehicle_scope NOT IN (excluded)`, which keeps un-backfilled NULL rows visible; a
+  notice says so until the backfill has run.
+- New `backfill-canonical-vehicle-facts` command updates only the canonical-only columns
+  (resumable, disk-guarded) instead of a full `refresh-vehicle-facts`. It is not run by
+  deploy -- run it deliberately on production after merging.
+- Validation: 1237 backend unit tests, ruff, mypy, 23 web tests, production web build;
+  reproduced the live failure locally (table predating the column) and confirmed the
+  migration adds it and the page serves without 503. The scope expression was verified
+  read-only against real local rows; the local backfill itself was blocked by the
+  disk guard (host disk at 99%).
+
 ## 2026-09-21 — Correcting a value the TS data screen already has
 
 - Added an override mode to resolution rules so a reviewer can fix a wrong value, not
@@ -36,12 +59,6 @@ Keep the latest 10 task entries only.
 ## 2026-08-31 — Remote qualifier-loss work merged and reconciled
 
 - Merged remote commit `36a29b0` locally as merge `d1470fd`; no push. Added a digest-pinned, read-only v6 qualifier-loss audit and tests. On the frozen 20k cohort, 1,195 rows lose a trailing qualifier; 430 name a unique specific catalog family, of which 189 already resolve, 59 are provisional, 172 remain review-required and 10 are hard conflicts. C3 Picasso mostly already recovers from raw model evidence; C4 Picasso is commonly blocked by bodywork/conflict gates. No rule, decision, alias, PostgreSQL or Neo4j state changed. See `docs/TS_MODEL_QUALIFIER_LOSS_V6_RECONCILIATION_2026-08-31.md`.
-## 2026-09-21 — Car search menu
-
-- Added `POST /v1/vehicles/search` (canonical values + free text over plate/VIN/make/model, keyset paged) and a `/vehicles` toolbar page (Angular) with canonical filters and a record panel showing registry vs canonical.
-- Validation: backend unit suite (1204) + mypy pass; web tests pass. SQL not run against real data — `core.vehicle_facts` is not built in the local DB.
-- Not done: pulling live rules — needs the live URL, sync token and nginx basic-auth credentials.
-
 ## 2026-08-31 — SCRUM-170/171 promotion cohort dry-run
 
 - Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, computes planned v6 immutable decision IDs, excludes aliases requiring retirement, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The corrected private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-v2-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible, 4,005 without an active alias, 467 requiring retirement, 1,000 selected, and 1,000/1,000 Neo4j-preflighted with planned v6 IDs. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (6), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.

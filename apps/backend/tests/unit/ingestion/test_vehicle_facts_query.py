@@ -209,3 +209,19 @@ def test_canonical_only_fields_are_filterable_without_a_rule_overlay() -> None:
 def test_unknown_canonical_field_is_still_refused() -> None:
     with pytest.raises(UnknownFieldError):
         compile_term("normalized", "canonical_color", "equals", ("red",))
+
+
+def test_passenger_default_keeps_rows_the_backfill_has_not_reached() -> None:
+    """`not_equals` keeps NULL: a fresh deploy must show every car, not none."""
+
+    compiled = compile_term(
+        "normalized", "vehicle_scope", "not_equals", ("motorhome", "test_record")
+    )
+
+    assert compiled.sql == "(vehicle_scope IS NULL OR NOT (vehicle_scope = ANY(%s)))"
+
+
+def test_canonical_page_statement_returns_the_vehicle_scope() -> None:
+    compiled = compile_term("normalized", "manufacturer", "equals", ("VOLVO",))
+
+    assert "vehicle_scope" in canonical_page_statement(compiled, limit=10)
