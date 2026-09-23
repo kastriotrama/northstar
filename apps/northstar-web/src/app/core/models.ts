@@ -788,3 +788,109 @@ export interface FullVehicleRecord extends VehicleDetail {
   normalized: Record<string, unknown>;
   normalization: NormalizationMeta | null;
 }
+
+// --- TS-to-TecDoc matching diagnostics (`/v1/vehicles/matching`) ----------------------
+
+/** `one`/`several`/`none` count KTypes that conflict with the car on no field. */
+export type MatchBucket = 'one' | 'several' | 'none' | 'not_matchable';
+
+/** What the matcher keyed on, after rule-filled values were applied. */
+export interface MatcherInputs {
+  manufacturer: string;
+  model_values: string[];
+  production_year: number | null;
+  fuels: string[];
+  engine_code: string | null;
+  displacement_cc: number | null;
+  power_kw: number | null;
+  drive_type: string | null;
+  bodywork_form: string | null;
+  model_recovered_from: string | null;
+}
+
+export interface KTypeCandidate {
+  ktype: string;
+  candidate_only: boolean;
+  confidence: number;
+  manufacturer: string;
+  model: string;
+  year_from: number | null;
+  year_to: number | null;
+  fuels: string[];
+  engine_codes: string[];
+  displacement_cc: number | null;
+  power_kw: number | null;
+  drive_type: string | null;
+  bodyworks: string[];
+  matched_fields: string[];
+  missing_fields: string[];
+  conflicting_fields: string[];
+  compatible: boolean;
+}
+
+export interface VehicleMatchLookup {
+  source_record_id: number;
+  plate: string | null;
+  vin: string | null;
+  catalog_batch: string;
+  terminal: string;
+  bucket: MatchBucket;
+  confidence: number | null;
+  top_ktype: string | null;
+  reason_codes: string[];
+  rule_filled: string[];
+  inputs: MatcherInputs | null;
+  candidates: KTypeCandidate[];
+  /** The matcher returns at most this many; a full list means "this many or more". */
+  candidate_limit: number;
+  separating_fields: string[];
+  /** Separating fields the car has no value for: the gap to close. */
+  missing_separating_fields: string[];
+  decision_trace: Record<string, unknown>[];
+  other_source_record_ids: number[];
+}
+
+export interface MatchSummaryRequest extends CarSearchRequest {
+  limit: number;
+}
+
+export interface FieldCount {
+  field: string;
+  cars: number;
+}
+
+export interface MatchExample {
+  source_record_id: number;
+  plate: string | null;
+  manufacturer: string | null;
+  model_family: string | null;
+  candidates: number;
+}
+
+export interface MatchSummary {
+  catalog_batch: string;
+  population: number;
+  evaluated: number;
+  sampled: boolean;
+  buckets: Record<MatchBucket, number>;
+  terminals: Record<string, number>;
+  several_candidate_counts: Record<string, number>;
+  candidate_limit: number;
+  none_conflicting_fields: FieldCount[];
+  none_without_candidates: number;
+  several_separating_fields: FieldCount[];
+  several_missing_separating_fields: FieldCount[];
+  not_matchable_reasons: { reason: string; cars: number }[];
+  examples: Record<MatchBucket, MatchExample[]>;
+}
+
+export interface MatchSummaryJob {
+  job_id: string;
+  status: 'running' | 'done' | 'failed' | 'cancelled';
+  target: number;
+  evaluated: number;
+  seconds_elapsed: number;
+  error: string | null;
+  /** Partial while running, final once done. */
+  summary: MatchSummary;
+}

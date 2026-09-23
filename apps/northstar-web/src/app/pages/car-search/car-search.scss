@@ -237,3 +237,27 @@
   color: #7a5300;
   font-size: 0.82rem;
 }
+
+.views {
+  display: flex;
+  gap: 0.2rem;
+  border-bottom: 1px solid var(--p-surface-200);
+}
+
+.views__tab {
+  border: none;
+  background: none;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.views__tab--active {
+  color: inherit;
+  font-weight: 600;
+  border-bottom-color: var(--p-primary-color, #3b82f6);
+}

@@ -210,6 +210,16 @@ def test_lookup_normalizes_the_identifier_and_explains_the_gap() -> None:
     assert result.other_source_record_ids == [9]
 
 
+def test_lookup_by_record_explains_that_exact_record() -> None:
+    service = _service({1: _evaluation(_match("A")), 9: _evaluation()})
+
+    result = service.lookup_record(9)
+
+    assert result.source_record_id == 9
+    assert result.bucket == "none"
+    assert result.other_source_record_ids == []
+
+
 def test_lookup_of_an_unknown_plate_says_so() -> None:
     with pytest.raises(VehicleNotFoundError):
         _service({}).lookup("NOPE")
@@ -292,6 +302,11 @@ def test_http_maps_the_services_errors(client: TestClient) -> None:
     client.app.dependency_overrides[get_service] = lambda: _service({1: _evaluation()})  # type: ignore[attr-defined]
     try:
         assert client.get("/v1/vehicles/matching/lookup", params={"q": "NOPE"}).status_code == 404
+        assert client.get("/v1/vehicles/matching/lookup").status_code == 422
+        both = {"q": "ABC123", "source_record_id": 1}
+        assert client.get("/v1/vehicles/matching/lookup", params=both).status_code == 422
+        by_record = client.get("/v1/vehicles/matching/lookup", params={"source_record_id": 1})
+        assert by_record.status_code == 200
         assert client.get("/v1/vehicles/matching/summary/nope").status_code == 404
         started = client.post("/v1/vehicles/matching/summary", json={"conditions": [], "limit": 1})
         assert started.status_code == 202

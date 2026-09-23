@@ -99,6 +99,36 @@
 
   <div class="results" [class.results--panel]="openRow()">
     <section class="card">
+      <div class="views" role="tablist" aria-label="Results view">
+        <button
+          type="button"
+          role="tab"
+          class="views__tab"
+          [class.views__tab--active]="view() === 'cars'"
+          [attr.aria-selected]="view() === 'cars'"
+          (click)="view.set('cars')"
+        >
+          Cars
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="views__tab"
+          [class.views__tab--active]="view() === 'matching'"
+          [attr.aria-selected]="view() === 'matching'"
+          (click)="view.set('matching')"
+        >
+          Matching
+        </button>
+      </div>
+
+      @if (view() === 'matching') {
+        <ns-matching-summary
+          [conditions]="currentConditions()"
+          [text]="currentText()"
+          (pick)="openExample($event)"
+        />
+      } @else {
       <p-table [value]="rows()" [scrollable]="true" scrollHeight="62vh" styleClass="p-datatable-sm">
         <ng-template pTemplate="header">
           <tr>
@@ -175,6 +205,7 @@
           />
         }
       </div>
+      }
     </section>
 
     @if (openRow(); as car) {
@@ -200,6 +231,11 @@
             />
           </dd>
         </dl>
+
+        <details class="section" open>
+          <summary>Candidate KTypes <span class="muted">TS → TecDoc matching</span></summary>
+          <ns-ktype-candidates [sourceRecordId]="car.source_record_id" />
+        </details>
 
         @if (detailLoading()) {
           <p class="muted">Loading…</p>

@@ -2,6 +2,24 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-23 — Vehicles: TS-to-TecDoc matching diagnostics (local only)
+
+- New `vehicle_matching` feature over the audit's own `TecDocDryRunEvaluator` (pinned
+  candidate catalog, active rules, reviewed aliases, fuel/drive alignments; nothing
+  reimplements matching). `GET /v1/vehicles/matching/lookup` (plate/VIN or exact
+  `source_record_id`) shows what the matcher saw and every KType it weighed;
+  `POST /v1/vehicles/matching/summary` runs it over a Vehicles filter as a polled
+  background job and counts one / several / none / not-matchable, naming the fields
+  behind each gap. UI: "Candidate KTypes" in the record panel and a "Matching" view.
+- Findings on local data (1,000 Volvos): 588 one, 246 several, 166 none; 145 of the
+  `none` conflict on bodywork (estate vs SUV), 137 of the `several` are separated by an
+  engine code the car lacks. Mixed brands also show V70 competing with XC70 on
+  identical specs -- a matcher-side ambiguity, not missing data.
+- Validation: 17 backend + 9 web tests new; 1256 backend, 40 web, ruff, mypy, prod build;
+  every endpoint and the UI checked against the real local database.
+- Not yet for live: no plate/VIN index on `vehicle_facts` (lookup would scan 6.5M rows);
+  jobs live in API process memory. Matcher costs ~0.1s a car (1s+ for Mercedes).
+
 ## 2026-09-23 — Vehicle type filter on TS data
 
 - Added the Vehicle type dropdown to `/ts-data`, sharing its definitions with Vehicles via

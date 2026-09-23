@@ -275,7 +275,21 @@ class VehicleMatchingService:
         records = self._repository.car_records(ids[:1])
         if not records:
             raise VehicleNotFoundError(f"No vehicle with plate or VIN {key!r}.")
-        car = records[0]
+        return self._explain(records[0], other_ids=ids[1:])
+
+    def lookup_record(self, source_record_id: int) -> VehicleMatchLookup:
+        """One exact record -- what a screen that already has the row asks for.
+
+        A plate can carry several records; the record panel must explain the
+        one it is showing, not whichever is newest.
+        """
+
+        records = self._repository.car_records([source_record_id])
+        if not records:
+            raise VehicleNotFoundError(f"No vehicle with record id {source_record_id}.")
+        return self._explain(records[0], other_ids=[])
+
+    def _explain(self, car: CarRecord, *, other_ids: Sequence[int]) -> VehicleMatchLookup:
         matcher = self._matcher()
         evaluation, query = matcher.evaluate(car.record)
         separating = separating_fields(evaluation, matcher.catalog)
@@ -299,7 +313,7 @@ class VehicleMatchingService:
             separating_fields=separating,
             missing_separating_fields=missing_on_car(separating, query),
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
-            other_source_record_ids=ids[1:],
+            other_source_record_ids=list(other_ids),
         )
 
     def start_summary(

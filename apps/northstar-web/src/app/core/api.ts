@@ -42,6 +42,9 @@ import type {
   CarSearchPage,
   CarSearchRequest,
   FullVehicleRecord,
+  MatchSummaryJob,
+  MatchSummaryRequest,
+  VehicleMatchLookup,
   VehicleCount,
   VehicleDetail,
   VehicleFacet,
@@ -552,6 +555,30 @@ export class Api {
   }
 
   /** Everything known about one car: the whole registry row and every normalized value. */
+  // --- TS-to-TecDoc matching diagnostics ------------------------------------------------
+
+  /** Which KTypes one exact record could be, and why the matcher decided as it did. */
+  matchLookup(sourceRecordId: number): Observable<VehicleMatchLookup> {
+    return this.http.get<VehicleMatchLookup>(`${this.base}/v1/vehicles/matching/lookup`, {
+      params: params({ source_record_id: sourceRecordId }),
+    });
+  }
+
+  /** Start matching the first `limit` cars of a filter; poll the returned job. */
+  startMatchSummary(request: MatchSummaryRequest): Observable<MatchSummaryJob> {
+    return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
+  }
+
+  matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
+    return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
+  }
+
+  cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {
+    return this.http.delete<MatchSummaryJob>(
+      `${this.base}/v1/vehicles/matching/summary/${jobId}`,
+    );
+  }
+
   fullVehicle(sourceRecordId: number): Observable<FullVehicleRecord> {
     return this.http.get<FullVehicleRecord>(`${this.base}/v1/vehicles/${sourceRecordId}/full`);
   }

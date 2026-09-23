@@ -8,6 +8,8 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
+import { KTypeCandidates } from '../../components/ktype-candidates';
+import { MatchingSummary } from '../../components/matching-summary';
 import type {
   CanonicalVehicleRow,
   CarSearchRequest,
@@ -83,7 +85,16 @@ const PAGE_SIZE = 50;
  */
 @Component({
   selector: 'ns-car-search',
-  imports: [DecimalPipe, FormsModule, ButtonModule, InputTextModule, TableModule, TagModule],
+  imports: [
+    DecimalPipe,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    TableModule,
+    TagModule,
+    KTypeCandidates,
+    MatchingSummary,
+  ],
   templateUrl: './car-search.html',
   styleUrl: './car-search.scss',
 })
@@ -126,6 +137,12 @@ export class CarSearchPage implements OnInit {
   protected readonly nextCursor = signal<number | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** Cars list, or the matching summary over the same filter. */
+  protected readonly view = signal<'cars' | 'matching'>('cars');
+  /** The filter exactly as the car list is queried with it, for the matching view. */
+  protected readonly currentConditions = computed(() => this.request().conditions);
+  protected readonly currentText = computed(() => this.request().text);
 
   protected readonly detail = signal<FullVehicleRecord | null>(null);
   protected readonly openRow = signal<CanonicalVehicleRow | null>(null);
@@ -249,6 +266,20 @@ export class CarSearchPage implements OnInit {
         this.detailLoading.set(false);
       },
       error: () => this.detailLoading.set(false),
+    });
+  }
+
+  /** An example from the matching view: find that car in the list and open it. */
+  protected openExample(plate: string): void {
+    if (!plate) return;
+    this.view.set('cars');
+    this.onText(plate);
+    this.api.searchCars({ conditions: [], text: plate }, { limit: 1 }).subscribe({
+      next: (page) => {
+        const row = page.items[0];
+        if (row) this.open(row);
+      },
+      error: () => undefined,
     });
   }
 
