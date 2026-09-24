@@ -98,36 +98,14 @@ CANONICAL_ONLY_FIELDS: tuple[str, ...] = (
     "vehicle_scope",
 )
 
-# Values `vehicle_scope` can hold. `passenger` is the only in-scope one; the rest
-# are the pipeline's own exclusion decisions (normalization_rules sets
-# `record_route` / `parts_matching_exclusion_reason`) plus the registry's non-M1
-# EU categories. Deliberately not derived from TecDoc's `is_pc`, which marks
-# every model series -- motorcycles included -- as a passenger car.
-VEHICLE_SCOPE_PASSENGER = "passenger"
-VEHICLE_SCOPE_EXCLUDED: tuple[str, ...] = (
-    "motorhome",
-    "special_modified",
-    "test_record",
-    "other_category",
-)
-
-_VEHICLE_SCOPE_EXPRESSION = (
-    "CASE"
-    " WHEN norm.payload ->> 'record_route' = 'exclude_from_passenger_car_dataset'"
-    " THEN 'motorhome'"
-    " WHEN norm.payload ->> 'record_route' = 'quarantine_test_record'"
-    " THEN 'test_record'"
-    " WHEN norm.payload ->> 'parts_matching_exclusion_reason' = 'special_modified_vehicle'"
-    " THEN 'special_modified'"
-    " WHEN nullif(btrim(raw.raw_record ->> 'eu_category'), '') IS NOT NULL"
-    # left(...) rather than LIKE 'M1%': this expression is embedded in statements
-    # executed with %s parameters, where psycopg rejects a bare % as a malformed
-    # placeholder -- which broke both the refresh and the canonical backfill.
-    " AND left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'"
-    " THEN 'other_category'"
-    " ELSE 'passenger'"
-    " END"
-)
+# `vehicle_scope` is a plain copy of `normalized.vehicle_scope`: normalization
+# owns the classification (`normalization_rules.classify_vehicle_scope`), so
+# nothing here restates it. A result normalized before the field existed carries
+# none; the refresh and the canonical backfill then keep the value already in the
+# table rather than blanking it, and `backfill-vehicle-scope` fills such rows by
+# calling that same function.
+#: Canonical-only columns kept, not blanked, when a result carries no value.
+KEEP_WHEN_ABSENT: frozenset[str] = frozenset({"vehicle_scope"})
 
 # Every resolvable field gets a partial index over its own unresolved population,
 # because that predicate is what the gaps sidebar counts and what a rule matches
@@ -191,7 +169,7 @@ def canonical_only_columns() -> tuple[tuple[str, str], ...]:
         ("canonical_fuel", "norm.payload -> 'energy_sources' ->> 0"),
         ("canonical_transmission", "norm.payload ->> 'transmission_type'"),
         ("canonical_euro_class", "norm.payload ->> 'emission_standard'"),
-        ("vehicle_scope", _VEHICLE_SCOPE_EXPRESSION),
+        ("vehicle_scope", "norm.payload ->> 'vehicle_scope'"),
     )
 
 
