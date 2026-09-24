@@ -19,7 +19,9 @@ from psycopg import Connection
 
 from ingestion.match_chunk_migrations import MATCH_FIELD_RESOLUTIONS_TABLE
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
+from ingestion.normalization_rules import classify_vehicle_scope
 from ingestion.vehicle_facts_migrations import (
+    KEEP_WHEN_ABSENT,
     NORMALIZED_INTEGER_FIELDS,
     NORMALIZED_TEXT_FIELDS,
     RESOLVABLE_FIELDS,
@@ -131,7 +133,13 @@ def build_refresh_statement() -> str:
         f"{expression} AS {name}" for name, expression in columns
     )
     assignments = ",\n                ".join(
-        f"{name} = EXCLUDED.{name}" for name in names if name != "source_record_id"
+        (
+            f"{name} = coalesce(EXCLUDED.{name}, {VEHICLE_FACTS_TABLE}.{name})"
+            if name in KEEP_WHEN_ABSENT
+            else f"{name} = EXCLUDED.{name}"
+        )
+        for name in names
+        if name != "source_record_id"
     )
     return f"""
         WITH page AS (
@@ -202,7 +210,12 @@ def build_canonical_backfill_statement() -> str:
     selected = ",\n                   ".join(
         f"{_text(expression)} AS {name}" for name, expression in columns
     )
-    assignments = ", ".join(f"{name} = page.{name}" for name, _ in columns)
+    assignments = ", ".join(
+        f"{name} = coalesce(page.{name}, facts.{name})"
+        if name in KEEP_WHEN_ABSENT
+        else f"{name} = page.{name}"
+        for name, _ in columns
+    )
     return f"""
         WITH page AS (
             SELECT nr.source_record_id,
@@ -284,6 +297,95 @@ def backfill_canonical_columns(
         free_bytes=free_bytes,
         disk_path=disk_path,
     )
+
+
+_VEHICLE_SCOPE_PAGE = f"""
+    SELECT facts.source_record_id,
+           raw.raw_record ->> 'eu_category',
+           raw.raw_record ->> 'vehicle_type',
+           latest.normalized ->> 'record_route',
+           latest.normalized ->> 'parts_matching_exclusion_reason',
+           latest.normalized ->> 'vehicle_scope'
+    FROM {VEHICLE_FACTS_TABLE} AS facts
+    JOIN {STAGING_TABLE} AS raw ON raw.id = facts.source_record_id
+    LEFT JOIN LATERAL (
+        SELECT normalized_payload -> 'normalized' AS normalized
+        FROM {NORMALIZATION_RESULTS_TABLE}
+        WHERE source_table = %s AND source_record_id = facts.source_record_id
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+    ) AS latest ON true
+    WHERE facts.source_record_id > %s
+    ORDER BY facts.source_record_id
+    LIMIT %s
+"""
+
+_VEHICLE_SCOPE_WRITE = f"""
+    UPDATE {VEHICLE_FACTS_TABLE} AS facts
+    SET vehicle_scope = scoped.scope
+    FROM unnest(%s::bigint[], %s::text[]) AS scoped(source_record_id, scope)
+    WHERE facts.source_record_id = scoped.source_record_id
+      AND facts.vehicle_scope IS DISTINCT FROM scoped.scope
+"""
+
+
+def backfill_vehicle_scope(
+    connection: Connection,
+    *,
+    since_source_record_id: int = 0,
+    page_size: int = 20_000,
+    max_pages: int | None = None,
+    progress: ProgressCallback | None = None,
+    free_bytes: int | None = DEFAULT_MIN_FREE_BYTES,
+    disk_path: str = "/",
+) -> RefreshSummary:
+    """Set `vehicle_scope` on every projected car from normalization's own rule.
+
+    A result normalized under v12 or later carries `normalized.vehicle_scope` and
+    is copied as stored. One normalized earlier does not, and rather than
+    re-normalize 6.5M cars for one field this calls
+    `classify_vehicle_scope` -- the function normalization itself runs -- on the
+    four inputs it reads. There is no second copy of the rule to drift.
+
+    Pages by the projection's own key, commits each page, and stops on low disk
+    with a resumable cursor, like the refresh. Rows already holding the right
+    value are not rewritten.
+    """
+
+    if page_size < 1:
+        raise ValueError("page_size must be positive")
+    cursor_position = since_source_record_id
+    rows_seen = 0
+    pages = 0
+    while max_pages is None or pages < max_pages:
+        if free_bytes is not None and _free_space(disk_path) < free_bytes:
+            return RefreshSummary(rows_seen, pages, cursor_position, stopped_for_disk=True)
+        with connection.cursor() as cursor:
+            cursor.execute(_VEHICLE_SCOPE_PAGE, (STAGING_TABLE, cursor_position, page_size))
+            rows = cursor.fetchall()
+            if not rows:
+                connection.commit()
+                break
+            ids = [int(row[0]) for row in rows]
+            scopes = [
+                stored
+                or classify_vehicle_scope(
+                    {"eu_category": eu_category, "vehicle_type": vehicle_type},
+                    {
+                        "record_route": record_route,
+                        "parts_matching_exclusion_reason": exclusion,
+                    },
+                )
+                for _, eu_category, vehicle_type, record_route, exclusion, stored in rows
+            ]
+            cursor.execute(_VEHICLE_SCOPE_WRITE, (ids, scopes))
+        connection.commit()
+        cursor_position = ids[-1]
+        rows_seen += len(ids)
+        pages += 1
+        if progress is not None:
+            progress(rows_seen, cursor_position)
+    return RefreshSummary(rows_seen, pages, cursor_position)
 
 
 def _run_paged(

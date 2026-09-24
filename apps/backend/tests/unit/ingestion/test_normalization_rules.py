@@ -30,7 +30,7 @@ def test_accepted_values_are_normalized_without_identifiers() -> None:
     assert outcome.normalized["transmission_type"] == "automatic"
     assert outcome.normalized["model_family"] == "V60"
     assert "model_family" not in outcome.candidates
-    assert outcome.pipeline_version == "normalization-pipeline-v11"
+    assert outcome.pipeline_version == "normalization-pipeline-v12"
     assert [entry.sequence for entry in outcome.decision_trace] == list(
         range(1, len(outcome.decision_trace) + 1)
     )
@@ -1768,3 +1768,41 @@ def test_reviewed_record_policy_applies_only_to_matching_stable_evidence() -> No
     assert "ROW-TOYOTA-MIRAI" in matching.applied_rule_ids
     assert "ROW-TOYOTA-MIRAI" not in other.applied_rule_ids
     assert other.normalized.get("electrification_type") != "fuel_cell_electric"
+
+
+def test_vehicle_scope_is_classified_once_in_normalization() -> None:
+    """The single definition of whether a vehicle belongs in the passenger dataset."""
+
+    from ingestion.normalization_rules import VEHICLE_SCOPES, classify_vehicle_scope
+
+    def scope(eu: str | None, vehicle_type: str | None, **normalized: str) -> str:
+        return classify_vehicle_scope({"eu_category": eu, "vehicle_type": vehicle_type}, normalized)
+
+    assert scope(None, "MC") == "other"  # a Ducati with no EU category
+    assert scope(None, " mc ") == "other"  # raw spelling canonicalizes to the same
+    assert scope(None, "PB") == "passenger"
+    assert scope("M1G", None) == "passenger"
+    assert scope("N1", None) == "goods"
+    assert scope("O2", None) == "trailer"
+    assert scope(None, None) == "unknown"  # not told is not "other"
+    assert scope("M1", "PB", record_route="exclude_from_passenger_car_dataset") == "motorhome"
+    assert scope("M1", "PB", record_route="quarantine_test_record") == "test_record"
+    assert (
+        scope("M1", "PB", parts_matching_exclusion_reason="special_modified_vehicle")
+        == "special_modified"
+    )
+    assert {scope(None, "MC"), scope(None, None), scope("M1", None)} <= set(VEHICLE_SCOPES)
+
+
+def test_normalization_stores_the_vehicle_scope() -> None:
+    from ingestion.normalization_rules import normalize_ts_record
+
+    outcome = normalize_ts_record(
+        {"brand": "DUCATI SUPERSPORT 900", "vehicle_type": "MC", "kw": "58", "ccm": "904"}
+    )
+
+    assert outcome.normalized["vehicle_scope"] == "other"
+    assert any(
+        entry.transformer_id == "ts.vehicle-scope" and entry.field == "vehicle_scope"
+        for entry in outcome.decision_trace
+    )

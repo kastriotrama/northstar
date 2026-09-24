@@ -24,7 +24,7 @@ from ingestion.normalization_pipeline import (
     RuleMatch,
     Transformer,
 )
-from ingestion.text_canonicalization import TextCanonicalizationTransformer
+from ingestion.text_canonicalization import TextCanonicalizationTransformer, canonicalize_text
 from ingestion.translation_dictionaries import (
     REVIEWED_RULE_SET_VERSION,
     TranslationRule,
@@ -37,7 +37,7 @@ RULE_VERSION = REVIEWED_RULE_SET_VERSION
 # is_4wd=0 without a marketing badge now writes drive_type="2wd" instead of
 # leaving it unset; do not reuse the old normalization identity when the
 # same source/rule version is reprocessed.
-PIPELINE_VERSION = "normalization-pipeline-v11"
+PIPELINE_VERSION = "normalization-pipeline-v12"
 RULE_SET = load_translation_rule_set(RULE_VERSION)
 
 NormalizationStatus = Literal["resolved", "provisional", "review_required", "failed"]
@@ -2644,6 +2644,61 @@ def _vehicle_scope(raw: dict[str, Any]) -> str:
     return "other"
 
 
+#: Every value `vehicle_scope` can take. Only `passenger` belongs in the
+#: passenger-car dataset; the rest say why a vehicle does not.
+VEHICLE_SCOPES: tuple[str, ...] = (
+    "passenger",
+    "motorhome",
+    "special_modified",
+    "test_record",
+    "goods",
+    "trailer",
+    "bus",
+    "other",
+    "unknown",
+)
+
+
+def classify_vehicle_scope(record: Mapping[str, Any], normalized: Mapping[str, Any]) -> str:
+    """Whether a vehicle belongs in the passenger-car dataset, and if not, why.
+
+    The one definition of it. Normalization stores the answer as
+    `normalized.vehicle_scope`; anything that needs it for a row normalized
+    before the field existed -- the vehicle_facts backfill -- calls this same
+    function instead of restating the rule, which is how a Ducati with no EU
+    category but vehicle_type MC was once read as a passenger car.
+
+    The pipeline's own exclusion decisions come first (a motorhome is legally M1),
+    then the registry's type via `_vehicle_scope`: the EU category, or
+    `vehicle_type` (PB, LB, ...) where that is what the registry recorded.
+    `record` may be raw or canonical: the two fields read are canonicalized here.
+
+    A record stating neither is `unknown`, not `_vehicle_scope`'s `other`: "we
+    were not told" must stay distinguishable from "a motorcycle or a tractor",
+    so a view of passenger cars can keep it rather than hide it on no evidence.
+    """
+
+    if normalized.get("record_route") == "exclude_from_passenger_car_dataset":
+        return "motorhome"
+    if normalized.get("record_route") == "quarantine_test_record":
+        return "test_record"
+    if normalized.get("parts_matching_exclusion_reason") == "special_modified_vehicle":
+        return "special_modified"
+    registry = {
+        field: canonicalize_text(field, record.get(field))
+        for field in ("eu_category", "vehicle_type")
+    }
+    if not any(registry.values()):
+        return "unknown"
+    return _vehicle_scope(registry)
+
+
+def _apply_vehicle_scope(context: NormalizationContext) -> None:
+    context.normalized["vehicle_scope"] = classify_vehicle_scope(
+        context.canonical_record, context.normalized
+    )
+
+
 def _normalize_bodywork(context: NormalizationContext) -> None:
     raw = context.canonical_record
     normalized = context.normalized
@@ -3228,6 +3283,15 @@ DEFAULT_PIPELINE = NormalizationPipeline(
             default_rule_id="REVIEWED-RECORD-POLICY-V1",
             handler=_apply_reviewed_record_policies,
             normalized_confidence_effect=0.1,
+        ),
+        # Last, so it reads the exclusion decisions after reviewed policies had
+        # their say. Classification only: it moves no confidence.
+        _RuleTransformer(
+            transformer_id="ts.vehicle-scope",
+            order=95,
+            default_rule_id="VEHICLE-SCOPE-V1",
+            handler=_apply_vehicle_scope,
+            source_fields=("eu_category", "vehicle_type"),
         ),
     ),
 )

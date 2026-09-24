@@ -207,7 +207,7 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
-  protected scopeLabel(option: { value: VehicleType; label: string }): string {
+  protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
 

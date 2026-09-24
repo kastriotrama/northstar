@@ -2,6 +2,21 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-24 — Vehicle type classification moved into normalization
+
+- Normalization now owns `vehicle_scope`: new stage `ts.vehicle-scope` (order 95) calls
+  `classify_vehicle_scope` -- exclusion decisions first, then the pipeline's own
+  `_vehicle_scope` (EU category, else `vehicle_type`), `unknown` when neither is
+  recorded. PIPELINE_VERSION v11 -> v12; golden corpus re-approved (183 cases: the new
+  field, the version and one trace entry, nothing else).
+- `vehicle_facts.vehicle_scope` is now a plain copy of the stored field; the SQL CASE
+  that restated the rule (and missed `vehicle_type`, e.g. a Ducati with vehicle_type MC
+  read as a car) is gone. Results normalized before v12 carry no field: refresh and the
+  canonical backfill keep the existing value, and `backfill-vehicle-scope` fills rows by
+  calling the same function. Checked read-only on live: 30 MC/TR rows become `other`,
+  2 become `unknown`, 86 `other_category` split into goods/trailer/bus/other.
+- Remaining step after deploy: run `backfill-vehicle-scope` on the server.
+
 ## 2026-09-23 — Vehicle type filter on TS data
 
 - Added the Vehicle type dropdown to `/ts-data`, sharing its definitions with Vehicles via

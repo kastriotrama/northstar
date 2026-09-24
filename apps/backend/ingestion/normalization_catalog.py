@@ -671,6 +671,17 @@ _STAGES: Mapping[str, _StageSpec] = {
         ),
         writes=("fuel_match_tokens",),
     ),
+    "ts.vehicle-scope": _StageSpec(
+        summary=(
+            "Says whether the vehicle belongs in the passenger-car dataset, and if not why: "
+            "a motorhome, special/modified or test record by the exclusion decisions above, "
+            "otherwise goods, trailer, bus or other by the EU category -- or, where the "
+            "registry recorded none, its own vehicle type (PB is a passenger car, MC a "
+            "motorcycle). A record stating neither is `unknown`. Runs last so reviewed "
+            "policies are already applied."
+        ),
+        writes=("vehicle_scope",),
+    ),
 }
 
 
