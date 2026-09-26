@@ -285,3 +285,10 @@ def test_canonical_backfill_parser_is_resumable() -> None:
 
     assert args.since == 4242
     assert args.max_pages == 3
+
+
+def test_scope_backfill_parser_is_resumable() -> None:
+    args = build_parser().parse_args(["backfill-vehicle-scope", "--since", "955", "--max-pages", "2"])
+
+    assert args.since == 955
+    assert args.max_pages == 2

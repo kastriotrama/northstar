@@ -44,6 +44,7 @@ from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrati
 from ingestion.vehicle_facts import (
     DEFAULT_PAGE_SIZE,
     backfill_canonical_columns,
+    backfill_vehicle_scope,
     refresh_vehicle_facts,
 )
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
@@ -231,6 +232,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stop after this many pages, for a sampled trial run.",
     )
 
+    scope_parser = subparsers.add_parser(
+        "backfill-vehicle-scope",
+        help=(
+            "Set vehicle_scope on every projected car from normalization's own "
+            "classify_vehicle_scope -- stored value when present, else computed."
+        ),
+    )
+    scope_parser.add_argument(
+        "--since",
+        type=int,
+        default=0,
+        help="Resume from this source_record_id. Default 0 walks everything.",
+    )
+    scope_parser.add_argument("--page-size", type=int, default=20_000)
+    scope_parser.add_argument("--max-pages", type=int, default=None)
+
     chunk_parser = subparsers.add_parser(
         "build-match-chunks",
         help="Group latest normalization results into signature chunks for review.",
@@ -369,6 +386,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "migrate-vehicle-facts\tvehicle_facts\t"
             "Apply the vehicle_facts schema only -- no data rewrite."
+        )
+        print(
+            "backfill-vehicle-scope\tnormalization_results+transportstyrelsen_raw\t"
+            "Set vehicle_scope on projected cars from normalization's own classification."
         )
         print(
             "backfill-canonical-vehicle-facts\tnormalization_results+transportstyrelsen_raw\t"
@@ -628,6 +649,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         print(json.dumps(asdict(refresh_summary), sort_keys=True))
+        return 0
+
+    if args.command == "backfill-vehicle-scope":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                run_vehicle_facts_migrations(connection)
+
+                def report_scope(rows: int, cursor: int) -> None:
+                    logger.info(
+                        "Vehicle scope backfill progress",
+                        extra={"rows_seen": rows, "cursor": cursor},
+                    )
+
+                scope_summary = backfill_vehicle_scope(
+                    connection,
+                    since_source_record_id=args.since,
+                    page_size=args.page_size,
+                    max_pages=args.max_pages,
+                    progress=report_scope,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle scope backfill stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(scope_summary), sort_keys=True))
         return 0
 
     if args.command == "backfill-canonical-vehicle-facts":

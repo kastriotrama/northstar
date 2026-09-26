@@ -112,7 +112,7 @@ describe('CarSearchPage', () => {
           field: 'vehicle_scope',
           layer: 'normalized',
           operator: 'not_equals',
-          values: ['motorhome', 'special_modified', 'test_record', 'other_category'],
+          values: ['motorhome', 'special_modified', 'test_record', 'goods', 'trailer', 'bus', 'other', 'other_category'],
         },
       ],
       text: '',

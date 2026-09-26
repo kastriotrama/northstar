@@ -45,6 +45,21 @@ Keep the latest 10 task entries only.
 - Validation: tables/indexes/constraints/triggers, raw, normalization, vehicle_facts, rules, field resolutions, TecDoc candidates, review queue and max IDs all equal live; Neo4j 116,959 nodes / 199,682 relationships equal live.
 - Risk / next: local-only TecDoc v3/v4/v5 re-promotion batches and 11 match runs are gone; live Neo4j has no uniqueness constraints (local has 9); `~/NorthStar-local-backups/` still holds the old graph dump for manual deletion.
 
+## 2026-09-24 — Vehicle type classification moved into normalization
+
+- Normalization now owns `vehicle_scope`: new stage `ts.vehicle-scope` (order 95) calls
+  `classify_vehicle_scope` -- exclusion decisions first, then the pipeline's own
+  `_vehicle_scope` (EU category, else `vehicle_type`), `unknown` when neither is
+  recorded. PIPELINE_VERSION v11 -> v12; golden corpus re-approved (183 cases: the new
+  field, the version and one trace entry, nothing else).
+- `vehicle_facts.vehicle_scope` is now a plain copy of the stored field; the SQL CASE
+  that restated the rule (and missed `vehicle_type`, e.g. a Ducati with vehicle_type MC
+  read as a car) is gone. Results normalized before v12 carry no field: refresh and the
+  canonical backfill keep the existing value, and `backfill-vehicle-scope` fills rows by
+  calling the same function. Checked read-only on live: 30 MC/TR rows become `other`,
+  2 become `unknown`, 86 `other_category` split into goods/trailer/bus/other.
+- Remaining step after deploy: run `backfill-vehicle-scope` on the server.
+
 ## 2026-09-23 — Vehicles: TS-to-TecDoc matching diagnostics (local only)
 
 - New `vehicle_matching` feature over the audit's own `TecDocDryRunEvaluator` (pinned
@@ -113,7 +128,3 @@ Keep the latest 10 task entries only.
   effective-value index ships with the next `refresh-vehicle-facts` run, which runs the
   vehicle-facts migrations first; until then a `normalized manufacturer` filter is
   unindexed. Nothing in production was changed.
-
-## 2026-09-06 — Corrected unresolved-fields ownership
-
-- Confirmed from historical implementation `25cc983` that the intended rule generator is the population-first **Unresolved fields** workflow: unresolved field/value populations, discriminators, rule preview, save, and save-and-run. Corrected Angular navigation and copy so `/coverage` is **Unresolved fields** and `/chunks` is **Match review** for TS-to-TecDoc blockers. The population-first backend endpoints (`/v1/match-review/unresolved`, `/discriminators`, `/rule-preview`, resolution-rule save/apply) are not yet present in the current backend branch; only the coverage shell is currently wired. Angular build passes.
