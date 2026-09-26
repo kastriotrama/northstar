@@ -27,6 +27,7 @@ from ingestion.match_run_migrations import (
     MATCH_RUN_PATTERN_MEMBERS_TABLE,
 )
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
+from ingestion.vehicle_core_review import sync_retired_review
 from ingestion.vehicle_facts_migrations import (
     RESOLVABLE_FIELDS,
     VEHICLE_FACTS_TABLE,
@@ -1043,6 +1044,7 @@ class MatchReviewRepository:
                 connection,
                 rule_id=rule_id,
                 target_field=_resolvable_field(str(rule["target_field"])),
+                on_retire=sync_retired_review,
             )
             with connection.cursor() as cursor:
                 cursor.execute(

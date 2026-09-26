@@ -15,7 +15,9 @@ from ingestion.context_comparison import (
     reviewed_context_policy,
 )
 from ingestion.datastores import DatastoreClients
+from ingestion.job_bookkeeping_migrations import run_job_bookkeeping_migrations
 from ingestion.jobs import get_job, list_jobs
+from ingestion.ledger_migrations import run_ledger_migrations
 from ingestion.logging import configure_logging
 from ingestion.match_chunk_migrations import run_match_chunk_migrations
 from ingestion.match_chunks import DEFAULT_STATUS_FILTER, build_match_chunks
@@ -41,6 +43,19 @@ from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
+from ingestion.vehicle_core_ais import import_ais_extract
+from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
+from ingestion.vehicle_core_rules import (
+    DEFAULT_MIN_AGREEMENT,
+    DEFAULT_MIN_SUPPORT,
+    FAMILIES_BY_ID,
+    RULE_FAMILIES,
+)
+from ingestion.vehicle_core_rules import apply_rules as apply_vehicle_rules
+from ingestion.vehicle_core_rules import learn_rules as learn_vehicle_rules
+from ingestion.vehicle_core_rules import store_rules as store_vehicle_rules
+from ingestion.vehicle_core_ts import DEFAULT_PAGE_SIZE as CORE_PAGE_SIZE
+from ingestion.vehicle_core_ts import backfill_vehicle_core
 from ingestion.vehicle_facts import (
     DEFAULT_PAGE_SIZE,
     backfill_canonical_columns,
@@ -248,6 +263,62 @@ def build_parser() -> argparse.ArgumentParser:
     scope_parser.add_argument("--page-size", type=int, default=20_000)
     scope_parser.add_argument("--max-pages", type=int, default=None)
 
+    subparsers.add_parser(
+        "migrate-vehicle-core",
+        help=(
+            "Apply the NorthStar vehicle schema (core.vehicles, identifiers, source links, "
+            "enrichment rules) and verify its invariants. Schema only; runs on every deploy."
+        ),
+    )
+
+    core_parser = subparsers.add_parser(
+        "backfill-vehicle-core",
+        help=(
+            "Create or refresh NorthStar vehicles from every Transportstyrelsen record. "
+            "Resumable and idempotent: re-running after a re-normalization is how TS "
+            "changes reach the vehicles."
+        ),
+    )
+    core_parser.add_argument("--since", type=int, default=0,
+                             help="Resume after this TS record id. Default 0 walks everything.")
+    core_parser.add_argument("--page-size", type=int, default=CORE_PAGE_SIZE)
+    core_parser.add_argument("--max-pages", type=int, default=None,
+                             help="Stop after this many pages, for a sampled trial run.")
+
+    ais_parser = subparsers.add_parser(
+        "import-ais-vin-export",
+        help=(
+            "Merge an AIS VIN export (Stibo STEP XML) into the NorthStar vehicles. "
+            "One run per extract: the same file imported again does nothing."
+        ),
+    )
+    ais_parser.add_argument("--file", required=True, type=Path,
+                            help="The export file; it is streamed, never loaded whole.")
+    ais_parser.add_argument("--chunk-size", type=int, default=20_000)
+
+    learn_parser = subparsers.add_parser(
+        "learn-vehicle-rules",
+        help=(
+            "Learn enrichment and completion rules from core.vehicles and store them. "
+            "Without --activate nothing is written: the counts are a dry run."
+        ),
+    )
+    learn_parser.add_argument("--family", action="append", choices=sorted(FAMILIES_BY_ID),
+                              help="Limit to these families. Default: all.")
+    learn_parser.add_argument("--min-support", type=int, default=DEFAULT_MIN_SUPPORT)
+    learn_parser.add_argument("--min-agreement", type=float, default=DEFAULT_MIN_AGREEMENT)
+    learn_parser.add_argument("--activate", action="store_true",
+                              help="Store the learned rules. Omitted means dry run.")
+
+    apply_parser = subparsers.add_parser(
+        "apply-vehicle-rules",
+        help="Fill gaps in core.vehicles from the active enrichment rules.",
+    )
+    apply_parser.add_argument("--family", action="append",
+                              choices=sorted(f.family for f in RULE_FAMILIES
+                                             if f.purpose == "enrichment"),
+                              help="Limit to these families. Default: every enrichment family.")
+
     chunk_parser = subparsers.add_parser(
         "build-match-chunks",
         help="Group latest normalization results into signature chunks for review.",
@@ -398,6 +469,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "dedupe-vehicle-facts\tvehicle_facts\t"
             "Collapse the vehicle projection to one row per plate."
+        )
+        print(
+            "migrate-vehicle-core\tcore.vehicles\t"
+            "Apply and verify the NorthStar vehicle schema -- no data rewrite."
+        )
+        print(
+            "backfill-vehicle-core\ttransportstyrelsen_raw+normalization_results\t"
+            "Create or refresh NorthStar vehicles from every TS record."
+        )
+        print(
+            "import-ais-vin-export\tAIS VIN export (STEP XML)\t"
+            "Merge an AIS extract into the NorthStar vehicles, once per extract."
+        )
+        print(
+            "learn-vehicle-rules\tcore.vehicles\t"
+            "Learn enrichment and completion rules; dry run unless --activate."
+        )
+        print(
+            "apply-vehicle-rules\tcore.vehicle_enrichment_rules\t"
+            "Fill gaps in NorthStar vehicles from the active enrichment rules."
         )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
@@ -705,6 +796,149 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         print(json.dumps(asdict(backfill_summary), sort_keys=True))
+        return 0
+
+    if args.command == "migrate-vehicle-core":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                run_ledger_migrations(connection)
+                run_job_bookkeeping_migrations(connection)
+                applied = run_vehicle_core_migrations(connection)
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle core migration stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"applied": list(applied)}, sort_keys=True))
+        return 0
+
+    if args.command == "backfill-vehicle-core":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                run_ledger_migrations(connection)
+                run_job_bookkeeping_migrations(connection)
+                run_vehicle_core_migrations(connection)
+
+                def report_core(summary: Any) -> None:
+                    logger.info(
+                        "Vehicle core backfill progress",
+                        extra={
+                            "records_read": summary.records_read,
+                            "vehicles_created": summary.vehicles_created,
+                            "vehicles_updated": summary.vehicles_updated,
+                            "cursor": summary.highest_record_id,
+                        },
+                    )
+
+                core_summary = backfill_vehicle_core(
+                    connection,
+                    since_record_id=args.since,
+                    page_size=args.page_size,
+                    max_pages=args.max_pages,
+                    progress=report_core,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Vehicle core backfill stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(core_summary), sort_keys=True))
+        return 0 if not core_summary.stopped_for_disk else 1
+
+    if args.command == "import-ais-vin-export":
+        if not args.file.is_file():
+            logger.error("AIS export not found", extra={"error_code": "FileNotFound"})
+            return 1
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                run_ledger_migrations(connection)
+                run_job_bookkeeping_migrations(connection)
+                run_vehicle_core_migrations(connection)
+
+                def report_ais(summary: Any) -> None:
+                    logger.info(
+                        "AIS import progress",
+                        extra={
+                            "records_read": summary.records_read,
+                            "matched": summary.matched,
+                            "vehicles_updated": summary.vehicles_updated,
+                        },
+                    )
+
+                ais_summary = import_ais_extract(
+                    connection, args.file, chunk_size=args.chunk_size, progress=report_ais
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "AIS import stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps(asdict(ais_summary), sort_keys=True, default=str))
+        return 0
+
+    if args.command == "learn-vehicle-rules":
+        families = [FAMILIES_BY_ID[name] for name in args.family] if args.family else list(
+            RULE_FAMILIES
+        )
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            report: list[dict[str, Any]] = []
+            with datastores.postgres.connect() as connection:
+                run_vehicle_core_migrations(connection)
+                for family in families:
+                    learned = learn_vehicle_rules(
+                        connection,
+                        family,
+                        min_support=args.min_support,
+                        min_agreement=args.min_agreement,
+                    )
+                    entry: dict[str, Any] = {
+                        "family": family.family,
+                        "rules": len(learned),
+                        "vehicles_covered": sum(rule.support for rule in learned),
+                    }
+                    if args.activate:
+                        stored = store_vehicle_rules(
+                            connection, family, learned, learned_from=family.learned_from
+                        )
+                        entry.update(added=stored.added, kept=stored.kept, retired=stored.retired)
+                    report.append(entry)
+                if args.activate:
+                    connection.commit()
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Learning vehicle rules stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"activated": args.activate, "families": report}, sort_keys=True))
+        return 0
+
+    if args.command == "apply-vehicle-rules":
+        families = [FAMILIES_BY_ID[name] for name in args.family] if args.family else [
+            family for family in RULE_FAMILIES if family.purpose == "enrichment"
+        ]
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            filled: dict[str, int] = {}
+            with datastores.postgres.connect() as connection:
+                run_vehicle_core_migrations(connection)
+                for family in families:
+                    filled[family.family] = apply_vehicle_rules(connection, family).filled
+                    connection.commit()
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Applying vehicle rules stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"filled": filled}, sort_keys=True))
         return 0
 
     if args.command == "build-match-chunks":

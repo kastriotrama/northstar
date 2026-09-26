@@ -685,6 +685,13 @@ limited to `0` through `7` so the payload fits exactly 128 bits.
 | `DriveType` | `DRV` | `DRV-<ULID>` |
 | `VehicleVariant` | `VEH` | `VEH-<ULID>` |
 | `Alias` | `ALI` | `ALI-<ULID>` |
+| `Vehicle` | `NOR` | `NOR-<ULID>` |
+
+`Vehicle` (`NOR`, for NorthStar) is one physical, registered vehicle. Its system
+of record is the PostgreSQL table `core.vehicles`, not the graph: every provider
+(Transportstyrelsen, AIS, later ones) enriches that one record, and plates and
+VINs stay identifiers of it, never its ID. See
+[vehicle-core-design.md](vehicle-core-design.md).
 
 Prefixes communicate canonical node type only. They never identify a source,
 tenant, country, environment, or ingestion job.
@@ -726,7 +733,7 @@ assert parsed.prefix is NodeIdPrefix.VEHICLE_VARIANT
 
 Public behavior:
 
-- `NodeIdGenerator.mint(prefix)` accepts only one of the eight canonical
+- `NodeIdGenerator.mint(prefix)` accepts only one of the accepted canonical
   prefixes and returns a new 30-character ID.
 - `mint_node_id(prefix)` is the production convenience function using the
   system clock and cryptographically secure entropy.

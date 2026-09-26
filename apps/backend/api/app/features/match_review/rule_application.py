@@ -27,6 +27,7 @@ from uuid import UUID, uuid4
 from psycopg import Connection
 
 from ingestion.job_bookkeeping_migrations import JOB_RUNS_TABLE
+from ingestion.vehicle_core_review import sync_applied_review
 from ingestion.vehicle_facts_query import CompiledPredicate
 from ingestion.vehicle_facts_rules import APPLY_JOB_NAME, apply_rule
 
@@ -157,6 +158,7 @@ class RuleApplicationRunner:
                     target_value=target_value,
                     override=override,
                     progress=report,
+                    on_batch=sync_applied_review,
                 )
             self._finish(job_id, summary.rows_written)
             if on_finish is not None:

@@ -292,3 +292,61 @@ def test_scope_backfill_parser_is_resumable() -> None:
 
     assert args.since == 955
     assert args.max_pages == 2
+
+
+def test_vehicle_core_commands_are_registered(capsys: CaptureFixture[str]) -> None:
+    main(["list-commands"])
+    output = capsys.readouterr().out
+
+    for command in (
+        "migrate-vehicle-core",
+        "backfill-vehicle-core",
+        "import-ais-vin-export",
+        "learn-vehicle-rules",
+        "apply-vehicle-rules",
+    ):
+        assert command in output
+
+
+def test_vehicle_core_backfill_parser_is_resumable() -> None:
+    args = build_parser().parse_args(["backfill-vehicle-core", "--since", "77", "--max-pages", "4"])
+
+    assert args.since == 77
+    assert args.max_pages == 4
+
+
+def test_ais_import_requires_a_file() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["import-ais-vin-export"])
+
+
+def test_learning_rules_is_a_dry_run_unless_activated() -> None:
+    args = build_parser().parse_args(["learn-vehicle-rules", "--family", "ENG-VV"])
+
+    assert args.activate is False
+    assert args.family == ["ENG-VV"]
+
+
+def test_vehicle_core_migration_fails_the_deploy_when_the_schema_cannot_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestion import cli
+
+    def _boom(_settings: object) -> object:
+        raise RuntimeError("database unreachable")
+
+    monkeypatch.setattr(cli.DatastoreClients, "from_settings", _boom)
+
+    assert main(["migrate-vehicle-core"]) == 1
+
+
+def test_a_missing_ais_export_fails_without_touching_the_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from ingestion import cli
+
+    monkeypatch.setattr(
+        cli.DatastoreClients, "from_settings", lambda _s: pytest.fail("no database")
+    )
+
+    assert main(["import-ais-vin-export", "--file", str(tmp_path / "missing.xml")]) == 1

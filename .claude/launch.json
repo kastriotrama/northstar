@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/kastriotrama/Documents/NorthStar-normalization-review/apps/backend && CORS_ORIGINS=http://localhost:4200,http://127.0.0.1:4200 exec /Users/kastriotrama/Documents/NorthStar-normalization-review/.venv/bin/uvicorn api.main:app --port 8010"
+      ],
+      "port": 8010
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "northstar-web",
+        "--port",
+        "4200"
+      ],
+      "port": 4200
+    }
+  ]
+}
