@@ -12,6 +12,18 @@ interface Chip {
   state: 'conflict' | 'missing' | 'ok';
 }
 
+const SOURCE_NAMES: Record<string, string> = {
+  transportstyrelsen: 'TS',
+  ais: 'AIS',
+  review: 'a review',
+  rule: 'a learned rule',
+  derived: 'its own data',
+};
+
+function sourceName(source: string): string {
+  return SOURCE_NAMES[source] ?? source;
+}
+
 const BUCKET_LABELS: Record<MatchBucket, string> = {
   one: 'One KType',
   several: 'Several KTypes',
@@ -22,7 +34,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
 /**
  * Which TecDoc KTypes one car could be, read from the real matcher.
  *
- * Shown inside the Vehicles record panel for the exact record open there. Every
+ * Shown inside the Vehicles record panel for the vehicle open there, matched on its
+ * merged values -- an engine code AIS supplied reaches the matcher. Every
  * candidate the matcher weighed is listed with its catalog values; a value that
  * conflicts with the car is marked, so why a KType was ruled out reads off the chip.
  */
@@ -88,8 +101,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
                 {{ seen.bodywork_form ?? '—' }}
               </dd>
             </dl>
-            @if (result.rule_filled.length) {
-              <p class="muted note">Underlined: supplied by a live rule.</p>
+            @if (overlaidNote(); as note) {
+              <p class="muted note">{{ note }}</p>
             }
           </details>
         }
@@ -231,8 +244,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
 export class KTypeCandidates {
   private readonly api = inject(Api);
 
-  /** The exact record open in the panel; a plate can carry several. */
-  readonly sourceRecordId = input.required<number>();
+  /** The NorthStar vehicle open in the panel, matched on its merged values. */
+  readonly vehicleId = input.required<string>();
 
   protected readonly state = signal<{
     loading: boolean;
@@ -241,7 +254,7 @@ export class KTypeCandidates {
   } | null>(null);
 
   constructor() {
-    toObservable(this.sourceRecordId)
+    toObservable(this.vehicleId)
       .pipe(
         switchMap((id) =>
           this.api.matchLookup(id).pipe(
@@ -284,9 +297,23 @@ export class KTypeCandidates {
     return BUCKET_LABELS[bucket];
   }
 
+  /** A value the vehicle record supplied over the TS derivation: from AIS, a review, a rule. */
   protected filled(field: string): boolean {
-    return this.state()?.lookup?.rule_filled.includes(field) ?? false;
+    const lookup = this.state()?.lookup;
+    if (!lookup) return false;
+    return field in (lookup.overlaid_fields ?? {}) || lookup.rule_filled.includes(field);
   }
+
+  /** Says where the underlined values came from, e.g. "engine code from AIS". */
+  protected readonly overlaidNote = computed(() => {
+    const lookup = this.state()?.lookup;
+    const overlaid = Object.entries(lookup?.overlaid_fields ?? {});
+    if (!overlaid.length) {
+      return lookup?.rule_filled.length ? 'Underlined: supplied by a live rule.' : null;
+    }
+    const parts = overlaid.map(([field, source]) => `${field.replace(/_/g, ' ')} from ${sourceName(source)}`);
+    return `Underlined: the vehicle record's value, not the TS derivation — ${parts.join(', ')}.`;
+  });
 
   protected years(candidate: KTypeCandidate): string {
     if (candidate.year_from === null && candidate.year_to === null) return '';

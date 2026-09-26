@@ -26,6 +26,7 @@ from api.app.features.tecdoc_connections.router import router as tecdoc_connecti
 from api.app.features.tecdoc_review.router import router as tecdoc_review_router
 from api.app.features.vehicle_filter.router import router as vehicle_filter_router
 from api.app.features.vehicle_matching.router import router as vehicle_matching_router
+from api.app.features.vehicles.router import router as vehicles_router
 
 
 def create_app() -> FastAPI:
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(coverage_router)
     app.include_router(vehicle_matching_router)
     app.include_router(vehicle_filter_router)
+    app.include_router(vehicles_router)
     app.mount(
         "/normalization-review/assets",
         StaticFiles(directory=NORMALIZATION_REVIEW_STATIC_DIRECTORY),

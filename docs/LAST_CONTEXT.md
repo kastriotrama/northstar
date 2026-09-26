@@ -2,6 +2,25 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-26 — Vehicles tab moved onto NorthStar vehicles (`core.vehicles`)
+
+- API: new `vehicles` feature under `/v1/vehicles` (search, facets, field catalog, detail by
+  `NOR-` ID with per-value source, losing values, plate history, links, rules). The TS
+  screen's endpoints moved to `/v1/ts-records`. Matching looks a car up by `vehicle_id`
+  and runs on its merged values over its TS derivation (`overlaid_fields` says which came
+  from AIS/review/rule); the summary evaluates `core.vehicles`. Text search also finds a
+  car by a previous plate and by a plate typed with a space.
+- Web: Vehicles tab with NOR ID column, registry-status filter/label, source badges,
+  plate history; TS screen on the new URLs.
+- Also fixed: TS backfill stored tyres as a Python dict repr (regression test); mypy/ruff
+  errors in the vehicle-core commit; graph test now excludes the non-graph `NOR` prefix.
+  `migrate-vehicle-core` runs on every deploy; design in `docs/vehicle-core-design.md`.
+- Validation: 1451 backend tests (7 new integration, 24 new/updated unit), ruff, strict
+  mypy, 46 web tests, prod build; clicked through list, record panel and TS screen against
+  a seeded local API. `pages.integration.spec` needs the full live copy to pass.
+- Risk / next: free-text search scans the full table (OR with make/model substrings);
+  run the live-copy sequence (backfill → TSC rules → AIS → rules) and check counts.
+
 ## 2026-09-26 — Overview: updating TS data from the AIS file (no AIS table)
 
 - Added `docs/AIS_TS_UPDATE_OVERVIEW.md`, which lists exactly what would change:
@@ -112,19 +131,3 @@ Keep the latest 10 task entries only.
   migration adds it and the page serves without 503. The scope expression was verified
   read-only against real local rows; the local backfill itself was blocked by the
   disk guard (host disk at 99%).
-
-## 2026-09-21 — Correcting a value the TS data screen already has
-
-- Added an override mode to resolution rules so a reviewer can fix a wrong value, not
-  only fill a missing one: the record panel on `/ts-data` now offers **Edit** beside
-  every resolved field, which pins the car's brand and model into the filter and opens
-  the same resolver panel in correction mode. An override rule selects cars whose
-  effective value differs from the one asserted, supersedes the resolution they carried,
-  and writes its own; the projection now reads `coalesce(r_x, n_x)`, so a reviewer's
-  assertion outranks the derivation it corrects, and Retire puts the derived value back.
-  Correcting is opt-in, stored immutably on the rule (`core.match_resolution_rules.override`),
-  and refuses to run until the exact value has been previewed. Validation: ruff, strict
-  mypy, 1213 backend unit tests, 18 web tests, Angular build. Remaining step: the flipped
-  effective-value index ships with the next `refresh-vehicle-facts` run, which runs the
-  vehicle-facts migrations first; until then a `normalized manufacturer` filter is
-  unindexed. Nothing in production was changed.

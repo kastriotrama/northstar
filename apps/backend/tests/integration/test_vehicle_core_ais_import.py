@@ -111,7 +111,7 @@ def db(tmp_path_factory: pytest.TempPathFactory) -> Iterator[tuple[Connection, P
                 _entity("YV1BW84S1F9999990", "COR111", _car()),
                 # Out of scope: a truck and a car deregistered before we saw it.
                 _entity("YV2T0X1A3TZ169397", "ZYN17H", _car(**{"ATTR_Type of vehicle": "LB"})),
-                _entity("WBA3D31090J307644", "AAA004", _car(**{"Import_Deleted": "true"})),
+                _entity("WBA3D31090J307644", "AAA004", _car(Import_Deleted="true")),
             ],
         )
         yield connection, export

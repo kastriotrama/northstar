@@ -11,11 +11,11 @@ import Aura from '@openng/optimus-ui-themes/aura';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { API_BASE_URL } from '../core/api-config';
-import type { MatchSummaryJob, RuleCondition } from '../core/models';
+import type { MatchSummaryJob, VehicleCondition } from '../core/models';
 import { MatchingSummary } from './matching-summary';
 
-const VOLVO: RuleCondition[] = [
-  { field: 'manufacturer', layer: 'normalized', operator: 'equals', values: ['Volvo'] },
+const VOLVO: VehicleCondition[] = [
+  { field: 'manufacturer', operator: 'equals', values: ['Volvo'] },
 ];
 
 function job(status: MatchSummaryJob['status'], evaluated: number): MatchSummaryJob {
@@ -43,7 +43,14 @@ function job(status: MatchSummaryJob['status'], evaluated: number): MatchSummary
       examples: {
         one: [],
         several: [
-          { source_record_id: 769, plate: 'FLT946', manufacturer: 'Volvo', model_family: 'V70', candidates: 2 },
+          {
+            vehicle_id: 'NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G',
+            source_record_id: 769,
+            plate: 'FLT946',
+            manufacturer: 'Volvo',
+            model_family: 'V70',
+            candidates: 2,
+          },
         ],
         none: [],
         not_matchable: [],
@@ -131,7 +138,7 @@ describe('MatchingSummary', () => {
     expect(host.textContent).toContain('The filter has changed since this run.');
   });
 
-  it('opens an example car by its plate', () => {
+  it('opens an example car by its NOR ID', () => {
     const fixture = render();
     const picked: string[] = [];
     fixture.componentInstance.pick.subscribe((plate) => picked.push(plate));
@@ -143,7 +150,7 @@ describe('MatchingSummary', () => {
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.example')?.click();
 
-    expect(picked).toEqual(['FLT946']);
+    expect(picked).toEqual(['NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G']);
   });
 
   it('cancels the running job', () => {

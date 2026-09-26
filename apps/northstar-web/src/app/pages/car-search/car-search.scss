@@ -105,14 +105,23 @@
   text-align: right;
 }
 
+.nowrap {
+  white-space: nowrap;
+}
+
 .row--active {
   background: var(--p-surface-100);
 }
 
-/* A value a live rule supplied rather than normalization derived. */
-.rule,
-.rule-key {
+/* A value a learned rule filled because no source stated it. */
+.rule {
   text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+/* A value a reviewer asserted: it outranks every source. */
+.review {
+  text-decoration: underline;
   text-underline-offset: 3px;
 }
 
@@ -182,6 +191,64 @@
 .badge--gap {
   background: #fde4e4;
   color: #8a2020;
+}
+
+.badge--current {
+  background: #e3f4e8;
+  color: #1f6b3a;
+}
+
+.record__label {
+  color: var(--p-text-muted-color);
+  width: 38%;
+}
+
+.record__source {
+  white-space: nowrap;
+  text-align: right;
+
+  .muted {
+    display: block;
+    font-size: 0.7rem;
+  }
+}
+
+/* Where a value came from. The source that won; alternatives show what lost. */
+.source {
+  font-size: 0.66rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--p-surface-100);
+  color: var(--p-text-muted-color);
+}
+
+.source--ais {
+  background: #e4eefc;
+  color: #1d4f91;
+}
+
+.source--review {
+  background: #efe6fb;
+  color: #5b2d91;
+}
+
+.source--rule {
+  background: #fff3d6;
+  color: #7a5300;
+}
+
+.alternative {
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color);
+}
+
+.record__legend {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.kv--ids {
+  margin-top: 0.5rem;
 }
 
 .record {

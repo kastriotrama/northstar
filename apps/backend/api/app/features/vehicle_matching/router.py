@@ -26,6 +26,7 @@ from api.app.features.vehicle_matching.service import (
     VehicleNotFoundError,
     build_matcher,
 )
+from api.app.features.vehicles.service import terms
 from ingestion.vehicle_facts_query import UnknownFieldError
 
 router = APIRouter(prefix="/v1/vehicles/matching", tags=["vehicle-matching"])
@@ -63,19 +64,25 @@ def _unavailable() -> HTTPException:
 def lookup_vehicle(
     service: ServiceDependency,
     q: str | None = Query(default=None, min_length=1, max_length=40, description="A plate or a VIN."),
-    source_record_id: int | None = Query(default=None, ge=1, description="One exact record."),
+    vehicle_id: str | None = Query(default=None, min_length=1, max_length=30, description="A NOR ID."),
+    source_record_id: int | None = Query(default=None, ge=1, description="One exact TS record."),
 ) -> VehicleMatchLookup:
     """Which KTypes one car could be, and why the matcher decided as it did.
 
-    Pass `q` to find a car by plate or VIN, or `source_record_id` for the exact
-    record a screen is already showing -- a plate can carry several.
+    Pass `vehicle_id` for a NorthStar vehicle, matched on its merged values; `q`
+    to find the vehicle holding a plate or VIN; or `source_record_id` for one TS
+    record exactly as its own normalization and rules describe it.
     """
 
-    if (q is None) == (source_record_id is None):
-        raise HTTPException(status_code=422, detail="Pass exactly one of q or source_record_id.")
+    if sum(value is not None for value in (q, vehicle_id, source_record_id)) != 1:
+        raise HTTPException(
+            status_code=422, detail="Pass exactly one of q, vehicle_id or source_record_id."
+        )
     try:
         if source_record_id is not None:
             return service.lookup_record(source_record_id)
+        if vehicle_id is not None:
+            return service.lookup_vehicle(vehicle_id)
         return service.lookup(str(q))
     except VehicleNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -96,7 +103,7 @@ def start_summary(
     """
 
     try:
-        return service.start_summary(request.conditions, request.text, request.limit)
+        return service.start_summary(terms(request.conditions), request.text, request.limit)
     except (UnknownFieldError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except JobCapacityError as error:

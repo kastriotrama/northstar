@@ -33,6 +33,10 @@ docker compose --env-file "$environment_file" -f "$compose_file" build api inges
 # the first Vehicles release broke. Add-column/create-index only, idempotent and
 # fast; the heavy data backfill (refresh-vehicle-facts) stays a deliberate step.
 docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-facts
+# The NorthStar vehicle tables (core.vehicles and friends) the Vehicles tab and the
+# TS screen's rule sync read. Schema and constraint check only; filling them is the
+# deliberate backfill-vehicle-core / import-ais-vin-export sequence, never a deploy.
+docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-core
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps
 

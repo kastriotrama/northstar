@@ -1,5 +1,9 @@
 """Run the real TS-to-TecDoc matcher over cars from the Vehicles tab, and explain it.
 
+A NorthStar vehicle is matched on its merged values (`core.vehicles`): an engine
+code AIS supplied or a reviewer's correction reaches the matcher, not only what
+the TS record that created the car derived.
+
 Nothing here reimplements matching. Every outcome comes from
 `TecDocDryRunEvaluator` -- the evaluator the audit CLI runs -- built from the
 same catalog, rules and vocabulary alignments. This module only reads the
@@ -40,6 +44,7 @@ from ingestion.tecdoc.match_run_adapters import (
     TecDocDryRunEvaluator,
 )
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
+from ingestion.vehicle_core_query import VehicleTerm
 
 #: The matcher's own cap on returned candidates. A car showing this many
 #: compatible KTypes may have more.
@@ -50,7 +55,7 @@ _BUCKETS: tuple[MatchBucket, ...] = ("one", "several", "none", "not_matchable")
 
 
 class VehicleNotFoundError(LookupError):
-    """No car in the projection carries that plate or VIN."""
+    """No vehicle carries that plate, VIN or NOR ID, or no TS record has that id."""
 
 
 class NoCatalogError(RuntimeError):
@@ -268,14 +273,24 @@ class VehicleMatchingService:
         self._jobs = jobs
 
     def lookup(self, identifier: str) -> VehicleMatchLookup:
+        """The vehicle holding this plate or VIN now, or failing that the latest to hold it."""
+
         key = "".join(identifier.split()).upper()
         if not key:
             raise VehicleNotFoundError("Enter a plate or a VIN.")
-        ids = self._repository.ids_for_identifier(key)
-        records = self._repository.car_records(ids[:1])
+        ids = self._repository.vehicles_for_identifier(key)
+        records = self._repository.vehicle_car_records(ids[:1])
         if not records:
             raise VehicleNotFoundError(f"No vehicle with plate or VIN {key!r}.")
-        return self._explain(records[0], other_ids=ids[1:])
+        return self._explain(records[0], other_vehicle_ids=ids[1:])
+
+    def lookup_vehicle(self, vehicle_id: str) -> VehicleMatchLookup:
+        """One NorthStar vehicle, matched on its merged values."""
+
+        records = self._repository.vehicle_car_records([vehicle_id.strip().upper()])
+        if not records:
+            raise VehicleNotFoundError(f"No vehicle {vehicle_id!r}.")
+        return self._explain(records[0])
 
     def lookup_record(self, source_record_id: int) -> VehicleMatchLookup:
         """One exact record -- what a screen that already has the row asks for.
@@ -287,13 +302,16 @@ class VehicleMatchingService:
         records = self._repository.car_records([source_record_id])
         if not records:
             raise VehicleNotFoundError(f"No vehicle with record id {source_record_id}.")
-        return self._explain(records[0], other_ids=[])
+        return self._explain(records[0])
 
-    def _explain(self, car: CarRecord, *, other_ids: Sequence[int]) -> VehicleMatchLookup:
+    def _explain(
+        self, car: CarRecord, *, other_vehicle_ids: Sequence[str] = ()
+    ) -> VehicleMatchLookup:
         matcher = self._matcher()
         evaluation, query = matcher.evaluate(car.record)
         separating = separating_fields(evaluation, matcher.catalog)
         return VehicleMatchLookup(
+            vehicle_id=car.vehicle_id,
             source_record_id=car.source_record_id,
             plate=car.plate,
             vin=car.vin,
@@ -304,6 +322,7 @@ class VehicleMatchingService:
             top_ktype=evaluation.top_candidate_reference,
             reason_codes=list(evaluation.reason_codes),
             rule_filled=list(car.rule_filled),
+            overlaid_fields=dict(sorted(car.overlaid.items())),
             inputs=_inputs(query),
             candidates=[
                 _candidate(candidate, matcher.catalog)
@@ -313,12 +332,12 @@ class VehicleMatchingService:
             separating_fields=separating,
             missing_separating_fields=missing_on_car(separating, query),
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
-            other_source_record_ids=list(other_ids),
+            other_vehicle_ids=list(other_vehicle_ids),
         )
 
     def start_summary(
         self,
-        conditions: Sequence[Any],
+        terms: Sequence[VehicleTerm],
         text: str,
         limit: int,
         *,
@@ -332,7 +351,7 @@ class VehicleMatchingService:
         for a manufacturer with thousands of KTypes -- so it never blocks a request.
         """
 
-        population, ids = self._repository.population(conditions, text, limit=limit)
+        population, ids = self._repository.vehicle_population(terms, text, limit=limit)
         job = self._jobs.create(population=population, target=len(ids))
         if run_in_background:
             threading.Thread(target=self._run, args=(job, ids), daemon=True).start()
@@ -348,13 +367,13 @@ class VehicleMatchingService:
         job.cancel.set()
         return self._jobs.snapshot(job)
 
-    def _run(self, job: SummaryJob, ids: Sequence[int]) -> None:
+    def _run(self, job: SummaryJob, ids: Sequence[str]) -> None:
         try:
             matcher = self._matcher()
             job.catalog_batch = matcher.batch_id
             # Pages keep each read to a bounded IN-list, whatever the target is.
             for start in range(0, len(ids), 200):
-                for car in self._repository.car_records(ids[start : start + 200]):
+                for car in self._repository.vehicle_car_records(ids[start : start + 200]):
                     if job.cancel.is_set():
                         job.finish("cancelled")
                         return
@@ -482,6 +501,7 @@ class _Tally:
         if len(self.examples[bucket]) < _EXAMPLES_PER_BUCKET:
             self.examples[bucket].append(
                 MatchExample(
+                    vehicle_id=car.vehicle_id,
                     source_record_id=car.source_record_id,
                     plate=car.plate,
                     manufacturer=car.manufacturer,

@@ -1,16 +1,21 @@
 """Reads that feed the matching diagnostics: the catalog, and cars as match records.
 
-A car is handed to the matcher as the pipeline would see it after the
-dashboard's rules ran: its latest normalization result, with live resolutions
-laid over it -- the rule's value winning, as everywhere else since override
-rules -- plus the raw registry fields the evaluator reads as source evidence.
+Two ways in. A NorthStar vehicle (`core.vehicles`, the Vehicles tab) is handed
+to the matcher with its *merged* values -- an engine code AIS supplied, a
+reviewer's correction, a learned rule's fill -- laid over the normalization of
+the TS record that created it. A single TS record (`source_record_id`) is
+handed over as the pipeline would see it after the dashboard's rules ran: its
+latest normalization result with live resolutions laid over it. Both carry the
+raw registry fields the evaluator reads as source evidence.
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Protocol
 
 from psycopg import Connection
@@ -21,13 +26,16 @@ from ingestion.match_run_service import MatchSourceRecord
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.tecdoc.match_run_adapters import load_postgres_ktype_catalog
 from ingestion.tecdoc.remote_match_run import SOURCE_EVIDENCE_FIELDS
+from ingestion.vehicle_core_fields import parse_source_ref
+from ingestion.vehicle_core_migrations import VEHICLE_IDENTIFIERS_TABLE, VEHICLES_TABLE
+from ingestion.vehicle_core_query import (
+    ALIAS,
+    VehicleTerm,
+    compile_vehicle_filter,
+    is_vehicle_id,
+)
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
-from ingestion.vehicle_facts_query import (
-    CompiledPredicate,
-    compile_predicate,
-    compile_search_text,
-)
 from ingestion.vocabulary_alignment import load_drive_alignment, load_fuel_alignment
 
 CATALOG_TABLE = "core.tecdoc_canonical_candidates"
@@ -49,17 +57,36 @@ class MatcherSources:
     drive_alignment: Any
 
 
+#: The normalized keys the matcher reads that a vehicle carries under the same
+#: name. `record_route` is not among them: it is the origin record's own routing.
+MATCHER_FIELDS: tuple[str, ...] = (
+    "manufacturer",
+    "model_family",
+    "production_year",
+    "power_kw",
+    "displacement_cc",
+    "engine_code",
+    "drive_type",
+    "bodywork_form",
+    "fuel_match_tokens",
+)
+
+
 @dataclass(frozen=True)
 class CarRecord:
     """One car, ready to evaluate, with the identity the screen shows beside it."""
 
-    source_record_id: int
+    source_record_id: int | None
     plate: str | None
     vin: str | None
     manufacturer: str | None
     model_family: str | None
     record: MatchSourceRecord
     rule_filled: tuple[str, ...]
+    vehicle_id: str | None = None
+    #: Vehicle values that replaced or filled the origin record's derivation,
+    #: by field, with the source that supplied each (`ais`, `review`, `rule`, ...).
+    overlaid: dict[str, str] = dataclass_field(default_factory=dict)
 
 
 def overlay_resolutions(
@@ -80,6 +107,43 @@ def overlay_resolutions(
         merged[field] = str(value)
         applied.append(field)
     return merged, tuple(applied)
+
+
+def overlay_vehicle(
+    normalized: dict[str, Any],
+    vehicle: dict[str, Any],
+    field_sources: dict[str, str],
+    origin_source: str,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Lay a vehicle's merged values over its origin record's normalization.
+
+    The vehicle wins wherever it has a value: that value already beat every
+    other source in the merge. Where it has none, the derivation stands -- a
+    field the vehicle record does not carry must not blank what the matcher
+    would otherwise have seen. Returns what changed and where it came from.
+    """
+
+    merged = dict(normalized)
+    overlaid: dict[str, str] = {}
+    for name in MATCHER_FIELDS:
+        value = vehicle.get(name)
+        if value is None or value == "" or value == []:
+            continue
+        if isinstance(value, tuple):
+            value = list(value)
+        if merged.get(name) == value:
+            continue
+        merged[name] = value
+        encoded = field_sources.get(name)
+        overlaid[name] = parse_source_ref(encoded).source if encoded else origin_source
+    return merged, overlaid
+
+
+def surrogate_record_id(vehicle_id: str) -> int:
+    """A stable positive id for a vehicle no TS record created (the matcher needs one)."""
+
+    digest = hashlib.blake2b(vehicle_id.encode(), digest_size=7).digest()
+    return int.from_bytes(digest, "big") + 1
 
 
 class VehicleMatchingRepository:
@@ -108,38 +172,87 @@ class VehicleMatchingRepository:
                 drive_alignment=load_drive_alignment(connection),
             )
 
-    def ids_for_identifier(self, identifier: str, *, limit: int = 10) -> list[int]:
-        """Cars registered under this plate or VIN, newest record first."""
+    def vehicles_for_identifier(self, identifier: str, *, limit: int = 10) -> list[str]:
+        """Vehicles that hold or held this plate or VIN, the current holder first.
 
+        A NOR ID is accepted too and names its own vehicle.
+        """
+
+        if is_vehicle_id(identifier):
+            with self._connection_factory() as connection, connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT vehicle_id FROM {VEHICLES_TABLE} WHERE vehicle_id = %s",
+                    (identifier,),
+                )
+                return [str(row[0]) for row in cursor.fetchall()]
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT source_record_id FROM {VEHICLE_FACTS_TABLE} "
-                "WHERE plate = %s OR vin = %s "
-                "ORDER BY source_record_id DESC LIMIT %s",
-                (identifier, identifier, limit),
+                f"SELECT vehicle_id FROM {VEHICLE_IDENTIFIERS_TABLE} "
+                "WHERE kind IN ('plate', 'vin') AND value = %s "
+                "GROUP BY vehicle_id "
+                "ORDER BY bool_or(valid_to IS NULL) DESC, max(coalesce(valid_to, 'infinity'::date)) "
+                "DESC, vehicle_id DESC LIMIT %s",
+                (identifier, limit),
             )
-            return [int(row[0]) for row in cursor.fetchall()]
+            return [str(row[0]) for row in cursor.fetchall()]
 
-    def population(
-        self, conditions: Sequence[Any], text: str, *, limit: int
-    ) -> tuple[int, list[int]]:
-        """How many cars the filter matches, and the first `limit` of them."""
+    def vehicle_population(
+        self, terms: Sequence[VehicleTerm], text: str, *, limit: int
+    ) -> tuple[int, list[str]]:
+        """How many vehicles the filter matches, and the first `limit` by NOR ID."""
 
-        predicate = _population_predicate(conditions, text)
+        predicate = compile_vehicle_filter(terms, text)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT count(*) FROM {VEHICLE_FACTS_TABLE} WHERE {predicate.sql}",
+                f"SELECT count(*) FROM {VEHICLES_TABLE} AS {ALIAS} WHERE {predicate.sql}",
                 predicate.parameters,
             )
             row = cursor.fetchone()
             total = int(row[0]) if row else 0
             cursor.execute(
-                f"SELECT source_record_id FROM {VEHICLE_FACTS_TABLE} "
-                f"WHERE {predicate.sql} ORDER BY source_record_id LIMIT %s",
+                f"SELECT {ALIAS}.vehicle_id FROM {VEHICLES_TABLE} AS {ALIAS} "
+                f"WHERE {predicate.sql} ORDER BY {ALIAS}.vehicle_id LIMIT %s",
                 [*predicate.parameters, limit],
             )
-            ids = [int(item[0]) for item in cursor.fetchall()]
+            ids = [str(item[0]) for item in cursor.fetchall()]
         return total, ids
+
+    def vehicle_car_records(self, vehicle_ids: Sequence[str]) -> list[CarRecord]:
+        """Match records for these vehicles, in the order asked for.
+
+        Primary-key reads plus the origin TS record's latest normalization, so a
+        page of two hundred vehicles is index lookups, never a scan. A vehicle no
+        TS record created (a new AIS car) has no derivation: the matcher sees its
+        merged values alone.
+        """
+
+        if not vehicle_ids:
+            return []
+        columns = ", ".join(f"vehicle.{name}" for name in MATCHER_FIELDS)
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT vehicle.vehicle_id, vehicle.plate, vehicle.vin, vehicle.ts_record_id,
+                       vehicle.origin_source, vehicle.normalization_status,
+                       vehicle.field_sources, {columns},
+                       latest.status, latest.normalized_payload, latest.review_reasons,
+                       raw.raw_record
+                FROM {VEHICLES_TABLE} AS vehicle
+                LEFT JOIN LATERAL (
+                    SELECT status, normalized_payload, review_reasons
+                    FROM {NORMALIZATION_RESULTS_TABLE}
+                    WHERE source_table = %s AND source_record_id = vehicle.ts_record_id
+                    ORDER BY updated_at DESC, id DESC
+                    LIMIT 1
+                ) AS latest ON true
+                LEFT JOIN {STAGING_TABLE} AS raw ON raw.id = vehicle.ts_record_id
+                WHERE vehicle.vehicle_id = ANY(%s)
+                """,
+                (STAGING_TABLE, list(vehicle_ids)),
+            )
+            rows = cursor.fetchall()
+        by_id = {str(row[0]): _vehicle_car_record(row) for row in rows}
+        return [by_id[vehicle_id] for vehicle_id in vehicle_ids if vehicle_id in by_id]
 
     def car_records(self, source_record_ids: Sequence[int]) -> list[CarRecord]:
         """Match records for these cars, in the order asked for.
@@ -180,17 +293,42 @@ class VehicleMatchingRepository:
         return [by_id[rid] for rid in source_record_ids if rid in by_id]
 
 
-def _population_predicate(conditions: Sequence[Any], text: str) -> CompiledPredicate:
-    terms = [
-        (condition.layer, condition.field, condition.operator, condition.terms)
-        for condition in conditions
-    ]
-    base = compile_predicate(terms) if terms else CompiledPredicate("true", [])
-    search = compile_search_text(text)
-    if search is None:
-        return base
-    return CompiledPredicate(
-        f"({base.sql}) AND ({search.sql})", [*base.parameters, *search.parameters]
+def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
+    count = len(MATCHER_FIELDS)
+    vehicle_id, plate, vin, ts_record_id, origin_source, core_status, sources = row[:7]
+    vehicle = dict(zip(MATCHER_FIELDS, row[7 : 7 + count], strict=True))
+    status, payload, review_reasons, raw = row[7 + count :]
+    payload = dict(payload or {})
+    raw = dict(raw or {})
+    normalized, overlaid = overlay_vehicle(
+        dict(payload.get("normalized") or {}),
+        vehicle,
+        dict(sources or {}),
+        str(origin_source),
+    )
+    record_id = int(ts_record_id) if ts_record_id else surrogate_record_id(str(vehicle_id))
+    record = MatchSourceRecord(
+        record_id,
+        {
+            "normalization_status": str(status or core_status or "resolved"),
+            "normalized": normalized,
+            "candidates": dict(payload.get("candidates") or {}),
+            "review_reasons": [str(reason) for reason in (review_reasons or [])],
+            "source_evidence": {field: raw.get(field) for field in SOURCE_EVIDENCE_FIELDS},
+        },
+    )
+    return CarRecord(
+        source_record_id=int(ts_record_id) if ts_record_id else None,
+        plate=plate,
+        vin=vin,
+        manufacturer=normalized.get("manufacturer"),
+        model_family=normalized.get("model_family"),
+        record=record,
+        rule_filled=tuple(
+            sorted(name for name, source in overlaid.items() if source in {"review", "rule"})
+        ),
+        vehicle_id=str(vehicle_id),
+        overlaid=overlaid,
     )
 
 

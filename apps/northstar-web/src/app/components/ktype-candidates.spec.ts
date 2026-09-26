@@ -12,6 +12,8 @@ import { API_BASE_URL } from '../core/api-config';
 import type { KTypeCandidate, VehicleMatchLookup } from '../core/models';
 import { KTypeCandidates } from './ktype-candidates';
 
+const VEHICLE_ID = 'NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G';
+
 function candidate(ktype: string, overrides: Partial<KTypeCandidate> = {}): KTypeCandidate {
   return {
     ktype,
@@ -37,6 +39,7 @@ function candidate(ktype: string, overrides: Partial<KTypeCandidate> = {}): KTyp
 
 function lookup(overrides: Partial<VehicleMatchLookup> = {}): VehicleMatchLookup {
   return {
+    vehicle_id: VEHICLE_ID,
     source_record_id: 769,
     plate: 'FLT946',
     vin: null,
@@ -47,6 +50,7 @@ function lookup(overrides: Partial<VehicleMatchLookup> = {}): VehicleMatchLookup
     top_ktype: '000010064',
     reason_codes: ['match:automatic_candidate_threshold_met'],
     rule_filled: [],
+    overlaid_fields: {},
     inputs: null,
     candidates: [
       candidate('000010064'),
@@ -57,12 +61,12 @@ function lookup(overrides: Partial<VehicleMatchLookup> = {}): VehicleMatchLookup
     separating_fields: ['engine_code'],
     missing_separating_fields: ['engine_code'],
     decision_trace: [],
-    other_source_record_ids: [],
+    other_vehicle_ids: [],
     ...overrides,
   };
 }
 
-function render(sourceRecordId = 769) {
+function render(vehicleId = VEHICLE_ID) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
@@ -71,7 +75,7 @@ function render(sourceRecordId = 769) {
     ],
   });
   const fixture = TestBed.createComponent(KTypeCandidates);
-  fixture.componentRef.setInput('sourceRecordId', sourceRecordId);
+  fixture.componentRef.setInput('vehicleId', vehicleId);
   fixture.detectChanges();
   return fixture;
 }
@@ -92,15 +96,36 @@ async function answer(fixture: ReturnType<typeof render>, respond: (url: string)
 describe('KTypeCandidates', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('asks for the exact record open in the panel, not whichever shares its plate', async () => {
-    const fixture = render(769);
+  it('asks for the vehicle open in the panel by its NOR ID', async () => {
+    const fixture = render();
     let asked = '';
     await answer(fixture, (url) => {
       asked = url;
       return [lookup(), 200];
     });
 
-    expect(asked).toContain('/v1/vehicles/matching/lookup?source_record_id=769');
+    expect(asked).toContain(`/v1/vehicles/matching/lookup?vehicle_id=${VEHICLE_ID}`);
+  });
+
+  it('says which inputs came from the vehicle record rather than the TS derivation', async () => {
+    const fixture = render();
+    const inputs = {
+      manufacturer: 'VOLVO',
+      model_values: ['V70'],
+      production_year: 2015,
+      fuels: ['diesel'],
+      engine_code: 'D5204T3',
+      displacement_cc: 1984,
+      power_kw: 120,
+      drive_type: null,
+      bodywork_form: 'estate',
+      model_recovered_from: null,
+    };
+    await answer(fixture, () => [lookup({ inputs, overlaid_fields: { engine_code: 'ais' } }), 200]);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.ruled')?.textContent?.trim()).toBe('D5204T3');
+    expect(host.textContent).toContain('engine code from AIS');
   });
 
   it('says where the gap is: several fit, and the car lacks what separates them', async () => {
@@ -126,10 +151,10 @@ describe('KTypeCandidates', () => {
 
   it('shows the server’s reason when the car cannot be looked up', async () => {
     const fixture = render();
-    await answer(fixture, () => [{ detail: 'No vehicle with record id 769.' }, 404]);
+    await answer(fixture, () => [{ detail: `No vehicle '${VEHICLE_ID}'.` }, 404]);
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'No vehicle with record id 769.',
+      `No vehicle '${VEHICLE_ID}'.`,
     );
   });
 });

@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from api.app.features.vehicle_filter.schemas import CarSearchRequest
+from api.app.features.vehicles.schemas import VehicleFilter
 
 #: `one`/`several`/`none` count *compatible* candidates -- KTypes the matcher
 #: returned that conflict with the car on no field. `not_matchable` is a car the
@@ -58,7 +58,11 @@ class KTypeCandidate(BaseModel):
 
 
 class VehicleMatchLookup(BaseModel):
-    source_record_id: int
+    #: The NorthStar vehicle matched; None when one TS record was asked for.
+    vehicle_id: str | None
+    #: The TS record whose derivation the values were laid over; None for a
+    #: vehicle no TS record created.
+    source_record_id: int | None
     plate: str | None
     vin: str | None
     catalog_batch: str
@@ -70,6 +74,9 @@ class VehicleMatchLookup(BaseModel):
     reason_codes: list[str]
     #: Fields rule-filled values supplied before matching, rule over derivation.
     rule_filled: list[str]
+    #: Vehicle values that replaced or filled the TS derivation before matching,
+    #: by field, with the source that supplied each (`ais`, `review`, `rule`, ...).
+    overlaid_fields: dict[str, str] = Field(default_factory=dict)
     inputs: MatcherInputs | None
     candidates: list[KTypeCandidate]
     #: The matcher returns at most this many; a full list means "this many or more".
@@ -79,11 +86,11 @@ class VehicleMatchLookup(BaseModel):
     #: Separating fields the car itself has no value for: the gap to close.
     missing_separating_fields: list[str]
     decision_trace: list[dict[str, Any]]
-    #: Other records sharing this plate or VIN, newest first, when there were several.
-    other_source_record_ids: list[int]
+    #: Other vehicles that held this plate or VIN before, most recent first.
+    other_vehicle_ids: list[str] = Field(default_factory=list)
 
 
-class MatchSummaryRequest(CarSearchRequest):
+class MatchSummaryRequest(VehicleFilter):
     """The Vehicles tab's own filter, plus how many matching cars to evaluate.
 
     The matcher spends ~0.1s a car (over a second for a manufacturer with
@@ -104,7 +111,8 @@ class ReasonCount(BaseModel):
 
 
 class MatchExample(BaseModel):
-    source_record_id: int
+    vehicle_id: str | None
+    source_record_id: int | None
     plate: str | None
     manufacturer: str | None
     model_family: str | None
@@ -115,7 +123,7 @@ class MatchSummary(BaseModel):
     catalog_batch: str
     #: Cars the filter matches in total.
     population: int
-    #: Cars actually evaluated: the first `limit` by source_record_id.
+    #: Cars actually evaluated: the first `limit` by NOR ID.
     evaluated: int
     sampled: bool
     buckets: dict[MatchBucket, int]

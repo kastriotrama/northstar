@@ -9,8 +9,9 @@ import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { Api } from '../core/api';
 import type {
   MatchBucket,
+  MatchExample,
   MatchSummaryJob,
-  RuleCondition,
+  VehicleCondition,
 } from '../core/models';
 
 const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> = [
@@ -171,9 +172,9 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
             @if (s.examples[bucket.key].length) {
               <div class="examples__row">
                 <span class="examples__label">{{ bucket.label }}</span>
-                @for (example of s.examples[bucket.key]; track example.source_record_id) {
-                  <button type="button" class="example" (click)="pick.emit(example.plate ?? '')">
-                    <span class="mono">{{ example.plate }}</span>
+                @for (example of s.examples[bucket.key]; track exampleKey(example)) {
+                  <button type="button" class="example" (click)="pickExample(example)">
+                    <span class="mono">{{ example.plate ?? example.vehicle_id }}</span>
                     {{ example.manufacturer }} {{ example.model_family }}
                   </button>
                 }
@@ -243,9 +244,9 @@ export class MatchingSummary {
   private readonly destroyRef = inject(DestroyRef);
 
   /** The Vehicles filter, exactly as the car list is queried with it. */
-  readonly conditions = input.required<RuleCondition[]>();
+  readonly conditions = input.required<VehicleCondition[]>();
   readonly text = input.required<string>();
-  /** A car picked from the examples: its plate. */
+  /** A car picked from the examples: its NOR ID. */
   readonly pick = output<string>();
 
   protected readonly buckets = BUCKETS;
@@ -294,6 +295,14 @@ export class MatchingSummary {
       next: (job) => this.job.set(job),
       error: () => this.error.set('Could not cancel matching.'),
     });
+  }
+
+  protected exampleKey(example: MatchExample): string {
+    return example.vehicle_id ?? String(example.source_record_id);
+  }
+
+  protected pickExample(example: MatchExample): void {
+    if (example.vehicle_id) this.pick.emit(example.vehicle_id);
   }
 
   /** Count by field name for the "Car lacks it" column. */

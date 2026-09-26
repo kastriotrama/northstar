@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 
 from api.app.features.vehicle_matching.repository import (
     CarRecord,
-    _population_predicate,
     overlay_resolutions,
+    overlay_vehicle,
+    surrogate_record_id,
 )
 from api.app.features.vehicle_matching.router import get_service
 from api.app.features.vehicle_matching.service import (
@@ -139,9 +140,37 @@ def test_a_rules_value_outranks_the_derivation_it_corrects() -> None:
     assert applied == ("bodywork_form",)
 
 
-def test_population_without_conditions_or_text_is_every_car() -> None:
-    assert _population_predicate([], "").sql == "true"
-    assert "ILIKE" in _population_predicate([], "volvo").sql
+def test_a_vehicles_merged_values_replace_the_origin_derivation() -> None:
+    """An engine code AIS supplied and a reviewer's correction both reach the matcher."""
+
+    merged, overlaid = overlay_vehicle(
+        {"bodywork_form": "estate", "power_kw": 140, "engine_code": None, "record_route": "x"},
+        {"bodywork_form": "suv", "power_kw": 140, "engine_code": "D4204T14", "drive_type": None},
+        {"bodywork_form": "review:rule-1", "engine_code": "ais:x@2026-09-19"},
+        "transportstyrelsen",
+    )
+
+    assert merged["bodywork_form"] == "suv"
+    assert merged["engine_code"] == "D4204T14"
+    assert merged["record_route"] == "x"
+    # The same value is not an overlay, and an empty vehicle field blanks nothing.
+    assert overlaid == {"bodywork_form": "review", "engine_code": "ais"}
+    assert "drive_type" not in merged
+
+
+def test_a_vehicle_value_from_its_origin_record_is_labelled_with_the_origin() -> None:
+    merged, overlaid = overlay_vehicle({}, {"manufacturer": "VOLVO"}, {}, "ais")
+
+    assert merged == {"manufacturer": "VOLVO"}
+    assert overlaid == {"manufacturer": "ais"}
+
+
+def test_a_vehicle_without_a_ts_record_gets_a_stable_positive_record_id() -> None:
+    first = surrogate_record_id("NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G")
+
+    assert first >= 1
+    assert first == surrogate_record_id("NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G")
+    assert first != surrogate_record_id("NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7H")
 
 
 # --------------------------------------------------------------------------- the service
@@ -160,29 +189,37 @@ class _Evaluator:
         return _query()
 
 
+def _car(rid: int, *, vehicle: bool = True) -> CarRecord:
+    return CarRecord(
+        source_record_id=rid,
+        plate=f"P{rid}",
+        vin=None,
+        manufacturer="Volvo",
+        model_family="XC60",
+        record=MatchSourceRecord(rid, {}),
+        rule_filled=(),
+        vehicle_id=f"V{rid}" if vehicle else None,
+        overlaid={"engine_code": "ais"} if vehicle else {},
+    )
+
+
 class _Repository:
+    """Vehicles are `V<n>`; each is evaluated as record `n`."""
+
     def __init__(self, ids: list[int]) -> None:
-        self._ids = ids
+        self._ids = [f"V{rid}" for rid in ids]
 
-    def ids_for_identifier(self, identifier: str, *, limit: int = 10) -> list[int]:
-        return [1, 9] if identifier == "ABC123" else []
+    def vehicles_for_identifier(self, identifier: str, *, limit: int = 10) -> list[str]:
+        return ["V1", "V9"] if identifier == "ABC123" else []
 
-    def population(self, conditions: Any, text: str, *, limit: int) -> tuple[int, list[int]]:
+    def vehicle_population(self, terms: Any, text: str, *, limit: int) -> tuple[int, list[str]]:
         return len(self._ids), self._ids[:limit]
 
+    def vehicle_car_records(self, ids: list[str]) -> list[CarRecord]:
+        return [_car(int(vehicle_id[1:])) for vehicle_id in ids if vehicle_id != "V404"]
+
     def car_records(self, ids: list[int]) -> list[CarRecord]:
-        return [
-            CarRecord(
-                source_record_id=rid,
-                plate=f"P{rid}",
-                vin=None,
-                manufacturer="Volvo",
-                model_family="XC60",
-                record=MatchSourceRecord(rid, {}),
-                rule_filled=(),
-            )
-            for rid in ids
-        ]
+        return [_car(rid, vehicle=False) for rid in ids]
 
 
 def _service(outcomes: dict[int, MatchEvaluation], jobs: SummaryJobs | None = None) -> VehicleMatchingService:
@@ -201,13 +238,27 @@ def test_lookup_normalizes_the_identifier_and_explains_the_gap() -> None:
 
     result = service.lookup(" abc 123 ")
 
+    assert result.vehicle_id == "V1"
     assert result.source_record_id == 1
+    assert result.overlaid_fields == {"engine_code": "ais"}
     assert result.bucket == "several"
     assert result.catalog_batch == "batch-1"
     assert [candidate.ktype for candidate in result.candidates] == ["A", "B"]
     assert result.candidates[0].engine_codes == ["D4204T14"]
     assert result.missing_separating_fields == ["engine_code"]
-    assert result.other_source_record_ids == [9]
+    assert result.other_vehicle_ids == ["V9"]
+
+
+def test_lookup_by_vehicle_matches_that_vehicle() -> None:
+    service = _service({1: _evaluation(_match("A")), 9: _evaluation()})
+
+    result = service.lookup_vehicle(" v9 ")
+
+    assert result.vehicle_id == "V9"
+    assert result.bucket == "none"
+    assert result.other_vehicle_ids == []
+    with pytest.raises(VehicleNotFoundError):
+        service.lookup_vehicle("V404")
 
 
 def test_lookup_by_record_explains_that_exact_record() -> None:
@@ -216,8 +267,9 @@ def test_lookup_by_record_explains_that_exact_record() -> None:
     result = service.lookup_record(9)
 
     assert result.source_record_id == 9
+    assert result.vehicle_id is None
     assert result.bucket == "none"
-    assert result.other_source_record_ids == []
+    assert result.other_vehicle_ids == []
 
 
 def test_lookup_of_an_unknown_plate_says_so() -> None:
@@ -247,6 +299,7 @@ def test_summary_counts_buckets_and_names_the_gaps() -> None:
     ]
     assert summary.not_matchable_reasons[0].reason == "policy:x"
     assert summary.examples["several"][0].plate == "P2"
+    assert summary.examples["several"][0].vehicle_id == "V2"
 
 
 def test_summary_reports_sampling_when_the_limit_cuts_the_population() -> None:
@@ -265,7 +318,7 @@ def test_a_cancelled_summary_keeps_what_it_counted() -> None:
     job = jobs.create(population=1, target=1)
     job.cancel.set()
 
-    service._run(job, [1])
+    service._run(job, ["V1"])
 
     assert service.summary_job(job.job_id).status == "cancelled"
 
@@ -275,7 +328,7 @@ def test_a_failing_summary_reports_why_instead_of_dying_silently() -> None:
     service = _service({}, jobs)  # no scripted outcome: evaluate raises KeyError
     job = jobs.create(population=1, target=1)
 
-    service._run(job, [42])
+    service._run(job, ["V42"])
 
     snapshot = service.summary_job(job.job_id)
     assert snapshot.status == "failed"
@@ -307,6 +360,12 @@ def test_http_maps_the_services_errors(client: TestClient) -> None:
         assert client.get("/v1/vehicles/matching/lookup", params=both).status_code == 422
         by_record = client.get("/v1/vehicles/matching/lookup", params={"source_record_id": 1})
         assert by_record.status_code == 200
+        by_vehicle = client.get("/v1/vehicles/matching/lookup", params={"vehicle_id": "V1"})
+        assert by_vehicle.json()["vehicle_id"] == "V1"
+        unknown = client.get("/v1/vehicles/matching/lookup", params={"vehicle_id": "V404"})
+        assert unknown.status_code == 404
+        layered = {"conditions": [{"field": "fuel", "operator": "gte", "values": ["1", "2"]}]}
+        assert client.post("/v1/vehicles/matching/summary", json=layered).status_code == 422
         assert client.get("/v1/vehicles/matching/summary/nope").status_code == 404
         started = client.post("/v1/vehicles/matching/summary", json={"conditions": [], "limit": 1})
         assert started.status_code == 202

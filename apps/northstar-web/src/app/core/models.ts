@@ -154,7 +154,7 @@ export interface TecDocEntityPage {
   items: TecDocEntity[];
 }
 
-// --- filtering the TecDoc vehicle population, ported from `/v1/vehicles` ----------------
+// --- filtering the TecDoc vehicle population, ported from `/v1/ts-records` ------------
 // `conditions` reuses `RuleCondition`'s wire shape so `FilterState` can build a TecDoc
 // filter the same way it builds a TS one; TecDoc has only one layer, so `layer` is sent
 // as `'source'` and ignored server-side.
@@ -734,59 +734,135 @@ export interface GapGroupReport {
 }
 
 
-/** One car as normalization understands it -- canonical values, not registry spellings. */
-export interface CanonicalVehicleRow {
-  source_record_id: number;
-  plate: string | null;
-  vin: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  drive_type: string | null;
-  bodywork_form: string | null;
-  engine_code: string | null;
-  power_kw: number | null;
-  displacement_cc: number | null;
-  production_year: number | null;
-  /** Canonical fields a live rule supplied because normalization could not derive them. */
-  rule_filled: string[];
-  /** Canonical values normalization derives but no rule can target -- no gap to fill. */
-  fuel: string | null;
-  transmission: string | null;
-  euro_class: string | null;
-  /** Normalization's `vehicle_scope`: `passenger`, or why not (motorhome, goods, other, unknown, …). */
-  vehicle_scope: string | null;
-  norm_status: string | null;
+// --- NorthStar vehicles (`/v1/vehicles`, `core.vehicles`) ------------------------------
+// One physical car, keyed by its `NOR-` ID, carrying the value that won each field across
+// every provider. Plates and VINs are identifiers of it with a history, never its key.
+
+export type VehicleOperator = 'equals' | 'not_equals' | 'starts_with' | 'contains' | 'gte' | 'lte';
+
+/** One clause on one vehicle column: values OR-ed, clauses AND-ed. No layer to choose. */
+export interface VehicleCondition {
+  field: string;
+  values: string[];
+  operator: VehicleOperator;
 }
 
-export interface CarSearchRequest extends VehicleFilterRequest {
+export interface VehicleSearchRequest {
+  conditions: VehicleCondition[];
+  /** Plate, VIN, NOR ID, a previous plate, or make/model words. */
   text: string;
 }
 
-export interface CarSearchPage {
-  items: CanonicalVehicleRow[];
+export interface VehicleFieldInfo {
+  field: string;
+  label: string;
+  group: string;
+  sql_type: string;
+  filterable: boolean;
+  reviewable: boolean;
+}
+
+export interface NorVehicleRow {
+  vehicle_id: string;
+  plate: string | null;
+  vin: string | null;
+  /** `registered` or `deregistered`. */
+  registry_status: string;
+  vehicle_scope: string | null;
+  manufacturer: string | null;
+  model_family: string | null;
+  production_year: number | null;
+  power_kw: number | null;
+  displacement_cc: number | null;
+  engine_code: string | null;
+  fuel: string | null;
+  transmission: string | null;
+  drive_type: string | null;
+  bodywork_form: string | null;
+  colour: string | null;
+  ktype: string | null;
+  /** Fields whose value a reviewer's rule asserted. */
+  review_fields: string[];
+  /** Fields a learned enrichment rule filled because no source stated them. */
+  rule_fields: string[];
+}
+
+export interface NorVehiclePage {
+  items: NorVehicleRow[];
   /** Sent on the first page only. */
   matched_rows: number | null;
-  next_cursor: number | null;
+  /** Keyset cursor: the last row's NOR ID. */
+  next_cursor: string | null;
   has_more: boolean;
 }
 
-export interface NormalizationMeta {
-  status: string;
-  confidence: number;
-  applied_rule_ids: string[];
-  review_reasons: string[];
-  mapping_version: string | null;
-  rule_version: string | null;
-  pipeline_version: string | null;
-  updated_at: string | null;
+export interface NorVehicleFacet {
+  field: string;
+  values: { value: string; count: number }[];
 }
 
-/** One car in full: every registry field and every value normalization derived. */
-export interface FullVehicleRecord extends VehicleDetail {
-  ingested_at: string | null;
-  registry: Record<string, unknown>;
-  normalized: Record<string, unknown>;
-  normalization: NormalizationMeta | null;
+/** Where one value came from. `origin` marks the record that created the vehicle. */
+export interface ValueSource {
+  source: string;
+  ref: string | null;
+  observed_on: string | null;
+  origin: boolean;
+}
+
+export interface VehicleFieldValue {
+  field: string;
+  label: string;
+  group: string;
+  value: unknown;
+  source: ValueSource | null;
+  /** Values a source stated that lost; kept so a retired rule can fall back. */
+  alternatives: { value: unknown; source: ValueSource }[];
+}
+
+export interface VehicleIdentifier {
+  kind: 'vin' | 'chassis' | 'plate';
+  value: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  current: boolean;
+  source: string;
+  source_ref: string | null;
+}
+
+export interface VehicleSourceLink {
+  source_system: string;
+  source_record_key: string;
+  observed_on: string | null;
+  link_method: string;
+  linked_at: string;
+}
+
+export interface EnrichmentRuleInfo {
+  rule_id: string;
+  rule_family: string;
+  target_field: string;
+  key_fields: string[];
+  key_values: string[];
+  value: string;
+  support: number;
+  agreement: number;
+  status: string;
+}
+
+/** One vehicle in full: each value with its source, identifiers over time, links, rules. */
+export interface NorVehicleRecord {
+  vehicle_id: string;
+  origin_source: string;
+  origin_observed_on: string | null;
+  ts_record_id: number | null;
+  registry_status: string;
+  created_at: string;
+  updated_at: string;
+  fields: VehicleFieldValue[];
+  identifiers: VehicleIdentifier[];
+  source_links: VehicleSourceLink[];
+  source_link_count: number;
+  rules: EnrichmentRuleInfo[];
 }
 
 // --- TS-to-TecDoc matching diagnostics (`/v1/vehicles/matching`) ----------------------
@@ -829,7 +905,10 @@ export interface KTypeCandidate {
 }
 
 export interface VehicleMatchLookup {
-  source_record_id: number;
+  /** The NorthStar vehicle matched; null when one TS record was asked for. */
+  vehicle_id: string | null;
+  /** The TS record whose derivation the vehicle's values were laid over. */
+  source_record_id: number | null;
   plate: string | null;
   vin: string | null;
   catalog_batch: string;
@@ -839,6 +918,8 @@ export interface VehicleMatchLookup {
   top_ktype: string | null;
   reason_codes: string[];
   rule_filled: string[];
+  /** Vehicle values that replaced or filled the TS derivation, with their source. */
+  overlaid_fields: Record<string, string>;
   inputs: MatcherInputs | null;
   candidates: KTypeCandidate[];
   /** The matcher returns at most this many; a full list means "this many or more". */
@@ -847,10 +928,11 @@ export interface VehicleMatchLookup {
   /** Separating fields the car has no value for: the gap to close. */
   missing_separating_fields: string[];
   decision_trace: Record<string, unknown>[];
-  other_source_record_ids: number[];
+  /** Other vehicles that held this plate or VIN before, most recent first. */
+  other_vehicle_ids: string[];
 }
 
-export interface MatchSummaryRequest extends CarSearchRequest {
+export interface MatchSummaryRequest extends VehicleSearchRequest {
   limit: number;
 }
 
@@ -860,7 +942,8 @@ export interface FieldCount {
 }
 
 export interface MatchExample {
-  source_record_id: number;
+  vehicle_id: string | null;
+  source_record_id: number | null;
   plate: string | null;
   manufacturer: string | null;
   model_family: string | null;

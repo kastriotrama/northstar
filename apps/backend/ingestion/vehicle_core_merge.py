@@ -139,7 +139,7 @@ def _jsonable(value: Any) -> Any:
 
 
 def _same(left: Any, right: Any) -> bool:
-    return _jsonable(left) == _jsonable(right)
+    return bool(_jsonable(left) == _jsonable(right))
 
 
 def _set_alternative(state: VehicleState, name: str, ref: SourceRef, value: Any) -> None:

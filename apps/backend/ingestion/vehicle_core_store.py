@@ -88,7 +88,9 @@ def load_vehicle(connection: Connection, vehicle_id: str) -> VehicleState | None
 
 
 def _row(state: VehicleState) -> tuple[Any, ...]:
-    values = [state.vehicle_id, state.origin_source, state.origin_observed_on, state.ts_record_id]
+    values: list[Any] = [
+        state.vehicle_id, state.origin_source, state.origin_observed_on, state.ts_record_id
+    ]
     for name in FIELD_NAMES:
         value = state.values.get(name)
         if name == "registry_status" and value is None:
@@ -429,7 +431,8 @@ def record_ledger_rows(connection: Connection, rows: Iterable[LedgerRow]) -> int
                    page.evidence, page.source_batch_id)
             """
         )
-        conflicts = int(cursor.fetchone()[0])
+        counted = cursor.fetchone()
+        conflicts = int(counted[0]) if counted else 0
     if conflicts:
         raise LedgerConflictError(
             f"{conflicts} ledger event ids are already used by different events"

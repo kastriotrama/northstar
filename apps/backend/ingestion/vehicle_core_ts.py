@@ -148,6 +148,19 @@ def _typed(name: str, value: str) -> Any:
     return clean_text(value)
 
 
+def tyre_size(value: object) -> str | None:
+    """The tyre size as the registry wrote it ("225/50 R17 98V").
+
+    Normalization parses a tyre into an object (load index, speed symbol, ...)
+    and keeps the registry text under `raw`; the vehicle column holds that text,
+    never the object's repr.
+    """
+
+    if isinstance(value, Mapping):
+        return clean_text(value.get("raw"))
+    return clean_text(value)
+
+
 def ts_observations(
     record: TsRecord, *, ref: SourceRef | None = None
 ) -> dict[str, Observation | None]:
@@ -208,8 +221,8 @@ def ts_observations(
         "first_registration_date": clean_registry_date(raw.get("registration_date")),
         "colour": clean_text(facts.get("color")),
         "wheelbase_mm": clean_int(normalized.get("wheelbase_mm")),
-        "tyre_front": clean_text(normalized.get("tyre_front") or raw.get("tyre_front")),
-        "tyre_rear": clean_text(normalized.get("tyre_rear") or raw.get("tyre_rear")),
+        "tyre_front": tyre_size(normalized.get("tyre_front") or raw.get("tyre_front")),
+        "tyre_rear": tyre_size(normalized.get("tyre_rear") or raw.get("tyre_rear")),
         "seats": clean_int(facts.get("passengers")),
         "normalization_status": clean_text(record.status),
         "normalization_confidence": record.confidence,
@@ -410,7 +423,8 @@ def process_ts_page(
             states[vehicle_id] = state
 
         observations = ts_observations(record)
-        plate = observations["plate"].value if observations.get("plate") else None
+        plate_observation = observations.get("plate")
+        plate = plate_observation.value if plate_observation else None
         primary = state.ts_record_id is None or state.ts_record_id == record.record_id
         if not primary:
             # A second TS survivor for the same VIN: only the newer record speaks

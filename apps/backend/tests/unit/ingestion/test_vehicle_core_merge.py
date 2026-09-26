@@ -24,6 +24,7 @@ from ingestion.vehicle_core_merge import (
     merge,
     retract,
 )
+from ingestion.vehicle_core_ts import tyre_size
 
 TS_DAY = date(2023, 12, 4)
 AIS_DAY = date(2026, 9, 19)
@@ -221,3 +222,14 @@ def test_only_a_full_vin_is_strong_identity() -> None:
 )
 def test_junk_engine_codes_are_absence(raw: str, expected: str | None) -> None:
     assert clean_engine_code(raw) == expected
+
+
+def test_a_parsed_tyre_is_stored_as_the_registry_wrote_it() -> None:
+    """Regression: the parsed tyre object was stored as its Python repr."""
+
+    parsed = {"raw": "225/50 R17 98V", "load_index": 98, "speed_symbol": "V"}
+
+    assert tyre_size(parsed) == "225/50 R17 98V"
+    assert tyre_size(" 205/55 R16 ") == "205/55 R16"
+    assert tyre_size({"load_index": 98}) is None
+    assert tyre_size(None) is None

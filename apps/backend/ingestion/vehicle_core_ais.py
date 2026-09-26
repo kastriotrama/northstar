@@ -651,7 +651,9 @@ class AisImporter:
             if changes:
                 needs_pipeline[state.vehicle_id] = changes
         raw = _ts_raw(connection, [
-            states[vid].ts_record_id for vid in needs_pipeline if states[vid].ts_record_id
+            record_id
+            for vid in needs_pipeline
+            if (record_id := states[vid].ts_record_id) is not None
         ])
 
         with connection.cursor() as cursor:
@@ -667,10 +669,12 @@ class AisImporter:
                 # Two records of this extract claim the plate, or its holder's claim is
                 # newer: this record does not get it.
                 observations.pop("plate", None)
-            changes = needs_pipeline.get(state.vehicle_id)
-            if changes and state.ts_record_id in raw:
+            pipeline_changes = needs_pipeline.get(state.vehicle_id)
+            if pipeline_changes and state.ts_record_id in raw:
                 observations.update(
-                    recanonicalized(self._normalizer, raw[state.ts_record_id], changes, extract.ref)
+                    recanonicalized(
+                        self._normalizer, raw[state.ts_record_id], pipeline_changes, extract.ref
+                    )
                 )
                 self.summary.renormalized += 1
             result = merge(state, observations)

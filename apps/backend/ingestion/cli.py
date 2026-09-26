@@ -888,7 +888,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         try:
             datastores = DatastoreClients.from_settings(settings)
-            report: list[dict[str, Any]] = []
+            families_report: list[dict[str, Any]] = []
             with datastores.postgres.connect() as connection:
                 run_vehicle_core_migrations(connection)
                 for family in families:
@@ -904,11 +904,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "vehicles_covered": sum(rule.support for rule in learned),
                     }
                     if args.activate:
-                        stored = store_vehicle_rules(
+                        rule_store = store_vehicle_rules(
                             connection, family, learned, learned_from=family.learned_from
                         )
-                        entry.update(added=stored.added, kept=stored.kept, retired=stored.retired)
-                    report.append(entry)
+                        entry.update(
+                            added=rule_store.added,
+                            kept=rule_store.kept,
+                            retired=rule_store.retired,
+                        )
+                    families_report.append(entry)
                 if args.activate:
                     connection.commit()
         except Exception as error:  # noqa: BLE001
@@ -917,7 +921,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 extra={"error_code": type(error).__name__},
             )
             return 1
-        print(json.dumps({"activated": args.activate, "families": report}, sort_keys=True))
+        print(json.dumps({"activated": args.activate, "families": families_report}, sort_keys=True))
         return 0
 
     if args.command == "apply-vehicle-rules":
