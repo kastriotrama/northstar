@@ -96,7 +96,8 @@ would outrank the September 2026 AIS export on every `newest` field.
 | `backfill-vehicle-core` | Walks the per-plate TS survivors in `vehicle_facts`, then links the other TS copies of each car by plate (722k rows from repeated batches). Resumable (`--since`) and idempotent: a re-run changes nothing. Re-running it after a re-normalization is how TS changes reach the vehicles. Disk-guarded. |
 | `import-ais-vin-export --file …` | Streams the 16 GB STEP XML once per extract. It matches each record by VIN, or by chassis number plus plate for old cars, then merges it by policy. It marks deregistrations, moves plates, handles A-traktor conversions (a changed vehicle type makes the old EU category stale) and corrected VINs. Changed fuel, gearbox and body codes are re-normalized through the real pipeline. Active passenger cars TS never had are completed with the completion rules, normalized and minted. One run per extract (claimed in `ingest_job_runs`): importing the same file again does nothing. |
 | `learn-vehicle-rules [--activate]` | Learns the 13 rule families (below) from `core.vehicles`. Without `--activate` it is a dry run that only prints counts. |
-| `apply-vehicle-rules` | Fills gaps from the active enrichment rules. |
+| `apply-vehicle-rules` | Fills gaps from the active enrichment rules. The model families need `--catalog-batch`: their fills are checked by the model guard. |
+| `check-model-fills` | Checks every rule-filled model against the car's own model word; `--retract` takes back the contradicted ones. |
 | TS data screen rules | Applying or retiring a resolution rule updates the linked vehicles in the same transaction (`vehicle_core_review`), so a rule is never visible on the TS record and missing on the car. |
 
 ### Learned rules
@@ -113,6 +114,68 @@ version, which does not scale to ~368k rules.
 - **Completion** (learned from TS, keyed by make + group code, complete the cars
   AIS adds): EU category, registry brand/model/type text, variant, displacement,
   4WD flag (`TSC-*`).
+- **Model family** (learned from TS, fill the 2.37M registered passenger cars
+  whose registry text names only the make or a manufacturer code). A higher bar:
+  at least 10 vehicles and 98 % agreement. Tried in this order, most specific
+  first:
+
+  | Family | Key | Holdout accuracy |
+  | --- | --- | --- |
+  | `MOD-VV` | make + variant + version | 99.99 % |
+  | `MOD-VIN` | manufacturer + VIN characters 1–8 (manufacturer and descriptor section; full VINs only) | 99.98 % |
+  | `MOD-TP` | make + type code | 99.97 % |
+  | `MOD-VAR` | make + variant | 99.98 % |
+  | `MOD-BR` | make + registry brand text | 99.98 % |
+  | `MOD-BT` | make + the brand text's model word | 99.99 % |
+  | `MOD-PAT` | make + the brand text's model word, read by reviewed patterns | checked per key |
+
+  Holdout accuracy: rules learned from 90 % of the vehicles with a known model,
+  checked on the other 10 %. The computed keys (`vin_descriptor`, `brand_text`,
+  `brand_token`) are SQL expressions in `KEY_EXPRESSIONS`, not columns. The model
+  word is the first word after the make ("TOYOTA RAV4" → RAV4), or the word after
+  the plus in Volvo's 1990s form ("VOLVO S + V70" → V70). Brand text that is only
+  the make ("POLESTAR") gives no key: learned from the 2023 register it would give
+  every later model of a one-model make that make's first one.
+
+  `MOD-PAT` covers words no vehicle with a known model shares, mostly old cars. Its
+  patterns (`vehicle_model_patterns`) answer only with a model family TS itself
+  uses for that make:
+  - a word that is such a model ("COROLLA", "307", "9000");
+  - BMW series codes (325 → 3 Series);
+  - Mercedes-Benz class letters (C 180 → C-Class, ML → M-Class);
+  - Volvo type codes (744-883 → 740, 245 → 240, 1421341 → 140).
+
+  A proposed rule is dropped when more than one known vehicle under its key
+  disagrees ("C4" is also the C4 Grand Picasso), and a key the statistics already
+  learn gets no pattern rule.
+
+  **The model guard.** The holdout only contains vehicles that have a model, so
+  it cannot see a model TS never named. Bora, Jetta, Sharan, Sintra and Carens
+  share a VIN prefix, type code or variant with a sibling that TS did name, and
+  those keys filled the sibling's model: every "VW BORA 1,6" became a Golf.
+
+  So no model fill is made, and `check-model-fills --retract` takes back an
+  existing one, when the car's own model word names a catalog model of another
+  family. The model word is the registry model field, or the word after the make,
+  read by the matcher's own reader (`vehicle_model_guard`). Families are compared
+  tolerantly: "3 Series" is "3 (E46)", "Ceed" is "CEE'D", "Mazda3" is "3 (BK)".
+
+  Two things never refuse a fill:
+  - a trim word elsewhere in the text ("200 T", "1 6 FSI"), which is weaker
+    evidence than the rule;
+  - a number, which is an engine size as often as a model ("300 TD").
+
+  **The learned era of a number.** A brand-word rule keyed on a number that is
+  not one of the make's model names only fills cars built in the years of the
+  vehicles it was learned from, ±2 years (`number_rule_eras`). Mercedes-Benz
+  "220" was learned from W220 S-Classes (1999–2006) and would otherwise have made
+  every 1970s "220 D" saloon an S-Class. "230" (the R230 SL) and "170" (the R170
+  SLK) are the same kind of rule. A number that is a model name (Mazda 6,
+  Peugeot 206, Fiat 500) has no era, and neither does a word ("GOLF"). The
+  catalog's own model years are no check: it lacks many eras of models TS names
+  rightly (a 1969 Pontiac GTO).
+
+  Applying a model family therefore needs `--catalog-batch`.
 
 ### Ledger
 
@@ -164,8 +227,10 @@ created the car), the values that lost, and plate history.
 3. `learn-vehicle-rules --family TSC-… --activate`: the completion rules that new
    AIS cars need.
 4. `import-ais-vin-export --file <export.xml>`.
-5. `learn-vehicle-rules --activate`, then `apply-vehicle-rules`: engine code and
-   the other enrichment families.
+5. `learn-vehicle-rules --activate`, then `apply-vehicle-rules --catalog-batch
+   <batch>`: engine code, model family and the other enrichment families. After
+   a catalog or rule change, run `check-model-fills --catalog-batch <batch>
+   --retract` too.
 6. Check the counts against [AIS_TS_UPDATE_OVERVIEW.md](AIS_TS_UPDATE_OVERVIEW.md).
 
 Steps 2–5 need roughly 10 GB of free disk on a full copy.

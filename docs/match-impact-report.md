@@ -25,6 +25,9 @@ Then, after a change, the same command with a new `--label`, a new `--out` and
   database can be a test batch. Reports on different batches refuse to compare.
 - **Population.** Registered vehicles in `--scope` (default `passenger`);
   `--include-deregistered` adds deregistered ones.
+- **A fixed set of cars.** `--cars-from <report.json>` evaluates exactly the cars
+  of an earlier report instead of a sample. Use it to re-measure the 50k cars of
+  the sample database in the full database after their data changed.
 - **Speed.** About 20 cars a second with 3 workers: 30,000 cars in roughly
   25 minutes. The margin on a share is about ±0.5 points at 30,000 cars.
 

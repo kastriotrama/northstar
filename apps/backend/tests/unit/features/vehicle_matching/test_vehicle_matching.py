@@ -385,3 +385,32 @@ def test_matching_routes_are_not_read_as_a_vehicle_id(client: TestClient) -> Non
         assert response.json()["detail"].startswith("No vehicle with plate or VIN")
     finally:
         client.app.dependency_overrides.clear()  # type: ignore[attr-defined]
+
+
+def test_a_car_without_a_ts_record_offers_its_registry_text_as_evidence() -> None:
+    from api.app.features.vehicle_matching.repository import (
+        EVIDENCE_FALLBACK,
+        MATCHER_FIELDS,
+        _vehicle_car_record,
+    )
+
+    def row(raw: dict[str, Any] | None) -> tuple[Any, ...]:
+        matcher_values = [None] * len(MATCHER_FIELDS)
+        matcher_values[MATCHER_FIELDS.index("manufacturer")] = "Volvo"
+        registry = {"registry_brand_text": "VOLVO XC40 RECHARGE", "registry_model_text": "XC40",
+                    "variant_code": "XK", "version_code": None, "registry_type_code": "X"}
+        return (
+            "NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV", "ABC123", "YV1XZ", None, "ais", "resolved", {},
+            *matcher_values, None, None, None, raw,
+            *(registry[name] for name in EVIDENCE_FALLBACK.values()),
+        )
+
+    ais_only = _vehicle_car_record(row(None)).record.payload["source_evidence"]
+    with_ts = _vehicle_car_record(row({"brand": "VOLVO", "model": ""})).record.payload["source_evidence"]
+
+    assert (ais_only["brand"], ais_only["model"], ais_only["variant"]) == (
+        "VOLVO XC40 RECHARGE", "XC40", "XK"
+    )
+    assert ais_only["version"] is None
+    # A TS record's own text wins; an empty TS field still falls back.
+    assert (with_ts["brand"], with_ts["model"]) == ("VOLVO", "XC40")

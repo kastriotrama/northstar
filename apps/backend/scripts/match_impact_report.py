@@ -13,6 +13,10 @@ car by car:
 
 The catalog batch is required: the newest batch in a database can be a test batch.
 
+`--cars-from` evaluates exactly the cars of an earlier report instead of a new
+sample -- the way to re-measure a fixed test set, such as the 50k cars of the
+sample database, after the data under them changed.
+
 `--reference` takes a CSV with `vehicle_id,ktype_reference` columns: cars whose
 correct KType is known. Reference cars outside the sample are evaluated too,
 but scored only against the reference, never in the sample's counts.
@@ -50,6 +54,13 @@ def load_reference(path: Path) -> dict[str, str]:
         return {row["vehicle_id"].strip(): row["ktype_reference"].strip() for row in rows}
 
 
+def report_cars(path: Path) -> tuple[list[str], str]:
+    """The cars an earlier report evaluated, in a stable order, and its population label."""
+
+    report = ImpactReport.from_json(json.loads(path.read_text()))
+    return sorted(report.cars), f"cars of {path.name} ({report.population})"
+
+
 def _load(repository: VehicleMatchingRepository, ids: list[str]) -> list[CarRecord]:
     cars: list[CarRecord] = []
     for start in range(0, len(ids), _PAGE):
@@ -66,6 +77,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", default="passenger")
     parser.add_argument("--include-deregistered", action="store_true")
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--cars-from", type=Path,
+                        help="Evaluate exactly the cars of this earlier report instead of a sample.")
     parser.add_argument("--reference", type=Path)
     parser.add_argument("--baseline", type=Path, help="A previous report to compare with.")
     parser.add_argument("--out", type=Path, required=True)
@@ -78,10 +91,14 @@ def main(argv: list[str] | None = None) -> int:
     repository = VehicleMatchingRepository(datastores.postgres.connect)
     started = time.monotonic()
     matcher = build_matcher(repository, args.catalog_batch)
-    ids = repository.sample_vehicle_ids(
-        seed=args.seed, size=args.size, scope=args.scope,
-        registered_only=not args.include_deregistered,
-    )
+    if args.cars_from:
+        ids, population = report_cars(args.cars_from)
+    else:
+        ids = repository.sample_vehicle_ids(
+            seed=args.seed, size=args.size, scope=args.scope,
+            registered_only=not args.include_deregistered,
+        )
+        population = f"{args.scope}{'' if args.include_deregistered else ', registered'}"
     sampled = set(ids)
     extra = [vehicle_id for vehicle_id in (reference or {}) if vehicle_id not in sampled]
     cars = _load(repository, ids)
@@ -90,7 +107,6 @@ def main(argv: list[str] | None = None) -> int:
           f"{time.monotonic() - started:.0f}s; evaluating...", file=sys.stderr)
     outcomes = evaluate_cars(matcher, cars, workers=args.workers)
     reference_outcomes = evaluate_cars(matcher, reference_cars, workers=args.workers)
-    population = f"{args.scope}{'' if args.include_deregistered else ', registered'}"
     report = build_report(
         outcomes, matcher.catalog, label=args.label, catalog_batch=matcher.batch_id,
         seed=args.seed, population=population, reference=reference,

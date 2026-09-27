@@ -44,6 +44,17 @@ SOURCE_REVIEW = "review"
 SOURCE_RULE = "rule"
 SOURCE_DERIVED = "derived"
 
+#: Registry text a vehicle carries under its own name, by the raw TS field it
+#: copies. The matcher reads a model from these when a car has no TS record, and
+#: the model guard reads them to check a learned model against the car.
+REGISTRY_EVIDENCE_COLUMNS: dict[str, str] = {
+    "brand": "registry_brand_text",
+    "model": "registry_model_text",
+    "variant": "variant_code",
+    "version": "version_code",
+    "type_text": "registry_type_code",
+}
+
 PROVIDER_SOURCES: tuple[str, ...] = (SOURCE_TS, SOURCE_AIS)
 ORIGIN_SOURCES: tuple[str, ...] = PROVIDER_SOURCES
 

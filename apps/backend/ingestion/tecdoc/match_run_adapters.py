@@ -19,6 +19,7 @@ from ingestion.fuzzy_matching import (
     ManufacturerCandidateIndex,
     VehicleCandidate,
     VehicleMatchQuery,
+    same_model_family,
 )
 from ingestion.match_run_service import MatchSourceRecord, MatchTerminal
 from ingestion.tecdoc.engine_fingerprint_proposals import ReviewedEngineFingerprintIndex
@@ -340,6 +341,21 @@ class ResolvedMatchQuery:
     engine_code_observed: bool = False
 
 
+#: Registry fields a model can be read from. The registry's own model text is
+#: consulted first. Normalization only sets model_family when a reviewed rule
+#: covers the term, so a car registered as "DUSTER" or "GRAND C-MAX" reaches
+#: matching with the model named plainly in the row and nothing reading it.
+MODEL_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "model",
+    "brand",
+    "variant",
+    "version",
+    "model_no",
+    "type_text",
+    "eeg_type_approval",
+)
+
+
 class TecDocDryRunEvaluator:
     """Classify normalized TS rows using the existing matcher and confidence router."""
 
@@ -446,11 +462,21 @@ class TecDocDryRunEvaluator:
             return MatchEvaluation("unmatched", ("manufacturer_missing",))
         recovery_reason: str | None = None
         source_evidence = _mapping(payload.get("source_evidence"))
+        # A model a learned rule filled is inferred from sibling vehicles, so the
+        # car's own registry text is read first: "VW BORA 1,6" is a Bora even
+        # where its VIN prefix taught the rule "Golf". The inferred model is the
+        # fallback when the text names nothing the catalog recognizes.
+        inferred_fields = payload.get("inferred_fields")
+        inferred_model = (
+            str(normalized.get("model_family") or "").strip()
+            if isinstance(inferred_fields, list | tuple) and "model_family" in inferred_fields
+            else ""
+        )
         model_values = tuple(
             dict.fromkeys(
                 str(value).strip()
                 for value in (
-                    normalized.get("model_family"),
+                    None if inferred_model else normalized.get("model_family"),
                     candidates.get("model_family"),
                     source_evidence.get("model"),
                 )
@@ -459,19 +485,7 @@ class TecDocDryRunEvaluator:
         )
         model_evidence = {
             field_name: str(value)
-            for field_name in (
-                # The registry's own model text is consulted first. Normalization
-                # only sets model_family when a reviewed rule covers the term, so
-                # a car registered as "DUSTER" or "GRAND C-MAX" reaches matching
-                # with the model named plainly in the row and nothing reading it.
-                "model",
-                "brand",
-                "variant",
-                "version",
-                "model_no",
-                "type_text",
-                "eeg_type_approval",
-            )
+            for field_name in MODEL_EVIDENCE_FIELDS
             if (value := source_evidence.get(field_name))
         }
         # Map TS manufacturer spelling onto its TecDoc catalog name before
@@ -495,10 +509,16 @@ class TecDocDryRunEvaluator:
             explicit = self._alias_index.recover_model_from_evidence(
                 scope_manufacturer, {"model": str(explicit_model)}
             )
-            brand_model = self._alias_index.recover_model_from_evidence(
-                scope_manufacturer, {"brand": str(source_evidence.get("brand") or "")}
+            # Model field and brand text naming different models fail closed. The
+            # check reads both the way it always has: reading model words only
+            # decides which model to use, never adds a disagreement.
+            stated = self._alias_index.recover_model_from_evidence(
+                scope_manufacturer, {"model": str(explicit_model)}, reading="legacy"
             )
-            if explicit is not None and brand_model is not None and explicit[0] != brand_model[0]:
+            brand_model = self._alias_index.recover_model_from_evidence(
+                scope_manufacturer, {"brand": str(source_evidence.get("brand") or "")}, reading="legacy"
+            )
+            if stated is not None and brand_model is not None and stated[0] != brand_model[0]:
                 return MatchEvaluation("review_required", ("model_source_evidence_conflict",))
             if explicit is not None:
                 # Catalog-recognized raw evidence must not compete with a
@@ -506,13 +526,24 @@ class TecDocDryRunEvaluator:
                 model_values = (explicit[0], str(explicit_model))
                 recovery_reason = "model_recovered_from_model"
         if not model_values and model_evidence:
+            # Only the car's model word overrules an inferred model; a trim word
+            # ("200 T", "1 6 FSI") is weaker evidence than the rule.
             recovered = self._alias_index.recover_model_from_evidence(
-                scope_manufacturer, model_evidence
+                scope_manufacturer, model_evidence, reading="strict" if inferred_model else "model_word"
             )
+            if recovered is None and inferred_model:
+                # The text may still name the inferred family more precisely
+                # ("BMW 630 CS" is the 6 (E24) of a "6 Series"); never another one.
+                specific = self._alias_index.recover_model_from_evidence(scope_manufacturer, model_evidence)
+                if specific is not None and same_model_family(inferred_model, specific[0], scope_manufacturer):
+                    recovered = specific
             if recovered is not None:
                 recovered_model, source_field = recovered
                 model_values = (recovered_model,)
                 recovery_reason = f"model_recovered_from_{source_field}"
+        if inferred_model and recovery_reason is None:
+            model_values = tuple(dict.fromkeys((*model_values, inferred_model)))
+            recovery_reason = "model_inferred_by_rule"
         if not model_values:
             return MatchEvaluation("review_required", ("model_evidence_missing",))
         source_model_resolution = self._source_model_policy.resolve(
@@ -587,6 +618,49 @@ class TecDocDryRunEvaluator:
             source_model_resolution=source_model_resolution,
             engine_code_observed=engine_code_observed,
         )
+
+    def catalog_manufacturer(self, manufacturer: str, source_evidence: Mapping[str, Any]) -> str:
+        """The catalog's name for a registry make, scoped as `evaluate` scopes it."""
+
+        decision = self._manufacturer_scope.resolve(
+            manufacturer=manufacturer, brand=source_evidence.get("brand"),
+        )
+        if decision.status == "resolved" and decision.manufacturer:
+            return str(decision.manufacturer)
+        return str(manufacturer)
+
+    def source_text_model(
+        self, manufacturer: str, source_evidence: Mapping[str, Any]
+    ) -> tuple[str, str] | None:
+        """The catalog model a car's registry text names by its model word.
+
+        Read as `evaluate` reads text against a rule-inferred model: the registry
+        model field, else the word each field names the model by. Returns the
+        catalog manufacturer and the model, or None when the text names no catalog
+        model that way or its model and brand text name different ones.
+        """
+
+        scope = self.catalog_manufacturer(manufacturer, source_evidence)
+        explicit_model = source_evidence.get("model")
+        if explicit_model:
+            explicit = self._alias_index.recover_model_from_evidence(
+                scope, {"model": str(explicit_model)}, reading="strict"
+            )
+            brand_model = self._alias_index.recover_model_from_evidence(
+                scope, {"brand": str(source_evidence.get("brand") or "")}, reading="strict"
+            )
+            if explicit is not None and brand_model is not None and explicit[0] != brand_model[0]:
+                return None
+            if explicit is not None:
+                return scope, explicit[0]
+        evidence = {
+            field: str(value) for field in MODEL_EVIDENCE_FIELDS if (value := source_evidence.get(field))
+        }
+        recovered = (
+            self._alias_index.recover_model_from_evidence(scope, evidence, reading="strict")
+            if evidence else None
+        )
+        return (scope, recovered[0]) if recovered is not None else None
 
     def resolved_query(self, record: MatchSourceRecord) -> ResolvedMatchQuery | None:
         """What the matcher keys on for this row, or None if it terminates first.

@@ -430,6 +430,130 @@ def _eligible_recovery_label(
     return re.search(rf"(?<!\w)9\s*[-‐‑–]\s*{label[-1]}(?!\w)", value) is not None
 
 
+#: Registry spellings of a make that differ from the catalog's name for it.
+_REGISTRY_MAKE_WORDS: dict[str, frozenset[str]] = {
+    "VW": frozenset({"VOLKSWAGEN", "VW"}),
+    # AMG is Mercedes-Benz's performance brand: "MERCEDES-AMG C 63" is a C-Class.
+    "MERCEDES BENZ": frozenset({"MERCEDES", "BENZ", "AMG", "MB"}),
+}
+
+
+def model_position_token(field_name: str, value: str, manufacturer_key: str) -> str | None:
+    """The word in the position a registry field names the model in, if it has one.
+
+    The model field is the model: its first word ("911 CARRERA 4 GTS" -> 911),
+    after any make words it repeats ("TOYOTA BZ4X" -> BZ4X, "MB SL 500" -> SL).
+    Brand text names the make first and the model next ("PEUGEOT 307 1,6" -> 307,
+    "MERCEDES BENZ C 180" -> C); Volvo's 1990s text is "<model-year letter> +
+    <model>" ("VOLVO 9 + 940" -> 940). Brand text that does not start with the
+    make has no model position, nor does any other field.
+    """
+
+    make_words = set(manufacturer_key.split()) | _REGISTRY_MAKE_WORDS.get(manufacturer_key, frozenset())
+    if field_name == "model":
+        tokens = _normalized_text(value).split()
+        while len(tokens) > 1 and tokens[0] in make_words:
+            tokens = tokens[1:]
+        return tokens[0] if tokens else None
+    if field_name != "brand":
+        return None
+    tokens = _normalized_text(value).split()
+    if not tokens or tokens[0] not in make_words:
+        return None
+    if "+" in value:
+        after = _normalized_text(value.split("+", 1)[1]).split()
+        return after[0] if after else None
+    rest = tokens[1:]
+    while rest and rest[0] in make_words:
+        rest = rest[1:]
+    return rest[0] if rest else None
+
+
+def _words(name: str) -> list[str]:
+    return _normalized_text(name).split()
+
+
+def same_model_family(value: str, catalog_model: str, manufacturer: str) -> bool:
+    """True when a TS model family and a catalog model name the same family."""
+
+    value_words, model_words = _words(value), _words(catalog_model)
+    if not value_words or not model_words:
+        return False
+    first, catalog_first = value_words[0], model_words[0]
+    if first == catalog_first:
+        return True
+    compact, catalog_compact = "".join(value_words), "".join(model_words)
+    if catalog_compact.startswith(compact) or compact.startswith(catalog_compact):
+        return True
+    # "Mazda3" against "3 (BK)": TS joins the make to the model number.
+    for make in _words(manufacturer):
+        if first.startswith(make) and first[len(make):] == catalog_first:
+            return True
+    # "3 Series" against "320": a series is named by the first digit of its codes.
+    if value_words[1:2] == ["SERIES"] and len(first) == 1 and first.isdigit():
+        return catalog_first.isdigit() and len(catalog_first) == 3 and catalog_first.startswith(first)
+    return False
+
+
+RecoveryReading = Literal["legacy", "model_word", "strict"]
+
+
+def _label_forms(label: str) -> tuple[str, ...]:
+    """A catalog label and its unspaced spelling when it mixes letters and digits.
+
+    TecDoc writes "RAV 4" where the registry writes "RAV4"; an unspaced form is
+    only offered where it still reads as one model word.
+    """
+
+    compact = label.replace(" ", "")
+    if compact != label and len(compact) >= 3 and re.search(r"[A-Z]", compact) and re.search(r"[0-9]", compact):
+        return (label, compact)
+    return (label,)
+
+
+#: Words that name a body style. TecDoc names some old models by one ("COUPE
+#: (W111, W112)", "VARIANT II"), but in registry text they describe the car.
+_BODY_WORDS = frozenset({
+    "CABRIO", "CABRIOLET", "COMBI", "COMPACT", "CONVERTIBLE", "COUPE", "ESTATE", "HATCHBACK",
+    "KOMBI", "LIMOUSINE", "MPV", "PICKUP", "ROADSTER", "SALOON", "SEDAN", "SPORTWAGON",
+    "SPORTSWAGON", "SUV", "TARGA", "TOURER", "TOURING", "VAN", "VARIANT", "WAGON",
+})
+
+
+#: Words that start the names of unrelated families ("GRAND C4 PICASSO", "GRAND
+#: SANTA FE"): only a whole name that starts with one names a family.
+_PREFIX_WORDS = frozenset({"GRAND", "NEW"})
+
+
+def _is_model_name(label: str, canonical: str) -> bool:
+    """True when the label is the catalog model's own name, not a trim or code on it.
+
+    A name starts with the model's first word and keeps its other words in order,
+    decoration left out: "GOLF VARIANT" names "GOLF VII Variant", "FOCUS" names
+    "FOCUS I (DAW, DBW)". "200 T" on "123 T-Model (S123)" and the chassis code "ED"
+    on "CEE'D SW (ED)" name nothing.
+    """
+
+    words = _normalized_text(canonical).split()
+    parts = label.split()
+    if not parts or not words or parts[0] != words[0]:
+        return False
+    rest = iter(words[1:])
+    return all(any(part == word for word in rest) for part in parts[1:])
+
+
+def _anchored_label_eligible(label: str) -> bool:
+    """A short or all-digit catalog label is a model only in the model position.
+
+    Anywhere else "911", "307" or "7X" could be a displacement, a door count or an
+    approval number; as the word the registry names the model by, it is the model.
+    """
+
+    return " " not in label and (
+        (label.isdigit() and len(label) >= 2) or re.fullmatch(r"[0-9][A-Z]", label) is not None
+    )
+
+
 def _evidence_field_rank(field_name: str) -> tuple[int, str]:
     """Rank an evidence field by specificity, most specific first.
 
@@ -443,6 +567,33 @@ def _evidence_field_rank(field_name: str) -> tuple[int, str]:
         return (len(_MODEL_EVIDENCE_FIELD_PRIORITY), field_name)
 
 
+def _unique_or_family(group: set[tuple[str, str, str]]) -> tuple[str, str] | None:
+    """One canonical model from equally strong labels, or the family they share.
+
+    A named family may span catalog generations ("V70" on V70 II and V70 III):
+    then the shared label is recovered as a query and no generation is chosen.
+    Labels naming unrelated families recover nothing.
+    """
+
+    canonicals = {canonical for _, canonical, _ in group}
+    if len(canonicals) == 1:
+        canonical = next(iter(canonicals))
+        return canonical, min((field for _, c, field in group if c == canonical), key=_evidence_field_rank)
+    family_labels = {
+        (label, field)
+        for label, _, field in group
+        if {canonical for other, canonical, _ in group if other == label} == canonicals
+        and all(
+            _normalized_text(canonical) == label or _normalized_text(canonical).startswith(f"{label} ")
+            for canonical in canonicals
+        )
+    }
+    if len({label for label, _ in family_labels}) != 1:
+        return None
+    label = next(iter(family_labels))[0]
+    return label, min((field for matched, field in family_labels if matched == label), key=_evidence_field_rank)
+
+
 class ManufacturerCandidateIndex:
     """Immutable candidate index with conservative manufacturer fallback."""
 
@@ -450,6 +601,7 @@ class ManufacturerCandidateIndex:
         by_reference: dict[str, VehicleCandidate] = {}
         by_manufacturer_key: dict[str, dict[str, VehicleCandidate]] = {}
         model_labels_by_manufacturer_key: dict[str, dict[str, set[str]]] = {}
+        families_by_manufacturer_key: dict[str, dict[str, set[str]]] = {}
         for candidate in candidates:
             reference = candidate.candidate_reference.strip()
             if reference in by_reference:
@@ -466,6 +618,10 @@ class ManufacturerCandidateIndex:
                     for value in (candidate.model, *candidate.model_aliases):
                         if normalized_model := _normalized_text(value):
                             labels.setdefault(normalized_model, set()).add(candidate.model)
+                    if first_word := next(iter(_normalized_text(candidate.model).split()), None):
+                        families_by_manufacturer_key.setdefault(manufacturer_key, {}).setdefault(
+                            first_word, set()
+                        ).add(candidate.model)
         self._all = tuple(sorted(by_reference.values(), key=lambda item: item.candidate_reference))
         known: set[str] = set()
         for candidate in self._all:
@@ -477,6 +633,12 @@ class ManufacturerCandidateIndex:
         self._by_manufacturer_key = {
             key: tuple(sorted(values.values(), key=lambda item: item.candidate_reference))
             for key, values in by_manufacturer_key.items()
+        }
+        # The word every catalog name of a model family starts with ("PASSAT" of
+        # "PASSAT B5 (3B2)"): a model word even where no alias spells it alone.
+        self._families_by_manufacturer_key = {
+            key: {word: tuple(sorted(models)) for word, models in words.items()}
+            for key, words in families_by_manufacturer_key.items()
         }
         self._model_labels_by_manufacturer_key = {
             key: tuple(
@@ -504,64 +666,118 @@ class ManufacturerCandidateIndex:
         self,
         manufacturer: str,
         evidence: Mapping[str, str],
+        *,
+        reading: RecoveryReading = "model_word",
     ) -> tuple[str, str] | None:
-        """Return one unique longest catalog model and its non-sensitive source field."""
+        """Return one unique longest catalog model and its non-sensitive source field.
+
+        `reading` says how text is read:
+
+        - "model_word": a catalog model's name at the word a field names the model
+          by outranks any other label ("911 CARRERA 4 GTS" is a 911, not the longer
+          "CARRERA GT"). Otherwise the longest label.
+        - "strict": only a model's name counts. Used against a model inferred
+          elsewhere, which a trim, body word or number does not overrule.
+        - "legacy": the longest label anywhere, as read before model words. The
+          fail-closed check between model field and brand text keeps using it.
+        """
 
         manufacturer_key = _normalized_text(manufacturer)
         labels = self._model_labels_by_manufacturer_key.get(manufacturer_key, ())
+        legacy, strict = reading == "legacy", reading == "strict"
         # Explicit model text must not lose to a longer label in another field.
         # An unrecognized explicit model is not permission to substitute a brand.
         if evidence.get("model", "").strip():
             evidence = {"model": evidence["model"]}
-        matches = {
-            (len(label.replace(" ", "")), canonical, field_name)
-            for field_name, value in evidence.items()
-            for label, canonical_models in labels
-            if _eligible_recovery_label(manufacturer_key, label, canonical_models, field_name, value)
-            if f" {label} " in f" {_normalized_text(value)} "
-            for canonical in canonical_models
-        }
+        # (tier, length, label, canonical, field). A label that is a catalog model's
+        # name ("FOCUS" of "FOCUS I (DAW, DBW)", "911" of "911 (992)") read at the
+        # model word is tier 2; a trim or code label there ("200 D", the chassis
+        # code "ED") gets no priority. Elsewhere a name is tier 1, any other label 0.
+        matches: set[tuple[int, int, str, str, str]] = set()
+        for field_name, value in evidence.items():
+            text = f" {_normalized_text(value)} "
+            anchor = None if legacy else model_position_token(field_name, value, manufacturer_key)
+            anchored_text = None
+            if anchor is not None and f" {anchor} " in text:
+                anchored_text = f" {text[text.index(f' {anchor} ') + 1:]}"
+                # The model word counts even where no alias spells it alone:
+                # "PASSAT" starts every "PASSAT B5 (3B2)". Not from a model field,
+                # whose own text reaches the matcher anyway, and never a number
+                # ("300" is an engine as often as the 1950s 300).
+                if (
+                    (strict or field_name == "brand")
+                    and len(anchor) >= 3 and not anchor.isdigit()
+                    and anchor not in _BODY_WORDS | _PREFIX_WORDS
+                ):
+                    family = self._families_by_manufacturer_key.get(manufacturer_key, {}).get(anchor, ())
+                    matches.update((2, len(anchor), anchor, canonical, field_name) for canonical in family)
+            field_matches: list[tuple[int, int, str, str, str]] = []
+            for label, canonical_models in labels:
+                forms = (label,) if legacy else _label_forms(label)
+                form = next((form for form in forms if f" {form} " in text), None)
+                if form is None:
+                    continue
+                anchored = anchored_text is not None and anchored_text.startswith(f" {form} ")
+                eligible = _eligible_recovery_label(manufacturer_key, label, canonical_models, field_name, value)
+                # A label that names some models only borrows the others' pairs
+                # through a broader reviewed alias ("RANGE ROVER EVOQUE" on every
+                # Range Rover): those pairs never compete with what it names.
+                names_any = any(_is_model_name(label, canonical) for canonical in canonical_models)
+                for canonical in canonical_models:
+                    name = _is_model_name(label, canonical)
+                    if not (eligible or (anchored and name and _anchored_label_eligible(label))):
+                        continue
+                    tier = 2 if anchored and name else 1 if name else 0
+                    # A trim label that continues the model name at its position
+                    # reads the same model word more precisely: "190 B" is the
+                    # Ponton, not the 190 (W201) the name "190" alone would be.
+                    if anchored and not names_any and label.split()[0] == anchor and " " in label:
+                        tier = -1
+                    elif names_any and not name and not legacy:
+                        continue
+                    field_matches.append((tier, len(label.replace(" ", "")), label, canonical, field_name))
+            named_at_position = {label for tier, _, label, _, _ in field_matches if tier == 2}
+            matches.update(
+                (2 if tier == -1 and any(label.startswith(f"{named} ") for named in named_at_position)
+                 else max(tier, 0),
+                 length, label, canonical, field)
+                for tier, length, label, canonical, field in field_matches
+            )
+        # Against a model inferred elsewhere only a model's name counts: a trim
+        # word ("200 T", "1 6 FSI") is weaker evidence than the inference, and so
+        # is a body word read anywhere but the model position ("S 600 COUPE" is no
+        # 1960s COUPE (W111)). A number in the model position is too ambiguous to
+        # overrule it ("300 TD" and "124" are an engine and a chassis number on
+        # cars TS rightly calls E-Class), yet it still is the model word: nothing
+        # later in the text is read instead ("911 CARRERA" is no CARRERA GT).
+        if strict:
+            at_position = {match for match in matches if match[0] == 2}
+            if at_position:
+                matches = {match for match in at_position if not match[2].replace(" ", "").isdigit()}
+            else:
+                matches = {
+                    match for match in matches
+                    if match[0] == 1 and not set(match[2].split()) <= _BODY_WORDS
+                    and not match[2].replace(" ", "").isdigit()
+                }
         if not matches:
             return None
-        longest = max(length for length, _, _ in matches)
-        longest_matches = {
-            (canonical, field_name)
-            for length, canonical, field_name in matches
-            if length == longest
-        }
-        canonical_matches = {canonical for canonical, _ in longest_matches}
-        if len(canonical_matches) != 1:
-            # A named family may span multiple catalog generations. Recover
-            # the shared explicit label as a query, never choose a generation.
-            # A trim alias shared by unrelated families is not family evidence.
-            family_labels = {
-                (label, field_name)
-                for field_name, value in evidence.items()
-                for label, canonicals in labels
-                if len(label.replace(" ", "")) == longest
-                and _eligible_recovery_label(manufacturer_key, label, canonicals, field_name, value)
-                and f" {label} " in f" {_normalized_text(value)} "
-                and canonicals
-                and set(canonicals) == canonical_matches
-                and all(
-                    _normalized_text(canonical) == label
-                    or _normalized_text(canonical).startswith(f"{label} ")
-                    for canonical in canonicals
-                )
-            }
-            if len({label for label, _ in family_labels}) != 1:
-                return None
-            label = next(iter(family_labels))[0]
-            return label, min(
-                (field for matched, field in family_labels if matched == label),
-                key=_evidence_field_rank,
-            )
-        canonical = next(iter(canonical_matches))
-        source_field = min(
-            (field_name for matched, field_name in longest_matches if matched == canonical),
-            key=_evidence_field_rank,
+        # Only the strongest kind of evidence present is read, and within it the
+        # longest label: a model named at its position never yields to a label
+        # elsewhere, and labels naming unrelated families recover nothing.
+        top = max(tier if strict else int(tier == 2) for tier, *_ in matches)
+        strongest = [match for match in matches if (match[0] if strict else int(match[0] == 2)) == top]
+        longest = max(n for _, n, _, _, _ in strongest)
+        recovered = _unique_or_family(
+            {(label, canonical, field) for _, n, label, canonical, field in strongest if n == longest}
         )
-        return canonical, source_field
+        if recovered is None:
+            return None
+        # Position decides which model; the credit goes to the most specific field
+        # that named that same model anywhere.
+        model = recovered[0]
+        fields = {field for _, _, label, canonical, field in matches if model in (label, canonical)}
+        return model, min(fields, key=_evidence_field_rank)
 
     def lookup(
         self,

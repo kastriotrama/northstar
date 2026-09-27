@@ -23,7 +23,7 @@ from api.app.features.vehicle_matching.service import Matcher
 from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import MatchEvaluation
-from scripts.match_impact_report import load_reference
+from scripts.match_impact_report import load_reference, report_cars
 
 
 def _ktype(reference: str, *engines: str) -> VehicleCandidate:
@@ -149,3 +149,17 @@ def test_reference_csv_needs_both_columns(tmp_path: Path) -> None:
     bad.write_text("vehicle_id\nNOR-1\n")
     with pytest.raises(ValueError, match="ktype_reference"):
         load_reference(bad)
+
+
+def test_an_earlier_reports_cars_can_be_evaluated_again(tmp_path: Path) -> None:
+    report = build_report(
+        [_outcome("b"), _outcome("a", terminal="provisional")],
+        CATALOG, label="base", catalog_batch="b1", seed="s", population="passenger, registered",
+    )
+    path = tmp_path / "base.json"
+    path.write_text(json.dumps(report.to_json()))
+
+    ids, population = report_cars(path)
+
+    assert ids == ["a", "b"]
+    assert population == "cars of base.json (passenger, registered)"

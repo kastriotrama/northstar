@@ -26,7 +26,7 @@ from ingestion.match_run_service import MatchSourceRecord
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.tecdoc.match_run_adapters import load_postgres_ktype_catalog
 from ingestion.tecdoc.remote_match_run import SOURCE_EVIDENCE_FIELDS
-from ingestion.vehicle_core_fields import parse_source_ref
+from ingestion.vehicle_core_fields import REGISTRY_EVIDENCE_COLUMNS, SOURCE_RULE, parse_source_ref
 from ingestion.vehicle_core_migrations import VEHICLE_IDENTIFIERS_TABLE, VEHICLES_TABLE
 from ingestion.vehicle_core_query import (
     ALIAS,
@@ -76,6 +76,12 @@ MATCHER_FIELDS: tuple[str, ...] = (
     "bodywork_form",
     "fuel_match_tokens",
 )
+
+
+#: Registry text the vehicle carries under its own name. A car no TS record
+#: created (a new AIS car) has only these, and the matcher recovers a model from
+#: them the way it does from a TS record.
+EVIDENCE_FALLBACK = REGISTRY_EVIDENCE_COLUMNS
 
 
 @dataclass(frozen=True)
@@ -256,6 +262,7 @@ class VehicleMatchingRepository:
         if not vehicle_ids:
             return []
         columns = ", ".join(f"vehicle.{name}" for name in MATCHER_FIELDS)
+        fallback = ", ".join(f"vehicle.{name}" for name in EVIDENCE_FALLBACK.values())
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 f"""
@@ -263,7 +270,7 @@ class VehicleMatchingRepository:
                        vehicle.origin_source, vehicle.normalization_status,
                        vehicle.field_sources, {columns},
                        latest.status, latest.normalized_payload, latest.review_reasons,
-                       raw.raw_record
+                       raw.raw_record, {fallback}
                 FROM {VEHICLES_TABLE} AS vehicle
                 LEFT JOIN LATERAL (
                     SELECT status, normalized_payload, review_reasons
@@ -324,7 +331,8 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
     count = len(MATCHER_FIELDS)
     vehicle_id, plate, vin, ts_record_id, origin_source, core_status, sources = row[:7]
     vehicle = dict(zip(MATCHER_FIELDS, row[7 : 7 + count], strict=True))
-    status, payload, review_reasons, raw = row[7 + count :]
+    status, payload, review_reasons, raw = row[7 + count : 11 + count]
+    registry = dict(zip(EVIDENCE_FALLBACK, row[11 + count :], strict=True))
     payload = dict(payload or {})
     raw = dict(raw or {})
     normalized, overlaid = overlay_vehicle(
@@ -341,7 +349,11 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
             "normalized": normalized,
             "candidates": dict(payload.get("candidates") or {}),
             "review_reasons": [str(reason) for reason in (review_reasons or [])],
-            "source_evidence": {field: raw.get(field) for field in SOURCE_EVIDENCE_FIELDS},
+            "source_evidence": {
+                field: raw.get(field) or registry.get(field) for field in SOURCE_EVIDENCE_FIELDS
+            },
+            # Values a learned rule filled: the matcher reads the car's own text first.
+            "inferred_fields": sorted(name for name, source in overlaid.items() if source == SOURCE_RULE),
         },
     )
     return CarRecord(

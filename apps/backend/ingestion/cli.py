@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
@@ -46,10 +47,9 @@ from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrati
 from ingestion.vehicle_core_ais import import_ais_extract
 from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
 from ingestion.vehicle_core_rules import (
-    DEFAULT_MIN_AGREEMENT,
-    DEFAULT_MIN_SUPPORT,
     FAMILIES_BY_ID,
     RULE_FAMILIES,
+    check_model_fills,
 )
 from ingestion.vehicle_core_rules import apply_rules as apply_vehicle_rules
 from ingestion.vehicle_core_rules import learn_rules as learn_vehicle_rules
@@ -64,6 +64,7 @@ from ingestion.vehicle_facts import (
 )
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
+from ingestion.vehicle_model_guard import build_model_guard
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
     link_variants_to_fuel_concepts,
@@ -306,8 +307,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     learn_parser.add_argument("--family", action="append", choices=sorted(FAMILIES_BY_ID),
                               help="Limit to these families. Default: all.")
-    learn_parser.add_argument("--min-support", type=int, default=DEFAULT_MIN_SUPPORT)
-    learn_parser.add_argument("--min-agreement", type=float, default=DEFAULT_MIN_AGREEMENT)
+    learn_parser.add_argument("--min-support", type=int, default=None,
+                              help="Override every family's own minimum support.")
+    learn_parser.add_argument("--min-agreement", type=float, default=None,
+                              help="Override every family's own minimum agreement.")
     learn_parser.add_argument("--activate", action="store_true",
                               help="Store the learned rules. Omitted means dry run.")
 
@@ -319,6 +322,18 @@ def build_parser() -> argparse.ArgumentParser:
                               choices=sorted(f.family for f in RULE_FAMILIES
                                              if f.purpose == "enrichment"),
                               help="Limit to these families. Default: every enrichment family.")
+    apply_parser.add_argument("--catalog-batch",
+                              help="TecDoc catalog batch the model guard reads text against. "
+                                   "Required for the model families (MOD-*).")
+
+    check_fills_parser = subparsers.add_parser(
+        "check-model-fills",
+        help=("Check every model a rule filled against the car's own registry text and build "
+              "year. Without --retract nothing is written: the counts are a dry run."),
+    )
+    check_fills_parser.add_argument("--catalog-batch", required=True)
+    check_fills_parser.add_argument("--retract", action="store_true",
+                                    help="Take back the contradicted fills.")
 
     chunk_parser = subparsers.add_parser(
         "build-match-chunks",
@@ -929,13 +944,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         families = [FAMILIES_BY_ID[name] for name in args.family] if args.family else [
             family for family in RULE_FAMILIES if family.purpose == "enrichment"
         ]
+        needs_guard = any(family.target_field == "model_family" for family in families)
+        if needs_guard and not args.catalog_batch:
+            print("The model families need --catalog-batch: their fills are checked against it.",
+                  file=sys.stderr)
+            return 2
         try:
             datastores = DatastoreClients.from_settings(settings)
             filled: dict[str, int] = {}
+            refused: dict[str, dict[str, int]] = {}
             with datastores.postgres.connect() as connection:
                 run_vehicle_core_migrations(connection)
+                guard = build_model_guard(connection, args.catalog_batch) if needs_guard else None
                 for family in families:
-                    filled[family.family] = apply_vehicle_rules(connection, family).filled
+                    fill = apply_vehicle_rules(connection, family, guard=guard)
+                    filled[family.family] = fill.filled
+                    if fill.refused:
+                        refused[family.family] = fill.refused
                     connection.commit()
         except Exception as error:  # noqa: BLE001
             logger.error(
@@ -943,7 +968,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 extra={"error_code": type(error).__name__},
             )
             return 1
-        print(json.dumps({"filled": filled}, sort_keys=True))
+        print(json.dumps({"filled": filled, "refused": refused}, sort_keys=True))
+        return 0
+
+    if args.command == "check-model-fills":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                guard = build_model_guard(connection, args.catalog_batch)
+                checked = check_model_fills(connection, guard, retract_contradicted=args.retract)
+                if args.retract:
+                    connection.commit()
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Checking model fills stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({
+            "checked": checked.checked, "contradicted": checked.contradicted,
+            "retracted": checked.retracted, "examples": checked.examples,
+        }, sort_keys=True, default=str, ensure_ascii=False))
         return 0
 
     if args.command == "build-match-chunks":
