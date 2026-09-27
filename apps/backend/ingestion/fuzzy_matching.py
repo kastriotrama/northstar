@@ -72,6 +72,10 @@ def engine_code_family(value: str) -> str | None:
     return head if len(head) >= 3 and not head.isdigit() else None
 
 
+def _is_hybrid(fuels: Iterable[str]) -> bool:
+    return any(fuel.startswith("HYBRID") for fuel in fuels)
+
+
 @lru_cache(maxsize=250_000)
 def _edit_similarity(left: str, right: str) -> float:
     left_compact = left.replace(" ", "")
@@ -884,6 +888,18 @@ class FuzzyVehicleMatcher:
                 # contradiction. The mild penalty keeps an exactly matching
                 # k-type clear of the automatic margin instead of tying with it.
                 missing_fields.append("power_kw")
+                context_effect -= self._config.power_tolerance_penalty
+            elif (
+                query.power_kw < candidate.power_kw
+                and _is_hybrid(query_fuels | candidate_fuels)
+            ):
+                # The registry gives a hybrid's combustion-engine power, TecDoc
+                # the combined system power, which is always higher. The two
+                # cannot be compared until the catalog carries engine power, so
+                # a lower figure is unverified. A higher one still contradicts.
+                # The mild penalty keeps a KType whose power the car matches
+                # exactly clear of the margin (Corolla 72 kW against 72/103).
+                missing_fields.append("power_kw_hybrid_unverified")
                 context_effect -= self._config.power_tolerance_penalty
             else:
                 conflicting_fields.append("power_kw")

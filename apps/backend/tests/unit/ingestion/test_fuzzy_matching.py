@@ -769,3 +769,55 @@ def test_hybrid_category_requires_both_underlying_ts_carriers() -> None:
 
     assert "fuels" in compatible.matched_fields
     assert "fuels" in incomplete.conflicting_fields
+
+
+def _power_score(car_kw: int, car_fuels: set[str], ktype_kw: int, ktype_fuels: set[str]):  # type: ignore[no-untyped-def]
+    candidate = VehicleCandidate(
+        "k", "Kia", "Ceed", fuels=frozenset(ktype_fuels), power_kw=ktype_kw,
+    )
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+    return matcher._score(
+        VehicleMatchQuery("Ceed", manufacturer="Kia", fuels=frozenset(car_fuels), power_kw=car_kw),
+        candidate,
+    )
+
+
+@pytest.mark.parametrize(
+    ("car_fuels", "ktype_fuels"),
+    [
+        ({"petrol", "electricity", "hybrid_petrol"}, {"hybrid_petrol"}),
+        # Registered as petrol only, catalogued as a hybrid (Toyota).
+        ({"petrol"}, {"hybrid_petrol"}),
+        # Registered as a hybrid, catalogued by its combustion fuel (BMW X5 45e).
+        ({"petrol", "electricity", "hybrid_petrol"}, {"petrol"}),
+    ],
+)
+def test_a_hybrids_combustion_power_below_system_power_is_unverified(
+    car_fuels: set[str], ktype_fuels: set[str]
+) -> None:
+    score = _power_score(77, car_fuels, 104, ktype_fuels)
+
+    assert "power_kw_hybrid_unverified" in score.missing_fields
+    assert "power_kw" not in score.conflicting_fields
+
+
+def test_hybrid_power_above_system_power_or_a_non_hybrid_gap_still_conflicts() -> None:
+    above = _power_score(130, {"hybrid_petrol"}, 104, {"hybrid_petrol"})
+    petrol = _power_score(77, {"petrol"}, 104, {"petrol"})
+
+    assert "power_kw" in above.conflicting_fields
+    assert "power_kw" in petrol.conflicting_fields
+
+
+def test_an_exact_hybrid_power_match_still_separates_from_a_higher_sibling() -> None:
+    exact = VehicleCandidate("k72", "Toyota", "Corolla", fuels=frozenset({"hybrid_petrol"}), power_kw=72)
+    higher = VehicleCandidate("k103", "Toyota", "Corolla", fuels=frozenset({"hybrid_petrol"}), power_kw=103)
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, higher)))
+
+    result = matcher.match(
+        VehicleMatchQuery("Corolla", manufacturer="Toyota",
+                          fuels=frozenset({"hybrid_petrol"}), power_kw=72)
+    )
+
+    assert [c.candidate_reference for c in result.candidates] == ["k72", "k103"]
+    assert result.reason != "candidate_margin_not_met"

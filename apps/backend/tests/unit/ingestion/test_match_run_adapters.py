@@ -1,3 +1,5 @@
+import pytest
+
 from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import (
@@ -283,6 +285,63 @@ def test_evaluator_never_reports_candidate_only_ktype_as_resolved() -> None:
             },
         )
     )
+
+    assert evaluation.terminal == "provisional"
+    assert "candidate_only_not_graph_safe" in evaluation.reason_codes
+
+
+def _candidate_only_evaluation(engine_code: str | None, *, fingerprint: bool = False):  # type: ignore[no-untyped-def]
+    from ingestion.tecdoc.engine_fingerprint_proposals import ReviewedEngineFingerprintIndex
+
+    evaluator = TecDocDryRunEvaluator(
+        (
+            VehicleCandidate(
+                "candidate-only-1", "Volvo", "V60",
+                candidate_type="TecDocKTypeCandidateOnly",
+                engine_codes=frozenset({"D 4204 T14", "D 4204 T8"}),
+            ),
+            VehicleCandidate("other", "Volvo", "XC90", engine_codes=frozenset({"B4204T"})),
+        ),
+        reviewed_engine_fingerprints=(
+            _FixedFingerprints("D4204T14") if fingerprint else ReviewedEngineFingerprintIndex()
+        ),
+    )
+    normalized: dict[str, object] = {"manufacturer": "Volvo", "model_family": "V60"}
+    if engine_code:
+        normalized["engine_code"] = engine_code
+    return evaluator.evaluate(
+        MatchSourceRecord(1, {"normalization_status": "resolved", "normalized": normalized})
+    )
+
+
+class _FixedFingerprints:
+    def __init__(self, code: str) -> None:
+        self._code = code
+
+    def resolve(self, **_: object) -> str:
+        return self._code
+
+
+def test_the_cars_own_engine_code_confirms_a_candidate_only_ktype() -> None:
+    evaluation = _candidate_only_evaluation("D4204T14")
+
+    assert evaluation.terminal == "resolved"
+    assert "candidate_only_engine_confirmed" in evaluation.reason_codes
+    assert "candidate_only_not_graph_safe" not in evaluation.reason_codes
+
+
+@pytest.mark.parametrize(
+    ("engine_code", "fingerprint"),
+    [
+        (None, False),  # no engine code: nothing confirms
+        ("XYZ999", False),  # a code no KType carries: unverified
+        (None, True),  # a reviewed fingerprint's inference is not the car's own code
+    ],
+)
+def test_a_candidate_only_ktype_without_engine_confirmation_stays_provisional(
+    engine_code: str | None, fingerprint: bool
+) -> None:
+    evaluation = _candidate_only_evaluation(engine_code, fingerprint=fingerprint)
 
     assert evaluation.terminal == "provisional"
     assert "candidate_only_not_graph_safe" in evaluation.reason_codes

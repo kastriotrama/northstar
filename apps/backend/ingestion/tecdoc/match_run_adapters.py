@@ -335,6 +335,9 @@ class ResolvedMatchQuery:
     recovery_reason: str | None
     source_context: tuple[tuple[str, str], ...]
     source_model_resolution: Any
+    #: The engine code is the car's own (registry or AIS), not a reviewed
+    #: fingerprint's inference. Only an observed code may confirm a KType.
+    engine_code_observed: bool = False
 
 
 class TecDocDryRunEvaluator:
@@ -539,6 +542,7 @@ class TecDocDryRunEvaluator:
             (key, str(value)) for key in SOURCE_CONTEXT_FIELDS
             if (value := source_evidence.get(key)) is not None
         )) if self._context_policy.rules else ()
+        engine_code_observed = engine_code is not None
         if engine_code is None:
             engine_code = self._engine_fingerprints.resolve(
                 manufacturer=scope_manufacturer,
@@ -559,6 +563,7 @@ class TecDocDryRunEvaluator:
             bodywork,
             source_context,
             source_model_resolution.rule_ids,
+            engine_code_observed,
         )
         return ResolvedMatchQuery(
             key=cache_key,
@@ -574,6 +579,7 @@ class TecDocDryRunEvaluator:
             recovery_reason=recovery_reason,
             source_context=source_context,
             source_model_resolution=source_model_resolution,
+            engine_code_observed=engine_code_observed,
         )
 
     def resolved_query(self, record: MatchSourceRecord) -> ResolvedMatchQuery | None:
@@ -702,9 +708,14 @@ class TecDocDryRunEvaluator:
                 if field not in decision.hard_conflicts
             )
         if decision.selected_candidate_reference in self._candidate_only_references:
-            match_reasons.add("candidate_only_not_graph_safe")
-            if terminal == "resolved":
-                terminal = "provisional"
+            if terminal == "resolved" and _engine_confirms(resolved, match_result):
+                # TecDoc could not settle which engine this KType has; the
+                # car's own engine code is one of its engines, which settles it.
+                match_reasons.add("candidate_only_engine_confirmed")
+            else:
+                match_reasons.add("candidate_only_not_graph_safe")
+                if terminal == "resolved":
+                    terminal = "provisional"
         evaluation = MatchEvaluation(
             terminal,
             tuple(sorted(match_reasons)),
@@ -715,6 +726,14 @@ class TecDocDryRunEvaluator:
         )
         self._cache[cache_key] = evaluation
         return evaluation
+
+
+def _engine_confirms(query: ResolvedMatchQuery, match_result: Any) -> bool:
+    """The car's own engine code matched the selected KType's engine exactly."""
+
+    if not query.engine_code_observed or not match_result.candidates:
+        return False
+    return "engine_code" in match_result.candidates[0].matched_fields
 
 
 def _mapping(value: object) -> dict[str, Any]:

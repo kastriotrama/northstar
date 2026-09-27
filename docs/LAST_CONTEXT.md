@@ -2,6 +2,19 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-27 — Hybrid power and engine-confirmed candidate-only KTypes (local)
+
+- Hybrid power: TS gives combustion kW, TecDoc system kW. When car or KType is a hybrid and the car's kW is
+  lower, power is `power_kw_hybrid_unverified` (small penalty, no conflict); higher still conflicts. The
+  catalog has no engine power (local `staging.tecdoc_engine` is empty), so this is the matcher-side fix.
+- Candidate-only KTypes resolve when the car's own engine code (registry/AIS, not a fingerprint inference)
+  exactly matches one of the KType's engines (`candidate_only_engine_confirmed`).
+- Same 30,000-car sample, baseline -> final: resolved 23.9% -> 47.5% (+7,076, -6, 0 moved); engine
+  confirmation alone +18.6 pts. Engine agreement is consistency only here: no independent accuracy yet.
+- Validation: 1371 unit tests, ruff, mypy.
+- Risk / next: enable on live only after a reviewed reference set; stakeholder decision 4 (is engine
+  confirmation enough?) is still open.
+
 ## 2026-09-27 — Match impact report and tolerant engine-code comparison (local)
 
 - New `scripts/match_impact_report.py` (docs/match-impact-report.md): seeded, catalog-pinned sample of
@@ -171,14 +184,3 @@ Keep the latest 10 task entries only.
   - model year, max weight and length rules;
   - make + group code rules that complete new cars' TS-only fields.
 - Risk / next: needs decisions A–E. The rule store needs multi-field keys and its migration on live.
-
-## 2026-09-26 — AIS XML compared field by field with our TS vehicle data
-
-- Added `docs/AIS_VIN_EXPORT_FIELD_ANALYSIS.md` (6,403,668 passenger cars in both) and corrected the plan v2 where the comparison contradicted it (month, EV kW, name).
-- Valuable:
-  - 660,840 active passenger cars we don't have (our TS ends early Dec 2023);
-  - engine code for 5.88M cars (98.1% determined by variant/version, so a lookup table is possible);
-  - changes since 2023: 672,563 deregistered, 12,650 converted, 5,983 plate moves;
-  - new fields: weights, length, model year.
-- No value: fuel, gearbox, body, group, month, tyre, name (all copies of TS).
-- Risk / next: provider questions on the deletion flags. The sandbox schema `sandbox_step_xml` uses 6.9 GB of local disk (16 GB free).
