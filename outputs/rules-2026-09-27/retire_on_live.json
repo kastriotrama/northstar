@@ -1,0 +1,2286 @@
+{
+  "note": "Retire these on live after importing rules_export.json; the importer never retires. Match by definition, since live rule ids differ except for rules created on live.",
+  "rules": [
+    {
+      "rule_id": "31614f07-dc01-4850-9f69-e67c4be6dc35",
+      "source_field": "model",
+      "source_value": "VOLVO",
+      "target_field": "bodywork_form",
+      "target_value": "suv",
+      "conditions": [
+        {
+          "field": "model",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "VOLVO",
+            "XC40",
+            "XC60"
+          ],
+          "operator": "contains"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "VOLVO"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-26 22:28:27.774653+00:00"
+    },
+    {
+      "rule_id": "7b7f79e0-30b8-4f5e-9a2d-59fa9f43beea",
+      "source_field": "body_code",
+      "source_value": "AF",
+      "target_field": "bodywork_form",
+      "target_value": "hatchback",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Opel"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AA11"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2008"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "multi_purpose_vehicle"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:15:43.153432+00:00"
+    },
+    {
+      "rule_id": "f75b614a-12fe-4447-9a3b-8fdd30d74edf",
+      "source_field": "body_code",
+      "source_value": "AC",
+      "target_field": "bodywork_form",
+      "target_value": "suv",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Mazda"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "F91"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2016"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2019"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "estate"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:15:47.269290+00:00"
+    },
+    {
+      "rule_id": "467d4f9c-4b62-4a49-8a24-554d896f35d2",
+      "source_field": "body_code",
+      "source_value": "AF",
+      "target_field": "bodywork_form",
+      "target_value": "hatchback",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Fiat"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AXA1A",
+            "AXZ1A"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2010"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2012"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "multi_purpose_vehicle"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:15:51.782942+00:00"
+    },
+    {
+      "rule_id": "a3fc53af-db3f-41d1-be43-09fc2264bc6c",
+      "source_field": "body_code",
+      "source_value": "AD",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Maserati"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AB"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2002"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2004"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "coupe"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:15:55.521161+00:00"
+    },
+    {
+      "rule_id": "fd11bae6-097e-464f-a8ff-fc718f7328f9",
+      "source_field": "body_code",
+      "source_value": "AD",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Maserati"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AB"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "coupe"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:15:59.288841+00:00"
+    },
+    {
+      "rule_id": "315c77cc-3bdc-4773-95c3-b6348ae194a9",
+      "source_field": "body_code",
+      "source_value": "AD",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Maserati"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AB"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2005"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2005"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "coupe"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:03.059765+00:00"
+    },
+    {
+      "rule_id": "0fb8d393-4a80-444e-8e33-81ae25e89c03",
+      "source_field": "body_code",
+      "source_value": "AF",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Mercedes-Benz"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model_family",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "S-Class"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2022"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2025"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "multi_purpose_vehicle"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:06.837442+00:00"
+    },
+    {
+      "rule_id": "209016a0-35b4-4d05-9ee3-b03a28ceeef5",
+      "source_field": "body_code",
+      "source_value": "AF",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Cadillac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "ABAA"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2004"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2004"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "multi_purpose_vehicle"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:10.720525+00:00"
+    },
+    {
+      "rule_id": "570b12c8-31cf-4b4f-b832-b65b288c3e97",
+      "source_field": "body_code",
+      "source_value": "AF",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "TOYOTA YARIS 1,4D",
+            "TOYOTA YARIS D-4D"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2008"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2009"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "hatchback",
+            "multi_purpose_vehicle"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:14.330889+00:00"
+    },
+    {
+      "rule_id": "3f560d65-f7f2-4979-8c5b-c5f733d789a3",
+      "source_field": "body_code",
+      "source_value": "AC",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "TOYOTA AVENSIS 2,0 D-4D",
+            "TOYOTA AVENSIS D-4D"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2004"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2009"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "estate",
+            "hatchback"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:18.132024+00:00"
+    },
+    {
+      "rule_id": "ef7f7e82-e2fd-42a6-8b6b-53cc44c92108",
+      "source_field": "body_code",
+      "source_value": "AB",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model_family",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Yaris"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "YARIS 1,4 D-4D",
+            "YARIS 1,4D-4D TERRA 5-D",
+            "YARIS 1.4 D-4D",
+            "YARIS 5D 1,4 D-4D AUT",
+            "YARIS D-4D"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2005"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2011"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "hatchback"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:21.988998+00:00"
+    },
+    {
+      "rule_id": "e0dfafcf-ba24-493a-b1f1-6356bc567333",
+      "source_field": "body_code",
+      "source_value": "AB",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model_family",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Corolla"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "COROLLA 1,4 D-4D"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "hatchback"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:25.995417+00:00"
+    },
+    {
+      "rule_id": "d654a57a-d9c0-44fa-86e1-ae39e7746c28",
+      "source_field": "body_code",
+      "source_value": "AC",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model_family",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Avensis"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "model",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "AVENSIS 2,2 D-4D",
+            "AVENSIS 2,2 STW D D-4D",
+            "AVENSIS 2,2 STW D-4D",
+            "AVENSIS EXCEL D-4D",
+            "AVENSIS STW 2.0 D-4D DPF"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2006"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2014"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "estate"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:29.881144+00:00"
+    },
+    {
+      "rule_id": "38a083ca-533f-453c-9717-ec0cd80abc9a",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Toyota"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "TOYOTA  4D COROLLA",
+            "TOYOTA COROLLA 1,3 SEDAN",
+            "TOYOTA COROLLA 1,4 D-4D",
+            "TOYOTA COROLLA D-4D",
+            "TOYOTA COROLLA SEDAN",
+            "TOYOTA COROLLA SEDAN 1,6"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1986"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2007"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body",
+            "estate"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:35.022707+00:00"
+    },
+    {
+      "rule_id": "ea8ce6e1-cc2c-4687-b445-4788dfcbf0dc",
+      "source_field": "body_code",
+      "source_value": "AC",
+      "target_field": "bodywork_form",
+      "target_value": "hatchback",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MINI"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "variant",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "ML31",
+            "MM31",
+            "MM91",
+            "MN51",
+            "RC31",
+            "RE31",
+            "ZC51"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2001"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "2008"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body",
+            "estate"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:39.408343+00:00"
+    },
+    {
+      "rule_id": "67440c61-b530-4594-844f-be82da951520",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "estate",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Fiat"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "FIAT 127 1050 CL COMBI",
+            "FIAT 127 1050 L COMBI",
+            "FIAT 127 COMBI",
+            "FIAT 127 LS COMBI",
+            "FIAT 127 LS COMBI 1050",
+            "FIAT 127 SPECIAL COMBI"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1976"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1983"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body",
+            "hatchback"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:43.895790+00:00"
+    },
+    {
+      "rule_id": "1c196a6b-2ca8-4057-9d6a-1ab69571506d",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "B M C  MG MIDGET",
+            "BMC MG MIDGET",
+            "BMC MG MIDGET H/ST",
+            "M G MIDGET",
+            "MG MIDGET",
+            "MG MIDGET GT",
+            "MG MIDGET MARK I",
+            "MIDGET RACER EFFY"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1961"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1964"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:47.808546+00:00"
+    },
+    {
+      "rule_id": "cea05a0e-6ec8-4480-b71d-37cf26e9f345",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "B M C  MG MIDGET",
+            "BMC MG MIDGET",
+            "BMC MG MIDGET H/ST",
+            "M G MIDGET",
+            "MG MIDGET",
+            "MG MIDGET GT",
+            "MG MIDGET MARK I",
+            "MIDGET RACER EFFY"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1961"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1964"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:51.506948+00:00"
+    },
+    {
+      "rule_id": "1b58e47c-4e68-44be-aad6-1ff7ecc11416",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "M.G. TC",
+            "MG TC",
+            "MG TC 10 HP",
+            "MG TC MIDGET"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1946"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1949"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:55.303257+00:00"
+    },
+    {
+      "rule_id": "7c61af0e-9d10-4214-b80d-0df3e51646a5",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "M.G. TC",
+            "MG TC",
+            "MG TC 10 HP",
+            "MG TC MIDGET"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1946"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1949"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:16:59.339895+00:00"
+    },
+    {
+      "rule_id": "5d536b1c-5e2c-4b8d-b2ea-5c9f500cb9a2",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "MG T F MIDGET",
+            "MG TF",
+            "MG TF CAB",
+            "MG TF MIDGET"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1953"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1955"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:03.225393+00:00"
+    },
+    {
+      "rule_id": "f1dbc927-14a0-4cdd-aa48-c20ed7892a2a",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "estate",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Triumph"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "TRIUMPH HERALD",
+            "TRIUMPH HERALD 12/50",
+            "TRIUMPH HERALD 1200",
+            "TRIUMPH HERALD 1200 COU",
+            "TRIUMPH HERALD 1200 LIM",
+            "TRIUMPH HERALD 1200 MK I"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1962"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1965"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:07.311857+00:00"
+    },
+    {
+      "rule_id": "43abe6dc-8b53-42a3-9b87-cbd35a69ba64",
+      "source_field": "body_code",
+      "source_value": "AA",
+      "target_field": "bodywork_form",
+      "target_value": "estate",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Triumph"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "TRIUMPH HERALD",
+            "TRIUMPH HERALD 12/50",
+            "TRIUMPH HERALD 1200",
+            "TRIUMPH HERALD 1200 COU",
+            "TRIUMPH HERALD 1200 LIM",
+            "TRIUMPH HERALD 1200 MK I"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1962"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1965"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "sedan"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:11.005052+00:00"
+    },
+    {
+      "rule_id": "3452b159-6b52-4e7b-9412-2ef7911a4b04",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Cadillac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "CADILLAC  ELDORADO",
+            "CADILLAC ELDORADO",
+            "CADILLAC ELDORADO 2D HT",
+            "CADILLAC ELDORADO 2DR",
+            "CADILLAC ELDORADO 6367",
+            "CADILLAC ELDORADO 6437",
+            "CADILLAC ELDORADO 69347",
+            "CADILLAC ELDORADO AUTOMA",
+            "CADILLAC ELDORADO BI",
+            "CADILLAC ELDORADO BIARIT",
+            "CADILLAC ELDORADO BIARRI",
+            "CADILLAC ELDORADO BROUGH",
+            "CADILLAC ELDORADO CAB",
+            "CADILLAC ELDORADO CONV",
+            "CADILLAC ELDORADO CONV.",
+            "CADILLAC ELDORADO CONVER",
+            "CADILLAC ELDORADO SEV.",
+            "CADILLAC ELDORADO SEVIL",
+            "CADILLAC ELDORADO SEVILL",
+            "CADILLAC ELDORADO SPECIA",
+            "CADILLAC ELDORADO SPORT",
+            "CADILLAC FLEETW ELDORADO"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1960"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1970"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:15.059662+00:00"
+    },
+    {
+      "rule_id": "9a046b30-7502-4b3e-9822-5db56a028f45",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Cadillac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "CADILLAC  ELDORADO",
+            "CADILLAC ELDORADO",
+            "CADILLAC ELDORADO 2D HT",
+            "CADILLAC ELDORADO 2DR",
+            "CADILLAC ELDORADO 6367",
+            "CADILLAC ELDORADO 6437",
+            "CADILLAC ELDORADO 69347",
+            "CADILLAC ELDORADO AUTOMA",
+            "CADILLAC ELDORADO BI",
+            "CADILLAC ELDORADO BIARIT",
+            "CADILLAC ELDORADO BIARRI",
+            "CADILLAC ELDORADO BROUGH",
+            "CADILLAC ELDORADO CAB",
+            "CADILLAC ELDORADO CONV",
+            "CADILLAC ELDORADO CONV.",
+            "CADILLAC ELDORADO CONVER",
+            "CADILLAC ELDORADO SEV.",
+            "CADILLAC ELDORADO SEVIL",
+            "CADILLAC ELDORADO SEVILL",
+            "CADILLAC ELDORADO SPECIA",
+            "CADILLAC ELDORADO SPORT",
+            "CADILLAC FLEETW ELDORADO"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1953"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1957"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:19.134628+00:00"
+    },
+    {
+      "rule_id": "490ffcab-8a62-4373-bae6-4ca262615909",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Cadillac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "CADILLAC  ELDORADO",
+            "CADILLAC ELDORADO",
+            "CADILLAC ELDORADO 2D HT",
+            "CADILLAC ELDORADO 2DR",
+            "CADILLAC ELDORADO 6367",
+            "CADILLAC ELDORADO 6437",
+            "CADILLAC ELDORADO 69347",
+            "CADILLAC ELDORADO AUTOMA",
+            "CADILLAC ELDORADO BI",
+            "CADILLAC ELDORADO BIARIT",
+            "CADILLAC ELDORADO BIARRI",
+            "CADILLAC ELDORADO BROUGH",
+            "CADILLAC ELDORADO CAB",
+            "CADILLAC ELDORADO CONV",
+            "CADILLAC ELDORADO CONV.",
+            "CADILLAC ELDORADO CONVER",
+            "CADILLAC ELDORADO SEV.",
+            "CADILLAC ELDORADO SEVIL",
+            "CADILLAC ELDORADO SEVILL",
+            "CADILLAC ELDORADO SPECIA",
+            "CADILLAC ELDORADO SPORT",
+            "CADILLAC FLEETW ELDORADO"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1953"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1957"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:23.861072+00:00"
+    },
+    {
+      "rule_id": "ed4713e1-9178-4c24-b2fa-8ee8686ed2e8",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Cadillac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "CADILLAC  ELDORADO",
+            "CADILLAC ELDORADO",
+            "CADILLAC ELDORADO 2D HT",
+            "CADILLAC ELDORADO 2DR",
+            "CADILLAC ELDORADO 6367",
+            "CADILLAC ELDORADO 6437",
+            "CADILLAC ELDORADO 69347",
+            "CADILLAC ELDORADO AUTOMA",
+            "CADILLAC ELDORADO BI",
+            "CADILLAC ELDORADO BIARIT",
+            "CADILLAC ELDORADO BIARRI",
+            "CADILLAC ELDORADO BROUGH",
+            "CADILLAC ELDORADO CAB",
+            "CADILLAC ELDORADO CONV",
+            "CADILLAC ELDORADO CONV.",
+            "CADILLAC ELDORADO CONVER",
+            "CADILLAC ELDORADO SEV.",
+            "CADILLAC ELDORADO SEVIL",
+            "CADILLAC ELDORADO SEVILL",
+            "CADILLAC ELDORADO SPECIA",
+            "CADILLAC ELDORADO SPORT",
+            "CADILLAC FLEETW ELDORADO"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1960"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1970"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:27.796346+00:00"
+    },
+    {
+      "rule_id": "c51ec4bc-dbf6-49b2-8314-bba0070e2d95",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Pontiac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "POINTIAC FIREBIRD",
+            "POINTIAC FIREBIRD COUP\u00c9",
+            "PONTIAC 22337 FIREBIRD",
+            "PONTIAC 223372 FIREBIRD",
+            "PONTIAC 22637 FIREBIRD",
+            "PONTIAC 400 FIREBIRD",
+            "PONTIAC 400 FIREBIRD 226",
+            "PONTIAC FIREBIRD",
+            "PONTIAC FIREBIRD 22337",
+            "PONTIAC FIREBIRD 22337 C",
+            "PONTIAC FIREBIRD 223372",
+            "PONTIAC FIREBIRD 22437",
+            "PONTIAC FIREBIRD 2DR HT",
+            "PONTIAC FIREBIRD 350",
+            "PONTIAC FIREBIRD 400",
+            "PONTIAC FIREBIRD AUTOMAT",
+            "PONTIAC FIREBIRD CAB",
+            "PONTIAC FIREBIRD CABRIOL",
+            "PONTIAC FIREBIRD CONV",
+            "PONTIAC FIREBIRD COUPE",
+            "PONTIAC FIREBIRD COUP\u00c9",
+            "PONTIAC FIREBIRD HT",
+            "PONTIAC FIREBIRD HT CP\u00c9",
+            "PONTIAC FIREBIRD SPORT C",
+            "PONTIAC HOT GE FIREBIRD",
+            "PONTICA FIREBIRD 223373"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1967"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1968"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:31.519958+00:00"
+    },
+    {
+      "rule_id": "3f86fc4c-1210-49d4-8c95-ea70564b17a2",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Pontiac"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "POINTIAC FIREBIRD",
+            "POINTIAC FIREBIRD COUP\u00c9",
+            "PONTIAC 22337 FIREBIRD",
+            "PONTIAC 223372 FIREBIRD",
+            "PONTIAC 22637 FIREBIRD",
+            "PONTIAC 400 FIREBIRD",
+            "PONTIAC 400 FIREBIRD 226",
+            "PONTIAC FIREBIRD",
+            "PONTIAC FIREBIRD 22337",
+            "PONTIAC FIREBIRD 22337 C",
+            "PONTIAC FIREBIRD 223372",
+            "PONTIAC FIREBIRD 22437",
+            "PONTIAC FIREBIRD 2DR HT",
+            "PONTIAC FIREBIRD 350",
+            "PONTIAC FIREBIRD 400",
+            "PONTIAC FIREBIRD AUTOMAT",
+            "PONTIAC FIREBIRD CAB",
+            "PONTIAC FIREBIRD CABRIOL",
+            "PONTIAC FIREBIRD CONV",
+            "PONTIAC FIREBIRD COUPE",
+            "PONTIAC FIREBIRD COUP\u00c9",
+            "PONTIAC FIREBIRD HT",
+            "PONTIAC FIREBIRD HT CP\u00c9",
+            "PONTIAC FIREBIRD SPORT C",
+            "PONTIAC HOT GE FIREBIRD",
+            "PONTICA FIREBIRD 223373"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1967"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1968"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:35.494901+00:00"
+    },
+    {
+      "rule_id": "c7bfa149-b6b2-4539-9448-0894414e7333",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "coupe",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "B M C  1800 MGB",
+            "B M C 1800 MGB",
+            "BMC 1800 MGB",
+            "BMC 1800 MGB GRAN TURISM",
+            "BMC 1800 MGB OVERDRIVE",
+            "BMC 1800 MGB RONDSTER",
+            "BMC MG MGB",
+            "BMC MGB",
+            "BMC MGB 1800",
+            "BMC MGB 1800 GT",
+            "BMC MGB GRAN TURISMO",
+            "M G B BMC 1800",
+            "MGB",
+            "MGB 1800",
+            "MGB 1800 GT",
+            "MGB ROADSTER05",
+            "MGB SPORT",
+            "MGB SPORTS"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1964"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1981"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:39.672014+00:00"
+    },
+    {
+      "rule_id": "800be1e2-7d10-4025-aa91-ebcb0076a6ab",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "coupe",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "MG"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "M G A",
+            "M G A 1600",
+            "M G A SPORT",
+            "M G A TWIN CAM",
+            "M.G.A. MED HARD TOP",
+            "MG. A SPORT",
+            "MGA",
+            "MGA 1500",
+            "MGA 1600",
+            "MGA 1600 SPORT",
+            "MGA 1600 TOURER",
+            "MGA CUP\u00c9",
+            "MGA SP.",
+            "MGA SPORT",
+            "MGA SPORT 1600",
+            "MGA TWIN",
+            "MGA TWIN CAM"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1956"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1962"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:43.613066+00:00"
+    },
+    {
+      "rule_id": "ae180d39-27cb-40c6-afb9-7d6be0a599c1",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "coupe",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Mercedes-Benz"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "MERCEDE BENZ 450 SL",
+            "MERCEDES 380 SL",
+            "MERCEDES 450 SL",
+            "MERCEDES BENZ 350 SL",
+            "MERCEDES BENZ 350 SL CP",
+            "MERCEDES BENZ 380 SL",
+            "MERCEDES BENZ 450 SL",
+            "MERCEDES-BENZ 450 SL"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1971"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1981"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:47.471032+00:00"
+    },
+    {
+      "rule_id": "460ce230-2091-49df-964a-5488460ccef3",
+      "source_field": "body_code",
+      "source_value": "01",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Buick"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "BUICK 434373 GS 455",
+            "BUICK 434375 GS 455",
+            "BUICK 434375 GS455",
+            "BUICK 446375 GS455",
+            "BUICK GS 455",
+            "BUICK GS 455 HARD TOP",
+            "BUICK GS 455 HT COUPE"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1970"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1972"
+          ],
+          "operator": "lte"
+        },
+        {
+          "field": "bodywork_form",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "covered_body"
+          ],
+          "operator": "equals"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:51.231279+00:00"
+    },
+    {
+      "rule_id": "3d533740-f745-4849-889d-1ca712fe3aff",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Ford"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "FORD CROSTLINE SUNLINER",
+            "FORD FAIRLAINE SUNLINER",
+            "FORD SUNLINER",
+            "FORD SUNLINER CONV"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1954"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1955"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:54.886262+00:00"
+    },
+    {
+      "rule_id": "b7bf53d5-34d4-45f4-9856-74063b7c799b",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Chevrolet"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "CHEVROLET IMPALA CAB",
+            "CHEVROLET IMPALA CAB 2D",
+            "CHEVROLET IMPALA CABRIOL",
+            "CHEVROLET IMPALA CONV",
+            "CHEVROLET IMPALA CONVERT",
+            "CHEVROLET IMPALA COUP",
+            "CHEVROLET IMPALA COUP\u00c9",
+            "CHEVROLET IMPALA HT",
+            "CHEVROLET IMPALA HT 4DR",
+            "CHEVROLET IMPALA HTC",
+            "CHEVROLET IMPALA LS",
+            "CHEVROLET IMPALA LT",
+            "CHEVROLET IMPALA S COUP\u00c9",
+            "CHEVROLET IMPALA SPORT",
+            "CHEVROLET IMPALA SPORT C",
+            "CHEVROLET IMPALA SPORT S",
+            "CHEVROLET IMPALA SS",
+            "CHEVROLET IMPALA SS CONV",
+            "CHEVROLET V8 1837 IMPALA",
+            "CHEVROLET V8 1839 IMPALA",
+            "CHEVROLET V8 1869 IMPALA",
+            "CHEVROLET V8 IMPALA",
+            "CHEVROLET V8 IMPALA 1839",
+            "CHEVROLET V8-1837 IMPALA",
+            "CHEVROLET VB1837 IMPALA",
+            "CHEVROLETT IMPALA",
+            "CHEVROLT IMPALA",
+            "CHEVRROLET IMPALA",
+            "CHEVTROLET 6 CYL IMPALA"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1958"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1962"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:17:59.003091+00:00"
+    },
+    {
+      "rule_id": "b16349be-9b49-44c7-96d9-4e8436790782",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "sedan",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Dodge"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "DODGE DART",
+            "DODGE DART 440",
+            "DODGE DART 440 CONVERTIB",
+            "DODGE DART 440 HARD TOP",
+            "DODGE DART 440 SD3 H",
+            "DODGE DART 440 SD3-H",
+            "DODGE DART 440 SD4-H",
+            "DODGE DART 440 V 8",
+            "DODGE DART 440 V8",
+            "DODGE DART 440 V8 2-D",
+            "DODGE DART 440SD",
+            "DODGE DART 440SD3-H",
+            "DODGE DART 440SD4-H",
+            "DODGE DART 440V8 HARDTOP",
+            "DODGE DART GT HARD TOP",
+            "DODGE DART PD3 L SENECA",
+            "DODGE DART PD3-L SENECA",
+            "DODGE DART PD3H",
+            "DODGE DART PD3H PHOENIX",
+            "DODGE DART PHOENI XV8",
+            "DODGE DART PHOENIX",
+            "DODGE DART PHOENIX HT V8",
+            "DODGE DART PHOENIX PD 4H",
+            "DODGE DART PHOENIX RD",
+            "DODGE DART PHOENIX RD3-H",
+            "DODGE DART PHOENIX RD4-H",
+            "DODGE DART PHONIIX HT",
+            "DODGE DART PIONEER PD-3M",
+            "DODGE DART RD3-H",
+            "DODGE DART RD4-H",
+            "DODGE DART SD3-L",
+            "DODGE DART SENECA",
+            "DODGE DART SENECA RB-3L",
+            "DODGE DART SENECA RD 3L",
+            "DODGE DART SENECA RD-3L",
+            "DODGE DART SENECA RO 3L",
+            "DODGE DART V 8 PHONIX HA",
+            "DODGE DART V8 HARD TOP",
+            "DODGE PD DART PHOENIX"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1960"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1962"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:18:02.798729+00:00"
+    },
+    {
+      "rule_id": "e26b5cb8-b2d8-4e3f-a7db-a4fbb8e7fee6",
+      "source_field": "body_code",
+      "source_value": "empty",
+      "target_field": "bodywork_form",
+      "target_value": "coupe",
+      "conditions": [
+        {
+          "field": "manufacturer",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "Jensen"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "brand",
+          "layer": "source",
+          "value": null,
+          "values": [
+            "JENSEN HEALEY",
+            "JENSEN HEALEY CONVER"
+          ],
+          "operator": "equals"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1974"
+          ],
+          "operator": "gte"
+        },
+        {
+          "field": "production_year",
+          "layer": "normalized",
+          "value": null,
+          "values": [
+            "1974"
+          ],
+          "operator": "lte"
+        }
+      ],
+      "retired_at": "2026-09-27 10:18:06.698387+00:00"
+    }
+  ]
+}
