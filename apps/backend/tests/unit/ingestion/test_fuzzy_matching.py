@@ -126,7 +126,10 @@ def test_engine_code_is_compared_to_the_full_candidate_engine_set() -> None:
     candidate = VehicleCandidate(
         "multi-engine", "Opel", "Insignia", engine_codes=frozenset({"A19DTR", "Z19DTR"}),
     )
-    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate,)))
+    # B20DTH is a real catalog engine (another KType carries it), so a car
+    # claiming it contradicts this KType rather than being unverified.
+    other = VehicleCandidate("other", "Opel", "Astra", engine_codes=frozenset({"B20DTH"}))
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate, other)))
 
     matched = matcher._score(
         VehicleMatchQuery("Insignia", manufacturer="Opel", engine_code="Z 19 DTR"),
@@ -140,6 +143,66 @@ def test_engine_code_is_compared_to_the_full_candidate_engine_set() -> None:
     assert "engine_code" in matched.matched_fields
     assert "engine_code" not in matched.conflicting_fields
     assert "engine_code" in conflict.conflicting_fields
+
+
+def test_engine_code_forms_and_family() -> None:
+    from ingestion.fuzzy_matching import engine_code_family, engine_code_forms
+
+    assert engine_code_forms("BHZ (DV6FC)") == {"BHZDV6FC", "BHZ", "DV6FC"}
+    assert engine_code_forms("D 4204 T14") == {"D4204T14"}
+    assert engine_code_family("K9K 276") == "K9K"
+    assert engine_code_family("D4FB-H") == "D4FB"
+    assert engine_code_family("BHZ (DV6FC)") is None
+    assert engine_code_family("D4204T14") is None
+    # A head too short to name an engine alone is no family.
+    assert engine_code_family("M 177.980") is None
+    assert engine_code_family("OM 651.913") is None
+
+
+def _engine_score(car_engine: str, *catalog_engines: str, others: tuple[str, ...] = ()):  # type: ignore[no-untyped-def]
+    candidate = VehicleCandidate("k", "Renault", "Clio", engine_codes=frozenset(catalog_engines))
+    other = VehicleCandidate("o", "Renault", "Megane", engine_codes=frozenset(others))
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((candidate, other)))
+    return matcher._score(
+        VehicleMatchQuery("Clio", manufacturer="Renault", engine_code=car_engine), candidate
+    )
+
+
+@pytest.mark.parametrize(
+    ("car", "catalog"),
+    [("BHZ", "BHZ (DV6FC)"), ("DV6FC", "BHZ (DV6FC)"), ("D4204T14", "D 4204 T14")],
+)
+def test_bracket_and_spacing_forms_are_the_same_engine(car: str, catalog: str) -> None:
+    score = _engine_score(car, catalog)
+    assert "engine_code" in score.matched_fields
+    assert not score.conflicting_fields
+
+
+@pytest.mark.parametrize(
+    ("car", "catalog"), [("K9K", "K9K 276"), ("D4FB-H", "D4FB")]
+)
+def test_same_engine_family_is_compatible_with_a_smaller_bonus(car: str, catalog: str) -> None:
+    family = _engine_score(car, catalog)
+    exact = _engine_score(catalog, catalog)
+
+    assert "engine_code_family" in family.matched_fields
+    assert not family.conflicting_fields
+    assert family.separation_score < exact.separation_score
+
+
+def test_an_engine_code_no_ktype_carries_is_unverified_not_a_conflict() -> None:
+    unknown = _engine_score("3DU", "K9K 276")
+    known_other = _engine_score("F4R", "K9K 276", others=("F4R 870",))
+    different_volvo = _engine_score("B5254T", "B 5254 T6", others=("B5254T",))
+
+    assert "engine_code_unverified" in unknown.missing_fields
+    assert not unknown.conflicting_fields
+    assert "engine_code" in known_other.conflicting_fields
+    # Two variants of one family are different engines (Renault D4F-742 / D4F 740).
+    variants = _engine_score("D4F-742", "D4F 740", others=("D4F-742",))
+    assert "engine_code" in variants.conflicting_fields
+    # No separator, no family: B5254T and B5254T6 stay different engines.
+    assert "engine_code" in different_volvo.conflicting_fields
 
 
 def test_noisy_manufacturer_is_scoped_but_never_auto_resolved() -> None:
@@ -260,7 +323,8 @@ def test_year_fuel_and_engine_context_raise_a_supported_candidate() -> None:
             "fuels",
         ),
         (
-            VehicleMatchQuery(manufacturer="Volvo", model="XC90", engine_code="D5244T"),
+            # D4204T is the XC60's engine in this catalog: a known, different engine.
+            VehicleMatchQuery(manufacturer="Volvo", model="XC90", engine_code="D4204T"),
             "engine_code",
         ),
     ],

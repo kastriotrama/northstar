@@ -2,6 +2,21 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-27 — Match impact report and tolerant engine-code comparison (local)
+
+- New `scripts/match_impact_report.py` (docs/match-impact-report.md): seeded, catalog-pinned sample of
+  `core.vehicles`, real matcher, terminals, engine agreement, optional reviewed reference set, car-by-car compare.
+- Baseline, 30,000 registered passenger cars, catalog prod-v2: resolved 23.9% (plan v2 said 16.0% before
+  body corrections and AIS engine codes). Peugeot 0%.
+- Matcher: engine codes match on TecDoc bracket parts (`BHZ` = `BHZ (DV6FC)`); a bare family matches its
+  variants with half the bonus (`K9K` vs `K9K 276`), but two variants (`D4F-742` / `D4F 740`) still conflict;
+  a code no KType carries is `engine_code_unverified` and routes to provisional, never resolved.
+- Result on the same sample: resolved 25.6% (+1.7 pts, +508, 0 lost, 0 moved); hard conflicts -6.4 pts;
+  Peugeot 0% -> 22.4%. A first version also matched variants and lost 52 Renault cars; narrowed.
+- Validation: 1362 unit tests, ruff, mypy; integration suite passes except two failures that also fail on
+  the prior commit (bundle import fixture, normalization review repository duplicate key).
+- Next: reference set (needs a person), hybrid/EV power, candidate-only KTypes confirmed by engine.
+
 ## 2026-09-27 — Review corrections no longer drop the registry value (local)
 
 - `vehicle_core_ts.process_ts_page` folded reviews into the TS values (`{**ts, **reviews}`), so a corrected field
@@ -167,9 +182,3 @@ Keep the latest 10 task entries only.
   - new fields: weights, length, model year.
 - No value: fuel, gearbox, body, group, month, tyre, name (all copies of TS).
 - Risk / next: provider questions on the deletion flags. The sandbox schema `sandbox_step_xml` uses 6.9 GB of local disk (16 GB free).
-
-## 2026-09-26 — AIS enrichment plan v2, measured on the full live copy
-
-- Wrote `docs/AIS_VIN_EXPORT_ENRICHMENT_PLAN.md` (v2). Each plan step was simulated with the real matcher on 30,000 random passenger cars (prod-v2 catalog), with the AIS engine code as an accuracy proxy.
-- Findings: today 16.0% resolve. A naive XML import is net 0. Tolerant engine compare +1.5 points, hybrid kW +1.5, body fallback +9.7 (accuracy equal to today), and engine-confirmed candidate-only k-types up to +14.9. The XML name equals the TS brand text, so it adds no model information.
-- Risk / next: the accuracy check is a proxy, so build a reference set (step 0). Analysis scripts are in the session scratchpad, not the repo; step 0 turns them into a CLI.

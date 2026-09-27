@@ -329,6 +329,16 @@ class ConfidenceRouter:
                 "ROUTE-REVIEW-AMBIGUOUS-V1",
                 "The top candidates are too close to separate safely.",
             )
+        if (
+            confidence >= self.policy.resolved_threshold
+            and "engine_code_unverified" in match_result.candidates[0].missing_fields
+        ):
+            return (
+                "provisional",
+                ("engine_code_unverified",),
+                "ROUTE-PROVISIONAL-ENGINE-UNVERIFIED-V1",
+                "The car's engine code is unknown to the catalog, so it confirms nothing.",
+            )
         if confidence >= self.policy.resolved_threshold:
             return (
                 "resolved",

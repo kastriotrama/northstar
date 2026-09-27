@@ -36,6 +36,42 @@ def _normalized_code(value: str) -> str:
     return _NON_ALPHANUMERIC.sub("", unicodedata.normalize("NFKC", value).upper())
 
 
+_ENGINE_BRACKET = re.compile(r"\(([^()]*)\)")
+_ENGINE_HEAD_SPLIT = re.compile(r"[\s\-]+")
+
+
+@lru_cache(maxsize=250_000)
+def engine_code_forms(value: str) -> frozenset[str]:
+    """Forms under which one engine code is the same engine, compared compactly.
+
+    TecDoc writes a manufacturer code with its alternative in brackets
+    (`BHZ (DV6FC)`); either part, or the whole, names that engine.
+    """
+
+    text = unicodedata.normalize("NFKC", value).upper()
+    parts = {text, re.sub(r"\([^()]*\)", " ", text), *_ENGINE_BRACKET.findall(text)}
+    return frozenset(form for part in parts if (form := _normalized_code(part)))
+
+
+@lru_cache(maxsize=250_000)
+def engine_code_family(value: str) -> str | None:
+    """The engine family a code's first token names: `K9K 276` and `K9K-H` -> K9K.
+
+    A family is compatible only with a code that names the family alone, never
+    with another variant of it.
+
+    None when the code has no separate head, or the head is too short to name
+    an engine on its own (`M 177.980`, `OM 651`).
+    """
+
+    text = re.sub(r"\([^()]*\)", " ", unicodedata.normalize("NFKC", value).upper()).strip()
+    tokens = [token for token in _ENGINE_HEAD_SPLIT.split(text) if token]
+    if len(tokens) < 2:
+        return None
+    head = _normalized_code(tokens[0])
+    return head if len(head) >= 3 and not head.isdigit() else None
+
+
 @lru_cache(maxsize=250_000)
 def _edit_similarity(left: str, right: str) -> float:
     left_compact = left.replace(" ", "")
@@ -126,6 +162,9 @@ class FuzzyMatchConfig:
     fuel_match_bonus: float = 0.05
     fuel_conflict_penalty: float = 0.15
     engine_match_bonus: float = 0.12
+    # Same engine family, different variant suffix (`K9K 276` against `K9K`):
+    # compatible, but weaker than the exact engine.
+    engine_family_match_bonus: float = 0.06
     engine_conflict_penalty: float = 0.25
     displacement_match_bonus: float = 0.05
     displacement_conflict_penalty: float = 0.25
@@ -176,6 +215,7 @@ class FuzzyMatchConfig:
             self.fuel_match_bonus,
             self.fuel_conflict_penalty,
             self.engine_match_bonus,
+            self.engine_family_match_bonus,
             self.engine_conflict_penalty,
             self.displacement_match_bonus,
             self.displacement_conflict_penalty,
@@ -423,6 +463,13 @@ class ManufacturerCandidateIndex:
                         if normalized_model := _normalized_text(value):
                             labels.setdefault(normalized_model, set()).add(candidate.model)
         self._all = tuple(sorted(by_reference.values(), key=lambda item: item.candidate_reference))
+        known: set[str] = set()
+        for candidate in self._all:
+            for code in candidate.engine_codes:
+                known |= engine_code_forms(code)
+                if family := engine_code_family(code):
+                    known.add(family)
+        self._known_engine_forms = frozenset(known)
         self._by_manufacturer_key = {
             key: tuple(sorted(values.values(), key=lambda item: item.candidate_reference))
             for key, values in by_manufacturer_key.items()
@@ -434,6 +481,14 @@ class ManufacturerCandidateIndex:
             )
             for key, values in model_labels_by_manufacturer_key.items()
         }
+
+    def knows_engine(self, code: str) -> bool:
+        """True when any catalog KType carries this engine code or its family."""
+
+        family = engine_code_family(code)
+        return bool(engine_code_forms(code) & self._known_engine_forms) or (
+            family is not None and family in self._known_engine_forms
+        )
 
     def recover_model_from_brand(self, manufacturer: str, brand: str) -> str | None:
         """Return one unique longest catalog model explicitly present in Brand text."""
@@ -780,16 +835,30 @@ class FuzzyVehicleMatcher:
                 conflicting_fields.append("fuels")
                 context_effect -= self._config.fuel_conflict_penalty
 
-        query_engine = _normalized_code(query.engine_code) if query.engine_code else ""
-        candidate_engines = {
-            normalized for code in candidate.engine_codes if (normalized := _normalized_code(code))
-        }
-        if query_engine:
-            if not candidate_engines:
+        query_engine = query.engine_code or ""
+        query_forms = engine_code_forms(query_engine) if query_engine else frozenset()
+        if query_forms:
+            candidate_forms: set[str] = set()
+            candidate_families: set[str] = set()
+            for code in candidate.engine_codes:
+                candidate_forms |= engine_code_forms(code)
+                candidate_families.add(engine_code_family(code) or _normalized_code(code))
+            query_family = engine_code_family(query_engine) or _normalized_code(query_engine)
+            if not candidate_forms:
                 missing_fields.append("engine_code")
-            elif query_engine in candidate_engines:
+            elif query_forms & candidate_forms:
                 matched_fields.append("engine_code")
                 context_effect += self._config.engine_match_bonus
+            elif query_family in candidate_forms or (candidate_families & query_forms):
+                # One side names only the family (`K9K` against `K9K 276`).
+                # Two different variants of a family (`D4F-742`, `D4F 740`)
+                # are different engines and stay a conflict below.
+                matched_fields.append("engine_code_family")
+                context_effect += self._config.engine_family_match_bonus
+            elif not self._index.knows_engine(query_engine):
+                # A code no KType carries cannot contradict one; it cannot
+                # confirm one either, so routing holds the car at provisional.
+                missing_fields.append("engine_code_unverified")
             else:
                 conflicting_fields.append("engine_code")
                 context_effect -= self._config.engine_conflict_penalty
