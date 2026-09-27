@@ -2,6 +2,18 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-27 — 50k-car sample database for testing (local, not in git)
+
+- `outputs/sample-db/northstar-sample-50k-2026-09-27.dump` (85 MB, pg_restore custom format; the folder has
+  its own `.gitignore`, the dump holds licensed TecDoc data and real plates/VINs): 50,000 registered passenger
+  cars (seed `northstar-test-dump-v1`, the 30,000 impact-sample cars excluded) with their TS records,
+  normalization, identifiers, links, ledger, facts, rule applications and review items; all rules whole; the
+  pinned TecDoc batch. Built in local database `northstar_sample_50k`; README and build script beside the dump.
+- Validation: restored into a scratch database with `--exit-on-error` (counts match, dropped after); API
+  search (50,000) and matching lookup work against it; impact report on all 50k: 47.9% resolved (48.2% on
+  the tuning sample).
+- Risk / next: pipeline v10 like the source (no `2wd`); no Neo4j graph or match chunks; share privately only.
+
 ## 2026-09-27 — Body compatibility rulings in the matcher (local)
 
 - Matcher reads registry-to-TecDoc body rulings (vocabulary `bodywork`, `core.tecdoc_resolution_rules`,
@@ -169,22 +181,3 @@ Keep the latest 10 task entries only.
   - stakeholder calls on the gray zone, crossovers and M1 people carriers;
   - 431k cars have no identifiable model, and 175k keep a vague national code;
   - the matcher needs bodywork context rules where the values now differ from TecDoc.
-
-## 2026-09-26 — Vehicles tab moved onto NorthStar vehicles (`core.vehicles`)
-
-- API: new `vehicles` feature under `/v1/vehicles` (search, facets, field catalog, detail by
-  `NOR-` ID with per-value source, losing values, plate history, links, rules). The TS
-  screen's endpoints moved to `/v1/ts-records`. Matching looks a car up by `vehicle_id`
-  and runs on its merged values over its TS derivation (`overlaid_fields` says which came
-  from AIS/review/rule); the summary evaluates `core.vehicles`. Text search also finds a
-  car by a previous plate and by a plate typed with a space.
-- Web: Vehicles tab with NOR ID column, registry-status filter/label, source badges,
-  plate history; TS screen on the new URLs.
-- Also fixed: TS backfill stored tyres as a Python dict repr (regression test); mypy/ruff
-  errors in the vehicle-core commit; graph test now excludes the non-graph `NOR` prefix.
-  `migrate-vehicle-core` runs on every deploy; design in `docs/vehicle-core-design.md`.
-- Validation: 1451 backend tests (7 new integration, 24 new/updated unit), ruff, strict
-  mypy, 46 web tests, prod build; clicked through list, record panel and TS screen against
-  a seeded local API. `pages.integration.spec` needs the full live copy to pass.
-- Risk / next: free-text search scans the full table (OR with make/model substrings);
-  run the live-copy sequence (backfill → TSC rules → AIS → rules) and check counts.
