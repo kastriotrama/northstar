@@ -821,3 +821,49 @@ def test_an_exact_hybrid_power_match_still_separates_from_a_higher_sibling() -> 
 
     assert [c.candidate_reference for c in result.candidates] == ["k72", "k103"]
     assert result.reason != "candidate_margin_not_met"
+
+
+def _body_score(car_body: str, *ktype_bodies: str, pairs: frozenset[tuple[str, str]]):  # type: ignore[no-untyped-def]
+    candidate = VehicleCandidate("k", "Volvo", "S60", bodyworks=frozenset(ktype_bodies))
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((candidate,)), bodywork_compatible_pairs=pairs
+    )
+    return matcher._score(VehicleMatchQuery("S60", manufacturer="Volvo", bodywork=car_body), candidate)
+
+
+COVERED = frozenset({("covered_body", "sedan"), ("multi_purpose_vehicle", "bus")})
+
+
+@pytest.mark.parametrize(("car", "ktype"), [("covered_body", "sedan"), ("multi_purpose_vehicle", "bus")])
+def test_a_reviewed_broader_body_is_compatible_not_a_conflict(car: str, ktype: str) -> None:
+    score = _body_score(car, ktype, pairs=COVERED)
+
+    assert "bodywork_compatible_not_confirmed" in score.missing_fields
+    assert "bodywork" not in score.conflicting_fields
+
+
+def test_body_pairs_are_directional_and_never_beat_an_exact_body() -> None:
+    reverse = _body_score("sedan", "covered_body", pairs=COVERED)
+    unpaired = _body_score("covered_body", "convertible", pairs=COVERED)
+    exact = _body_score("multi_purpose_vehicle", "multi_purpose_vehicle", "bus", pairs=COVERED)
+    without_rulings = _body_score("covered_body", "sedan", pairs=frozenset())
+
+    assert "bodywork" in reverse.conflicting_fields
+    assert "bodywork" in unpaired.conflicting_fields
+    assert "bodywork" in exact.matched_fields
+    assert "bodywork" in without_rulings.conflicting_fields
+
+
+def test_an_exact_body_still_separates_from_a_compatible_sibling() -> None:
+    mpv = VehicleCandidate("mpv", "Citroen", "Berlingo", bodyworks=frozenset({"multi_purpose_vehicle"}))
+    van = VehicleCandidate("van", "Citroen", "Berlingo", bodyworks=frozenset({"van"}))
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((mpv, van)), bodywork_compatible_pairs=COVERED | {("multi_purpose_vehicle", "van")}
+    )
+
+    result = matcher.match(
+        VehicleMatchQuery("Berlingo", manufacturer="Citroen", bodywork="multi_purpose_vehicle")
+    )
+
+    assert [c.candidate_reference for c in result.candidates] == ["mpv", "van"]
+    assert result.reason != "candidate_margin_not_met"

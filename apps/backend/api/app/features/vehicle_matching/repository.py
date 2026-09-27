@@ -37,7 +37,11 @@ from ingestion.vehicle_core_query import (
 )
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
-from ingestion.vocabulary_alignment import load_drive_alignment, load_fuel_alignment
+from ingestion.vocabulary_alignment import (
+    load_bodywork_alignment,
+    load_drive_alignment,
+    load_fuel_alignment,
+)
 
 CATALOG_TABLE = "core.tecdoc_canonical_candidates"
 
@@ -56,6 +60,7 @@ class MatcherSources:
     manufacturer_rules: Any
     fuel_alignment: Any
     drive_alignment: Any
+    bodywork_alignment: Any = None
 
 
 #: The normalized keys the matcher reads that a vehicle carries under the same
@@ -171,6 +176,7 @@ class VehicleMatchingRepository:
                 manufacturer_rules=manufacturer_rules,
                 fuel_alignment=load_fuel_alignment(connection),
                 drive_alignment=load_drive_alignment(connection),
+                bodywork_alignment=load_bodywork_alignment(connection),
             )
 
     def vehicles_for_identifier(self, identifier: str, *, limit: int = 10) -> list[str]:

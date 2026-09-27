@@ -2,6 +2,22 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-27 — Body compatibility rulings in the matcher (local)
+
+- Matcher reads registry-to-TecDoc body rulings (vocabulary `bodywork`, `core.tecdoc_resolution_rules`,
+  relation `compatible`) like drive: a broader registry body scores neutral with a small penalty, never
+  a conflict; an exact body still wins. Wired into the Vehicles-tab matcher and `match-ts-tecdoc`.
+- Local rulings written via `TecDocReviewRepository.insert_compatible_resolution`, reviewed_by
+  `claude-proposal-2026-09-27 (local; awaiting data-owner review)`: `covered_body` -> sedan, hatchback,
+  estate, coupe, suv, MPV; `multi_purpose_vehicle` -> bus, van. Included in
+  `outputs/rules-2026-09-27/rules_export.json` (32 TecDoc resolution rules).
+- Same 30,000 cars: 47.5% -> 48.2% (+220, 0 lost, 0 moved). A first version without the penalty lost 44
+  MPVs whose exact MPV KType tied with a van sibling.
+- Drive fill not done: every local TS result is pipeline v10; v11's `2wd` rule never ran (2.34M cars).
+  Needs `renormalize_all` (7,255,433 rows, ~8 h) and a vehicle refresh; host has ~9.5 GB free vs a 33 GB
+  results table, so it needs disk first.
+- Validation: 1386 tests (unit + vehicles API + new bodywork alignment integration), ruff, mypy.
+
 ## 2026-09-27 — Hybrid power and engine-confirmed candidate-only KTypes (local)
 
 - Hybrid power: TS gives combustion kW, TecDoc system kW. When car or KType is a hybrid and the car's kW is
@@ -172,15 +188,3 @@ Keep the latest 10 task entries only.
   a seeded local API. `pages.integration.spec` needs the full live copy to pass.
 - Risk / next: free-text search scans the full table (OR with make/model substrings);
   run the live-copy sequence (backfill → TSC rules → AIS → rules) and check counts.
-
-## 2026-09-26 — Overview: updating TS data from the AIS file (no AIS table)
-
-- Added `docs/AIS_TS_UPDATE_OVERVIEW.md`, which lists exactly what would change:
-  - 778,511 existing records get newer registry values, updated in place with the previous values kept in the record;
-  - new values: engine code 5.96M, model year, weights, length;
-  - 660,840 new passenger cars.
-- Rule candidates measured (at least 5 cars and 95% agreement; unseen-car test):
-  - engine code: R1–R3, 77k rules, 87% coverage, about 97% correct on unseen cars;
-  - model year, max weight and length rules;
-  - make + group code rules that complete new cars' TS-only fields.
-- Risk / next: needs decisions A–E. The rule store needs multi-field keys and its migration on live.

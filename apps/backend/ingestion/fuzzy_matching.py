@@ -648,6 +648,7 @@ class FuzzyVehicleMatcher:
         *,
         fuel_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
         drive_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
+        bodywork_compatible_pairs: frozenset[tuple[str, str]] = frozenset(),
         context_policy: ContextComparisonPolicy | None = None,
     ) -> None:
         self._index = index
@@ -666,6 +667,13 @@ class FuzzyVehicleMatcher:
         self._drive_compatible_pairs = frozenset(
             (_normalized_text(left), _normalized_text(right))
             for left, right in drive_compatible_pairs
+            if _normalized_text(left) and _normalized_text(right)
+        )
+        # Same shape again: a reviewed global fact that one registry body term
+        # is broader than a TecDoc body (TS "covered body" against a sedan).
+        self._bodywork_compatible_pairs = frozenset(
+            (_normalized_text(left), _normalized_text(right))
+            for left, right in bodywork_compatible_pairs
             if _normalized_text(left) and _normalized_text(right)
         )
 
@@ -950,11 +958,26 @@ class FuzzyVehicleMatcher:
         # gets. When they share one body it decides nothing and keeps its
         # ordinary weight.
         weight = self._config.bodywork_discriminating_weight if bodywork_discriminates else 1.0
-        body_comparison = self._context_policy.compare(
-            field="bodywork", source_value=query_bodywork, candidate_values=candidate_bodyworks,
-            manufacturer=candidate.manufacturer, model=candidate.model,
-            source_evidence=query.source_context,
-        )
+        if (
+            query_bodywork
+            and query_bodywork not in candidate_bodyworks
+            and any(
+                (query_bodywork, body) in self._bodywork_compatible_pairs
+                for body in candidate_bodyworks
+            )
+        ):
+            # Only keeps a broader registry term from reading as a contradiction.
+            # The mild penalty keeps an exactly matching sibling clear of the
+            # margin (an MPV KType against a van KType for a car registered MPV).
+            body_comparison = ContextComparison(state="compatible")
+            context_effect -= self._config.power_tolerance_penalty
+        else:
+            body_comparison = self._context_policy.compare(
+                field="bodywork", source_value=query_bodywork,
+                candidate_values=candidate_bodyworks,
+                manufacturer=candidate.manufacturer, model=candidate.model,
+                source_evidence=query.source_context,
+            )
         if query_bodywork or body_comparison.rule_ids:
             if body_comparison.state == "unknown":
                 missing_fields.append("bodywork")

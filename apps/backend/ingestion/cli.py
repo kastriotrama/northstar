@@ -67,6 +67,7 @@ from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
     link_variants_to_fuel_concepts,
+    load_bodywork_alignment,
     load_drive_alignment,
     load_fuel_alignment,
     promote_vocabulary_alignments,
@@ -1070,6 +1071,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ReviewedModelAliasIndex(rule_set),
                     fuel_alignment=load_fuel_alignment(connection),
                     drive_alignment=load_drive_alignment(connection),
+                    bodywork_alignment=load_bodywork_alignment(connection),
                     context_policy=context_policy,
                 )
                 if args.source_mode == "raw":

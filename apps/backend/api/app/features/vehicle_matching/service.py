@@ -92,6 +92,7 @@ def build_matcher(repository: VehicleMatchingRepository, batch_id: str | None) -
         ReviewedModelAliasIndex(sources.rule_set),
         fuel_alignment=sources.fuel_alignment,
         drive_alignment=sources.drive_alignment,
+        bodywork_alignment=sources.bodywork_alignment,
     )
     return Matcher(
         batch_id=resolved_batch,
