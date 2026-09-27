@@ -243,3 +243,17 @@ def test_matching_finds_a_vehicle_by_a_plate_it_used_to_carry(db: Connection) ->
     total, ids = matching.vehicle_population(terms([condition]), "", limit=5)
     assert total == 1
     assert ids != [volvo_id]
+
+
+def test_the_impact_sample_is_seeded_and_scoped(db: Connection) -> None:
+    matching = VehicleMatchingRepository(_factory(db))
+    with db.cursor() as cursor:
+        cursor.execute("SELECT vehicle_scope, count(*) FROM core.vehicles GROUP BY 1")
+        scopes = dict(cursor.fetchall())
+    passenger = scopes.get("passenger", 0)
+
+    first = matching.sample_vehicle_ids(seed="s1", size=10)
+    assert len(first) == passenger
+    assert matching.sample_vehicle_ids(seed="s1", size=10) == first
+    assert matching.sample_vehicle_ids(seed="s1", size=1) == first[:1]
+    assert matching.sample_vehicle_ids(seed="s1", size=10, scope="nothing") == []

@@ -218,6 +218,26 @@ class VehicleMatchingRepository:
             ids = [str(item[0]) for item in cursor.fetchall()]
         return total, ids
 
+    def sample_vehicle_ids(
+        self, *, seed: str, size: int, scope: str = "passenger", registered_only: bool = True
+    ) -> list[str]:
+        """A seeded random sample: the same seed over the same cars picks the same cars.
+
+        Ordering by a hash of seed and NOR ID reads the whole scope once (seconds
+        at 7M rows) but, unlike `TABLESAMPLE`, is stable across runs and
+        unaffected by physical row order.
+        """
+
+        status = "AND registry_status = 'registered'" if registered_only else ""
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT vehicle_id FROM {VEHICLES_TABLE} "
+                f"WHERE vehicle_scope = %s {status} "
+                "ORDER BY md5(%s || vehicle_id), vehicle_id LIMIT %s",
+                (scope, seed, size),
+            )
+            return [str(row[0]) for row in cursor.fetchall()]
+
     def vehicle_car_records(self, vehicle_ids: Sequence[str]) -> list[CarRecord]:
         """Match records for these vehicles, in the order asked for.
 
