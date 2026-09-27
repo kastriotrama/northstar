@@ -28,6 +28,7 @@ from api.app.features.vehicle_matching.service import (
     missing_on_car,
     separating_fields,
 )
+from api.app.features.vehicles.schemas import VehicleCondition, VehicleFilter
 from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import MatchEvaluation, ResolvedMatchQuery
@@ -343,6 +344,25 @@ def test_running_summaries_are_capped() -> None:
         jobs.create(population=1, target=1)
 
 
+def test_jobs_are_listed_newest_first_with_the_filter_they_ran_on() -> None:
+    """A job outlives its screen; the list is how a reopened view finds it again."""
+
+    jobs = SummaryJobs()
+    service = _service({1: _evaluation(_match("A"))}, jobs)
+    volvo = VehicleFilter(conditions=[VehicleCondition(field="manufacturer", values=["Volvo"])])
+    finished = service.start_summary([], "", 1, vehicle_filter=volvo, run_in_background=False)
+    running = jobs.create(population=1, target=1)
+
+    listed = service.summary_jobs()
+
+    assert [(job.job_id, job.status) for job in listed] == [
+        (running.job_id, "running"),
+        (finished.job_id, "done"),
+    ]
+    assert listed[1].filter == volvo
+    assert listed[0].filter is None
+
+
 def test_an_unknown_job_is_reported_not_invented() -> None:
     with pytest.raises(SummaryJobNotFoundError):
         SummaryJobs().get("nope")
@@ -352,7 +372,8 @@ def test_an_unknown_job_is_reported_not_invented() -> None:
 
 
 def test_http_maps_the_services_errors(client: TestClient) -> None:
-    client.app.dependency_overrides[get_service] = lambda: _service({1: _evaluation()})  # type: ignore[attr-defined]
+    jobs = SummaryJobs()  # one per process in the app, as `_jobs()` caches it
+    client.app.dependency_overrides[get_service] = lambda: _service({1: _evaluation()}, jobs)  # type: ignore[attr-defined]
     try:
         assert client.get("/v1/vehicles/matching/lookup", params={"q": "NOPE"}).status_code == 404
         assert client.get("/v1/vehicles/matching/lookup").status_code == 422
@@ -370,6 +391,10 @@ def test_http_maps_the_services_errors(client: TestClient) -> None:
         started = client.post("/v1/vehicles/matching/summary", json={"conditions": [], "limit": 1})
         assert started.status_code == 202
         assert started.json()["target"] == 1
+        assert started.json()["filter"] == {"conditions": [], "text": ""}
+        listed = client.get("/v1/vehicles/matching/summary")
+        assert listed.status_code == 200
+        assert [job["job_id"] for job in listed.json()] == [started.json()["job_id"]]
         too_many = client.post("/v1/vehicles/matching/summary", json={"conditions": [], "limit": 50_000})
         assert too_many.status_code == 422
     finally:

@@ -155,5 +155,8 @@ class MatchSummaryJob(BaseModel):
     evaluated: int
     seconds_elapsed: float
     error: str | None
+    #: The Vehicles filter it ran on, so a screen that did not start the job can
+    #: tell whether its counts describe the cars on screen.
+    filter: VehicleFilter | None = None
     #: Counts so far -- partial while running, final once done.
     summary: MatchSummary
