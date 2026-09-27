@@ -9,7 +9,9 @@ Keep the latest 10 task entries only.
   `merge()` now takes ordered layers; the TS import merges TS values, then reviews.
 - Checked: the Vehicles-tab matcher reads merged `core.vehicles` values (corrected body, AIS engine code).
 - Validation: regression test; 1339 unit tests, 23 vehicle-core integration tests, ruff, mypy.
-- Next: rule delta export for live, matching harness + reference set, engine-code tolerance. Nothing pushed.
+- Rules for live exported (untracked): `outputs/rules-2026-09-27/rules_export.json` (5,223 TS rules, 5,055 body)
+  and `retire_on_live.json` (38 rules incl. Volvo `31614f07`; the importer never retires).
+- Next: matching harness + reference set, engine-code tolerance. Nothing pushed.
 
 ## 2026-09-27 — KType matching re-checked on corrected cars (1,190 stratified + 20,000 random)
 
