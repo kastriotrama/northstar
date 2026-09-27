@@ -2,6 +2,128 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-27 — Review corrections no longer drop the registry value (local)
+
+- `vehicle_core_ts.process_ts_page` folded reviews into the TS values (`{**ts, **reviews}`), so a corrected field
+  never kept its registry value and retiring the review could not restore it (131,102 vehicles repaired by hand).
+  `merge()` now takes ordered layers; the TS import merges TS values, then reviews.
+- Checked: the Vehicles-tab matcher reads merged `core.vehicles` values (corrected body, AIS engine code).
+- Validation: regression test; 1339 unit tests, 23 vehicle-core integration tests, ruff, mypy.
+- Next: rule delta export for live, matching harness + reference set, engine-code tolerance. Nothing pushed.
+
+## 2026-09-27 — KType matching re-checked on corrected cars (1,190 stratified + 20,000 random)
+
+- Each car was matched twice with the Vehicles tab's matcher (catalog `tecdoc-0326-canonical-full-prod-v2-20260914`),
+  once with the old registry body type and once with the corrected one. Read-only.
+- Random 20,000 corrected passenger cars:
+  - exactly one KType 8.8% → 36.8%;
+  - no compatible KType 74.2% → 27.3%;
+  - the best KType's body matches the car 3.9% → 98.7%.
+- Old single matches to another model: 359 of 1,668 (mostly XC60 → V60 I). Now 97 of 5,630, nearly all BMW GT /
+  Gran Coupé naming.
+- Worse on 661, mostly one → several:
+  - Golf / Golf Sportsvan both hatchback in TecDoc;
+  - XC60 / Kodiaq / Tiguan share engines across SUV KTypes.
+- 43 went one → none:
+  - XC60s whose old match was the wrong model (V60);
+  - Scénic III filed under "Megane".
+- The first 20K attempt crashed a parallel Postgres worker. The Docker VM disk then went read-only (host had 2.9 GB free).
+  After the Docker restart, recovery was clean and counts were unchanged. Scratch data (~575 MB) was deleted.
+- Next:
+  - model alias MEGANE SCENIC → Scénic;
+  - bus ≈ MPV alignment for M1 people carriers;
+  - XC60 169 kW KTypes missing from the catalog;
+  - consider moving resolution rules onto `core.vehicles` as a separate story.
+
+## 2026-09-27 — Body type corrections applied to `core.vehicles` (local), audited and fixed
+
+- Retired the over-broad Volvo rule `31614f07` first.
+- Applied the proposal through the rule service (same validation and runner as the TS data screen). Each batch writes
+  the TS projection, the ledger and the linked NorthStar vehicles together.
+- AIS-only vehicles got the same rules as review observations with the same rule id (416,338 vehicles).
+- An audit after applying checked registry text, length, sibling registrations and scope. It found 37 wrong rules:
+  - variant codes that other models share (Antara, Mazda6, Doblò, Maserati Coupé, MINI Clubman, Cadillac SRX);
+  - "D-4D" read as 4-door;
+  - Rapido S80 motorhomes as S-Class sedans;
+  - Fiat 127 "Combi";
+  - classic cars TecDoc lists wrongly (MG, Firebird, Eldorado …).
+- Those were retired and replaced by 79 narrow rules that follow the registry text (2,618 rows).
+- Result: 5,048 active rules. Carrying a correction: 2,518,331 TS records and 2,934,027 NorthStar vehicles
+  (2,517,689 TS + 416,338 AIS-only).
+- Passenger changes: suv 10,738 → 1,691,749, estate 3,371,227 → 2,153,644, MPV 1,043,943 → 314,421,
+  empty 160,457 → 21,798.
+- Data repair:
+  - 214 vehicles emptied by the Volvo retirement were refilled from TS.
+  - 131,102 corrected vehicles now keep their registry value behind the review, so retiring a rule restores it.
+  - Cause: `vehicle_core_ts.process_ts_page` merges `{**observations, **review_observations}`, which drops the TS
+    value. Needs a code fix and a regression test (offered as a separate task).
+- Validation:
+  - 0 orphan review markers.
+  - TS-linked passenger vehicles agree with the TS projection except 2,126 newer AIS values (unchanged) and 3 vehicles
+    linked to a second TS record.
+  - 17 motorhomes carry suv/MPV.
+  - Report: `docs/BODYWORK_CORRECTIONS_2026-09-26.md`, "Applied" section.
+- Risk / next:
+  - local DB only;
+  - AIS-only corrections were a one-time pass;
+  - gray zone applied at TecDoc labels (flagged in rule notes);
+  - opt-in crossovers not applied;
+  - classic cars without a body word keep TecDoc's label;
+  - no code changed, nothing committed.
+
+## 2026-09-26 — Vehicles tab: plate search from 36.6 s to 0.06 s; bundle fixture excluded
+
+- Free-text search is looked up before the query runs: identifier history by exact value, manufacturer and
+  model-family names by a skip scan of their indexes. The query carries the vehicles and names found as values,
+  so the planner uses indexes instead of walking 7.2M rows.
+- New `text_pattern_ops` indexes on plate and VIN (the collation keeps a default index from answering
+  `LIKE 'ABC%'`). They replace the default indexes; migration applied locally (9 s).
+- Measured: plate, VIN, previous plate or NOR ID 0.06 s (was 36.6 s); "volvo v70" 1.9 s; a facet with plate text
+  0.06 s. In the browser, `LGF109` returns its one car in 0.37 s.
+- The normalization bundle's fixture car (`TEST001`, batch `normalization-bundle-fixture-v1`) was the first row of
+  the passenger list. Fixture batches are now test records; it was refreshed to `test_record` (2,024 in total).
+- Validation: full backend suite on a throwaway database (1466 passed, 29 skipped), ruff, mypy.
+- Risk / next: the first load of the tab still takes ~7 s (ten full-table facet counts); cached counts are next.
+  All changes since `d979254` are uncommitted.
+
+## 2026-09-26 — First full vehicle-core run on the local copy of live
+
+- Applied the cloud session's API/UI patch (`d979254`) on top of `82aa4c8`. Then ran every step:
+  - TS backfill (~80 min);
+  - test records excluded (2,023);
+  - completion rules (227,852);
+  - AIS import (134 min: 660,846 new vehicles, 674,042 deregistered, 11,955 type changes, 2,562 plates closed);
+  - enrichment rules (148,260 learned; 145,252 fills incl. 95,382 engine codes).
+- Result: 7,193,254 vehicles. Registered passenger cars: engine code 90.8%, model year 99.8%, kerb weight 99.1%.
+- Code fixes from the run:
+  - synthetic test records (`TEST-` plates, `TEST/` brands, quarantined) are never minted;
+  - `apply_rules` analyzes the rules table first (a stale plan cost 10 min);
+  - the AIS import no longer re-normalizes every car with a second fuel.
+- Validation: ruff, strict mypy, backend suite (throwaway databases), web tests and build.
+- Risk / next:
+  - About 15 GB on disk; live (~14 GB free) needs more disk before this runs.
+  - The Vehicles tab fires about a dozen full-table counts per load, which is slow at 7M rows; needs cached counts and an identifier fast path.
+  - Matcher engine-code tolerance (plan step 1).
+  - The changes since the patch are uncommitted.
+
+## 2026-09-26 — Body type corrections: rules for 2.34M passenger cars (proposed, not applied)
+
+- Checked all 6.44M passenger cars in `core.vehicle_facts` against TecDoc prod-v2, with AIS vehicle
+  length as evidence. 2,342,644 cars (36%) carry a wrong or vague `bodywork_form`. Largest:
+  - estate→suv 686k, MPV→suv 334k, MPV→hatchback 280k, estate→hatchback 266k;
+  - the Golf alone has 100k hatchbacks registered AC; type AU/1K/CD vs AUV/1KM/CDV separates them.
+- 4,401 override/fill rules in `match_resolution_rules` shape in `outputs/proposed/bodywork/`; report
+  in `docs/BODYWORK_CORRECTIONS_2026-09-26.md`. Rule kinds: TecDoc single body, reviewed
+  discriminators (type code/variant), registry text, national codes, TecDoc disputes (Model X,
+  PV544, Saab 96…). The gray zone (126k) is flagged with alternatives; opt-in crossovers 35k.
+- Validation: 283 rules compiled with `compile_predicate` and counted in the DB, all exact. Automatic
+  rules agree with per-car evidence on 99.97%. 0 non-passenger rows. Nothing written to the DB.
+- Risk / next:
+  - retire rule `31614f07…` (over-broad Volvo 'model contains VOLVO' → suv) before applying;
+  - stakeholder calls on the gray zone, crossovers and M1 people carriers;
+  - 431k cars have no identifiable model, and 175k keep a vague national code;
+  - the matcher needs bodywork context rules where the values now differ from TecDoc.
+
 ## 2026-09-26 — Vehicles tab moved onto NorthStar vehicles (`core.vehicles`)
 
 - API: new `vehicles` feature under `/v1/vehicles` (search, facets, field catalog, detail by
@@ -49,85 +171,3 @@ Keep the latest 10 task entries only.
 - Wrote `docs/AIS_VIN_EXPORT_ENRICHMENT_PLAN.md` (v2). Each plan step was simulated with the real matcher on 30,000 random passenger cars (prod-v2 catalog), with the AIS engine code as an accuracy proxy.
 - Findings: today 16.0% resolve. A naive XML import is net 0. Tolerant engine compare +1.5 points, hybrid kW +1.5, body fallback +9.7 (accuracy equal to today), and engine-confirmed candidate-only k-types up to +14.9. The XML name equals the TS brand text, so it adds no model information.
 - Risk / next: the accuracy check is a proxy, so build a reference set (step 0). Analysis scripts are in the session scratchpad, not the repo; step 0 turns them into a CLI.
-
-## 2026-09-26 — STEP VIN export (XML) checked against TS data and the matcher
-
-- Parsed the 16 GB STEP export (10,814,705 VINs) into local-only `sandbox_step_xml.vin_export`; no real table changed.
-- Found 6,490,789 of 6,532,590 TS cars by VIN. For passenger cars: engine code 0% -> 95.6%, model year 15.8% -> 99.6%, kW 94.8% -> 99.7%; kW and model year agree with TS on 99%+.
-- Matcher before/after on 3,000 random passenger cars (prod-v2 catalog): single KType 882 -> 894, several 529 -> 363, none 1,131 -> 1,285. 120 single matches are lost to engine-code conflicts.
-- Risk / next: ~305k cars conflict only on format (XML `BHZ` vs TecDoc `BHZ (DV6FC)`), and ~320k carry codes TecDoc lacks. Fix the matcher's engine comparison before importing engine codes.
-
-## 2026-09-26 — Local environment replaced with a full copy of live
-
-- Postgres: streamed a read-only `pg_dump` of live (6.2 GB compressed) and restored it; the old local `app` database was dropped and the restored copy renamed to `app`, so `DATABASE_URL` is unchanged.
-- Neo4j: exported live's graph through a read-only session (no live downtime) and loaded it into the local Neo4j; `apps/backend/.env` now points at the port the local container actually uses (bolt 7689, http 7475).
-- Validation: tables/indexes/constraints/triggers, raw, normalization, vehicle_facts, rules, field resolutions, TecDoc candidates, review queue and max IDs all equal live; Neo4j 116,959 nodes / 199,682 relationships equal live.
-- Risk / next: local-only TecDoc v3/v4/v5 re-promotion batches and 11 match runs are gone; live Neo4j has no uniqueness constraints (local has 9); `~/NorthStar-local-backups/` still holds the old graph dump for manual deletion.
-
-## 2026-09-24 — Vehicle type classification moved into normalization
-
-- Normalization now owns `vehicle_scope`: new stage `ts.vehicle-scope` (order 95) calls
-  `classify_vehicle_scope` -- exclusion decisions first, then the pipeline's own
-  `_vehicle_scope` (EU category, else `vehicle_type`), `unknown` when neither is
-  recorded. PIPELINE_VERSION v11 -> v12; golden corpus re-approved (183 cases: the new
-  field, the version and one trace entry, nothing else).
-- `vehicle_facts.vehicle_scope` is now a plain copy of the stored field; the SQL CASE
-  that restated the rule (and missed `vehicle_type`, e.g. a Ducati with vehicle_type MC
-  read as a car) is gone. Results normalized before v12 carry no field: refresh and the
-  canonical backfill keep the existing value, and `backfill-vehicle-scope` fills rows by
-  calling the same function. Checked read-only on live: 30 MC/TR rows become `other`,
-  2 become `unknown`, 86 `other_category` split into goods/trailer/bus/other.
-- Remaining step after deploy: run `backfill-vehicle-scope` on the server.
-
-## 2026-09-23 — Vehicles: TS-to-TecDoc matching diagnostics (local only)
-
-- New `vehicle_matching` feature over the audit's own `TecDocDryRunEvaluator` (pinned
-  candidate catalog, active rules, reviewed aliases, fuel/drive alignments; nothing
-  reimplements matching). `GET /v1/vehicles/matching/lookup` (plate/VIN or exact
-  `source_record_id`) shows what the matcher saw and every KType it weighed;
-  `POST /v1/vehicles/matching/summary` runs it over a Vehicles filter as a polled
-  background job and counts one / several / none / not-matchable, naming the fields
-  behind each gap. UI: "Candidate KTypes" in the record panel and a "Matching" view.
-- Findings on local data (1,000 Volvos): 588 one, 246 several, 166 none; 145 of the
-  `none` conflict on bodywork (estate vs SUV), 137 of the `several` are separated by an
-  engine code the car lacks. Mixed brands also show V70 competing with XC70 on
-  identical specs -- a matcher-side ambiguity, not missing data.
-- Validation: 17 backend + 9 web tests new; 1256 backend, 40 web, ruff, mypy, prod build;
-  every endpoint and the UI checked against the real local database.
-- Not yet for live: no plate/VIN index on `vehicle_facts` (lookup would scan 6.5M rows);
-  jobs live in API process memory. Matcher costs ~0.1s a car (1s+ for Mercedes).
-
-## 2026-09-23 — Vehicle type filter on TS data
-
-- Added the Vehicle type dropdown to `/ts-data`, sharing its definitions with Vehicles via
-  `core/vehicle-scope.ts`. It narrows everything the screen shows (count, list, facets,
-  unresolved summary, gap groups) but is never part of a rule: the resolver still reads
-  `FilterState.payload()`, and the rule endpoints reject `vehicle_scope` as a condition
-  anyway. Defaults to "All vehicles" here (Vehicles defaults to "Passenger cars") so the
-  counts a rule is authored from match what the rule will touch. Changed the same day
-  to default to "Passenger cars", matching Vehicles, at the user's request.
-- Validation: 30 web tests (7 new), production build; checked in the browser that the
-  scope changes the counts while "Which cars" stays unconditioned.
-
-## 2026-09-23 — Vehicles tab rebuilt: passenger cars first, schema applied on deploy
-
-- Re-landed the Vehicles tab (reverted 2026-09-22 after its first release 503'd on live:
-  the deploy shipped code reading `canonical_fuel`/`canonical_transmission`/
-  `canonical_euro_class`, but nothing ever added those columns to production's
-  `core.vehicle_facts`). Root fix: new `migrate-vehicle-facts` CLI command (schema only,
-  idempotent) now runs in `infra/production/deploy.sh` before `up -d`, so a column a
-  feature adds exists before the code that reads it goes live.
-- New `vehicle_scope` column (passenger / motorhome / special_modified / test_record /
-  other_category), derived from the pipeline's own `record_route` and
-  `parts_matching_exclusion_reason` plus non-M1 EU categories -- never TecDoc's `is_pc`,
-  which marks motorcycles as passenger cars. Vehicles defaults to "Passenger cars" via
-  `vehicle_scope NOT IN (excluded)`, which keeps un-backfilled NULL rows visible; a
-  notice says so until the backfill has run.
-- New `backfill-canonical-vehicle-facts` command updates only the canonical-only columns
-  (resumable, disk-guarded) instead of a full `refresh-vehicle-facts`. It is not run by
-  deploy -- run it deliberately on production after merging.
-- Validation: 1237 backend unit tests, ruff, mypy, 23 web tests, production web build;
-  reproduced the live failure locally (table predating the column) and confirmed the
-  migration adds it and the page serves without 503. The scope expression was verified
-  read-only against real local rows; the local backfill itself was blocked by the
-  disk guard (host disk at 99%).

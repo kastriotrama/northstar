@@ -21,6 +21,8 @@ from api.app.features.vehicles.schemas import VehicleCondition
 from api.app.features.vehicles.service import VehicleService, terms
 from ingestion.vehicle_core_fields import SOURCE_REVIEW, SourceRef
 from ingestion.vehicle_core_merge import Observation, merge
+from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
+from ingestion.vehicle_core_query import SearchWord, resolve_search
 from ingestion.vehicle_core_store import load_vehicle, save_vehicles
 from ingestion.vehicle_core_ts import backfill_vehicle_core
 from ingestion.vehicle_facts_query import UnknownFieldError
@@ -83,6 +85,72 @@ def test_a_car_is_found_by_its_plate_its_previous_plate_and_its_nor_id(
         assert page.matched_rows == 1
 
     assert service.search([], "", cursor=None, limit=10).matched_rows == 2
+
+
+def _distinct(db: Connection, column: str, pattern: str) -> tuple[str, ...]:
+    with db.cursor() as cursor:
+        cursor.execute(
+            f"SELECT DISTINCT {column} FROM core.vehicles WHERE {column} ILIKE %s "
+            f"ORDER BY {column}",
+            (pattern,),
+        )
+        return tuple(str(row[0]) for row in cursor.fetchall())
+
+
+def test_search_words_are_resolved_before_the_query_is_planned(db: Connection) -> None:
+    volvo_id = _volvo_id(db)
+
+    previous = resolve_search(db, "tpd118")
+    assert previous is not None and previous.joined is None
+    assert previous.words[0].code == "TPD118"
+    assert previous.words[0].vehicle_ids == (volvo_id,)
+
+    by_id = resolve_search(db, volvo_id.lower())
+    assert by_id is not None and by_id.words[0].vehicle_ids == (volvo_id,)
+
+    # A word inside a name finds every value that contains it, as ILIKE would.
+    make = resolve_search(db, "olv")
+    assert make is not None
+    assert make.words[0].manufacturers == _distinct(db, "manufacturer", "%olv%") != ()
+    family = resolve_search(db, "v70")
+    assert family is not None
+    assert family.words[0].model_families == _distinct(db, "model_family", "%v70%") != ()
+
+    spaced = resolve_search(db, "abc 123")
+    assert spaced is not None and spaced.joined is not None
+    assert spaced.joined.vehicle_ids == (volvo_id,)
+
+    assert resolve_search(db, "ZZZ999") == type(previous)((SearchWord("ZZZ999", "%ZZZ999%"),))
+    assert resolve_search(db, "   ") is None
+
+
+def test_plate_and_vin_prefixes_are_answered_from_an_index(db: Connection) -> None:
+    with db.cursor() as cursor:
+        # A database migrated before the prefix indexes still has the defaults.
+        cursor.execute("CREATE INDEX IF NOT EXISTS vehicles_plate_idx ON core.vehicles (plate)")
+        db.commit()
+        run_vehicle_core_migrations(db)
+        run_vehicle_core_migrations(db)
+        cursor.execute(
+            "SELECT indexname, indexdef FROM pg_indexes "
+            "WHERE schemaname = 'core' AND tablename = 'vehicles'"
+        )
+        indexes = {str(name): str(definition) for name, definition in cursor.fetchall()}
+        cursor.execute("SET enable_seqscan = off")
+        try:
+            cursor.execute("EXPLAIN SELECT vehicle_id FROM core.vehicles WHERE plate LIKE 'ABC1%'")
+            plate_plan = "\n".join(str(row[0]) for row in cursor.fetchall())
+            cursor.execute("EXPLAIN SELECT vehicle_id FROM core.vehicles WHERE vin LIKE 'YV1B%'")
+            vin_plan = "\n".join(str(row[0]) for row in cursor.fetchall())
+        finally:
+            cursor.execute("RESET enable_seqscan")
+    db.commit()
+
+    assert "text_pattern_ops" in indexes["vehicles_plate_prefix_idx"]
+    assert "text_pattern_ops" in indexes["vehicles_vin_prefix_idx"]
+    assert "vehicles_plate_idx" not in indexes and "vehicles_vin_idx" not in indexes
+    assert "vehicles_plate_prefix_idx" in plate_plan
+    assert "vehicles_vin_prefix_idx" in vin_plan
 
 
 def test_conditions_read_the_merged_columns(service: VehicleService) -> None:

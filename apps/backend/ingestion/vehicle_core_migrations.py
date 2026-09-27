@@ -50,11 +50,15 @@ _SQL_TYPES = {
     "real": "REAL",
 }
 
-# Columns the Vehicles tab filters and searches on. Lookups (plate, vin) and the
-# default narrowing (status, scope) first, then the filters people actually use.
+# Plate and VIN are searched by prefix. Under the database's collation a default
+# btree cannot answer `LIKE 'ABC%'`; the pattern operator class can, and it
+# answers equality too, so it replaces the default index on these two.
+_VEHICLE_PREFIX_INDEX_COLUMNS: tuple[str, ...] = ("plate", "vin")
+
+# Columns the Vehicles tab filters and searches on: the default narrowing
+# (status, scope) first, then the filters people actually use. The search skip-
+# scans the manufacturer and model-family indexes for their distinct values.
 _VEHICLE_INDEX_COLUMNS: tuple[str, ...] = (
-    "plate",
-    "vin",
     "registry_status",
     "vehicle_scope",
     "manufacturer",
@@ -273,6 +277,22 @@ def _migrations() -> tuple[tuple[str, str], ...]:
         drop, create = _no_delete_trigger(table, trigger, function)
         statements.append((f"drop_{trigger}_trigger", drop))
         statements.append((f"create_{trigger}_trigger", create))
+    for column in _VEHICLE_PREFIX_INDEX_COLUMNS:
+        statements.append(
+            (
+                f"create_vehicles_{column}_prefix_index",
+                (f"CREATE INDEX IF NOT EXISTS vehicles_{column}_prefix_idx "
+                f"ON {VEHICLES_TABLE} ({column} text_pattern_ops)"),
+            )
+        )
+        # The default index an earlier migration built; the prefix index serves
+        # its lookups.
+        statements.append(
+            (
+                f"drop_vehicles_{column}_index",
+                f"DROP INDEX IF EXISTS {CORE_SCHEMA}.vehicles_{column}_idx",
+            )
+        )
     for column in _VEHICLE_INDEX_COLUMNS:
         statements.append(
             (

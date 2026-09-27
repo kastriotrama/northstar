@@ -247,17 +247,30 @@ def merge_one(state: VehicleState, name: str, observation: Observation, result: 
         _drop_alternative(state, name, new_ref.source)
 
 
-def merge(state: VehicleState, observations: Mapping[str, Observation | None]) -> MergeResult:
-    """Merge a batch of observations; unknown fields are a programming error."""
+def merge(state: VehicleState, *layers: Mapping[str, Observation | None]) -> MergeResult:
+    """Merge batches of observations in order; unknown fields are a programming error.
+
+    Several layers for one record (the source's own values, then the reviews on
+    them) must each be merged: folding them into one mapping first would drop
+    the source value a review covers, so nothing remains to fall back to when
+    the review is retired.
+    """
 
     result = MergeResult()
+    for observations in layers:
+        _merge_layer(state, observations, result)
+    return result
+
+
+def _merge_layer(
+    state: VehicleState, observations: Mapping[str, Observation | None], result: MergeResult
+) -> None:
     for name, observation in observations.items():
         if name not in FIELDS_BY_NAME:
             raise KeyError(f"{name!r} is not a vehicle field")
         if observation is None:
             continue
         merge_one(state, name, observation, result)
-    return result
 
 
 def retract(state: VehicleState, name: str, source: str, ref: str | None = None) -> MergeResult:

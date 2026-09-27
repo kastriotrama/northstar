@@ -282,6 +282,11 @@ def apply_rules(
         f"v.{field}::text = r.key_values[{index + 1}]" for index, field in enumerate(family.key_fields)
     )
     with connection.cursor() as cursor:
+        # Fresh statistics first. Learning adds tens of thousands of rules at once;
+        # planned against the old statistics the join looked like a handful of rules
+        # and became a nested loop that rescanned 738k vehicles once per rule -- ten
+        # minutes of CPU for 31k fills that take seconds as the merge join it is.
+        cursor.execute(f"ANALYZE {VEHICLE_ENRICHMENT_RULES_TABLE}")
         cursor.execute(
             f"""
             WITH filled AS (

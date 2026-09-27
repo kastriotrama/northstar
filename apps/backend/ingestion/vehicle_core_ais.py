@@ -310,6 +310,25 @@ def _code(value: object) -> str | None:
     return None if code in {None, "0"} else code
 
 
+def comparable_ts_codes(
+    projected: Mapping[str, Any], state: VehicleState, record: AisRecord
+) -> dict[str, Any]:
+    """The TS side of the code comparison, from what is at hand without the raw record.
+
+    Fuel 1, gearbox and body code come from the TS projection; the vehicle type
+    from the vehicle itself. The second fuel code is in neither, so it is judged
+    by the canonical value it produced: a vehicle that already has a second fuel
+    has the code AIS repeats, and only one without it needs the normalizer. The
+    first import compared against a missing value instead and sent every car
+    with a second fuel -- 650k -- through the pipeline for nothing.
+    """
+
+    codes = dict(projected)
+    codes["vehicle_type"] = state.values.get("registry_vehicle_type")
+    codes["fuel2"] = record.get("fuel2") if state.values.get("fuel_secondary") else None
+    return codes
+
+
 def changed_codes(record: AisRecord, ts_codes: Mapping[str, Any]) -> dict[str, str]:
     """The registry codes AIS states differently from the vehicle's TS record."""
 
@@ -645,9 +664,9 @@ class AisImporter:
         for record, state in matched:
             if state.ts_record_id is None:
                 continue
-            ts_codes = dict(codes.get(state.ts_record_id, {}))
-            ts_codes["vehicle_type"] = state.values.get("registry_vehicle_type")
-            changes = changed_codes(record, ts_codes)
+            changes = changed_codes(
+                record, comparable_ts_codes(codes.get(state.ts_record_id, {}), state, record)
+            )
             if changes:
                 needs_pipeline[state.vehicle_id] = changes
         raw = _ts_raw(connection, [

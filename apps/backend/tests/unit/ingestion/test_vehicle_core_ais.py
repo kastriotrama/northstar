@@ -140,3 +140,17 @@ def test_a_model_rule_without_its_brand_rule_is_not_used() -> None:
     assert raw["brand"] == "VOLVO V70"
     assert "model" not in raw
     assert by_rule == {}
+
+
+def test_a_known_second_fuel_does_not_send_the_car_through_the_normalizer() -> None:
+    from ingestion.vehicle_core_ais import comparable_ts_codes
+
+    record = AisRecord("V", None, {"fuel": "1", "fuel2": "3", "gearbox": "A", "body_code": "AC"})
+    projected = {"fuel1": "1", "gearbox": "A", "body_code": "AC"}
+
+    hybrid = _state(fuel_secondary="electricity", registry_vehicle_type="PB")
+    assert changed_codes(record, comparable_ts_codes(projected, hybrid, record)) == {}
+
+    # A car TS knew no second fuel for: AIS adds one, and the normalizer must see it.
+    petrol = _state(fuel_secondary=None, registry_vehicle_type="PB")
+    assert changed_codes(record, comparable_ts_codes(projected, petrol, record)) == {"fuel2": "3"}

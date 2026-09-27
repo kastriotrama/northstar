@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -132,6 +133,19 @@ def test_a_review_beats_every_source_and_retiring_it_restores_what_it_displaced(
     assert state.values["bodywork_form"] == "hatchback"
 
 
+def test_a_review_merged_with_the_record_it_corrects_keeps_the_registry_value() -> None:
+    # Regression: the TS import folded the reviews into the TS values
+    # (`{**ts, **reviews}`), so a new vehicle never saw the registry value and
+    # retiring the review left the field empty instead of restoring it.
+    state = VehicleState("NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV", "transportstyrelsen", TS_DAY)
+
+    merge(state, {"bodywork_form": ts("estate")}, {"bodywork_form": review("suv")})
+    assert state.values["bodywork_form"] == "suv"
+
+    retract(state, "bodywork_form", "review", "r1")
+    assert state.values["bodywork_form"] == "estate"
+
+
 def test_a_rule_only_fills_and_never_overrides_a_source() -> None:
     state = ts_vehicle()
 
@@ -233,3 +247,36 @@ def test_a_parsed_tyre_is_stored_as_the_registry_wrote_it() -> None:
     assert tyre_size(" 205/55 R16 ") == "205/55 R16"
     assert tyre_size({"load_index": 98}) is None
     assert tyre_size(None) is None
+
+
+def _ts_record(**facts: object) -> Any:
+    from ingestion.vehicle_core_ts import TsRecord
+
+    normalized = dict(facts.pop("normalized", {}) or {})  # type: ignore[arg-type]
+    batch = facts.pop("batch", None)
+    return TsRecord(
+        1, TS_DAY, facts, {}, normalized, "resolved", 0.9,
+        batch=None if batch is None else str(batch),
+    )
+
+
+@pytest.mark.parametrize(
+    ("facts", "expected"),
+    [
+        ({"plate": "TEST-990002171"}, True),
+        ({"plate": "test-12"}, True),
+        ({"brand": "TEST/ FORDON"}, True),
+        ({"plate": "ABC123", "normalized": {"record_route": "quarantine_test_record"}}, True),
+        ({"plate": "TEST001", "batch": "normalization-bundle-fixture-v1"}, True),
+        ({"plate": "ABC123", "batch": "normalization-passenger-atlas-5000-v1"}, False),
+        # Real registrations, personalized plates included, never match.
+        ({"plate": "TES123"}, False),
+        ({"plate": "TEST1"}, False),
+        ({"plate": "TEST12A"}, False),
+        ({"plate": "ABC123", "brand": "VOLVO"}, False),
+    ],
+)
+def test_only_synthetic_records_are_test_records(facts: dict, expected: bool) -> None:
+    from ingestion.vehicle_core_ts import is_test_record
+
+    assert is_test_record(_ts_record(**facts)) is expected

@@ -27,6 +27,15 @@ Vehicles tab reads `core.vehicles` (`/v1/vehicles`).
      869k old cars carry one, and "000003" belongs to three different Volvos.
 - A car seen under two plates (a temporary import plate, then a permanent one)
   is one vehicle with plate history, not two vehicles.
+- **A synthetic test record is never a vehicle.** The TS backfill skips any
+  record loaded in a fixture batch, that the pipeline quarantined, whose brand
+  starts with `TEST/`, or whose plate is `TEST-` followed by digits. No Swedish
+  plate, personalized ones included, contains a hyphen. Live carries two such
+  test batches (2,000 records, e.g. `TEST-990002171` / `SB100000990002171`) and
+  the normalization bundle's fixture (`normalization-bundle-fixture-v1`: one car,
+  `TEST001` / `YV100000000000000`). A vehicle minted from one before this rule
+  existed is refreshed to `vehicle_scope = 'test_record'`, since vehicles are
+  never deleted.
 
 Minting an ID does not make ingestion idempotent. The lookup does, together with
 the unique constraints below.
@@ -123,6 +132,14 @@ rejected.
   plate typed with a space ("ABC 123") is also tried as a single identifier.
   Paging is a keyset on the NOR ID, and `matched_rows` is sent on the first page
   only.
+  - The text is looked up before the query runs: identifier history by exact
+    value, and the manufacturer and model-family names (a skip scan of their
+    indexes: about 425 and 1,057 values). The query then carries the vehicles
+    and names found as values. Plate and VIN prefixes use `text_pattern_ops`
+    indexes, because the database collation (`en_US.utf8`) keeps a default index
+    from answering `LIKE 'ABC%'`.
+  - On the full register, a plate, VIN, previous plate or NOR ID answers in
+    about 0.06 s (36.6 s before), and "volvo v70" in about 2 s.
 - `POST /v1/vehicles/facets?field=`: top values, with the field's own clause
   lifted.
 - `GET /v1/vehicles/fields`: the column catalog (label, group, filterable).
@@ -153,13 +170,41 @@ created the car), the values that lost, and plate history.
 
 Steps 2–5 need roughly 10 GB of free disk on a full copy.
 
+## First full run (local copy of live, 2026-09-26)
+
+| Step | Time | Result |
+| --- | --- | --- |
+| `backfill-vehicle-core` | ~80 min | 6,532,408 vehicles from 6,532,590 TS survivors (182 merged by full VIN); 7,255,414 of 7,255,433 TS records linked |
+| test-record refresh | seconds | 2,024 vehicles scoped `test_record` (2,000 synthetic `TEST-` plates, 23 already quarantined, and the bundle fixture `TEST001`) |
+| `learn-vehicle-rules --family TSC-… --activate` | 39 s | 227,852 completion rules |
+| `import-ais-vin-export` | 134 min | 10,814,705 records: 6,485,420 matched (851,867 by chassis number + plate), 660,846 new vehicles, 674,042 deregistered, 11,955 vehicle-type changes, 290 plate changes plus 2,272 plates moved to new cars, 16 corrected VINs |
+| `learn-vehicle-rules --activate` | 42 s | 148,260 enrichment rules |
+| `apply-vehicle-rules` | 128 s | 95,382 engine codes, 18,055 model years, 18,244 max weights, 13,571 lengths |
+
+The result is 7,193,254 vehicles. Registered passenger cars have engine code
+90.8%, model year 99.8%, kW 99.8%, kerb weight 99.1%, max weight 98.5% and
+length 99.3%.
+
+**Disk.** About 15 GB: vehicles 6.9 GB, identifiers 5.0 GB, links 1.9 GB and
+ledger 1.1 GB. The import also leaves old row versions of every vehicle it
+updates, so vacuum the table during and after the import. Locally this needs
+`VACUUM (PARALLEL 0)`: Docker's default 64 MB `/dev/shm` is too small for a
+parallel vacuum. Live has about 14 GB free and needs more disk before this runs.
+
+**What the run changed in the code.**
+
+- `apply-vehicle-rules` now analyzes the rules table first. Planned against the
+  statistics from before learning, the fill became a nested loop that ran ten
+  minutes for 31k rows.
+- The import no longer re-normalizes every car with a second fuel code (650k):
+  the second fuel is compared through the canonical value it produced.
+
 ## Known limits
 
-- Free-text search ORs plate and VIN prefixes with manufacturer and model
-  substrings, so on the full register it scans the table. Exact plate, VIN and
-  identifier lookups are indexed, but the OR prevents the planner from using
-  them alone. A trigram index or a separate identifier-only lookup path is the
-  fix if it proves slow on live.
+- The Vehicles tab counts ten facets over the whole filter on every load, each
+  a full pass over about 7M rows. The first load takes about 7 s locally, and
+  cached or approximate counts are the fix. A search narrows the list, not the
+  facet counts.
 - Matching summary jobs live in the API process's memory (unchanged).
 - A vehicle no TS record created (a new AIS car) has no stored TS normalization.
   The matcher sees its merged values alone, without the derivation's candidates.

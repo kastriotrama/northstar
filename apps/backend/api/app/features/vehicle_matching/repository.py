@@ -33,6 +33,7 @@ from ingestion.vehicle_core_query import (
     VehicleTerm,
     compile_vehicle_filter,
     is_vehicle_id,
+    resolve_search,
 )
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
@@ -201,8 +202,8 @@ class VehicleMatchingRepository:
     ) -> tuple[int, list[str]]:
         """How many vehicles the filter matches, and the first `limit` by NOR ID."""
 
-        predicate = compile_vehicle_filter(terms, text)
         with self._connection_factory() as connection, connection.cursor() as cursor:
+            predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
             cursor.execute(
                 f"SELECT count(*) FROM {VEHICLES_TABLE} AS {ALIAS} WHERE {predicate.sql}",
                 predicate.parameters,

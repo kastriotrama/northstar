@@ -12,7 +12,7 @@ from psycopg import Connection
 from psycopg.errors import RestrictViolation, UniqueViolation
 
 from ingestion.vehicle_core_store import load_vehicle
-from ingestion.vehicle_core_ts import backfill_vehicle_core
+from ingestion.vehicle_core_ts import backfill_vehicle_core, refresh_vehicle_core_records
 from tests.integration.throwaway_database import throwaway_database
 from tests.integration.vehicle_core_fixtures import (
     insert_ts_record,
@@ -42,6 +42,12 @@ def db() -> Iterator[Connection]:
         )
         # A repeated batch copy of ABC123 that the per-plate dedupe drops.
         insert_ts_record(connection, volvo(plate="ABC123"), batch="repeat", ingested_at="2026-08-02")
+        # A synthetic test record, as test batches loaded into live carry them.
+        insert_ts_record(connection, volvo(vin="SB100000990002171", plate="TEST-990002171"),
+                         batch="external-test")
+        # The normalization bundle's fixture car, loaded into live with its batch name.
+        insert_ts_record(connection, volvo(vin="YV100000000000000", plate="TEST001"),
+                         batch="normalization-bundle-fixture-v1")
         connection.commit()
         project(connection)
         yield connection
@@ -59,8 +65,9 @@ def test_every_ts_car_becomes_one_nor_vehicle(db: Connection) -> None:
     ids = _vehicle_ids(db)
     assert len(ids) == 3  # the Volvo (two plates) and the two old cars
     assert all(vehicle_id.startswith("NOR-") for vehicle_id in ids)
-    assert summary.records_read == 4  # the dedupe left one row per plate
+    assert summary.records_read == 6  # the dedupe left one row per plate
     assert summary.duplicates_linked == 1  # the repeated copy of ABC123
+    assert summary.test_records_skipped == 2  # the TEST- record and the fixture are no vehicles
 
 
 def test_a_full_vin_seen_under_two_plates_is_one_vehicle_with_plate_history(db: Connection) -> None:
@@ -95,9 +102,13 @@ def test_a_shared_short_chassis_number_is_not_identity(db: Connection) -> None:
         assert cursor.fetchone()[0] == 2
 
 
-def test_every_ts_record_is_linked_to_its_vehicle(db: Connection) -> None:
+def test_every_real_ts_record_is_linked_to_its_vehicle(db: Connection) -> None:
     with db.cursor() as cursor:
-        cursor.execute("SELECT count(*) FROM staging.transportstyrelsen_raw")
+        cursor.execute(
+            "SELECT count(*) FROM staging.transportstyrelsen_raw "
+            "WHERE raw_record ->> 'plate' NOT LIKE 'TEST-%%' "
+            "AND source_batch_id NOT LIKE '%%fixture%%'"
+        )
         raw = cursor.fetchone()[0]
         cursor.execute(
             "SELECT count(*) FROM core.vehicle_source_links WHERE source_system = 'transportstyrelsen'"
@@ -138,6 +149,36 @@ def test_vehicles_identifiers_and_links_are_never_deleted(db: Connection) -> Non
         with db.cursor() as cursor, pytest.raises(RestrictViolation, match="never deleted"):
             cursor.execute(f"DELETE FROM {table}")
         db.rollback()
+
+
+def test_a_test_record_minted_before_the_rule_is_scoped_out_on_refresh(db: Connection) -> None:
+    """Vehicles are never deleted, so one minted from a test record is marked instead."""
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT source_record_id FROM core.vehicle_facts WHERE plate = 'TEST-990002171'"
+        )
+        (record_id,) = cursor.fetchone()
+        # What the backfill did before test records were recognised: mint and link.
+        cursor.execute(
+            "INSERT INTO core.vehicles (vehicle_id, origin_source, ts_record_id, plate, "
+            "vehicle_scope) VALUES ('NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV', 'transportstyrelsen', %s, "
+            "'TEST-990002171', 'passenger')",
+            (record_id,),
+        )
+        cursor.execute(
+            "INSERT INTO core.vehicle_source_links (source_system, source_record_key, vehicle_id, "
+            "link_method) VALUES ('transportstyrelsen', %s, 'NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV', "
+            "'minted')",
+            (str(record_id),),
+        )
+    db.commit()
+
+    refresh_vehicle_core_records(db, [record_id])
+
+    state = load_vehicle(db, "NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    assert state is not None
+    assert state.values["vehicle_scope"] == "test_record"
 
 
 def _owner(connection: Connection, plate: str) -> str:

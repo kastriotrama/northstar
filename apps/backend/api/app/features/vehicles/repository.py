@@ -21,6 +21,7 @@ from ingestion.vehicle_core_query import (
     VehicleTerm,
     compile_vehicle_filter,
     filterable_column,
+    resolve_search,
 )
 
 
@@ -90,33 +91,36 @@ class VehicleRepository:
     ) -> list[dict[str, Any]]:
         """One keyset page, ordered by `vehicle_id` (a ULID: oldest vehicle first)."""
 
-        predicate = compile_vehicle_filter(terms, text)
         columns = ", ".join(f"{ALIAS}.{column}" for column in LIST_COLUMNS)
         asserted = _ASSERTED_FIELDS.format(alias=ALIAS)
         cursor_sql = f" AND {ALIAS}.vehicle_id > %s" if after else ""
-        parameters: list[Any] = ["review%", "rule%", *predicate.parameters]
-        if after:
-            parameters.append(after)
-        parameters.append(limit)
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted} "
-                f"FROM {VEHICLES_TABLE} AS {ALIAS} "
-                f"WHERE {predicate.sql}{cursor_sql} "
-                f"ORDER BY {ALIAS}.vehicle_id LIMIT %s",
-                parameters,
-            )
-            names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields")
-            return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
+        with self._connection_factory() as connection:
+            predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
+            parameters: list[Any] = ["review%", "rule%", *predicate.parameters]
+            if after:
+                parameters.append(after)
+            parameters.append(limit)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted} "
+                    f"FROM {VEHICLES_TABLE} AS {ALIAS} "
+                    f"WHERE {predicate.sql}{cursor_sql} "
+                    f"ORDER BY {ALIAS}.vehicle_id LIMIT %s",
+                    parameters,
+                )
+                rows = cursor.fetchall()
+        names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields")
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
     def count(self, terms: Sequence[VehicleTerm], text: str) -> int:
-        predicate = compile_vehicle_filter(terms, text)
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"SELECT count(*) FROM {VEHICLES_TABLE} AS {ALIAS} WHERE {predicate.sql}",
-                predicate.parameters,
-            )
-            row = cursor.fetchone()
+        with self._connection_factory() as connection:
+            predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT count(*) FROM {VEHICLES_TABLE} AS {ALIAS} WHERE {predicate.sql}",
+                    predicate.parameters,
+                )
+                row = cursor.fetchone()
         return int(row[0]) if row else 0
 
     def facet(
@@ -125,15 +129,19 @@ class VehicleRepository:
         """Top values of one field inside the filter, its own clauses lifted."""
 
         column = filterable_column(field)
-        predicate = compile_vehicle_filter(terms, text, skip_field=field)
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"SELECT {column}::text, count(*) FROM {VEHICLES_TABLE} AS {ALIAS} "
-                f"WHERE {predicate.sql} AND {column} IS NOT NULL "
-                f"GROUP BY {column} ORDER BY count(*) DESC, {column}::text LIMIT %s",
-                [*predicate.parameters, limit],
+        with self._connection_factory() as connection:
+            predicate = compile_vehicle_filter(
+                terms, resolve_search(connection, text), skip_field=field
             )
-            return [(str(value), int(count)) for value, count in cursor.fetchall()]
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT {column}::text, count(*) FROM {VEHICLES_TABLE} AS {ALIAS} "
+                    f"WHERE {predicate.sql} AND {column} IS NOT NULL "
+                    f"GROUP BY {column} ORDER BY count(*) DESC, {column}::text LIMIT %s",
+                    [*predicate.parameters, limit],
+                )
+                rows = cursor.fetchall()
+        return [(str(value), int(count)) for value, count in rows]
 
     def record(self, vehicle_id: str) -> VehicleRecordRows | None:
         columns = ", ".join((*_META_COLUMNS, *FIELD_NAMES))

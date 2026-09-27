@@ -23,6 +23,7 @@ afterwards by plate, in one set-based statement.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -123,6 +124,7 @@ class TsRecord:
     status: str | None
     confidence: float | None
     resolutions: Mapping[str, tuple[str, str]] = field(default_factory=dict)
+    batch: str | None = None
 
 
 def _first(values: object, index: int) -> str | None:
@@ -161,6 +163,33 @@ def tyre_size(value: object) -> str | None:
     return clean_text(value)
 
 
+_TEST_PLATE = re.compile(r"^TEST-\d+$")
+_FIXTURE_BATCH = re.compile(r"(^|-)fixture(-|$)")
+
+
+def is_test_record(record: TsRecord) -> bool:
+    """A synthetic test record, not a registration: it never becomes a vehicle.
+
+    Four markers, any one suffices: it was loaded in a fixture batch (the
+    normalization bundle's `normalization-bundle-fixture-v1`, whose one car is
+    `TEST001` / `YV100000000000000`); the pipeline quarantined it; its brand
+    starts with `TEST/` (the pipeline's own marker); or its plate is `TEST-`
+    and digits. Swedish plates, personalized ones included, never contain a
+    hyphen, so no real registration can match the last one -- and test batches
+    loaded into live (`TEST-990002171` / `SB100000990002171`) carry exactly it.
+    """
+
+    if record.batch and _FIXTURE_BATCH.search(record.batch):
+        return True
+    if record.normalized.get("record_route") == "quarantine_test_record":
+        return True
+    brand = clean_text(record.facts.get("brand")) or ""
+    if brand.upper().startswith("TEST/"):
+        return True
+    plate = normalize_plate(record.facts.get("plate")) or ""
+    return bool(_TEST_PLATE.match(plate))
+
+
 def ts_observations(
     record: TsRecord, *, ref: SourceRef | None = None
 ) -> dict[str, Observation | None]:
@@ -175,9 +204,11 @@ def ts_observations(
     facts, raw, normalized = record.facts, record.raw, record.normalized
     energy = normalized.get("energy_sources")
     tokens = normalized.get("fuel_match_tokens") or energy
-    scope = clean_text(normalized.get("vehicle_scope")) or classify_vehicle_scope(
-        {"eu_category": facts.get("eu_category"), "vehicle_type": raw.get("vehicle_type")},
-        normalized,
+    scope = "test_record" if is_test_record(record) else (
+        clean_text(normalized.get("vehicle_scope")) or classify_vehicle_scope(
+            {"eu_category": facts.get("eu_category"), "vehicle_type": raw.get("vehicle_type")},
+            normalized,
+        )
     )
     four_wheel = clean_text(facts.get("is_4wd"))
     group = clean_code(facts.get("group_no"))
@@ -244,7 +275,9 @@ def review_observations(record: TsRecord) -> dict[str, Observation | None]:
     return observations
 
 
-def _page_statement() -> str:
+def _page_statement(selection: str = "facts.source_record_id > %s") -> str:
+    """One TS record per row, as the vehicle reads it; `selection` picks the rows."""
+
     payload = ", ".join(f"'{key}', nr.normalized_payload -> 'normalized' -> '{key}'" for key in _PAYLOAD_KEYS)
     raw = ", ".join(f"'{key}', raw.raw_record -> '{key}'" for key in _RAW_KEYS)
     return f"""
@@ -268,7 +301,7 @@ def _page_statement() -> str:
             FROM {MATCH_FIELD_RESOLUTIONS_TABLE}
             WHERE source_record_id = facts.source_record_id AND superseded_at IS NULL
         ) AS res ON true
-        WHERE facts.source_record_id > %s
+        WHERE {selection}
         ORDER BY facts.source_record_id
         LIMIT %s
     """
@@ -315,7 +348,27 @@ def fetch_ts_page(
 ) -> list[TsRecord]:
     with connection.cursor() as cursor:
         cursor.execute(_page_statement(), (STAGING_TABLE, after_id, limit))
-        rows = cursor.fetchall()
+        return _decode(cursor.fetchall(), snapshots)
+
+
+def fetch_ts_records(
+    connection: Connection,
+    record_ids: Sequence[int],
+    snapshots: Mapping[str, date] | None = None,
+) -> list[TsRecord]:
+    """These TS records exactly, for a targeted refresh."""
+
+    ids = sorted(set(record_ids))
+    if not ids:
+        return []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            _page_statement("facts.source_record_id = ANY(%s)"), (STAGING_TABLE, ids, len(ids))
+        )
+        return _decode(cursor.fetchall(), snapshots)
+
+
+def _decode(rows: Sequence[Any], snapshots: Mapping[str, date] | None) -> list[TsRecord]:
     records = []
     for facts, raw, normalized, status, confidence, ingested_at, resolutions, batch in rows:
         loaded = ingested_at.date() if isinstance(ingested_at, datetime) else ingested_at
@@ -333,6 +386,7 @@ def fetch_ts_page(
                     str(name): (str(pair[0]), str(pair[1]))
                     for name, pair in dict(resolutions or {}).items()
                 },
+                batch=None if batch is None else str(batch),
             )
         )
     return records
@@ -347,7 +401,16 @@ class BackfillSummary:
     pages: int = 0
     highest_record_id: int = 0
     duplicates_linked: int = 0
+    test_records_skipped: int = 0
     stopped_for_disk: bool = False
+
+
+@dataclass(frozen=True)
+class PageResult:
+    created: int = 0
+    updated: int = 0
+    joined: int = 0
+    test_records_skipped: int = 0
 
 
 def _free_bytes(path: str) -> int:
@@ -370,8 +433,13 @@ def process_ts_page(
     records: Sequence[TsRecord],
     *,
     generator: NodeIdGenerator | None = None,
-) -> tuple[int, int, int]:
-    """Merge one page of TS records into their vehicles. Returns (created, updated, joined)."""
+) -> PageResult:
+    """Merge one page of TS records into their vehicles.
+
+    A synthetic test record (`is_test_record`) is never minted: it describes no
+    vehicle. One that was linked before the rule existed is refreshed like any
+    other, which scopes its vehicle out as `test_record`.
+    """
 
     generator = generator or NodeIdGenerator()
     keys = [str(record.record_id) for record in records]
@@ -386,10 +454,14 @@ def process_ts_page(
     vehicle_of: dict[int, str] = {}
     new_ids: set[str] = set()
     link_method: dict[int, str] = {}
+    skipped = 0
     for record in records:
         existing = linked.get(str(record.record_id))
         if existing:
             vehicle_of[record.record_id] = existing
+            continue
+        if is_test_record(record):
+            skipped += 1
             continue
         vin = strong.get(record.record_id)
         if vin and vin in vin_owner:
@@ -404,6 +476,7 @@ def process_ts_page(
             # A later record in this page with the same VIN joins this vehicle.
             vin_owner[vin] = vehicle_id
 
+    records = [record for record in records if record.record_id in vehicle_of]
     states = load_vehicles(connection, set(vehicle_of.values()) - new_ids)
     plan = IdentifierPlan()
     ledger: list[LedgerRow] = []
@@ -443,7 +516,7 @@ def process_ts_page(
                 continue
 
         before = dict(state.values)
-        result = merge(state, {**observations, **review_observations(record)})
+        result = merge(state, observations, review_observations(record))
         derive(state, record.observed_on)
         if is_new:
             created += 1
@@ -482,7 +555,7 @@ def process_ts_page(
         ],
     )
     record_ledger_rows(connection, ledger)
-    return created, updated, joined
+    return PageResult(created, updated, joined, skipped)
 
 
 def backfill_vehicle_core(
@@ -515,12 +588,13 @@ def backfill_vehicle_core(
         records = fetch_ts_page(connection, summary.highest_record_id, page_size, snapshots)
         if not records:
             break
-        created, updated, joined = process_ts_page(connection, records, generator=generator)
+        page = process_ts_page(connection, records, generator=generator)
         connection.commit()
         summary.records_read += len(records)
-        summary.vehicles_created += created
-        summary.vehicles_updated += updated
-        summary.records_joined_existing += joined
+        summary.vehicles_created += page.created
+        summary.vehicles_updated += page.updated
+        summary.records_joined_existing += page.joined
+        summary.test_records_skipped += page.test_records_skipped
         summary.highest_record_id = records[-1].record_id
         summary.pages += 1
         if progress is not None:
@@ -529,6 +603,20 @@ def backfill_vehicle_core(
         summary.duplicates_linked = link_ts_duplicates(connection)
         connection.commit()
     return summary
+
+
+def refresh_vehicle_core_records(
+    connection: Connection, record_ids: Sequence[int]
+) -> PageResult:
+    """Merge these TS records into their vehicles again, e.g. after a rule changed.
+
+    The same path as the backfill, restricted to the records named. Commits.
+    """
+
+    records = fetch_ts_records(connection, record_ids, ts_batch_snapshots(connection))
+    result = process_ts_page(connection, records)
+    connection.commit()
+    return result
 
 
 def link_ts_duplicates(connection: Connection) -> int:

@@ -45,7 +45,7 @@ Dec 2023).
 | Body code | 19,157 | Mostly conversions to A-traktor (→ `07`) | Updated |
 | Vehicle type | **12,664** | PB→TR (A-traktor) 11,580, PB→LB 1,044, PB→BUSS 26 | Updated; the car leaves "passenger" |
 | Gearbox | 8,129 | 1,156 changes, 6,973 fills | Updated |
-| Plate | **6,007** | Plate changes. 4,616 of the new plates are on another car in our data today | Updated; the old plate is kept as history |
+| Plate | **6,007** (analysis) → **2,562** (import) | Plate changes. The analysis joined short chassis numbers alone, so two old cars sharing one ("24655") looked like one car with two plates. The import matches those by chassis number *and* plate: 290 real plate changes plus 2,272 plates that moved to new cars. | Updated; the old plate is kept as history |
 | kW | 5,823 changes, 3,327 fills | Engine swaps, conversions, corrections (EVs not included, see §6) | Updated |
 | Fuel | 4,152, plus 1,553 second-fuel fills | E.g. 153 petrol→ethanol conversions | Updated |
 | Build month | 2,286 fills | – | Filled |
