@@ -557,27 +557,37 @@ def number_rule_eras(connection: Connection) -> dict[str, tuple[int, int]]:
 
     family = FAMILIES_BY_ID[STATISTICS_FAMILY_OF_PATTERNS]
     make_field, token_field = family.key_fields
-    source = _SOURCE_OF.format(field=family.target_field)
+    target = family.target_field
+    token = key_sql(token_field)
+    source = _SOURCE_OF.format(field=target)
+    # Each side reads the vehicles once and is joined only to the few number
+    # rules. Joined to the vehicles directly, the planner misjudged the computed
+    # key and read the whole table again for every car the join matched.
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
-            WITH names AS (
-                SELECT DISTINCT {make_field}::text AS make, upper({family.target_field}) AS name
+            WITH known AS MATERIALIZED (
+                SELECT {make_field}::text AS make, {token} AS word, {target} AS value,
+                       min(production_year) AS first_year, max(production_year) AS last_year
                 FROM {VEHICLES_TABLE}
-                WHERE {family.target_field} ~ '^[0-9]+$' AND {make_field} IS NOT NULL AND {source} = %s
+                WHERE {token} ~ '^[0-9]+$' AND {target} IS NOT NULL
+                  AND production_year IS NOT NULL AND {source} = %s
+                GROUP BY 1, 2, 3
+            ),
+            names AS MATERIALIZED (
+                SELECT DISTINCT {make_field}::text AS make, upper({target}) AS name
+                FROM {VEHICLES_TABLE}
+                WHERE {target} ~ '^[0-9]+$' AND {make_field} IS NOT NULL AND {source} = %s
             )
-            SELECT r.rule_id, min(v.production_year), max(v.production_year)
+            SELECT r.rule_id, known.first_year, known.last_year
             FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
-            JOIN {VEHICLES_TABLE} AS v
-              ON v.{make_field}::text = r.key_values[1] AND {key_sql(token_field, 'v')} = r.key_values[2]
-             AND v.{family.target_field} = r.value
+            JOIN known
+              ON known.make = r.key_values[1] AND known.word = r.key_values[2] AND known.value = r.value
             WHERE r.rule_family = %s AND r.status = 'active' AND r.key_values[2] ~ '^[0-9]+$'
               AND NOT EXISTS (SELECT 1 FROM names WHERE names.make = r.key_values[1]
                               AND names.name = r.key_values[2])
-              AND v.production_year IS NOT NULL AND {source} = %s
-            GROUP BY r.rule_id
             """,
-            (SOURCE_TS, family.family, SOURCE_TS),
+            (SOURCE_TS, SOURCE_TS, family.family),
         )
         return {str(rule_id): (int(first), int(last)) for rule_id, first, last in cursor.fetchall()}
 
