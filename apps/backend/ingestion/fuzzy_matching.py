@@ -38,6 +38,8 @@ def _normalized_code(value: str) -> str:
 
 _ENGINE_BRACKET = re.compile(r"\(([^()]*)\)")
 _ENGINE_HEAD_SPLIT = re.compile(r"[\s\-]+")
+# A compact code whose last character is one revision letter after a digit.
+_ENGINE_REVISION_SUFFIX = re.compile(r"^([A-Z0-9]*[0-9])[A-Z]$")
 
 
 @lru_cache(maxsize=250_000)
@@ -54,21 +56,37 @@ def engine_code_forms(value: str) -> frozenset[str]:
 
 
 @lru_cache(maxsize=250_000)
-def engine_code_family(value: str) -> str | None:
+def engine_code_family(value: str, *, revision: bool = True) -> str | None:
     """The engine family a code's first token names: `K9K 276` and `K9K-H` -> K9K.
+
+    A code written as one token names its family by dropping a single trailing
+    revision letter after a digit: `FB20C` and `B47D20A` -> FB20, B47D20. A code
+    ending in a digit (`B5254T6`), in several letters (`Z16XER`) or in letters
+    only (`CFGB`) has none.
 
     A family is compatible only with a code that names the family alone, never
     with another variant of it.
 
-    None when the code has no separate head, or the head is too short to name
-    an engine on its own (`M 177.980`, `OM 651`).
+    `revision=False` keeps only the first-token family. Whether the catalog
+    knows an engine is decided on that alone, so a revision no KType carries
+    (`B5252S` beside a catalog `B 5252`) stays unverified rather than a conflict.
+
+    None when the code has no family, or the family is too short to name an
+    engine on its own (`M 177.980`, `OM 651`, `20E`).
     """
 
     text = re.sub(r"\([^()]*\)", " ", unicodedata.normalize("NFKC", value).upper()).strip()
     tokens = [token for token in _ENGINE_HEAD_SPLIT.split(text) if token]
-    if len(tokens) < 2:
+    if (
+        revision
+        and len(tokens) == 1
+        and (suffixed := _ENGINE_REVISION_SUFFIX.match(_normalized_code(text)))
+    ):
+        head = suffixed.group(1)
+    elif len(tokens) >= 2:
+        head = _normalized_code(tokens[0])
+    else:
         return None
-    head = _normalized_code(tokens[0])
     return head if len(head) >= 3 and not head.isdigit() else None
 
 
@@ -163,12 +181,22 @@ class FuzzyMatchConfig:
     phonetic_min_text_score: float = 0.35
     year_match_bonus: float = 0.05
     year_conflict_penalty: float = 0.20
+    # A car's registry year and a KType's production run are counted
+    # differently (model year against build year, the last cars of a run first
+    # registered the next year), so a year just outside the run is unverified:
+    # never a match, never a hard conflict.
+    year_tolerance: int = 1
+    # Same role as `power_tolerance_penalty`: a KType whose run covers the year
+    # must clear the automatic margin over a sibling that only nearly does.
+    year_tolerance_penalty: float = 0.05
     fuel_match_bonus: float = 0.05
     fuel_conflict_penalty: float = 0.15
     engine_match_bonus: float = 0.12
     # Same engine family, different variant suffix (`K9K 276` against `K9K`):
-    # compatible, but weaker than the exact engine.
-    engine_family_match_bonus: float = 0.06
+    # compatible, but weaker than the exact engine. The gap to
+    # `engine_match_bonus` must exceed the automatic margin, otherwise a KType
+    # carrying the car's exact code ties with a family sibling (FB25 / FB25B).
+    engine_family_match_bonus: float = 0.03
     engine_conflict_penalty: float = 0.25
     displacement_match_bonus: float = 0.05
     displacement_conflict_penalty: float = 0.25
@@ -211,11 +239,14 @@ class FuzzyMatchConfig:
             raise ValueError("edit_weight and token_weight must sum to 1.0")
         if self.max_candidates < 1:
             raise ValueError("max_candidates must be positive")
+        if self.year_tolerance < 0:
+            raise ValueError("year_tolerance must not be negative")
         effects = (
             self.model_series_conflict_penalty,
             self.phonetic_match_bonus,
             self.year_match_bonus,
             self.year_conflict_penalty,
+            self.year_tolerance_penalty,
             self.fuel_match_bonus,
             self.fuel_conflict_penalty,
             self.engine_match_bonus,
@@ -627,7 +658,7 @@ class ManufacturerCandidateIndex:
         for candidate in self._all:
             for code in candidate.engine_codes:
                 known |= engine_code_forms(code)
-                if family := engine_code_family(code):
+                if family := engine_code_family(code, revision=False):
                     known.add(family)
         self._known_engine_forms = frozenset(known)
         self._by_manufacturer_key = {
@@ -651,7 +682,7 @@ class ManufacturerCandidateIndex:
     def knows_engine(self, code: str) -> bool:
         """True when any catalog KType carries this engine code or its family."""
 
-        family = engine_code_family(code)
+        family = engine_code_family(code, revision=False)
         return bool(engine_code_forms(code) & self._known_engine_forms) or (
             family is not None and family in self._known_engine_forms
         )
@@ -1026,13 +1057,21 @@ class FuzzyVehicleMatcher:
             context_effect -= self._config.model_series_conflict_penalty
 
         if query.year is not None:
+            years_outside = max(
+                0,
+                (candidate.year_from - query.year) if candidate.year_from is not None else 0,
+                (query.year - candidate.year_to) if candidate.year_to is not None else 0,
+            )
             if candidate.year_from is None and candidate.year_to is None:
                 missing_fields.append("year")
-            elif (candidate.year_from is None or query.year >= candidate.year_from) and (
-                candidate.year_to is None or query.year <= candidate.year_to
-            ):
+            elif years_outside == 0:
                 matched_fields.append("year")
                 context_effect += self._config.year_match_bonus
+            elif years_outside <= self._config.year_tolerance:
+                # Just outside the run (Rekord 1985 against 1977-1984): the
+                # counting differs, so it is unverified rather than a conflict.
+                missing_fields.append("year_adjacent_unverified")
+                context_effect -= self._config.year_tolerance_penalty
             else:
                 conflicting_fields.append("year")
                 context_effect -= self._config.year_conflict_penalty

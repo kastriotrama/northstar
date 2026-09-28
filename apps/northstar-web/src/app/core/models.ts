@@ -974,6 +974,8 @@ export interface MatchSummaryJob {
   evaluated: number;
   seconds_elapsed: number;
   error: string | null;
+  /** The Vehicles filter it ran on; null only for a job started without one. */
+  filter: VehicleSearchRequest | null;
   /** Partial while running, final once done. */
   summary: MatchSummary;
 }

@@ -26,6 +26,7 @@ from api.app.features.vehicle_matching.service import (
     VehicleNotFoundError,
     build_matcher,
 )
+from api.app.features.vehicles.schemas import VehicleFilter
 from api.app.features.vehicles.service import terms
 from ingestion.vehicle_facts_query import UnknownFieldError
 
@@ -103,13 +104,29 @@ def start_summary(
     """
 
     try:
-        return service.start_summary(terms(request.conditions), request.text, request.limit)
+        return service.start_summary(
+            terms(request.conditions),
+            request.text,
+            request.limit,
+            vehicle_filter=VehicleFilter(conditions=request.conditions, text=request.text),
+        )
     except (UnknownFieldError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except JobCapacityError as error:
         raise HTTPException(status_code=429, detail=str(error)) from error
     except psycopg.Error as error:
         raise _unavailable() from error
+
+
+@router.get("/summary", response_model=list[MatchSummaryJob])
+def list_summaries(service: ServiceDependency) -> list[MatchSummaryJob]:
+    """Summaries this API process holds, newest first -- running ones included.
+
+    The way back to a job whose screen was closed: it keeps running, and it
+    still counts against the running cap until it ends or is cancelled.
+    """
+
+    return service.summary_jobs()
 
 
 @router.get("/summary/{job_id}", response_model=MatchSummaryJob)

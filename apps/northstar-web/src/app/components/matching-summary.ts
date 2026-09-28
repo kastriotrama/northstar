@@ -1,5 +1,6 @@
 import { DecimalPipe, PercentPipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subscription, timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
@@ -60,12 +61,39 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
       <p class="error" role="alert">{{ text }}</p>
     }
 
+    @if (others().length) {
+      <section class="others">
+        <h4>Also running on the server</h4>
+        @for (other of others(); track other.job_id) {
+          <div class="others__row">
+            <span class="others__filter">{{ describe(other) }}</span>
+            <span class="muted">
+              {{ other.evaluated | number }} of {{ other.target | number }}
+              · {{ other.seconds_elapsed | number: '1.0-0' }}s
+            </span>
+            <p-button label="Show" size="small" [text]="true" (onClick)="show(other)" />
+            <p-button
+              label="Cancel"
+              size="small"
+              severity="secondary"
+              [text]="true"
+              [ariaLabel]="'Cancel the run on ' + describe(other)"
+              (onClick)="stop(other.job_id)"
+            />
+          </div>
+        }
+      </section>
+    }
+
     @if (job(); as current) {
       <div class="progress">
         <div class="progress__track">
           <div class="progress__fill" [style.width.%]="progressPct()"></div>
         </div>
         <span class="muted">
+          @if (resumed()) {
+            Picked up a run already going on the server ·
+          }
           @switch (current.status) {
             @case ('running') { Matching… }
             @case ('done') { Done. }
@@ -76,7 +104,7 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
           · {{ current.seconds_elapsed | number: '1.0-0' }}s
           @if (current.summary.sampled) {
             · the filter matches {{ current.summary.population | number }}; these are the first
-            {{ current.target | number }} by record id, not a random sample
+            {{ current.target | number }} by NOR ID, not a random sample
           }
         </span>
       </div>
@@ -237,6 +265,9 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
     .muted { color: var(--p-text-muted-color); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .error { margin: 0; color: #8a2020; }
+    .others { border: 1px solid var(--p-surface-200); border-radius: 8px; padding: 0.5rem 0.7rem; }
+    .others__row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .others__filter { font-weight: 600; }
   `,
 })
 export class MatchingSummary {
@@ -253,10 +284,20 @@ export class MatchingSummary {
   protected readonly limit = signal(2000);
   protected readonly job = signal<MatchSummaryJob | null>(null);
   protected readonly error = signal<string | null>(null);
+  /** The watched job was already running when this view opened. */
+  protected readonly resumed = signal(false);
+  /** Jobs the API holds. A job outlives this view: closing it drops the id, not the job. */
+  private readonly serverJobs = signal<MatchSummaryJob[]>([]);
   private readonly ranWith = signal<string | null>(null);
   private polling: Subscription | null = null;
 
   protected readonly running = computed(() => this.job()?.status === 'running');
+  /** Running jobs this view is not watching -- they still count against the server's cap. */
+  protected readonly others = computed(() =>
+    this.serverJobs().filter(
+      (item) => item.status === 'running' && item.job_id !== this.job()?.job_id,
+    ),
+  );
   protected readonly progressPct = computed(() => {
     const current = this.job();
     return current && current.target ? (100 * current.evaluated) / current.target : 0;
@@ -269,6 +310,7 @@ export class MatchingSummary {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.polling?.unsubscribe());
+    this.refreshServerJobs({ resume: true });
   }
 
   protected run(): void {
@@ -278,14 +320,40 @@ export class MatchingSummary {
     this.api
       .startMatchSummary({ conditions: this.conditions(), text: this.text(), limit })
       .subscribe({
-        next: (started) => {
-          this.job.set(started);
-          this.ranWith.set(this.requestKey());
-          this.poll(started.job_id);
+        next: (started) => this.watch(started, false),
+        error: (err: { error?: { detail?: string } }) => {
+          this.error.set(err?.error?.detail ?? 'Could not start matching.');
+          // Usually the running cap: show which runs hold it, so one can be stopped.
+          this.refreshServerJobs();
         },
-        error: (err: { error?: { detail?: string } }) =>
-          this.error.set(err?.error?.detail ?? 'Could not start matching.'),
       });
+  }
+
+  /** Watch a run started elsewhere (a closed view, a reload, another tab). */
+  protected show(other: MatchSummaryJob): void {
+    this.error.set(null);
+    this.watch(other, true);
+    this.refreshServerJobs();
+  }
+
+  protected stop(jobId: string): void {
+    this.api.cancelMatchSummary(jobId).subscribe({
+      next: () => {
+        this.error.set(null);
+        this.refreshServerJobs();
+      },
+      error: () => this.error.set('Could not cancel matching.'),
+    });
+  }
+
+  protected describe(job: MatchSummaryJob): string {
+    const filter = job.filter;
+    if (!filter) return 'Unknown filter';
+    const parts = filter.conditions.map(
+      (condition) => `${condition.field} ${condition.operator} ${condition.values.join(' | ')}`,
+    );
+    if (filter.text) parts.push(`"${filter.text}"`);
+    return parts.length ? parts.join(' · ') : 'All vehicles';
   }
 
   protected cancel(): void {
@@ -317,6 +385,30 @@ export class MatchingSummary {
     return Object.entries(counts);
   }
 
+  private watch(job: MatchSummaryJob, resumed: boolean): void {
+    this.job.set(job);
+    this.resumed.set(resumed);
+    // Its size, not this view's default: the box should describe the run below it.
+    if (resumed) this.limit.set(job.target);
+    this.ranWith.set(job.filter ? filterKey(job.filter.conditions, job.filter.text) : null);
+    if (job.status === 'running') this.poll(job.job_id);
+  }
+
+  private refreshServerJobs(options: { resume?: boolean } = {}): void {
+    this.api
+      .matchSummaryJobs()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (jobs) => {
+          this.serverJobs.set(jobs);
+          const newest = jobs.find((item) => item.status === 'running');
+          if (options.resume && newest && !this.job()) this.watch(newest, true);
+        },
+        // The list only helps find runs again; without it, starting one still works.
+        error: () => this.serverJobs.set([]),
+      });
+  }
+
   private poll(jobId: string): void {
     this.polling?.unsubscribe();
     this.polling = timer(1500, 2000)
@@ -326,12 +418,23 @@ export class MatchingSummary {
         takeWhile((job) => job.status === 'running', true),
       )
       .subscribe({
-        next: (job) => this.job.set(job),
+        next: (job) => {
+          this.job.set(job);
+          if (job.status !== 'running') this.refreshServerJobs();
+        },
         error: () => this.error.set('Lost track of the matching job — the API may have restarted.'),
       });
   }
 
   private requestKey(): string {
-    return JSON.stringify({ conditions: this.conditions(), text: this.text() });
+    return filterKey(this.conditions(), this.text());
   }
+}
+
+/** Order-independent of object keys: the API echoes a filter back with its own key order. */
+function filterKey(conditions: VehicleCondition[], text: string): string {
+  return JSON.stringify({
+    conditions: conditions.map((item) => [item.field, item.operator, item.values]),
+    text,
+  });
 }

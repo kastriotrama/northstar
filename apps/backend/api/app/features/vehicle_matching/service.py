@@ -36,6 +36,7 @@ from api.app.features.vehicle_matching.schemas import (
     ReasonCount,
     VehicleMatchLookup,
 )
+from api.app.features.vehicles.schemas import VehicleFilter
 from ingestion.fuzzy_matching import FuzzyMatchConfig, VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import (
@@ -342,6 +343,7 @@ class VehicleMatchingService:
         text: str,
         limit: int,
         *,
+        vehicle_filter: VehicleFilter | None = None,
         run_in_background: bool = True,
     ) -> MatchSummaryJob:
         """Pick the cars now, evaluate them on a worker thread.
@@ -353,7 +355,7 @@ class VehicleMatchingService:
         """
 
         population, ids = self._repository.vehicle_population(terms, text, limit=limit)
-        job = self._jobs.create(population=population, target=len(ids))
+        job = self._jobs.create(population=population, target=len(ids), vehicle_filter=vehicle_filter)
         if run_in_background:
             threading.Thread(target=self._run, args=(job, ids), daemon=True).start()
         else:
@@ -362,6 +364,15 @@ class VehicleMatchingService:
 
     def summary_job(self, job_id: str) -> MatchSummaryJob:
         return self._jobs.snapshot(self._jobs.get(job_id))
+
+    def summary_jobs(self) -> list[MatchSummaryJob]:
+        """Every job this process still holds, newest first -- running ones included.
+
+        A job outlives the screen that started it: closing the Matching view or
+        reloading the page drops its id, not the job. This is how it is found again.
+        """
+
+        return [self._jobs.snapshot(job) for job in self._jobs.all()]
 
     def cancel_summary(self, job_id: str) -> MatchSummaryJob:
         job = self._jobs.get(job_id)
@@ -396,6 +407,7 @@ class SummaryJob:
     finished_at: float | None = None
     error: str | None = None
     catalog_batch: str | None = None
+    vehicle_filter: VehicleFilter | None = None
     tally: _Tally = field(default_factory=lambda: _Tally())
     cancel: threading.Event = field(default_factory=threading.Event)
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -421,14 +433,21 @@ class SummaryJobs:
         self._keep = keep
         self._lock = threading.Lock()
 
-    def create(self, *, population: int, target: int) -> SummaryJob:
+    def create(
+        self, *, population: int, target: int, vehicle_filter: VehicleFilter | None = None
+    ) -> SummaryJob:
         with self._lock:
             running = sum(1 for job in self._jobs.values() if job.status == "running")
             if running >= self._max_running:
                 raise JobCapacityError(
                     f"{running} summaries are already running; wait for one or cancel it."
                 )
-            job = SummaryJob(job_id=uuid.uuid4().hex, population=population, target=target)
+            job = SummaryJob(
+                job_id=uuid.uuid4().hex,
+                population=population,
+                target=target,
+                vehicle_filter=vehicle_filter,
+            )
             self._jobs[job.job_id] = job
             # Forget the oldest finished jobs beyond `keep`; never a running one.
             finished = [key for key, item in self._jobs.items() if item.status != "running"]
@@ -443,6 +462,12 @@ class SummaryJobs:
             raise SummaryJobNotFoundError(f"No summary job {job_id!r} on this server.")
         return job
 
+    def all(self) -> list[SummaryJob]:
+        """Newest first."""
+
+        with self._lock:
+            return list(reversed(self._jobs.values()))
+
     @staticmethod
     def snapshot(job: SummaryJob) -> MatchSummaryJob:
         with job.lock:
@@ -454,6 +479,7 @@ class SummaryJobs:
                 evaluated=job.tally.evaluated,
                 seconds_elapsed=round(elapsed, 1),
                 error=job.error,
+                filter=job.vehicle_filter,
                 summary=job.tally.summary(
                     catalog_batch=job.catalog_batch or "", population=job.population
                 ),

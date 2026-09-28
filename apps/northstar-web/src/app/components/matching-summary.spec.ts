@@ -17,8 +17,13 @@ import { MatchingSummary } from './matching-summary';
 const VOLVO: VehicleCondition[] = [
   { field: 'manufacturer', operator: 'equals', values: ['Volvo'] },
 ];
+const LIST = 'http://api.test/v1/vehicles/matching/summary';
 
-function job(status: MatchSummaryJob['status'], evaluated: number): MatchSummaryJob {
+function job(
+  status: MatchSummaryJob['status'],
+  evaluated: number,
+  overrides: Partial<MatchSummaryJob> = {},
+): MatchSummaryJob {
   return {
     job_id: 'job-1',
     status,
@@ -26,6 +31,8 @@ function job(status: MatchSummaryJob['status'], evaluated: number): MatchSummary
     evaluated,
     seconds_elapsed: 12,
     error: null,
+    // The API's own key order, not the one the page builds conditions in.
+    filter: { conditions: [{ field: 'manufacturer', values: ['Volvo'], operator: 'equals' }], text: '' },
     summary: {
       catalog_batch: 'tecdoc-v5',
       population: 3722,
@@ -56,10 +63,12 @@ function job(status: MatchSummaryJob['status'], evaluated: number): MatchSummary
         not_matchable: [],
       },
     },
+    ...overrides,
   };
 }
 
-function render() {
+/** Opens the view; it first asks the API for runs already going. */
+function render(serverJobs: MatchSummaryJob[] = []) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
@@ -72,7 +81,15 @@ function render() {
   fixture.componentRef.setInput('conditions', VOLVO);
   fixture.componentRef.setInput('text', '');
   fixture.detectChanges();
+  TestBed.inject(HttpTestingController).expectOne({ method: 'GET', url: LIST }).flush(serverJobs);
+  fixture.detectChanges();
   return fixture;
+}
+
+function buttons(fixture: ReturnType<typeof render>, label: string): HTMLButtonElement[] {
+  return [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].filter((item) =>
+    item.textContent?.includes(label),
+  );
 }
 
 function run(fixture: ReturnType<typeof render>): void {
@@ -167,5 +184,81 @@ describe('MatchingSummary', () => {
 
     const request = http.expectOne('http://api.test/v1/vehicles/matching/summary/job-1');
     expect(request.request.method).toBe('DELETE');
+  });
+
+  it('picks up a run already going when the view opens, and keeps polling it', async () => {
+    const fixture = render([job('running', 400), job('done', 1000, { job_id: 'job-0' })]);
+    const host = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable();
+
+    expect(host.querySelector<HTMLInputElement>('input[type=number]')?.value).toBe('1000');
+    expect(host.textContent).toContain('Picked up a run already going on the server');
+    expect(host.textContent).toContain('400 of 1,000 evaluated');
+    // Same filter, whatever key order the API echoed it in.
+    expect(host.textContent).not.toContain('The filter has changed');
+
+    vi.advanceTimersByTime(1500);
+    TestBed.inject(HttpTestingController)
+      .expectOne('http://api.test/v1/vehicles/matching/summary/job-1')
+      .flush(job('running', 600));
+    fixture.detectChanges();
+    expect(host.textContent).toContain('600 of 1,000 evaluated');
+  });
+
+  it('when the running cap is hit, lists the runs holding it and cancels one', () => {
+    const fixture = render();
+    run(fixture);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne({ method: 'POST', url: LIST }).flush(
+      { detail: '2 summaries are already running; wait for one or cancel it.' },
+      { status: 429, statusText: 'Too Many Requests' },
+    );
+    const bmw = { conditions: [{ field: 'manufacturer', operator: 'equals' as const, values: ['BMW'] }], text: '' };
+    http
+      .expectOne({ method: 'GET', url: LIST })
+      .flush([
+        job('running', 300, { job_id: 'job-a', filter: bmw }),
+        job('running', 900, { job_id: 'job-b' }),
+      ]);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('2 summaries are already running');
+    expect(host.textContent).toContain('Also running on the server');
+    expect(host.textContent).toContain('manufacturer equals BMW');
+    expect(host.textContent).toContain('300 of 1,000');
+
+    const cancelA = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Cancel the run on manufacturer equals BMW"]',
+    );
+    cancelA?.click();
+    http.expectOne(`${LIST}/job-a`).flush(job('cancelled', 300, { job_id: 'job-a', filter: bmw }));
+    http.expectOne({ method: 'GET', url: LIST }).flush([job('running', 950, { job_id: 'job-b' })]);
+    fixture.detectChanges();
+
+    expect(host.textContent).not.toContain('2 summaries are already running');
+    expect(host.textContent).not.toContain('BMW');
+    expect(buttons(fixture, 'Show')).toHaveLength(1);
+  });
+
+  it('shows a run from the list in place of the empty view', () => {
+    const fixture = render();
+    run(fixture);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne({ method: 'POST', url: LIST }).flush(
+      { detail: 'busy' },
+      { status: 429, statusText: 'Too Many Requests' },
+    );
+    http.expectOne({ method: 'GET', url: LIST }).flush([job('running', 500, { job_id: 'job-b' })]);
+    fixture.detectChanges();
+
+    buttons(fixture, 'Show')[0].click();
+    http.expectOne({ method: 'GET', url: LIST }).flush([job('running', 520, { job_id: 'job-b' })]);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('500 of 1,000 evaluated');
+    expect(host.textContent).not.toContain('Also running on the server');
+    expect(host.textContent).not.toContain('busy');
   });
 });

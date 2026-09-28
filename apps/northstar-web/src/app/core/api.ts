@@ -595,6 +595,11 @@ export class Api {
     return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
   }
 
+  /** Every summary job the API holds, newest first -- including ones no screen is watching. */
+  matchSummaryJobs(): Observable<MatchSummaryJob[]> {
+    return this.http.get<MatchSummaryJob[]>(`${this.base}/v1/vehicles/matching/summary`);
+  }
+
   matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
     return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
   }

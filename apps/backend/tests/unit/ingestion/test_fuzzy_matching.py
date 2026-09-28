@@ -154,9 +154,20 @@ def test_engine_code_forms_and_family() -> None:
     assert engine_code_family("D4FB-H") == "D4FB"
     assert engine_code_family("BHZ (DV6FC)") is None
     assert engine_code_family("D4204T14") is None
+    # One token: a single revision letter after a digit is dropped.
+    assert engine_code_family("FB20C") == "FB20"
+    assert engine_code_family("B47D20A") == "B47D20"
+    # Ending in a digit, in several letters, or letters only: no family.
+    assert engine_code_family("B5254T6") is None
+    assert engine_code_family("Z16XER") is None
+    assert engine_code_family("CFGB") is None
     # A head too short to name an engine alone is no family.
     assert engine_code_family("M 177.980") is None
     assert engine_code_family("OM 651.913") is None
+    assert engine_code_family("20E") is None
+    # Without revisions only the first-token family remains.
+    assert engine_code_family("FB20C", revision=False) is None
+    assert engine_code_family("K9K 276", revision=False) == "K9K"
 
 
 def _engine_score(car_engine: str, *catalog_engines: str, others: tuple[str, ...] = ()):  # type: ignore[no-untyped-def]
@@ -179,7 +190,8 @@ def test_bracket_and_spacing_forms_are_the_same_engine(car: str, catalog: str) -
 
 
 @pytest.mark.parametrize(
-    ("car", "catalog"), [("K9K", "K9K 276"), ("D4FB-H", "D4FB")]
+    ("car", "catalog"),
+    [("K9K", "K9K 276"), ("D4FB-H", "D4FB"), ("FB20", "FB20C"), ("FB20C", "FB20")],
 )
 def test_same_engine_family_is_compatible_with_a_smaller_bonus(car: str, catalog: str) -> None:
     family = _engine_score(car, catalog)
@@ -201,8 +213,52 @@ def test_an_engine_code_no_ktype_carries_is_unverified_not_a_conflict() -> None:
     # Two variants of one family are different engines (Renault D4F-742 / D4F 740).
     variants = _engine_score("D4F-742", "D4F 740", others=("D4F-742",))
     assert "engine_code" in variants.conflicting_fields
-    # No separator, no family: B5254T and B5254T6 stay different engines.
+    # B5254T6 ends in a digit, so it names no family: the two stay different engines.
     assert "engine_code" in different_volvo.conflicting_fields
+
+
+@pytest.mark.parametrize(
+    ("car", "catalog"),
+    [
+        ("FB20C", "FB20D"), ("FB20D", "FB20C"),
+        ("Z16XE", "Z16XER"), ("Z16XER", "Z16XE"),
+        ("B5254T", "B5254T6"), ("B5254T6", "B5254T"),
+    ],
+)
+def test_two_revisions_of_one_engine_still_conflict(car: str, catalog: str) -> None:
+    score = _engine_score(car, catalog, others=(car,))
+
+    assert "engine_code" in score.conflicting_fields
+    assert "engine_code_family" not in score.matched_fields
+
+
+@pytest.mark.parametrize(
+    ("car", "catalog", "others"),
+    [
+        ("FB20X", "FB20C", ()),
+        # V70 I: TS B5252S, TecDoc B 5252 FS; another KType carries the bare B 5252.
+        ("B5252S", "B 5252 FS", ("B 5252",)),
+    ],
+)
+def test_a_revision_no_ktype_carries_stays_unverified(
+    car: str, catalog: str, others: tuple[str, ...]
+) -> None:
+    score = _engine_score(car, catalog, others=others)
+
+    assert "engine_code_unverified" in score.missing_fields
+    assert "engine_code" not in score.conflicting_fields
+
+
+def test_an_exact_engine_code_clears_the_margin_over_a_family_sibling() -> None:
+    exact = VehicleCandidate("k-fb25", "Subaru", "Legacy", engine_codes=frozenset({"FB25"}))
+    sibling = VehicleCandidate("k-fb25b", "Subaru", "Legacy", engine_codes=frozenset({"FB25B"}))
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((exact, sibling)))
+
+    result = matcher.match(VehicleMatchQuery("Legacy", manufacturer="Subaru", engine_code="FB25"))
+
+    assert [c.candidate_reference for c in result.candidates] == ["k-fb25", "k-fb25b"]
+    assert result.reason != "candidate_margin_not_met"
+    assert result.eligible_for_auto_resolution is True
 
 
 def test_noisy_manufacturer_is_scoped_but_never_auto_resolved() -> None:
@@ -721,6 +777,63 @@ def test_exact_power_still_outranks_a_within_tolerance_sibling() -> None:
     )
 
     assert result.candidates[0].candidate_reference == "KTYPE-EXACT"
+
+
+def _year_score(car_year: int, year_from: int | None, year_to: int | None, **config: int):  # type: ignore[no-untyped-def]
+    candidate = VehicleCandidate("k", "Opel", "Rekord", year_from=year_from, year_to=year_to)
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((candidate,)), config=FuzzyMatchConfig(**config)
+    )
+    return matcher._score(VehicleMatchQuery("Rekord", manufacturer="Opel", year=car_year), candidate)
+
+
+@pytest.mark.parametrize(
+    ("car_year", "year_from", "year_to"),
+    [
+        # Registered the year after the run ended (Rekord E 1977-1984, car 1985).
+        (1985, 1977, 1984),
+        # A year before the run starts: a model year counted ahead of the build.
+        (2012, 2013, 2020),
+        (2012, 2013, None),
+        (1985, None, 1984),
+    ],
+)
+def test_a_year_just_outside_the_production_run_is_unverified(
+    car_year: int, year_from: int | None, year_to: int | None
+) -> None:
+    score = _year_score(car_year, year_from, year_to)
+
+    assert "year_adjacent_unverified" in score.missing_fields
+    assert "year" not in score.conflicting_fields
+    assert "year" not in score.matched_fields
+
+
+@pytest.mark.parametrize(("car_year", "year_from", "year_to"), [(1986, 1977, 1984), (2011, 2013, 2020)])
+def test_a_year_beyond_the_tolerance_still_conflicts(
+    car_year: int, year_from: int, year_to: int
+) -> None:
+    assert "year" in _year_score(car_year, year_from, year_to).conflicting_fields
+
+
+def test_a_zero_year_tolerance_keeps_the_strict_range() -> None:
+    assert "year" in _year_score(1985, 1977, 1984, year_tolerance=0).conflicting_fields
+    with pytest.raises(ValueError, match="year_tolerance"):
+        FuzzyMatchConfig(year_tolerance=-1)
+
+
+def test_a_ktype_whose_run_covers_the_year_outranks_an_adjacent_sibling() -> None:
+    shared = {"manufacturer": "VW", "model": "Golf", "power_kw": 77}
+    ending = VehicleCandidate("k-golf-vi", year_from=2008, year_to=2012, **shared)
+    covering = VehicleCandidate("k-golf-vii", year_from=2012, year_to=2020, **shared)
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((ending, covering)))
+
+    result = matcher.match(
+        VehicleMatchQuery("Golf", manufacturer="VW", year=2013, power_kw=77)
+    )
+
+    assert [c.candidate_reference for c in result.candidates] == ["k-golf-vii", "k-golf-vi"]
+    assert result.reason != "candidate_margin_not_met"
+    assert result.eligible_for_auto_resolution is True
 
 
 def test_reviewed_fuel_vocabulary_equivalents_match_once_pre_aligned() -> None:
