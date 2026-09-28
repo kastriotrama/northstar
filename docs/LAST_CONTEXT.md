@@ -2,6 +2,29 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-28 — Model family for cars the registry named only by make (local, commits not pushed)
+
+- Seven `MOD-*` rule families fill `core.vehicles.model_family` (99.77–99.99% on a holdout); a model guard
+  refuses or takes back fills the car's own model word contradicts, and number-keyed rules only fill cars of
+  their learned era. The matcher reads model words, names and family words (`recover_model_from_evidence`
+  readings); rule-inferred models yield to the car's text. Report: `docs/MODEL_FAMILY_FILLING_2026-09-27.md`.
+- Final run: check took back 6,524 out-of-era fills (1950s MB 170 S → SLK, Citroën 7 CV → Berlingo); the
+  re-apply made no new fills. Resolved 49.5% → 55.1% (30k), 49.0% → 54.6% (50k); includes the merged
+  matcher change `65f6eb6` (+247/−77 on the 30k). The era query was re-planned (never finished → 32 s).
+- Validation: 1,514 unit tests + model-rule integration tests, ruff, mypy; lost/moved checked car by car.
+- Risk / next: 32 cars lost to the one-year tolerance and 45 Subarus to revision families (raise with the
+  matcher author); rebuild the 50k sample dump with model fills; pushing to PR #55 needs confirmation.
+
+## 2026-09-27 — Status check: matching lookup and summary endpoints (read-only)
+
+- `GET /v1/vehicles/matching/lookup` and `POST /v1/vehicles/matching/summary` (+ poll/cancel) are in PR #55
+  (CI green, not reviewed; needs #54 first). 35 unit tests pass.
+- Found: unpinned, both endpoints use the newest catalog batch, which on the local DB is one of 100 1–3 KType
+  test batches that integration runs left behind; every car comes back `none`. Pinned to prod-v2 they work
+  (lookup 0.13 s; summary 300 cars in 19.6 s, ~0.065 s/car).
+- Next: pin/validate the catalog batch, seeded sample instead of first-N by NOR ID, matcher reload on rule
+  changes, persisted jobs, then persisted match decisions per vehicle and a real `/v1/resolve`.
+
 ## 2026-09-27 — 50k-car sample database for testing (local, not in git)
 
 - `outputs/sample-db/northstar-sample-50k-2026-09-27.dump` (85 MB, pg_restore custom format; the folder has
@@ -143,41 +166,3 @@ Keep the latest 10 task entries only.
 - Validation: full backend suite on a throwaway database (1466 passed, 29 skipped), ruff, mypy.
 - Risk / next: the first load of the tab still takes ~7 s (ten full-table facet counts); cached counts are next.
   All changes since `d979254` are uncommitted.
-
-## 2026-09-26 — First full vehicle-core run on the local copy of live
-
-- Applied the cloud session's API/UI patch (`d979254`) on top of `82aa4c8`. Then ran every step:
-  - TS backfill (~80 min);
-  - test records excluded (2,023);
-  - completion rules (227,852);
-  - AIS import (134 min: 660,846 new vehicles, 674,042 deregistered, 11,955 type changes, 2,562 plates closed);
-  - enrichment rules (148,260 learned; 145,252 fills incl. 95,382 engine codes).
-- Result: 7,193,254 vehicles. Registered passenger cars: engine code 90.8%, model year 99.8%, kerb weight 99.1%.
-- Code fixes from the run:
-  - synthetic test records (`TEST-` plates, `TEST/` brands, quarantined) are never minted;
-  - `apply_rules` analyzes the rules table first (a stale plan cost 10 min);
-  - the AIS import no longer re-normalizes every car with a second fuel.
-- Validation: ruff, strict mypy, backend suite (throwaway databases), web tests and build.
-- Risk / next:
-  - About 15 GB on disk; live (~14 GB free) needs more disk before this runs.
-  - The Vehicles tab fires about a dozen full-table counts per load, which is slow at 7M rows; needs cached counts and an identifier fast path.
-  - Matcher engine-code tolerance (plan step 1).
-  - The changes since the patch are uncommitted.
-
-## 2026-09-26 — Body type corrections: rules for 2.34M passenger cars (proposed, not applied)
-
-- Checked all 6.44M passenger cars in `core.vehicle_facts` against TecDoc prod-v2, with AIS vehicle
-  length as evidence. 2,342,644 cars (36%) carry a wrong or vague `bodywork_form`. Largest:
-  - estate→suv 686k, MPV→suv 334k, MPV→hatchback 280k, estate→hatchback 266k;
-  - the Golf alone has 100k hatchbacks registered AC; type AU/1K/CD vs AUV/1KM/CDV separates them.
-- 4,401 override/fill rules in `match_resolution_rules` shape in `outputs/proposed/bodywork/`; report
-  in `docs/BODYWORK_CORRECTIONS_2026-09-26.md`. Rule kinds: TecDoc single body, reviewed
-  discriminators (type code/variant), registry text, national codes, TecDoc disputes (Model X,
-  PV544, Saab 96…). The gray zone (126k) is flagged with alternatives; opt-in crossovers 35k.
-- Validation: 283 rules compiled with `compile_predicate` and counted in the DB, all exact. Automatic
-  rules agree with per-car evidence on 99.97%. 0 non-passenger rows. Nothing written to the DB.
-- Risk / next:
-  - retire rule `31614f07…` (over-broad Volvo 'model contains VOLVO' → suv) before applying;
-  - stakeholder calls on the gray zone, crossovers and M1 people carriers;
-  - 431k cars have no identifiable model, and 175k keep a vague national code;
-  - the matcher needs bodywork context rules where the values now differ from TecDoc.
