@@ -590,7 +590,7 @@ export class Api {
     });
   }
 
-  /** Start matching the first `limit` cars of a filter; poll the returned job. */
+  /** Start matching a seeded random `limit` cars of a filter; poll the returned job. */
   startMatchSummary(request: MatchSummaryRequest): Observable<MatchSummaryJob> {
     return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
   }

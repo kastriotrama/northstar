@@ -35,7 +35,7 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
   template: `
     <div class="controls">
       <label class="controls__limit">
-        Evaluate the first
+        Evaluate a random
         <input
           pInputText
           type="number"
@@ -103,8 +103,8 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
           {{ current.evaluated | number }} of {{ current.target | number }} evaluated
           · {{ current.seconds_elapsed | number: '1.0-0' }}s
           @if (current.summary.sampled) {
-            · the filter matches {{ current.summary.population | number }}; these are the first
-            {{ current.target | number }} by NOR ID, not a random sample
+            · the filter matches {{ current.summary.population | number }}; these are a random
+            sample of {{ current.target | number }}, and the same filter picks the same cars
           }
         </span>
       </div>

@@ -134,7 +134,7 @@ describe('MatchingSummary', () => {
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Done.');
-    expect(text).toContain('not a random sample');
+    expect(text.replace(/\s+/g, ' ')).toContain('these are a random sample of');
   });
 
   it('names the gaps, and says when the filter has moved on since the run', () => {

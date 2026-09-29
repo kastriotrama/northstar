@@ -97,7 +97,7 @@ def lookup_vehicle(
 def start_summary(
     request: MatchSummaryRequest, service: ServiceDependency
 ) -> MatchSummaryJob:
-    """Start running the matcher over the first `limit` cars of a filter.
+    """Start running the matcher over a seeded random `limit` cars of a filter.
 
     Returns at once with a job to poll: the matcher spends ~0.1s a car, so a
     summary of thousands takes minutes. Counts fill in as it runs.

@@ -10,12 +10,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, nullcontext
 from datetime import date
+from hashlib import md5
 from typing import Any
 
 import pytest
 from psycopg import Connection
 
-from api.app.features.vehicle_matching.repository import VehicleMatchingRepository
+from api.app.features.vehicle_matching.repository import SAMPLE_SEED, VehicleMatchingRepository
 from api.app.features.vehicles.repository import VehicleRepository
 from api.app.features.vehicles.schemas import VehicleCondition
 from api.app.features.vehicles.service import VehicleService, terms
@@ -243,6 +244,30 @@ def test_matching_finds_a_vehicle_by_a_plate_it_used_to_carry(db: Connection) ->
     total, ids = matching.vehicle_population(terms([condition]), "", limit=5)
     assert total == 1
     assert ids != [volvo_id]
+
+
+def _seeded(ids: list[str], seed: str) -> list[str]:
+    return sorted(ids, key=lambda vehicle_id: (md5((seed + vehicle_id).encode()).hexdigest(),
+                                               vehicle_id))
+
+
+def test_the_matching_population_is_a_seeded_sample_not_the_lowest_ids(db: Connection) -> None:
+    matching = VehicleMatchingRepository(_factory(db))
+    with db.cursor() as cursor:
+        cursor.execute("SELECT vehicle_id FROM core.vehicles")
+        every_id = [str(row[0]) for row in cursor.fetchall()]
+    # A seed under which the seeded order differs from NOR ID order, so the
+    # assertion cannot pass by reading the lowest IDs.
+    seed = next(f"s{n}" for n in range(1000) if _seeded(every_id, f"s{n}") != sorted(every_id))
+
+    total, ids = matching.vehicle_population(terms([]), "", limit=len(every_id), seed=seed)
+
+    assert total == len(every_id)
+    assert ids == _seeded(every_id, seed)
+    assert matching.vehicle_population(terms([]), "", limit=1, seed=seed) == (total, ids[:1])
+    assert matching.vehicle_population(terms([]), "", limit=len(every_id))[1] == _seeded(
+        every_id, SAMPLE_SEED
+    )
 
 
 def test_the_impact_sample_is_seeded_and_scoped(db: Connection) -> None:

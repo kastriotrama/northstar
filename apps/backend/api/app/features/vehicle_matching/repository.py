@@ -44,6 +44,8 @@ from ingestion.vocabulary_alignment import (
 )
 
 CATALOG_TABLE = "core.tecdoc_canonical_candidates"
+#: Seed of the match impact sample; the Matching tab samples its filter with it too.
+SAMPLE_SEED = "northstar-match-impact-v1"
 
 
 class ConnectionFactory(Protocol):
@@ -210,9 +212,14 @@ class VehicleMatchingRepository:
             return [str(row[0]) for row in cursor.fetchall()]
 
     def vehicle_population(
-        self, terms: Sequence[VehicleTerm], text: str, *, limit: int
+        self, terms: Sequence[VehicleTerm], text: str, *, limit: int, seed: str = SAMPLE_SEED
     ) -> tuple[int, list[str]]:
-        """How many vehicles the filter matches, and the first `limit` by NOR ID."""
+        """How many vehicles the filter matches, and a seeded random `limit` of them.
+
+        The lowest NOR IDs are no fair sample (the first 200 passenger cars lack
+        a model five times as often as the rest), so the cars are ordered the way
+        `sample_vehicle_ids` orders them: the same filter picks the same cars.
+        """
 
         with self._connection_factory() as connection, connection.cursor() as cursor:
             predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
@@ -224,8 +231,9 @@ class VehicleMatchingRepository:
             total = int(row[0]) if row else 0
             cursor.execute(
                 f"SELECT {ALIAS}.vehicle_id FROM {VEHICLES_TABLE} AS {ALIAS} "
-                f"WHERE {predicate.sql} ORDER BY {ALIAS}.vehicle_id LIMIT %s",
-                [*predicate.parameters, limit],
+                f"WHERE {predicate.sql} "
+                f"ORDER BY md5(%s || {ALIAS}.vehicle_id), {ALIAS}.vehicle_id LIMIT %s",
+                [*predicate.parameters, seed, limit],
             )
             ids = [str(item[0]) for item in cursor.fetchall()]
         return total, ids

@@ -2,6 +2,32 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-29 — Matching tab evaluates a seeded random sample, not the lowest NOR IDs
+
+- A 200-car Matching run gave 20.5% one KType: `vehicle_population` took the first 200 by NOR ID, and
+  those lack a model five times as often (51% vs 11%). It now orders by `md5(SAMPLE_SEED || vehicle_id)`,
+  the impact report's seed (`SAMPLE_SEED` in the repository; the report's `--seed` default uses it), so
+  the same filter picks the same cars. Page and API wording now say "random sample".
+- Same filter, 200 cars: one KType 20.5% -> 42.5%, resolved 26.0% -> 50.5%. Random 2,000 registered
+  passenger cars via the impact report: resolved 54.9% (30k reference 55.1%).
+- Validation: new integration test (seed chosen so seeded order differs from NOR ID order); backend
+  1677 passed (CI env), ruff, mypy; web build; web tests 48/49 — `pages.integration.spec` "TS data
+  resolves a field" is flaky against the live copy and fails on the unchanged commit too.
+- Risk / next: the sort reads the whole filtered set once per run (seconds at 7M rows); fix the flaky
+  TS data spec (fixed settle rounds against slow live queries).
+
+## 2026-09-29 — Integration tests refuse to write outside ENVIRONMENT=test; portable launch.json
+
+- `tests/integration/conftest.py` skips every integration test unless `ENVIRONMENT=test`; tests marked
+  `read_only_database` (the frozen-holdout loader, read-only transaction) still run. With a local `.env`
+  pointing at the live copy, a plain `pytest` no longer writes test batches into it.
+- `.claude/launch.json` `api` no longer hardcodes another machine's paths (`cwd: apps/backend`, its `.venv`).
+- Validation: plain `pytest` on the live copy 1500 passed / 176 skipped, nothing written (no `nstest_`
+  databases, no new catalog batches); CI-style run on disposable datastores 1676 passed; ruff, mypy clean;
+  API started from the launch config and reported healthy.
+- Risk / next: run integration tests with the CI env (see `.github/workflows/ci.yml`) against disposable
+  datastores; the live copy still uses the compose default password.
+
 ## 2026-09-28 — Model family for cars the registry named only by make (local, commits not pushed)
 
 - Seven `MOD-*` rule families fill `core.vehicles.model_family` (99.77–99.99% on a holdout); a model guard
@@ -115,54 +141,3 @@ Keep the latest 10 task entries only.
   - bus ≈ MPV alignment for M1 people carriers;
   - XC60 169 kW KTypes missing from the catalog;
   - consider moving resolution rules onto `core.vehicles` as a separate story.
-
-## 2026-09-27 — Body type corrections applied to `core.vehicles` (local), audited and fixed
-
-- Retired the over-broad Volvo rule `31614f07` first.
-- Applied the proposal through the rule service (same validation and runner as the TS data screen). Each batch writes
-  the TS projection, the ledger and the linked NorthStar vehicles together.
-- AIS-only vehicles got the same rules as review observations with the same rule id (416,338 vehicles).
-- An audit after applying checked registry text, length, sibling registrations and scope. It found 37 wrong rules:
-  - variant codes that other models share (Antara, Mazda6, Doblò, Maserati Coupé, MINI Clubman, Cadillac SRX);
-  - "D-4D" read as 4-door;
-  - Rapido S80 motorhomes as S-Class sedans;
-  - Fiat 127 "Combi";
-  - classic cars TecDoc lists wrongly (MG, Firebird, Eldorado …).
-- Those were retired and replaced by 79 narrow rules that follow the registry text (2,618 rows).
-- Result: 5,048 active rules. Carrying a correction: 2,518,331 TS records and 2,934,027 NorthStar vehicles
-  (2,517,689 TS + 416,338 AIS-only).
-- Passenger changes: suv 10,738 → 1,691,749, estate 3,371,227 → 2,153,644, MPV 1,043,943 → 314,421,
-  empty 160,457 → 21,798.
-- Data repair:
-  - 214 vehicles emptied by the Volvo retirement were refilled from TS.
-  - 131,102 corrected vehicles now keep their registry value behind the review, so retiring a rule restores it.
-  - Cause: `vehicle_core_ts.process_ts_page` merges `{**observations, **review_observations}`, which drops the TS
-    value. Needs a code fix and a regression test (offered as a separate task).
-- Validation:
-  - 0 orphan review markers.
-  - TS-linked passenger vehicles agree with the TS projection except 2,126 newer AIS values (unchanged) and 3 vehicles
-    linked to a second TS record.
-  - 17 motorhomes carry suv/MPV.
-  - Report: `docs/BODYWORK_CORRECTIONS_2026-09-26.md`, "Applied" section.
-- Risk / next:
-  - local DB only;
-  - AIS-only corrections were a one-time pass;
-  - gray zone applied at TecDoc labels (flagged in rule notes);
-  - opt-in crossovers not applied;
-  - classic cars without a body word keep TecDoc's label;
-  - no code changed, nothing committed.
-
-## 2026-09-26 — Vehicles tab: plate search from 36.6 s to 0.06 s; bundle fixture excluded
-
-- Free-text search is looked up before the query runs: identifier history by exact value, manufacturer and
-  model-family names by a skip scan of their indexes. The query carries the vehicles and names found as values,
-  so the planner uses indexes instead of walking 7.2M rows.
-- New `text_pattern_ops` indexes on plate and VIN (the collation keeps a default index from answering
-  `LIKE 'ABC%'`). They replace the default indexes; migration applied locally (9 s).
-- Measured: plate, VIN, previous plate or NOR ID 0.06 s (was 36.6 s); "volvo v70" 1.9 s; a facet with plate text
-  0.06 s. In the browser, `LGF109` returns its one car in 0.37 s.
-- The normalization bundle's fixture car (`TEST001`, batch `normalization-bundle-fixture-v1`) was the first row of
-  the passenger list. Fixture batches are now test records; it was refreshed to `test_record` (2,024 in total).
-- Validation: full backend suite on a throwaway database (1466 passed, 29 skipped), ruff, mypy.
-- Risk / next: the first load of the tab still takes ~7 s (ten full-table facet counts); cached counts are next.
-  All changes since `d979254` are uncommitted.

@@ -37,7 +37,11 @@ from api.app.features.vehicle_matching.impact import (
     evaluate_cars,
     render,
 )
-from api.app.features.vehicle_matching.repository import CarRecord, VehicleMatchingRepository
+from api.app.features.vehicle_matching.repository import (
+    SAMPLE_SEED,
+    CarRecord,
+    VehicleMatchingRepository,
+)
 from api.app.features.vehicle_matching.service import build_matcher
 from ingestion.config import get_ingestion_settings
 from ingestion.datastores import DatastoreClients
@@ -72,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--catalog-batch", required=True)
     parser.add_argument("--label", required=True, help="Name of this run, e.g. baseline.")
-    parser.add_argument("--seed", default="northstar-match-impact-v1")
+    parser.add_argument("--seed", default=SAMPLE_SEED)
     parser.add_argument("--size", type=int, default=30000)
     parser.add_argument("--scope", default="passenger")
     parser.add_argument("--include-deregistered", action="store_true")
