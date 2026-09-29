@@ -10,6 +10,8 @@ from ingestion.config import get_ingestion_settings
 from scripts.validate_frozen_matcher_holdout import _load_frozen_rows
 from scripts.validate_local_matcher_cohort import digest
 
+pytestmark = pytest.mark.read_only_database
+
 
 @pytest.fixture()
 def connection() -> Iterator[Connection]:

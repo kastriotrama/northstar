@@ -37,6 +37,9 @@ include = ["api*", "ingestion*", "northstar*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+  "read_only_database: an integration test that only reads, so it may run outside ENVIRONMENT=test",
+]
 
 [tool.ruff]
 line-length = 100
