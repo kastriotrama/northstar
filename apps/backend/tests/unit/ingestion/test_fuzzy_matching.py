@@ -884,6 +884,61 @@ def test_hybrid_category_requires_both_underlying_ts_carriers() -> None:
     assert "fuels" in incomplete.conflicting_fields
 
 
+def _fuel_siblings(car_fuels: set[str], variant: set[str]):  # type: ignore[no-untyped-def]
+    """Two KTypes identical but for fuel: the one carrying the car's exact fuel must clear the margin."""
+
+    def ktype(reference: str, fuels: set[str]) -> VehicleCandidate:
+        return VehicleCandidate(
+            reference, "Saab", "9-5", year_from=2006, year_to=2009, fuels=frozenset(fuels), power_kw=110,
+        )
+
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((ktype("PETROL", {"petrol"}), ktype("VARIANT", variant))),
+        fuel_compatible_pairs=frozenset({("petrol", "lpg")}),
+    )
+    return matcher.match(
+        VehicleMatchQuery("9-5", manufacturer="Saab", year=2007, fuels=frozenset(car_fuels), power_kw=110)
+    )
+
+
+@pytest.mark.parametrize(
+    ("car_fuels", "variant", "winner"),
+    [
+        # Flex-fuel registration (petrol + ethanol): the BioPower KType, not the petrol one.
+        ({"petrol", "ethanol"}, {"ethanol"}, "VARIANT"),
+        # Registered hybrid: the hybrid KType, not its petrol sibling.
+        ({"petrol", "electric", "hybrid_petrol"}, {"hybrid_petrol"}, "VARIANT"),
+        # Registered petrol only: the petrol KType, not the factory LPG one.
+        ({"petrol"}, {"lpg"}, "PETROL"),
+    ],
+)
+def test_the_ktype_with_the_cars_exact_fuel_clears_the_margin_over_its_fuel_sibling(
+    car_fuels: set[str], variant: set[str], winner: str
+) -> None:
+    result = _fuel_siblings(car_fuels, variant)
+
+    assert result.candidates[0].candidate_reference == winner
+    assert result.reason != "candidate_margin_not_met"
+    loser = result.candidates[1]
+    assert "fuels" not in loser.matched_fields
+    assert "fuels" not in loser.conflicting_fields
+    assert {"fuels_variant_not_confirmed", "fuels_compatible_not_confirmed"} & set(loser.missing_fields)
+
+
+def test_a_base_fuel_ktype_is_unverified_not_rejected_when_it_is_the_only_one() -> None:
+    petrol = VehicleCandidate("PETROL", "BMW", "X5", fuels=frozenset({"petrol"}))
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((petrol,)))
+
+    # Registered as a hybrid, catalogued by its combustion fuel (BMW X5 45e).
+    score = matcher._score(
+        VehicleMatchQuery("X5", manufacturer="BMW", fuels=frozenset({"petrol", "electric", "hybrid_petrol"})),
+        petrol,
+    )
+
+    assert "fuels_variant_not_confirmed" in score.missing_fields
+    assert "fuels" not in score.conflicting_fields
+
+
 def _power_score(car_kw: int, car_fuels: set[str], ktype_kw: int, ktype_fuels: set[str]):  # type: ignore[no-untyped-def]
     candidate = VehicleCandidate(
         "k", "Kia", "Ceed", fuels=frozenset(ktype_fuels), power_kw=ktype_kw,

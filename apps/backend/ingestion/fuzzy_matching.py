@@ -90,6 +90,12 @@ def engine_code_family(value: str, *, revision: bool = True) -> str | None:
     return head if len(head) >= 3 and not head.isdigit() else None
 
 
+#: Fuels that name a variant of a base petrol or diesel car: flex-fuel, gas, hybrid.
+#: The registry records them as a second fuel (or its hybrid marker), so a car
+#: registered with one is that variant, and a car registered without one is not.
+_VARIANT_FUELS = frozenset({"ETHANOL", "LPG", "CNG", "HYBRID PETROL", "HYBRID DIESEL"})
+
+
 def _is_hybrid(fuels: Iterable[str]) -> bool:
     return any(fuel.startswith("HYBRID") for fuel in fuels)
 
@@ -191,6 +197,13 @@ class FuzzyMatchConfig:
     year_tolerance_penalty: float = 0.05
     fuel_match_bonus: float = 0.05
     fuel_conflict_penalty: float = 0.15
+    # A KType that shares only the base fuel with a car registered as a variant
+    # (a flex-fuel car against the petrol KType), or that is a variant the car
+    # is not registered as (a petrol car against the LPG KType), is unverified:
+    # never a match, never a conflict. As with `power_tolerance_penalty`, the
+    # gap to `fuel_match_bonus` must exceed the automatic margin, otherwise the
+    # KType carrying the car's exact fuel ties with its sibling.
+    fuel_variant_penalty: float = 0.05
     engine_match_bonus: float = 0.12
     # Same engine family, different variant suffix (`K9K 276` against `K9K`):
     # compatible, but weaker than the exact engine. The gap to
@@ -249,6 +262,7 @@ class FuzzyMatchConfig:
             self.year_tolerance_penalty,
             self.fuel_match_bonus,
             self.fuel_conflict_penalty,
+            self.fuel_variant_penalty,
             self.engine_match_bonus,
             self.engine_family_match_bonus,
             self.engine_conflict_penalty,
@@ -1082,14 +1096,24 @@ class FuzzyVehicleMatcher:
         if query_fuels:
             if not candidate_fuels and not candidate_fuel_components:
                 missing_fields.append("fuels")
-            elif _fuel_evidence_matches(query_fuels, candidate_fuels):
+            elif _fuel_evidence_matches(query_fuels, candidate_fuels) and not (
+                query_fuels & _VARIANT_FUELS and not candidate_fuels & query_fuels & _VARIANT_FUELS
+            ):
                 matched_fields.append("fuels")
                 context_effect += self._config.fuel_match_bonus
+            elif _fuel_evidence_matches(query_fuels, candidate_fuels):
+                # The car is registered as a variant (flex-fuel, gas, hybrid);
+                # this KType shares only its base fuel.
+                missing_fields.append("fuels_variant_not_confirmed")
+                context_effect -= self._config.fuel_variant_penalty
             elif any(
                 (left, right) in self._fuel_compatible_pairs
                 for left in query_fuels for right in candidate_fuels
             ):
                 missing_fields.append("fuels_compatible_not_confirmed")
+                if (candidate_fuels & _VARIANT_FUELS) - query_fuels:
+                    # A variant KType for a car not registered as that variant.
+                    context_effect -= self._config.fuel_variant_penalty
             elif _fuel_evidence_matches(query_fuels, candidate_fuel_components) or any(
                 (left, right) in self._fuel_compatible_pairs
                 for left in query_fuels for right in candidate_fuel_components
