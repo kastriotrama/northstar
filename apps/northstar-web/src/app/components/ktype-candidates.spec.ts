@@ -49,6 +49,7 @@ function lookup(overrides: Partial<VehicleMatchLookup> = {}): VehicleMatchLookup
     confidence: 0.98,
     top_ktype: '000010064',
     reason_codes: ['match:automatic_candidate_threshold_met'],
+    verdict: 'Composite confidence meets only the provisional threshold.',
     rule_filled: [],
     overlaid_fields: {},
     inputs: null,
@@ -147,6 +148,45 @@ describe('KTypeCandidates', () => {
     expect(ruledOut.length).toBe(1);
     expect(ruledOut[0].querySelector('.chip--conflict')?.textContent?.trim()).toBe('100 kW');
     expect(ruledOut[0].textContent).toContain('Ruled out: power_kw');
+  });
+
+  it('leads with why the pipeline ended where it did, then the reasons in words', async () => {
+    const fixture = render();
+    await answer(fixture, () => [
+      lookup({
+        terminal: 'review_required',
+        verdict: 'The top candidates are too close to separate safely.',
+        reason_codes: ['route:candidate_margin_below_gate', 'context_conflict:bodywork', 'policy:new'],
+      }),
+      200,
+    ]);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const verdict = host.querySelector('.verdict');
+    expect(verdict?.classList).toContain('verdict--review_required');
+    expect(verdict?.textContent).toContain('review required:');
+    expect(verdict?.textContent).toContain('too close to separate safely');
+    const why = [...host.querySelectorAll('.why li')].map((item) => item.textContent?.trim());
+    expect(why).toEqual([
+      'The top KTypes are too close to separate safely.',
+      'Conflicts with the best KType on body type.',
+    ]);
+    // A code without a reading stays in the raw list only.
+    expect(host.querySelector('.reasons')?.textContent).toContain('policy:new');
+  });
+
+  it('says how a KType that fits still lost to the top candidate', async () => {
+    const fixture = render();
+    await answer(fixture, () => [lookup({ verdict: null }), 200]);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const standing = [...host.querySelectorAll('.candidate__why--fits')].map((item) =>
+      item.textContent?.trim(),
+    );
+    expect(standing).toEqual([
+      'Also fits, but lost to the top candidate. It differs from the top on engine code — and this car has no engine code to tell them apart.',
+    ]);
+    expect(host.querySelector('.verdict')).toBeNull();
   });
 
   it('shows the server’s reason when the car cannot be looked up', async () => {

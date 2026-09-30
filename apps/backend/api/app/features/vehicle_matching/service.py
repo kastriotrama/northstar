@@ -29,6 +29,8 @@ from api.app.features.vehicle_matching.schemas import (
     FieldCount,
     KTypeCandidate,
     MatchBucket,
+    MatchCarPage,
+    MatchCarRow,
     MatcherInputs,
     MatchExample,
     MatchSummary,
@@ -139,6 +141,18 @@ def _matcher_ran(evaluation: MatchEvaluation) -> bool:
     """True when the car was scored, as opposed to stopped before matching."""
 
     return any(reason.startswith("match:") for reason in evaluation.reason_codes)
+
+
+def verdict_of(evaluation: MatchEvaluation) -> str | None:
+    """Why the pipeline ended where it did: the routing gate's own explanation.
+
+    None when the car never reached routing (stopped before matching).
+    """
+
+    for entry in reversed(evaluation.decision_trace):
+        if entry.get("signal") == "routing_gate" and entry.get("explanation"):
+            return str(entry["explanation"])
+    return None
 
 
 def bucket_for(evaluation: MatchEvaluation) -> MatchBucket:
@@ -323,6 +337,7 @@ class VehicleMatchingService:
             confidence=evaluation.confidence,
             top_ktype=evaluation.top_candidate_reference,
             reason_codes=list(evaluation.reason_codes),
+            verdict=verdict_of(evaluation),
             rule_filled=list(car.rule_filled),
             overlaid_fields=dict(sorted(car.overlaid.items())),
             inputs=_inputs(query),
@@ -373,6 +388,16 @@ class VehicleMatchingService:
         """
 
         return [self._jobs.snapshot(job) for job in self._jobs.all()]
+
+    def summary_cars(
+        self, job_id: str, bucket: MatchBucket, *, offset: int, limit: int
+    ) -> MatchCarPage:
+        """The evaluated cars of one bucket, in evaluation order -- a page of them."""
+
+        job = self._jobs.get(job_id)
+        with job.lock:
+            total, cars = job.tally.cars_in(bucket, offset=offset, limit=limit)
+        return MatchCarPage(job_id=job_id, bucket=bucket, total=total, offset=offset, cars=cars)
 
     def cancel_summary(self, job_id: str) -> MatchSummaryJob:
         job = self._jobs.get(job_id)
@@ -498,6 +523,8 @@ class _Tally:
         self.missing_separating: Counter[str] = Counter()
         self.not_matchable: Counter[str] = Counter()
         self.examples: dict[str, list[MatchExample]] = {bucket: [] for bucket in _BUCKETS}
+        #: Every evaluated car, by bucket: what the bucket lists page through.
+        self.cars: dict[str, list[MatchCarRow]] = {bucket: [] for bucket in _BUCKETS}
 
     def add(
         self,
@@ -508,6 +535,9 @@ class _Tally:
     ) -> None:
         bucket = bucket_for(evaluation)
         compatible = sum(1 for c in evaluation.candidate_matches if _is_compatible(c))
+        separating: list[str] = []
+        missing: list[str] = []
+        conflicting: list[str] = []
         self.evaluated += 1
         self.buckets[bucket] += 1
         self.terminals[evaluation.terminal] += 1
@@ -516,15 +546,17 @@ class _Tally:
         elif bucket == "none":
             if evaluation.candidate_matches:
                 top = _evidence(evaluation.candidate_matches[0])
-                self.none_conflicts.update(str(f) for f in top.get("conflicting_fields") or [])
+                conflicting = [str(f) for f in top.get("conflicting_fields") or []]
+                self.none_conflicts.update(conflicting)
             else:
                 self.none_without_candidates += 1
         elif bucket == "several":
             label = f"{compatible}+" if compatible >= CANDIDATE_LIMIT else str(compatible)
             self.several_counts[label] += 1
-            fields = separating_fields(evaluation, catalog)
-            self.separating.update(fields)
-            self.missing_separating.update(missing_on_car(fields, query))
+            separating = separating_fields(evaluation, catalog)
+            missing = missing_on_car(separating, query)
+            self.separating.update(separating)
+            self.missing_separating.update(missing)
         if len(self.examples[bucket]) < _EXAMPLES_PER_BUCKET:
             self.examples[bucket].append(
                 MatchExample(
@@ -536,6 +568,30 @@ class _Tally:
                     candidates=compatible,
                 )
             )
+        self.cars[bucket].append(
+            MatchCarRow(
+                vehicle_id=car.vehicle_id,
+                source_record_id=car.source_record_id,
+                plate=car.plate,
+                manufacturer=car.manufacturer,
+                model_family=car.model_family,
+                bucket=bucket,
+                terminal=evaluation.terminal,
+                candidates=compatible,
+                top_ktype=evaluation.top_candidate_reference,
+                verdict=verdict_of(evaluation),
+                separating_fields=separating,
+                missing_fields=missing,
+                conflicting_fields=conflicting,
+                reason_codes=list(evaluation.reason_codes),
+            )
+        )
+
+    def cars_in(
+        self, bucket: MatchBucket, *, offset: int, limit: int
+    ) -> tuple[int, list[MatchCarRow]]:
+        rows = self.cars[bucket]
+        return len(rows), list(rows[offset : offset + limit])
 
     def summary(self, *, catalog_batch: str, population: int) -> MatchSummary:
         return MatchSummary(

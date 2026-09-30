@@ -72,6 +72,9 @@ class VehicleMatchLookup(BaseModel):
     confidence: float | None
     top_ktype: str | None
     reason_codes: list[str]
+    #: Why the pipeline ended where it did, in words: the routing gate's own
+    #: explanation. None for a car stopped before matching (see `reason_codes`).
+    verdict: str | None = None
     #: Fields rule-filled values supplied before matching, rule over derivation.
     rule_filled: list[str]
     #: Vehicle values that replaced or filled the TS derivation before matching,
@@ -123,7 +126,7 @@ class MatchSummary(BaseModel):
     catalog_batch: str
     #: Cars the filter matches in total.
     population: int
-    #: Cars actually evaluated: the first `limit` by NOR ID.
+    #: Cars actually evaluated: a seeded random `limit` of the population.
     evaluated: int
     sampled: bool
     buckets: dict[MatchBucket, int]
@@ -145,12 +148,46 @@ class MatchSummary(BaseModel):
     examples: dict[MatchBucket, list[MatchExample]]
 
 
+class MatchCarRow(BaseModel):
+    """One evaluated car of a summary, as the bucket lists show it."""
+
+    vehicle_id: str | None
+    source_record_id: int | None
+    plate: str | None
+    manufacturer: str | None
+    model_family: str | None
+    bucket: MatchBucket
+    #: The pipeline's own outcome (resolved, provisional, review_required, ...).
+    terminal: str
+    #: Compatible candidates: KTypes that conflict with the car on nothing.
+    candidates: int
+    top_ktype: str | None
+    #: The routing gate's explanation; None for a car stopped before matching.
+    verdict: str | None
+    #: `several`: fields that differ among the compatible candidates ...
+    separating_fields: list[str]
+    #: ... and of those, the ones the car has no value for.
+    missing_fields: list[str]
+    #: `none`: fields the car conflicts with its best candidate on.
+    conflicting_fields: list[str]
+    reason_codes: list[str]
+
+
+class MatchCarPage(BaseModel):
+    job_id: str
+    bucket: MatchBucket
+    #: Cars of this bucket evaluated so far; grows while the job runs.
+    total: int
+    offset: int
+    cars: list[MatchCarRow]
+
+
 class MatchSummaryJob(BaseModel):
     """A summary being computed on the server; poll until `status` settles."""
 
     job_id: str
     status: Literal["running", "done", "failed", "cancelled"]
-    #: Cars this job will evaluate: the first `limit` of the filter.
+    #: Cars this job will evaluate: a seeded random `limit` of the filter.
     target: int
     evaluated: int
     seconds_elapsed: float

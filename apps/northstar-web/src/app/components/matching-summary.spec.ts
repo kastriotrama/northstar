@@ -155,6 +155,23 @@ describe('MatchingSummary', () => {
     expect(host.textContent).toContain('The filter has changed since this run.');
   });
 
+  it('opens the cars of a bucket from its tile; an empty bucket has none to open', async () => {
+    const fixture = render();
+    run(fixture);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('http://api.test/v1/vehicles/matching/summary').flush(job('done', 1000));
+    fixture.detectChanges();
+
+    const tiles = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button.tile')];
+    expect(tiles.find((tile) => tile.classList.contains('tile--not_matchable'))?.disabled).toBe(true);
+    tiles.find((tile) => tile.classList.contains('tile--none'))?.click();
+    fixture.detectChanges();
+    await vi.runOnlyPendingTimersAsync();
+
+    const cars = http.expectOne((req) => req.url.endsWith('/summary/job-1/cars'));
+    expect(cars.request.params.get('bucket')).toBe('none');
+  });
+
   it('opens an example car by its NOR ID', () => {
     const fixture = render();
     const picked: string[] = [];

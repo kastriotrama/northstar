@@ -8,6 +8,7 @@ import { ButtonModule } from '@openng/optimus-ui/button';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 
 import { Api } from '../core/api';
+import { MatchCarsDialog } from './match-cars-dialog';
 import type {
   MatchBucket,
   MatchExample,
@@ -31,7 +32,7 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
  */
 @Component({
   selector: 'ns-matching-summary',
-  imports: [DecimalPipe, PercentPipe, FormsModule, ButtonModule, InputTextModule],
+  imports: [DecimalPipe, PercentPipe, FormsModule, ButtonModule, InputTextModule, MatchCarsDialog],
   template: `
     <div class="controls">
       <label class="controls__limit">
@@ -112,15 +113,22 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
       @if (current.summary; as s) {
         <div class="buckets">
           @for (bucket of buckets; track bucket.key) {
-            <div class="tile tile--{{ bucket.key }}" [title]="bucket.hint">
+            <button
+              type="button"
+              class="tile tile--{{ bucket.key }}"
+              [title]="bucket.hint + ' — click to see the cars'"
+              [disabled]="!s.buckets[bucket.key]"
+              (click)="openCars(bucket.key)"
+            >
               <span class="tile__label">{{ bucket.label }}</span>
               <span class="tile__value">{{ s.buckets[bucket.key] | number }}</span>
               <span class="muted">
                 @if (s.evaluated) {
                   {{ s.buckets[bucket.key] / s.evaluated | percent: '1.0-1' }}
                 }
+                · see cars
               </span>
-            </div>
+            </button>
           }
         </div>
 
@@ -213,6 +221,13 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
 
         <p class="muted note">Catalog: <span class="mono">{{ s.catalog_batch }}</span></p>
       }
+
+      <ns-match-cars-dialog
+        [job]="current"
+        [(visible)]="carsOpen"
+        [(bucket)]="carsBucket"
+        (pick)="pick.emit($event)"
+      />
     } @else {
       <p class="muted">
         Runs the TS-to-TecDoc matcher over the cars this filter shows and counts how many match
@@ -234,9 +249,12 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string; hint: string }> 
     .buckets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
     @media (max-width: 700px) { .buckets { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .tile {
-      display: flex; flex-direction: column; gap: 0.1rem;
+      display: flex; flex-direction: column; gap: 0.1rem; text-align: left;
       padding: 0.6rem 0.7rem; border-radius: 8px; border: 1px solid var(--p-surface-200);
+      background: var(--p-surface-0); color: inherit; font: inherit; cursor: pointer;
     }
+    .tile:hover:not(:disabled) { background: var(--p-surface-50); }
+    .tile:disabled { cursor: default; }
     .tile__label { font-size: 0.74rem; font-weight: 600; }
     .tile__value { font-size: 1.4rem; font-weight: 700; }
     .tile--one { border-left: 4px solid #2e8b57; }
@@ -286,6 +304,9 @@ export class MatchingSummary {
   protected readonly error = signal<string | null>(null);
   /** The watched job was already running when this view opened. */
   protected readonly resumed = signal(false);
+  /** The cars dialog, opened from a bucket tile. */
+  protected readonly carsOpen = signal(false);
+  protected readonly carsBucket = signal<MatchBucket>('several');
   /** Jobs the API holds. A job outlives this view: closing it drops the id, not the job. */
   private readonly serverJobs = signal<MatchSummaryJob[]>([]);
   private readonly ranWith = signal<string | null>(null);
@@ -363,6 +384,11 @@ export class MatchingSummary {
       next: (job) => this.job.set(job),
       error: () => this.error.set('Could not cancel matching.'),
     });
+  }
+
+  protected openCars(bucket: MatchBucket): void {
+    this.carsBucket.set(bucket);
+    this.carsOpen.set(true);
   }
 
   protected exampleKey(example: MatchExample): string {

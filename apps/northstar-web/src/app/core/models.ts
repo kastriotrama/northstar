@@ -917,6 +917,8 @@ export interface VehicleMatchLookup {
   confidence: number | null;
   top_ktype: string | null;
   reason_codes: string[];
+  /** Why the pipeline ended where it did: the routing gate's explanation; null if stopped before matching. */
+  verdict: string | null;
   rule_filled: string[];
   /** Vehicle values that replaced or filled the TS derivation, with their source. */
   overlaid_fields: Record<string, string>;
@@ -965,6 +967,37 @@ export interface MatchSummary {
   several_missing_separating_fields: FieldCount[];
   not_matchable_reasons: { reason: string; cars: number }[];
   examples: Record<MatchBucket, MatchExample[]>;
+}
+
+/** One evaluated car of a summary, as the bucket lists show it. */
+export interface MatchCarRow {
+  vehicle_id: string | null;
+  source_record_id: number | null;
+  plate: string | null;
+  manufacturer: string | null;
+  model_family: string | null;
+  bucket: MatchBucket;
+  terminal: string;
+  /** Compatible candidates: KTypes that conflict with the car on nothing. */
+  candidates: number;
+  top_ktype: string | null;
+  verdict: string | null;
+  /** `several`: fields that differ among the compatible candidates ... */
+  separating_fields: string[];
+  /** ... and of those, the ones the car has no value for. */
+  missing_fields: string[];
+  /** `none`: fields the car conflicts with its best candidate on. */
+  conflicting_fields: string[];
+  reason_codes: string[];
+}
+
+export interface MatchCarPage {
+  job_id: string;
+  bucket: MatchBucket;
+  /** Cars of this bucket evaluated so far; grows while the job runs. */
+  total: number;
+  offset: number;
+  cars: MatchCarRow[];
 }
 
 export interface MatchSummaryJob {

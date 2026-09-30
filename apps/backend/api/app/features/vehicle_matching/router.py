@@ -12,6 +12,8 @@ from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
 from api.app.features.vehicle_matching.repository import VehicleMatchingRepository
 from api.app.features.vehicle_matching.schemas import (
+    MatchBucket,
+    MatchCarPage,
     MatchSummaryJob,
     MatchSummaryRequest,
     VehicleMatchLookup,
@@ -133,6 +135,25 @@ def list_summaries(service: ServiceDependency) -> list[MatchSummaryJob]:
 def get_summary(job_id: str, service: ServiceDependency) -> MatchSummaryJob:
     try:
         return service.summary_job(job_id)
+    except SummaryJobNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/summary/{job_id}/cars", response_model=MatchCarPage)
+def summary_cars(
+    job_id: str,
+    service: ServiceDependency,
+    bucket: MatchBucket,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> MatchCarPage:
+    """The cars a summary put in `bucket` (one, several, none, not_matchable), with why.
+
+    Works while the job runs: `total` grows as cars are evaluated.
+    """
+
+    try:
+        return service.summary_cars(job_id, bucket, offset=offset, limit=limit)
     except SummaryJobNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 

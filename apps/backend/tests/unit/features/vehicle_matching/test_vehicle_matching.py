@@ -27,6 +27,7 @@ from api.app.features.vehicle_matching.service import (
     bucket_for,
     missing_on_car,
     separating_fields,
+    verdict_of,
 )
 from api.app.features.vehicles.schemas import VehicleCondition, VehicleFilter
 from ingestion.fuzzy_matching import VehicleCandidate
@@ -303,6 +304,49 @@ def test_summary_counts_buckets_and_names_the_gaps() -> None:
     assert summary.examples["several"][0].vehicle_id == "V2"
 
 
+def test_the_verdict_is_the_routing_gates_own_explanation() -> None:
+    gate = {"signal": "routing_gate", "value": "review_required",
+            "explanation": "The top candidates are too close to separate safely."}
+    routed = MatchEvaluation(
+        "review_required", ("route:candidate_margin_below_gate",),
+        decision_trace=({"signal": "text_similarity", "explanation": "Stage 2"}, gate),
+    )
+
+    assert verdict_of(routed) == "The top candidates are too close to separate safely."
+    assert verdict_of(_evaluation(scored=False)) is None
+
+
+def test_summary_lists_every_car_of_a_bucket_with_what_stopped_it() -> None:
+    outcomes = {
+        1: _evaluation(_match("A")),
+        2: _evaluation(_match("A"), _match("B")),
+        3: _evaluation(_match("A", conflicts=("bodywork",))),
+        4: _evaluation(),
+        5: _evaluation(scored=False),
+        6: _evaluation(_match("A"), _match("B")),
+    }
+    service = _service(outcomes)
+    job = service.start_summary([], "", 10, run_in_background=False)
+
+    several = service.summary_cars(job.job_id, "several", offset=0, limit=50)
+    assert several.total == 2
+    assert [car.plate for car in several.cars] == ["P2", "P6"]
+    first = several.cars[0]
+    assert (first.vehicle_id, first.candidates, first.terminal) == ("V2", 2, "resolved")
+    assert "engine_code" in first.separating_fields
+    assert first.missing_fields == ["engine_code"]
+
+    none = service.summary_cars(job.job_id, "none", offset=0, limit=50)
+    assert [(car.plate, car.conflicting_fields) for car in none.cars] == [
+        ("P3", ["bodywork"]), ("P4", []),
+    ]
+    stopped = service.summary_cars(job.job_id, "not_matchable", offset=0, limit=50).cars[0]
+    assert (stopped.reason_codes, stopped.verdict) == (["policy:x"], None)
+
+    page = service.summary_cars(job.job_id, "several", offset=1, limit=1)
+    assert (page.total, page.offset, [car.plate for car in page.cars]) == (2, 1, ["P6"])
+
+
 def test_summary_reports_sampling_when_the_limit_cuts_the_population() -> None:
     outcomes = {rid: _evaluation(_match("A")) for rid in range(1, 6)}
 
@@ -397,6 +441,15 @@ def test_http_maps_the_services_errors(client: TestClient) -> None:
         assert [job["job_id"] for job in listed.json()] == [started.json()["job_id"]]
         too_many = client.post("/v1/vehicles/matching/summary", json={"conditions": [], "limit": 50_000})
         assert too_many.status_code == 422
+        cars_url = f"/v1/vehicles/matching/summary/{started.json()['job_id']}/cars"
+        cars = client.get(cars_url, params={"bucket": "none"})
+        assert cars.status_code == 200
+        assert cars.json()["total"] == 1
+        assert cars.json()["cars"][0]["vehicle_id"] == "V1"
+        assert client.get(cars_url, params={"bucket": "maybe"}).status_code == 422
+        assert client.get(cars_url).status_code == 422
+        assert client.get("/v1/vehicles/matching/summary/nope/cars",
+                          params={"bucket": "one"}).status_code == 404
     finally:
         client.app.dependency_overrides.clear()  # type: ignore[attr-defined]
 

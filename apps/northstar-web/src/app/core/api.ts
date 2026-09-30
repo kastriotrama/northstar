@@ -39,6 +39,8 @@ import type {
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
+  MatchBucket,
+  MatchCarPage,
   MatchSummaryJob,
   MatchSummaryRequest,
   VehicleMatchLookup,
@@ -602,6 +604,19 @@ export class Api {
 
   matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
     return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
+  }
+
+  /** A page of the cars a summary put in one bucket, with why each ended there. */
+  matchSummaryCars(
+    jobId: string,
+    bucket: MatchBucket,
+    offset: number,
+    limit: number,
+  ): Observable<MatchCarPage> {
+    return this.http.get<MatchCarPage>(
+      `${this.base}/v1/vehicles/matching/summary/${jobId}/cars`,
+      { params: params({ bucket, offset, limit }) },
+    );
   }
 
   cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {

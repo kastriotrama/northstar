@@ -4,6 +4,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { Api } from '../core/api';
+import { describeReason, fieldName } from '../core/match-reasons';
 import type { KTypeCandidate, MatchBucket, VehicleMatchLookup } from '../core/models';
 
 interface Chip {
@@ -23,6 +24,18 @@ const SOURCE_NAMES: Record<string, string> = {
 function sourceName(source: string): string {
   return SOURCE_NAMES[source] ?? source;
 }
+
+/** A comparable value per field, the way the backend's separating fields compare them. */
+const FIELD_VALUE: Record<string, (candidate: KTypeCandidate) => string> = {
+  model: (c) => c.model,
+  year: (c) => `${c.year_from ?? ''}-${c.year_to ?? ''}`,
+  fuels: (c) => c.fuels.join(','),
+  engine_code: (c) => c.engine_codes.join(','),
+  displacement_cc: (c) => String(c.displacement_cc ?? ''),
+  power_kw: (c) => String(c.power_kw ?? ''),
+  drive_type: (c) => c.drive_type ?? '',
+  bodywork: (c) => c.bodyworks.join(','),
+};
 
 const BUCKET_LABELS: Record<MatchBucket, string> = {
   one: 'One KType',
@@ -59,8 +72,22 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
           </span>
         </div>
 
+        @if (result.verdict) {
+          <p class="verdict verdict--{{ result.terminal }}">
+            <b>{{ result.terminal.replace('_', ' ') }}:</b> {{ result.verdict }}
+          </p>
+        }
+
         @if (gap(); as text) {
           <p class="gap">{{ text }}</p>
+        }
+
+        @if (explained().length) {
+          <ul class="why">
+            @for (item of explained(); track item.code) {
+              <li [title]="item.code">{{ item.text }}</li>
+            }
+          </ul>
         }
 
         @if (result.inputs; as seen) {
@@ -131,6 +158,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
             </div>
             @if (candidate.conflicting_fields.length) {
               <p class="candidate__why">Ruled out: {{ candidate.conflicting_fields.join(', ') }}</p>
+            } @else if (standing(candidate); as text) {
+              <p class="candidate__why candidate__why--fits">{{ text }}</p>
             }
           </div>
         } @empty {
@@ -181,6 +210,18 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
     .bucket--several { background: #fff3d6; color: #7a5300; }
     .bucket--none { background: #fde4e4; color: #8a2020; }
     .bucket--not_matchable { background: var(--p-surface-100); color: var(--p-text-muted-color); }
+    .verdict {
+      margin: 0;
+      padding: 0.4rem 0.6rem;
+      border-left: 3px solid var(--p-surface-400);
+      background: var(--p-surface-50);
+    }
+    .verdict--resolved { border-left-color: #2e8b57; }
+    .verdict--provisional { border-left-color: #d99a00; }
+    .verdict--review_required, .verdict--hard_conflict { border-left-color: #c0392b; }
+    .why { margin: 0; padding-left: 1.1rem; }
+    .why li { margin: 0.1rem 0; }
+    .candidate__why--fits { color: #7a5300; }
     .gap {
       margin: 0;
       padding: 0.4rem 0.6rem;
@@ -292,6 +333,50 @@ export class KTypeCandidates {
     }
     return null;
   });
+
+  /** The reason codes the glossary can read, in plain words; the raw list stays below. */
+  protected readonly explained = computed(() => {
+    const result = this.state()?.lookup;
+    if (!result) return [];
+    const seen = new Set<string>();
+    const items: Array<{ code: string; text: string }> = [];
+    for (const code of result.reason_codes) {
+      const text = describeReason(code);
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        items.push({ code, text });
+      }
+    }
+    return items;
+  });
+
+  /**
+   * How a KType that conflicts with nothing still did not win: where it differs
+   * from the top candidate, and whether the car could tell them apart.
+   */
+  protected standing(candidate: KTypeCandidate): string | null {
+    const result = this.state()?.lookup;
+    if (!result || !candidate.compatible) return null;
+    const top = result.candidates.find((item) => item.ktype === result.top_ktype);
+    const missing = candidate.missing_fields.filter((field) => field in FIELD_VALUE);
+    const unknown = missing.length
+      ? ` The matcher could not compare ${missing.map(fieldName).join(' or ')}.`
+      : '';
+    if (!top || top.ktype === candidate.ktype) {
+      return unknown ? `Fits.${unknown}` : null;
+    }
+    const differs = Object.keys(FIELD_VALUE).filter(
+      (field) => FIELD_VALUE[field](candidate) !== FIELD_VALUE[field](top),
+    );
+    const lacks = differs.filter((field) => result.missing_separating_fields.includes(field));
+    const on = differs.length
+      ? ` It differs from the top on ${differs.map(fieldName).join(', ')}`
+      : ' It matches the top on every field compared';
+    const gapText = lacks.length
+      ? ` — and this car has no ${lacks.map(fieldName).join(' or ')} to tell them apart.`
+      : '.';
+    return `Also fits, but lost to the top candidate.${on}${gapText}${unknown}`;
+  }
 
   protected bucketLabel(bucket: MatchBucket): string {
     return BUCKET_LABELS[bucket];
