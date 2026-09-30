@@ -135,3 +135,39 @@ def test_alias_decision_needs_higher_confidence_to_replace_equal_route() -> None
 
     assert prefer_non_degrading_alias_decision(base, weaker_alias) is base
     assert prefer_non_degrading_alias_decision(base, stronger_alias) is stronger_alias
+
+
+def test_a_numbered_series_covers_the_families_tecdoc_names_by_number() -> None:
+    index = ReviewedModelAliasIndex(
+        TranslationRuleSet(
+            version="rules-v1",
+            rules=(rule("MOD-197", "BMW", ("320D", "3"), "3 Series"),),
+        )
+    )
+
+    for family in ("3 (F30, F80)", "3 Touring (F31)", "3 Gran Turismo (F34)", "3 Series"):
+        assert index.evidence_for(manufacturer="BMW", model_family=family).rule_ids == ("MOD-197",)
+    for family in ("X3 (G01)", "30", "M3 (E30)", "i3 (I01)"):
+        assert index.evidence_for(manufacturer="BMW", model_family=family).aliases == ()
+
+
+def test_rules_scoped_to_the_ts_name_reach_the_catalogs_name_once_rescoped() -> None:
+    index = ReviewedModelAliasIndex(
+        TranslationRuleSet(
+            version="rules-v1",
+            rules=(
+                rule("MOD-001", "Volkswagen", ("PASSAT",), "Passat"),
+                rule("MOD-900", "Unknown Make", ("ONE",), "One"),
+            ),
+        )
+    )
+    catalog_name = {"VOLKSWAGEN": "VW"}
+
+    scoped = index.scoped_to_catalog(catalog_name.get)
+
+    family = "PASSAT B8 Variant (3G5, CB5)"
+    assert index.evidence_for(manufacturer="VW", model_family=family).aliases == ()
+    assert scoped.evidence_for(manufacturer="VW", model_family=family).rule_ids == ("MOD-001",)
+    # The TS name keeps working; a name the catalog cannot resolve keeps only its own entry.
+    assert scoped.evidence_for(manufacturer="Volkswagen", model_family=family).rule_ids == ("MOD-001",)
+    assert scoped.evidence_for(manufacturer="Unknown Make", model_family="One").rule_ids == ("MOD-900",)

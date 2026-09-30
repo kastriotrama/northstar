@@ -394,6 +394,21 @@ class TecDocDryRunEvaluator:
             bodywork_compatible_pairs=bodywork_compatible_pairs,
             context_policy=self._context_policy,
         )
+        # TS spells manufacturers differently from TecDoc ("CITROEN" vs
+        # "CITROËN", "LYNK&CO" vs "LYNK & CO"). Without this accent- and
+        # punctuation-tolerant mapping those rows resolve to global scope and
+        # are reviewed without ever being scored. Reviewed manufacturer rules
+        # additionally bridge alias spellings onto their catalog target.
+        self._manufacturer_scope = TecDocManufacturerIndex(
+            sorted({candidate.manufacturer for candidate in candidates}),
+            manufacturer_rules or {},
+        )
+        if reviewed_model_aliases is not None:
+            # Reviewed model rules name the manufacturer as TS does ("Volkswagen");
+            # the catalog as TecDoc does ("VW"). Without this no VW rule attaches.
+            reviewed_model_aliases = reviewed_model_aliases.scoped_to_catalog(
+                lambda name: self._manufacturer_scope.resolve(manufacturer=name).manufacturer
+            )
         expanded_candidates = (
             tuple(reviewed_model_aliases.expand(candidate) for candidate in candidates)
             if reviewed_model_aliases is not None
@@ -414,15 +429,6 @@ class TecDocDryRunEvaluator:
         self._manufacturer_scope_threshold = config.manufacturer_scope_threshold
         self._engine_fingerprints = reviewed_engine_fingerprints or ReviewedEngineFingerprintIndex()
         self._router = ConfidenceRouter()
-        # TS spells manufacturers differently from TecDoc ("CITROEN" vs
-        # "CITROËN", "LYNK&CO" vs "LYNK & CO"). Without this accent- and
-        # punctuation-tolerant mapping those rows resolve to global scope and
-        # are reviewed without ever being scored. Reviewed manufacturer rules
-        # additionally bridge alias spellings onto their catalog target.
-        self._manufacturer_scope = TecDocManufacturerIndex(
-            sorted({candidate.manufacturer for candidate in candidates}),
-            manufacturer_rules or {},
-        )
         self._cache: dict[tuple[object, ...], MatchEvaluation] = {}
 
     @property

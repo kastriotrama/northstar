@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import re
 import unicodedata
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from ingestion.confidence_routing import ConfidenceRoutingDecision
@@ -13,6 +15,9 @@ from ingestion.translation_dictionaries import TranslationRuleSet
 
 _NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9ÅÄÖÉÜ]+")
 _WHITESPACE = re.compile(r"\s+")
+#: A reviewed family named as a numbered series ("3 Series"); TecDoc names the
+#: same family by its number alone ("3 (F30, F80)", "3 Touring (F31)").
+_NUMBERED_SERIES = re.compile(r"^(\d+) SERIES$")
 
 
 def _key(value: str) -> str:
@@ -21,9 +26,19 @@ def _key(value: str) -> str:
 
 
 def _family_contains_reviewed_canonical(family: str, canonical: str) -> bool:
-    """Require a whole-token canonical prefix; never match compact numeric prefixes."""
+    """Require a whole-token canonical prefix; never match compact numeric prefixes.
 
-    return family == canonical or family.startswith(f"{canonical} ")
+    A numbered series ("3 Series") also covers TecDoc families named by that
+    number as a whole token ("3", "3 Touring", "3 Gran Turismo"), never "X3" or "30".
+    """
+
+    if family == canonical or family.startswith(f"{canonical} "):
+        return True
+    series = _NUMBERED_SERIES.match(canonical)
+    if series is None:
+        return False
+    number = series.group(1)
+    return family == number or family.startswith(f"{number} ")
 
 
 @dataclass(frozen=True)
@@ -63,6 +78,28 @@ class ReviewedModelAliasIndex:
             manufacturer: tuple(sorted(entries, key=lambda item: (item[0], item[2])))
             for manufacturer, entries in by_manufacturer.items()
         }
+
+    def scoped_to_catalog(self, resolve: Callable[[str], str | None]) -> ReviewedModelAliasIndex:
+        """The same rules, also filed under the catalog's own manufacturer names.
+
+        Rules are scoped with TS/NorthStar names ("Volkswagen") while TecDoc
+        candidates carry TecDoc's ("VW"). `resolve` maps one to the other, the
+        way the matcher already scopes a car to its manufacturer; a name it
+        cannot resolve to exactly one catalog manufacturer keeps only its own entry.
+        """
+
+        scoped: dict[str, list[tuple[str, tuple[str, ...], str]]] = defaultdict(list)
+        for manufacturer, entries in self._by_manufacturer.items():
+            scoped[manufacturer].extend(entries)
+            target = resolve(manufacturer)
+            if target is not None and _key(target) != manufacturer:
+                scoped[_key(target)].extend(entries)
+        index = copy.copy(self)
+        index._by_manufacturer = {
+            manufacturer: tuple(sorted(set(entries), key=lambda item: (item[0], item[2])))
+            for manufacturer, entries in scoped.items()
+        }
+        return index
 
     def evidence_for(
         self,

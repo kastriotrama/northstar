@@ -2,6 +2,39 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-09-30 — Matcher: exact fuel variant clears the margin; VW and BMW reviewed aliases reach the catalog (local)
+
+- Fuel: a KType sharing only the base fuel with a car registered as a variant (flex-fuel, hybrid, gas),
+  or a variant KType for a car not registered as one, is unverified with a 0.05 penalty
+  (`fuel_variant_penalty`), so the exact-fuel sibling clears the 0.08 margin. Registry basis checked:
+  fuel1/fuel2 codes and `ev_config` (ELHYBRID/LADDHYBRID) mark every variant.
+- Aliases: reviewed model rules are scoped "Volkswagen" but TecDoc says "VW", so none of the 47 VW
+  rules attached (2,143 VW KTypes now do, via the evaluator's manufacturer index,
+  `ReviewedModelAliasIndex.scoped_to_catalog`); "<n> Series" rules now cover TecDoc's number-only BMW
+  families ("3 Touring (F31)"; 1,875 KTypes, BMW 1-8 Series only).
+- Seeded 30k (Mac mini): 55.1% -> 55.9% (fuel: +338 / -77 / 2 moved) -> 60.7% (aliases: +1,444 / -26 /
+  1 moved). VW 42.6% -> 70.1%, BMW 15.9% -> 49.7%, Saab 54.1% -> 64.5%. Engine disagreement among
+  resolved stayed at 122. Lost cars checked one by one: mostly corrections (plug-in hybrids and Golf
+  Plus had resolved to a same-power non-hybrid / Golf VI sibling); 27 Ford flex-fuel go to review
+  (TecDoc's flex-fuel KType starts a year late); 2 SEAT Altea moved to Altea XL (probably wrong).
+- Validation: 1,507 backend unit tests, ruff, mypy; new tests fail without the fixes.
+- Risk / next: MOD-350 lists "GOLF PLUS" as a Golf alias (Golf Plus ties with Golf VI); 50k set not
+  re-measured (its file is on the MacBook).
+
+## 2026-09-29 — Matching tab: see the cars of each bucket and why each KType lost
+
+- Each bucket tile (one / several / none / not matchable) opens a dialog listing that run's cars
+  (`GET /v1/vehicles/matching/summary/{job_id}/cars?bucket=`, paged; the job keeps a row per car),
+  with buckets switchable in place and the picked car beside the list. Rows say what would decide
+  (several), what conflicts (none) or why it was never scored (not matchable).
+- The car view (`ns-ktype-candidates`) now leads with the pipeline verdict (the routing gate's own
+  explanation, new `verdict` on the lookup), lists reason codes in plain words (`core/match-reasons.ts`,
+  only codes traced to their gate), and says for each KType that fits how it lost to the top one.
+- Validation: backend 1679 passed (CI env), ruff, mypy; web 62/62 (twice, API idle), build; checked
+  in the browser on a live run of 200 and 2,000 cars, including while running.
+- Risk / next: jobs (and their car lists) live in API memory and vanish on restart; the live-data
+  `pages.integration.spec` tests time out when the API is busy matching.
+
 ## 2026-09-29 — Matching tab evaluates a seeded random sample, not the lowest NOR IDs
 
 - A 200-car Matching run gave 20.5% one KType: `vehicle_population` took the first 200 by NOR ID, and
@@ -106,38 +139,3 @@ Keep the latest 10 task entries only.
 - Validation: 1362 unit tests, ruff, mypy; integration suite passes except two failures that also fail on
   the prior commit (bundle import fixture, normalization review repository duplicate key).
 - Next: reference set (needs a person), hybrid/EV power, candidate-only KTypes confirmed by engine.
-
-## 2026-09-27 — Review corrections no longer drop the registry value (local)
-
-- `vehicle_core_ts.process_ts_page` folded reviews into the TS values (`{**ts, **reviews}`), so a corrected field
-  never kept its registry value and retiring the review could not restore it (131,102 vehicles repaired by hand).
-  `merge()` now takes ordered layers; the TS import merges TS values, then reviews.
-- Checked: the Vehicles-tab matcher reads merged `core.vehicles` values (corrected body, AIS engine code).
-- Validation: regression test; 1339 unit tests, 23 vehicle-core integration tests, ruff, mypy.
-- Rules for live exported (untracked): `outputs/rules-2026-09-27/rules_export.json` (5,223 TS rules, 5,055 body)
-  and `retire_on_live.json` (38 rules incl. Volvo `31614f07`; the importer never retires).
-- Next: matching harness + reference set, engine-code tolerance. Nothing pushed.
-
-## 2026-09-27 — KType matching re-checked on corrected cars (1,190 stratified + 20,000 random)
-
-- Each car was matched twice with the Vehicles tab's matcher (catalog `tecdoc-0326-canonical-full-prod-v2-20260914`),
-  once with the old registry body type and once with the corrected one. Read-only.
-- Random 20,000 corrected passenger cars:
-  - exactly one KType 8.8% → 36.8%;
-  - no compatible KType 74.2% → 27.3%;
-  - the best KType's body matches the car 3.9% → 98.7%.
-- Old single matches to another model: 359 of 1,668 (mostly XC60 → V60 I). Now 97 of 5,630, nearly all BMW GT /
-  Gran Coupé naming.
-- Worse on 661, mostly one → several:
-  - Golf / Golf Sportsvan both hatchback in TecDoc;
-  - XC60 / Kodiaq / Tiguan share engines across SUV KTypes.
-- 43 went one → none:
-  - XC60s whose old match was the wrong model (V60);
-  - Scénic III filed under "Megane".
-- The first 20K attempt crashed a parallel Postgres worker. The Docker VM disk then went read-only (host had 2.9 GB free).
-  After the Docker restart, recovery was clean and counts were unchanged. Scratch data (~575 MB) was deleted.
-- Next:
-  - model alias MEGANE SCENIC → Scénic;
-  - bus ≈ MPV alignment for M1 people carriers;
-  - XC60 169 kW KTypes missing from the catalog;
-  - consider moving resolution rules onto `core.vehicles` as a separate story.

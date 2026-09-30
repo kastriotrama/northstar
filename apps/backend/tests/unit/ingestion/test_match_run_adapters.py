@@ -264,6 +264,54 @@ def test_evaluator_uses_reviewed_alias_without_degrading_base_route() -> None:
     assert evaluation.terminal == "resolved"
 
 
+def test_evaluator_attaches_a_rule_scoped_to_the_ts_manufacturer_name_to_the_catalogs_name() -> None:
+    """Reviewed rules say "Volkswagen", TecDoc says "VW": the family name must still match exactly."""
+
+    aliases = ReviewedModelAliasIndex(
+        TranslationRuleSet(
+            version="rules-v1",
+            rules=(
+                TranslationRule(
+                    rule_id="MOD-001",
+                    area="model_family",
+                    source_fields=("model",),
+                    source_terms=("PASSAT",),
+                    canonical_field="model_family",
+                    canonical_value="Passat",
+                    decision="accepted",
+                    manufacturers=("Volkswagen",),
+                ),
+            ),
+        )
+    )
+    manufacturer_rules = {
+        "MFR-VW": {
+            "kind": "manufacturer_entity",
+            "entity_role": "vehicle_manufacturer",
+            "source_term": "VW",
+            "canonical_name": "Volkswagen",
+        }
+    }
+    evaluator = TecDocDryRunEvaluator(
+        (VehicleCandidate("1", "VW", "PASSAT B8 Variant (3G5, CB5)"),),
+        manufacturer_rules,
+        reviewed_model_aliases=aliases,
+    )
+
+    evaluation = evaluator.evaluate(
+        MatchSourceRecord(
+            1,
+            {
+                "normalization_status": "resolved",
+                "normalized": {"manufacturer": "Volkswagen", "model_family": "Passat"},
+            },
+        )
+    )
+
+    assert evaluation.terminal == "resolved"
+    assert "match:phonetic_candidate_requires_review" not in evaluation.reason_codes
+
+
 def test_evaluator_never_reports_candidate_only_ktype_as_resolved() -> None:
     evaluator = TecDocDryRunEvaluator(
         (
