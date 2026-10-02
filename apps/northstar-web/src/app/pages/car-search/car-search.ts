@@ -327,6 +327,14 @@ export class CarSearchPage implements OnInit {
     this.open$.next(vehicleId);
   }
 
+  /**
+   * A person's KType choice changed: reload the record so its KType and source show it.
+   * The record is not cleared first, so the candidates panel stays mounted with its notice.
+   */
+  protected onChoiceChanged(vehicleId: string): void {
+    if (this.openId() === vehicleId) this.open$.next(vehicleId);
+  }
+
   /** An example from the matching view: show that vehicle in the list and open it. */
   protected openExample(vehicleId: string): void {
     if (!vehicleId) return;

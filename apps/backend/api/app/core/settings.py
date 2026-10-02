@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # api/app/core/settings.py -> apps/backend -> apps -> <monorepo root>
@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         default=None, alias="TECDOC_MATCH_CATALOG_BATCH"
     )
 
+    #: The code version a person's KType choice records as part of its evidence.
+    #: The production deploy sets it to the Git commit; blank means "unknown".
+    build_version: str = Field(default="unknown", alias="BUILD_VERSION")
+
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta",
@@ -106,6 +110,13 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("build_version", mode="before")
+    @classmethod
+    def _blank_build_version_is_unknown(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return "unknown"
+        return value.strip() if isinstance(value, str) else value
 
     @property
     def cors_origins(self) -> list[str]:

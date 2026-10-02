@@ -1,11 +1,59 @@
-import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, tap } from 'rxjs';
 
 import { Api } from '../core/api';
 import { describeReason, fieldName } from '../core/match-reasons';
-import type { KTypeCandidate, MatchBucket, VehicleMatchLookup } from '../core/models';
+import type {
+  KTypeCandidate,
+  KTypeChoiceAction,
+  KTypeChoiceHistory,
+  KTypeChoiceRequest,
+  MatchBucket,
+  VehicleMatchLookup,
+} from '../core/models';
+import { type ChoiceError, KTypeChoice, NAME_HINT_ID, type PendingChoice } from './ktype-choice';
+
+const REVIEWER_STORAGE_KEY = 'match-review-reviewer';
+
+/** Refusals that mean the screen is out of date: say so and show the current state. */
+const REFUSALS: Record<string, string> = {
+  choice_changed:
+    "Someone else changed this car's choice while you were looking. The current one is shown.",
+  evidence_changed:
+    "This car's matching changed since you opened it. Check the candidates and choose again.",
+  ktype_not_a_candidate: "That KType is no longer among this car's candidates.",
+  nothing_to_withdraw: 'There is no choice to withdraw.',
+};
+
+interface ApiError {
+  status?: number;
+  error?: { detail?: unknown };
+}
+
+/** `detail` is a string on older endpoints and `{code, message}` on the choice ones. */
+function errorDetail(err: ApiError): { code: string | null; message: string | null } {
+  const detail = err?.error?.detail;
+  if (typeof detail === 'string') return { code: null, message: detail };
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const { code, message } = detail as { code?: unknown; message?: unknown };
+    return {
+      code: typeof code === 'string' ? code : null,
+      message: typeof message === 'string' ? message : null,
+    };
+  }
+  return { code: null, message: null };
+}
 
 interface Chip {
   field: string;
@@ -54,7 +102,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
  */
 @Component({
   selector: 'ns-ktype-candidates',
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, NgTemplateOutlet, KTypeChoice],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (state(); as current) {
       @if (current.loading) {
@@ -134,6 +183,7 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
           </details>
         }
 
+        <ng-template #list>
         @for (candidate of result.candidates; track candidate.ktype) {
           <div class="candidate" [class.candidate--out]="!candidate.compatible">
             <div class="candidate__head">
@@ -146,6 +196,9 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
               >
               @if (candidate.ktype === result.top_ktype) {
                 <span class="tag">top</span>
+              }
+              @if (isChosen(candidate)) {
+                <span class="tag tag--person">chosen by a person</span>
               }
               @if (candidate.candidate_only) {
                 <span class="tag tag--warn" title="Candidate-only KType: never auto-resolved">candidate-only</span>
@@ -161,6 +214,18 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
             } @else if (standing(candidate); as text) {
               <p class="candidate__why candidate__why--fits">{{ text }}</p>
             }
+            @if (canChoose() && !isChosen(candidate)) {
+              <button
+                type="button"
+                class="pick"
+                [disabled]="!reviewer().trim() || saving()"
+                [attr.aria-describedby]="reviewer().trim() ? null : hintId"
+                [attr.aria-busy]="saving() && pending()?.body?.ktype === candidate.ktype"
+                (click)="choose(candidate)"
+              >
+                {{ chooseLabel(candidate) }}
+              </button>
+            }
           </div>
         } @empty {
           @if (result.bucket === 'not_matchable') {
@@ -174,6 +239,32 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
           <p class="muted note">
             The matcher returns at most {{ result.candidate_limit }} candidates; there may be more.
           </p>
+        }
+
+        </ng-template>
+
+        @if (canChoose()) {
+          <ns-ktype-choice
+            [lookup]="result"
+            [pending]="pending()"
+            [saving]="saving()"
+            [error]="saveError()"
+            [notice]="notice()"
+            [history]="history()"
+            [(reviewer)]="reviewer"
+            [(reason)]="reason"
+            (confirm)="confirm()"
+            (cancel)="pending.set(null)"
+            (none)="ask('none', null)"
+            (withdraw)="ask('withdraw', null)"
+            (keep)="keep()"
+            (retry)="retry()"
+            (historyOpened)="loadHistory()"
+          >
+            <ng-container [ngTemplateOutlet]="list" />
+          </ns-ktype-choice>
+        } @else {
+          <ng-container [ngTemplateOutlet]="list" />
         }
 
         <details class="block">
@@ -275,6 +366,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
       color: #1f4d85;
     }
     .tag--warn { background: #fff3d6; color: #7a5300; }
+    .tag--person { background: #1f4d85; color: #fff; }
+    .pick { align-self: flex-start; font: inherit; cursor: pointer; }
     .reasons { margin: 0.3rem 0 0; padding-left: 1rem; }
     .note { margin: 0.2rem 0 0; font-size: 0.72rem; }
     .muted { color: var(--p-text-muted-color); }
@@ -284,9 +377,22 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
 })
 export class KTypeCandidates {
   private readonly api = inject(Api);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** The NorthStar vehicle open in the panel, matched on its merged values. */
   readonly vehicleId = input.required<string>();
+
+  /** A person's choice was recorded, changed or withdrawn; carries the refreshed lookup. */
+  readonly choiceChanged = output<VehicleMatchLookup>();
+
+  protected readonly hintId = NAME_HINT_ID;
+  protected readonly reviewer = signal(this.storedReviewer());
+  protected readonly reason = signal('');
+  protected readonly pending = signal<PendingChoice | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<ChoiceError | null>(null);
+  protected readonly notice = signal<string | null>(null);
+  protected readonly history = signal<KTypeChoiceHistory | null>(null);
 
   protected readonly state = signal<{
     loading: boolean;
@@ -297,13 +403,14 @@ export class KTypeCandidates {
   constructor() {
     toObservable(this.vehicleId)
       .pipe(
+        tap(() => this.clearAction()),
         switchMap((id) =>
           this.api.matchLookup(id).pipe(
-            map((lookup) => ({ loading: false, error: null, lookup })),
-            catchError((err: { status?: number; error?: { detail?: string } }) =>
+            map((lookup) => ({ loading: false, error: null as string | null, lookup })),
+            catchError((err: ApiError) =>
               of({
                 loading: false,
-                error: err?.error?.detail ?? 'Matching is unavailable right now.',
+                error: errorDetail(err).message ?? 'Matching is unavailable right now.',
                 lookup: null,
               }),
             ),
@@ -314,6 +421,176 @@ export class KTypeCandidates {
         takeUntilDestroyed(),
       )
       .subscribe((next) => this.state.set(next));
+  }
+
+  /** Choices are per vehicle, and need the evidence fingerprint the server stores them against. */
+  protected readonly canChoose = computed(() => {
+    const result = this.state()?.lookup;
+    return !!result?.vehicle_id && !!result.evidence_fingerprint;
+  });
+
+  /** A choice or a "none of these" that stands today; a withdrawn one does not. */
+  private readonly standingChoice = computed(() => {
+    const choice = this.state()?.lookup?.choice;
+    return choice && choice.status !== 'withdrawn' ? choice : null;
+  });
+
+  protected isChosen(candidate: KTypeCandidate): boolean {
+    const choice = this.standingChoice();
+    return choice?.status === 'chosen' && choice.ktype === candidate.ktype;
+  }
+
+  protected chooseLabel(candidate: KTypeCandidate): string {
+    if (!candidate.compatible) return 'Choose anyway…';
+    return this.standingChoice() ? 'Choose this instead' : 'Choose this KType';
+  }
+
+  /** One click when nothing is overridden; anything else is asked about first. */
+  protected choose(candidate: KTypeCandidate): void {
+    const result = this.state()?.lookup;
+    if (!result) return;
+    const overridesMatcher =
+      result.terminal === 'resolved' && !!result.top_ktype && result.top_ktype !== candidate.ktype;
+    const plain = candidate.compatible && !this.standingChoice() && !overridesMatcher;
+    this.ask('choose', candidate.ktype, !plain);
+  }
+
+  /** "Keep this choice": the same choice again, on today's evidence, which clears the flags. */
+  protected keep(): void {
+    const choice = this.standingChoice();
+    if (!choice) return;
+    if (choice.status === 'none') this.ask('none', null, false);
+    else this.ask('choose', choice.ktype, false);
+  }
+
+  /** A new action, hence a new operation id. */
+  protected ask(action: KTypeChoiceAction, ktype: string | null, needsConfirm = true): void {
+    const result = this.state()?.lookup;
+    const reviewer = this.reviewer().trim();
+    if (!result || !reviewer || this.saving()) return;
+    const operationId = crypto.randomUUID();
+    const body: KTypeChoiceRequest = {
+      operation_id: operationId,
+      action,
+      ktype: action === 'choose' ? ktype : null,
+      reviewer,
+      reason: this.reason().trim() || null,
+      supersedes_choice_id: result.choice?.choice_id ?? null,
+      evidence_fingerprint: result.evidence_fingerprint ?? null,
+    };
+    this.saveError.set(null);
+    this.notice.set(null);
+    this.pending.set({ operationId, body, needsConfirm });
+    if (!needsConfirm) this.send();
+  }
+
+  protected confirm(): void {
+    this.send();
+  }
+
+  /** The same operation id and body again: the server answers a replay with what it stored. */
+  protected retry(): void {
+    this.send();
+  }
+
+  private send(): void {
+    const waiting = this.pending();
+    const vehicleId = this.vehicleId();
+    if (!waiting || this.saving()) return;
+    this.saving.set(true);
+    this.saveError.set(null);
+    this.api
+      .recordKTypeChoice(vehicleId, waiting.body)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (lookup) => {
+          if (vehicleId !== this.vehicleId()) return;
+          this.saving.set(false);
+          this.pending.set(null);
+          this.reason.set('');
+          this.history.set(null);
+          this.storeReviewer(waiting.body.reviewer);
+          this.state.set({ loading: false, error: null, lookup });
+          this.notice.set(
+            waiting.body.action === 'choose'
+              ? `Saved. KType ${waiting.body.ktype} chosen for this car.`
+              : waiting.body.action === 'none'
+                ? 'Saved. “None of these” recorded.'
+                : 'Choice withdrawn.',
+          );
+          this.choiceChanged.emit(lookup);
+        },
+        error: (err: ApiError) => {
+          if (vehicleId !== this.vehicleId()) return;
+          this.saving.set(false);
+          const { code, message } = errorDetail(err);
+          const refusal = code ? REFUSALS[code] : undefined;
+          const status = err?.status ?? 0;
+          if (refusal) {
+            this.pending.set(null);
+            this.saveError.set({ message: refusal, retry: false });
+            this.reload(vehicleId);
+          } else if (status === 0 || status >= 500) {
+            this.saveError.set({ message: 'Not saved. Try again.', retry: true });
+          } else {
+            this.pending.set(null);
+            this.saveError.set({ message: `Not saved. ${message ?? ''}`.trim(), retry: false });
+          }
+        },
+      });
+  }
+
+  /** Fetch the current lookup in place, so the message above the list stays on screen. */
+  private reload(vehicleId: string): void {
+    this.history.set(null);
+    this.api
+      .matchLookup(vehicleId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (lookup) => {
+          if (vehicleId === this.vehicleId()) this.state.set({ loading: false, error: null, lookup });
+        },
+        error: () => undefined,
+      });
+  }
+
+  protected loadHistory(): void {
+    const vehicleId = this.vehicleId();
+    if (this.history()) return;
+    this.api
+      .ktypeChoiceHistory(vehicleId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (history) => {
+          if (vehicleId === this.vehicleId()) this.history.set(history);
+        },
+        error: () => undefined,
+      });
+  }
+
+  private clearAction(): void {
+    this.pending.set(null);
+    this.saving.set(false);
+    this.saveError.set(null);
+    this.notice.set(null);
+    this.history.set(null);
+    this.reason.set('');
+  }
+
+  private storedReviewer(): string {
+    try {
+      return localStorage.getItem(REVIEWER_STORAGE_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private storeReviewer(name: string): void {
+    try {
+      localStorage.setItem(REVIEWER_STORAGE_KEY, name);
+    } catch {
+      // A blocked storage only costs retyping the name.
+    }
   }
 
   /** The one sentence that says where this car's gap is. */

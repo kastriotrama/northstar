@@ -47,6 +47,7 @@ LIST_COLUMNS: tuple[str, ...] = (
     "bodywork_form",
     "colour",
     "ktype",
+    "match_state",
 )
 
 _META_COLUMNS: tuple[str, ...] = (

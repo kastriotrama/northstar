@@ -19,8 +19,9 @@ import uuid
 from collections import Counter, OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
+from api.app.features.vehicle_ktype_choices import evidence as choice_evidence
 from api.app.features.vehicle_matching.repository import (
     CarRecord,
     VehicleMatchingRepository,
@@ -48,6 +49,7 @@ from ingestion.tecdoc.match_run_adapters import (
 )
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.vehicle_core_query import VehicleTerm
+from ingestion.vehicle_ktype_choices import StoredChoice
 
 #: The matcher's own cap on returned candidates. A car showing this many
 #: compatible KTypes may have more.
@@ -238,6 +240,8 @@ def _inputs(query: ResolvedMatchQuery | None) -> MatcherInputs | None:
         drive_type=query.drive_type,
         bodywork_form=query.bodywork,
         model_recovered_from=query.recovery_reason,
+        build_month=query.build_month,
+        electrification=query.electrification,
     )
 
 
@@ -277,16 +281,24 @@ class SummaryJobNotFoundError(LookupError):
     """No summary job with that id on this process."""
 
 
+class ChoiceReader(Protocol):
+    """Reads a vehicle's current KType choice: the chain head and the chain's length."""
+
+    def current(self, vehicle_id: str) -> tuple[StoredChoice, int] | None: ...
+
+
 class VehicleMatchingService:
     def __init__(
         self,
         repository: VehicleMatchingRepository,
         matcher: Callable[[], Matcher],
         jobs: SummaryJobs,
+        choices: ChoiceReader | None = None,
     ) -> None:
         self._repository = repository
         self._matcher = matcher
         self._jobs = jobs
+        self._choices = choices
 
     def lookup(self, identifier: str) -> VehicleMatchLookup:
         """The vehicle holding this plate or VIN now, or failing that the latest to hold it."""
@@ -326,7 +338,7 @@ class VehicleMatchingService:
         matcher = self._matcher()
         evaluation, query = matcher.evaluate(car.record)
         separating = separating_fields(evaluation, matcher.catalog)
-        return VehicleMatchLookup(
+        lookup = VehicleMatchLookup(
             vehicle_id=car.vehicle_id,
             source_record_id=car.source_record_id,
             plate=car.plate,
@@ -351,6 +363,21 @@ class VehicleMatchingService:
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
             other_vehicle_ids=list(other_vehicle_ids),
         )
+        lookup.evidence_fingerprint = choice_evidence.fingerprint(lookup)
+        # One indexed read per vehicle lookup; summary jobs never come through
+        # here. A failing read fails the lookup: a choice is never silently hidden.
+        if car.vehicle_id is not None and self._choices is not None:
+            found = self._choices.current(car.vehicle_id)
+            if found is not None:
+                choice, history_count = found
+                # A candidate-only KType is offered without being in the loaded
+                # catalog; `assess` only asks about the catalog when it is not offered.
+                in_catalog = choice.ktype is not None and choice.ktype in matcher.catalog
+                lookup.choice = choice_evidence.assess(choice, lookup, in_catalog, history_count)
+        lookup.effective_ktype, lookup.effective_source = choice_evidence.effective(
+            lookup.choice, lookup
+        )
+        return lookup
 
     def start_summary(
         self,

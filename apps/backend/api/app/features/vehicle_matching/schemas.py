@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from api.app.features.vehicle_ktype_choices.schemas import KTypeChoiceState
 from api.app.features.vehicles.schemas import VehicleFilter
 
 #: `one`/`several`/`none` count *compatible* candidates -- KTypes the matcher
@@ -34,6 +35,10 @@ class MatcherInputs(BaseModel):
     drive_type: str | None
     bodywork_form: str | None
     model_recovered_from: str | None
+    #: The car's build month as YYYYMM, when the registry gives one.
+    build_month: int | None = None
+    #: The registry's electrification type ("hybrid", "plug_in_hybrid", ...).
+    electrification: str | None = None
 
 
 class KTypeCandidate(BaseModel):
@@ -91,6 +96,18 @@ class VehicleMatchLookup(BaseModel):
     decision_trace: list[dict[str, Any]]
     #: Other vehicles that held this plate or VIN before, most recent first.
     other_vehicle_ids: list[str] = Field(default_factory=list)
+    #: Names this evaluation (batch, inputs, outcome, candidates). A choice is
+    #: sent back with it, and refused when the matching has changed since.
+    evidence_fingerprint: str = ""
+    #: The person's choice in force for this vehicle (a withdrawn one too, so the
+    #: next choice can supersede it). None for a `source_record_id` lookup and
+    #: for a car nobody has decided.
+    choice: KTypeChoiceState | None = None
+    #: The KType the car counts as having: a person's choice first (even one
+    #: flagged for another look), else the matcher's when it resolved.
+    effective_ktype: str | None = None
+    #: `person` (also for "none of these", where the KType is null) or `matcher`.
+    effective_source: Literal["person", "matcher"] | None = None
 
 
 class MatchSummaryRequest(VehicleFilter):

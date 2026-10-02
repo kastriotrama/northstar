@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api-config';
 import type {
+  KTypeChoiceHistory,
+  KTypeChoiceRequest,
   CoverageBatch,
   DiscriminatorReport,
   MatchChunkBuild,
@@ -590,6 +592,25 @@ export class Api {
     return this.http.get<VehicleMatchLookup>(`${this.base}/v1/vehicles/matching/lookup`, {
       params: params({ vehicle_id: vehicleId }),
     });
+  }
+
+  /**
+   * Record a person's KType choice for one car: choose a candidate, "none of these",
+   * or withdraw. Answers with the refreshed lookup (201 recorded, 200 replay of the same
+   * operation id and content), so a retry must resend the same body.
+   */
+  recordKTypeChoice(vehicleId: string, body: KTypeChoiceRequest): Observable<VehicleMatchLookup> {
+    return this.http.post<VehicleMatchLookup>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/ktype-choices`,
+      body,
+    );
+  }
+
+  /** A car's choices from the current one backwards; no matcher run. */
+  ktypeChoiceHistory(vehicleId: string): Observable<KTypeChoiceHistory> {
+    return this.http.get<KTypeChoiceHistory>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/ktype-choices`,
+    );
   }
 
   /** Start matching a seeded random `limit` cars of a filter; poll the returned job. */

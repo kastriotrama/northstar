@@ -264,7 +264,7 @@
 
           <details class="section" open>
             <summary>Candidate KTypes <span class="muted">matched on the merged values</span></summary>
-            <ns-ktype-candidates [vehicleId]="vehicleId" />
+            <ns-ktype-candidates [vehicleId]="vehicleId" (choiceChanged)="onChoiceChanged(vehicleId)" />
           </details>
 
           <details class="section" open>

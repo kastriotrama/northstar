@@ -882,6 +882,8 @@ export interface MatcherInputs {
   drive_type: string | null;
   bodywork_form: string | null;
   model_recovered_from: string | null;
+  build_month?: number | null;
+  electrification?: string | null;
 }
 
 export interface KTypeCandidate {
@@ -932,6 +934,83 @@ export interface VehicleMatchLookup {
   decision_trace: Record<string, unknown>[];
   /** Other vehicles that held this plate or VIN before, most recent first. */
   other_vehicle_ids: string[];
+  /** Identifies the evidence shown; sent back with a choice so the server stores what was seen. */
+  evidence_fingerprint?: string;
+  /** A person's stored choice for this car; null without one or for a TS-record lookup. */
+  choice?: KTypeChoiceState | null;
+  /** The car's KType: the person's choice, else the matcher's when it resolved. */
+  effective_ktype?: string | null;
+  effective_source?: 'person' | 'matcher' | null;
+}
+
+// --- A person's KType choice per car (`/v1/vehicles/{id}/ktype-choices`) --------------
+
+export type KTypeChoiceAction = 'choose' | 'none' | 'withdraw';
+
+export type KTypeChoiceStaleReason =
+  | 'catalog_batch_changed'
+  | 'evidence_changed'
+  | 'ktype_not_in_catalog'
+  | 'ktype_not_a_candidate'
+  | 'new_candidates';
+
+export interface KTypeChoiceChangedInput {
+  field: string;
+  then: unknown;
+  now: unknown;
+}
+
+/** The head of a car's choice chain, with whether it still fits today's matching. */
+export interface KTypeChoiceState {
+  status: 'chosen' | 'none' | 'withdrawn';
+  choice_id: string;
+  ktype: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  catalog_batch: string;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  /** The chosen KType's entry exactly as it was stored with the choice. */
+  chosen_candidate: KTypeCandidate | null;
+  needs_review: boolean;
+  stale_reasons: KTypeChoiceStaleReason[];
+  changed_inputs: KTypeChoiceChangedInput[];
+  history_count: number;
+}
+
+export interface KTypeChoiceRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the choice id. */
+  operation_id: string;
+  action: KTypeChoiceAction;
+  ktype?: string | null;
+  reviewer: string;
+  reason?: string | null;
+  /** The choice the screen showed (also a withdrawn one), or null without one. */
+  supersedes_choice_id: string | null;
+  evidence_fingerprint?: string | null;
+}
+
+export interface KTypeChoiceHistoryEntry {
+  choice_id: string;
+  action: KTypeChoiceAction;
+  ktype: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  supersedes_choice_id: string | null;
+  catalog_batch: string;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  code_version: string;
+  evidence?: Record<string, unknown> | null;
+}
+
+/** A car's choices, from the current one backwards. */
+export interface KTypeChoiceHistory {
+  vehicle_id: string;
+  current_choice_id: string | null;
+  entries: KTypeChoiceHistoryEntry[];
 }
 
 export interface MatchSummaryRequest extends VehicleSearchRequest {

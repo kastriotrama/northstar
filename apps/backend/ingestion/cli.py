@@ -64,6 +64,7 @@ from ingestion.vehicle_facts import (
 )
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
+from ingestion.vehicle_ktype_choice_migrations import run_vehicle_ktype_choice_migrations
 from ingestion.vehicle_model_guard import build_model_guard
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
@@ -821,6 +822,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_ledger_migrations(connection)
                 run_job_bookkeeping_migrations(connection)
                 applied = run_vehicle_core_migrations(connection)
+                # People's KType choices reference core.vehicles, so they follow it.
+                applied += run_vehicle_ktype_choice_migrations(connection)
         except Exception as error:  # noqa: BLE001
             logger.error(
                 "Vehicle core migration stopped safely",

@@ -26,6 +26,10 @@ fi
 # file. It contains an Apache bcrypt hash, never the clear-text password.
 chmod 0644 infra/production/htpasswd
 
+# The code version a person's KType choice records as part of its evidence.
+NORTHSTAR_BUILD_VERSION=${NORTHSTAR_BUILD_VERSION:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}
+export NORTHSTAR_BUILD_VERSION
+
 docker compose --env-file "$environment_file" -f "$compose_file" config --quiet
 docker compose --env-file "$environment_file" -f "$compose_file" build api ingestion gateway
 # Schema before code: a new API that reads a column the live table does not have
@@ -36,6 +40,8 @@ docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingest
 # The NorthStar vehicle tables (core.vehicles and friends) the Vehicles tab and the
 # TS screen's rule sync read. Schema and constraint check only; filling them is the
 # deliberate backfill-vehicle-core / import-ais-vin-export sequence, never a deploy.
+# It also creates and verifies core.vehicle_ktype_choices (people's KType choices):
+# a missing or disabled constraint or trigger stops the deploy here.
 docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-core
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps

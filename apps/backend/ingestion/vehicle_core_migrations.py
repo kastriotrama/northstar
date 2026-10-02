@@ -300,6 +300,18 @@ def _migrations() -> tuple[tuple[str, str], ...]:
                 f"CREATE INDEX IF NOT EXISTS vehicles_{column}_idx ON {VEHICLES_TABLE} ({column})",
             )
         )
+    # A person's KType choice sets `match_state`; nearly every row is NULL, so the
+    # partial index stays tiny and answers the Vehicles list's "decided by a
+    # person" filter. A performance index, not an invariant.
+    statements.append(
+        (
+            "create_vehicles_match_state_index",
+            (
+                "CREATE INDEX IF NOT EXISTS vehicles_match_state_idx "
+                f"ON {VEHICLES_TABLE} (match_state, vehicle_id) WHERE match_state IS NOT NULL"
+            ),
+        )
+    )
     return tuple(statements)
 
 

@@ -274,6 +274,130 @@ def test_lookup_by_record_explains_that_exact_record() -> None:
     assert result.other_vehicle_ids == []
 
 
+class _Choices:
+    """Stands in for the choice repository: one head per vehicle, reads counted."""
+
+    def __init__(self, heads: dict[str, Any] | None = None, error: Exception | None = None) -> None:
+        self.heads = heads or {}
+        self.error = error
+        self.reads: list[str] = []
+
+    def current(self, vehicle_id: str) -> Any:
+        self.reads.append(vehicle_id)
+        if self.error:
+            raise self.error
+        return self.heads.get(vehicle_id)
+
+
+def _with_choices(service: VehicleMatchingService, choices: _Choices) -> VehicleMatchingService:
+    service._choices = choices
+    return service
+
+
+def _head(shown: Any, **overrides: Any) -> Any:
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from api.app.features.vehicle_ktype_choices import evidence
+    from ingestion.vehicle_ktype_choices import StoredChoice
+
+    values: dict[str, Any] = {
+        "choice_id": uuid4(), "vehicle_id": shown.vehicle_id, "action": "choose", "ktype": "B",
+        "supersedes_choice_id": None, "reviewer": "Ada", "reason": None,
+        "catalog_batch": shown.catalog_batch, "automatic_terminal": shown.terminal,
+        "automatic_ktype": shown.top_ktype, "code_version": "v",
+        "evidence_fingerprint": shown.evidence_fingerprint,
+        "evidence": evidence.snapshot(shown, "v"), "created_at": datetime(2026, 10, 2, tzinfo=UTC),
+    }
+    values.update(overrides)
+    return StoredChoice(**values)
+
+
+def test_a_lookup_without_a_choice_reader_keeps_its_defaults() -> None:
+    service = _service({1: _evaluation(_match("A"), _match("B"))})
+
+    result = service.lookup_vehicle("V1")
+
+    assert len(result.evidence_fingerprint) == 64
+    assert result.evidence_fingerprint == service.lookup_vehicle("V1").evidence_fingerprint
+    assert result.choice is None
+    # The scripted evaluation is "resolved" with no top candidate: nothing effective.
+    assert (result.effective_ktype, result.effective_source) == (None, None)
+    assert result.inputs is not None
+    assert (result.inputs.build_month, result.inputs.electrification) == (None, None)
+
+
+def test_a_resolved_match_is_the_effective_ktype_until_a_person_chooses() -> None:
+    resolved = MatchEvaluation(
+        "resolved", ("match:x",), top_candidate_reference="A",
+        candidate_matches=(_match("A"), _match("B")),
+    )
+    choices = _Choices()
+    service = _with_choices(_service({1: resolved}), choices)
+
+    shown = service.lookup_vehicle("V1")
+    assert (shown.effective_ktype, shown.effective_source, shown.choice) == ("A", "matcher", None)
+
+    choices.heads["V1"] = (_head(shown), 2)
+    chosen = service.lookup_vehicle("V1")
+
+    assert chosen.choice is not None
+    assert (chosen.choice.status, chosen.choice.ktype, chosen.choice.history_count) == (
+        "chosen", "B", 2)
+    assert chosen.choice.needs_review is False
+    assert (chosen.effective_ktype, chosen.effective_source) == ("B", "person")
+    # The matcher's own result is untouched.
+    assert (chosen.terminal, chosen.top_ktype) == ("resolved", "A")
+    assert chosen.evidence_fingerprint == shown.evidence_fingerprint
+
+
+def test_a_lookup_flags_a_choice_that_no_longer_fits_and_asks_the_catalog() -> None:
+    choices = _Choices()
+    service = _with_choices(_service({1: _evaluation(_match("A"), _match("B"))}), choices)
+    shown = service.lookup_vehicle("V1")
+    choices.heads["V1"] = (_head(shown, ktype="B", catalog_batch="older-batch"), 1)
+
+    stale = service.lookup_vehicle("V1").choice
+    assert stale is not None and stale.stale_reasons == ["catalog_batch_changed"]
+
+    # "A" and "B" are the scripted catalog; a KType outside it is "not in the catalog".
+    gone_evidence = dict(shown.model_dump(mode="json"), candidates=[{"ktype": "Z"}])
+    choices.heads["V1"] = (_head(shown, ktype="Z", evidence=gone_evidence), 1)
+    gone = service.lookup_vehicle("V1").choice
+    assert gone is not None and "ktype_not_in_catalog" in gone.stale_reasons
+
+
+def test_a_vehicle_lookup_reads_the_choice_once_and_a_record_lookup_never() -> None:
+    choices = _Choices()
+    service = _with_choices(
+        _service({1: _evaluation(_match("A")), 2: _evaluation(_match("A")), 9: _evaluation()}),
+        choices,
+    )
+
+    service.lookup_vehicle("V1")
+    service.lookup("ABC123")
+    assert choices.reads == ["V1", "V1"]
+
+    by_record = service.lookup_record(9)
+    assert by_record.choice is None and len(by_record.evidence_fingerprint) == 64
+    job = service.start_summary([], "", 10, run_in_background=False)
+    assert job.evaluated == 3
+    assert choices.reads == ["V1", "V1"]
+
+
+def test_a_failing_choice_read_fails_the_lookup() -> None:
+    """A choice is never silently hidden: the router answers 503."""
+
+    import psycopg
+
+    service = _with_choices(
+        _service({1: _evaluation(_match("A"))}), _Choices(error=psycopg.OperationalError("down"))
+    )
+
+    with pytest.raises(psycopg.OperationalError):
+        service.lookup_vehicle("V1")
+
+
 def test_lookup_of_an_unknown_plate_says_so() -> None:
     with pytest.raises(VehicleNotFoundError):
         _service({}).lookup("NOPE")
@@ -429,6 +553,9 @@ def test_http_maps_the_services_errors(client: TestClient) -> None:
         assert by_vehicle.json()["vehicle_id"] == "V1"
         unknown = client.get("/v1/vehicles/matching/lookup", params={"vehicle_id": "V404"})
         assert unknown.status_code == 404
+        assert {"evidence_fingerprint", "choice", "effective_ktype", "effective_source"} <= set(
+            by_vehicle.json()
+        )
         layered = {"conditions": [{"field": "fuel", "operator": "gte", "values": ["1", "2"]}]}
         assert client.post("/v1/vehicles/matching/summary", json=layered).status_code == 422
         assert client.get("/v1/vehicles/matching/summary/nope").status_code == 404

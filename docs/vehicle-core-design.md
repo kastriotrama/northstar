@@ -218,6 +218,14 @@ version, which does not scale to ~368k rules.
 
   Applying a model family therefore needs `--catalog-batch`.
 
+### A person's KType choice
+
+`ktype` and `match_state` are not merged from sources. They are a copy of the
+car's current row in `core.vehicle_ktype_choices` (`manual` with the chosen KType,
+`manual_none` for "none of these", empty otherwise), with `field_sources` pointing
+at that row as `review:<choice_id>@<date>`. `save_vehicles` leaves the matching
+columns of an existing vehicle alone. See `docs/vehicle-ktype-choices.md`.
+
 ### Ledger
 
 The provenance ledger records changes, clears, plate moves, corrected VINs, new

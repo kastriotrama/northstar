@@ -41,6 +41,10 @@ _META_COLUMNS: tuple[str, ...] = (
 _JSON_COLUMNS: tuple[str, ...] = ("field_sources", "field_alternatives")
 ALL_COLUMNS: tuple[str, ...] = _META_COLUMNS + FIELD_NAMES + _JSON_COLUMNS
 _SELECT_COLUMNS = ", ".join(ALL_COLUMNS)
+#: `vehicle_variant_id`, `ktype`, `match_state`: written by matching, never by a merge.
+_MATCHING_COLUMNS: tuple[str, ...] = tuple(
+    field.name for field in CORE_FIELDS if field.policy == "matching"
+)
 _ARRAY_FIELDS = frozenset(field.name for field in CORE_FIELDS if field.sql_type == "text[]")
 
 
@@ -101,8 +105,24 @@ def _row(state: VehicleState) -> tuple[Any, ...]:
     return tuple(values)
 
 
+def _kept_matching_keys(table: str, column: str) -> str:
+    """`EXCLUDED.<column>` with the existing row's matching keys in place of its own."""
+
+    names = ", ".join(f"'{name}'" for name in _MATCHING_COLUMNS)
+    kept = " || ".join(
+        f"CASE WHEN {table}.{column} ? '{name}' "
+        f"THEN jsonb_build_object('{name}', {table}.{column} -> '{name}') "
+        "ELSE '{}'::jsonb END"
+        for name in _MATCHING_COLUMNS
+    )
+    return f"((EXCLUDED.{column} - ARRAY[{names}]::text[]) || {kept})"
+
+
 def save_vehicles(connection: Connection, states: Iterable[VehicleState]) -> int:
     """Insert new vehicles and overwrite existing ones, in one statement per page.
+
+    An existing vehicle keeps its matching columns (`_MATCHING_COLUMNS`) and their
+    `field_sources` / `field_alternatives` keys; a new vehicle is inserted as given.
 
     Callers commit. `updated_at` moves only for rows whose content changed, so it
     still says when the vehicle last changed rather than when a job last ran.
@@ -112,13 +132,18 @@ def save_vehicles(connection: Connection, states: Iterable[VehicleState]) -> int
     if not rows:
         return 0
     columns = ", ".join(ALL_COLUMNS)
-    updates = ", ".join(
-        f"{column} = EXCLUDED.{column}" for column in ALL_COLUMNS if column != "vehicle_id"
-    )
-    changed = " OR ".join(
-        f"{VEHICLES_TABLE.split('.')[1]}.{column} IS DISTINCT FROM EXCLUDED.{column}"
+    table = VEHICLES_TABLE.split(".")[1]
+    # On an existing vehicle the matching columns are not this writer's: the
+    # state was loaded earlier without a lock, and writing it back would undo a
+    # person's KType choice recorded in between. Their source keys are kept too.
+    written = {
+        column: _kept_matching_keys(table, column) if column in _JSON_COLUMNS else f"EXCLUDED.{column}"
         for column in ALL_COLUMNS
-        if column != "vehicle_id"
+        if column != "vehicle_id" and column not in _MATCHING_COLUMNS
+    }
+    updates = ", ".join(f"{column} = {value}" for column, value in written.items())
+    changed = " OR ".join(
+        f"{table}.{column} IS DISTINCT FROM {value}" for column, value in written.items()
     )
     with connection.cursor() as cursor:
         cursor.execute(

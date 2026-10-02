@@ -4,6 +4,9 @@
  * what goes over the wire.
  */
 
+import { By } from '@angular/platform-browser';
+import { KTypeCandidates } from '../../components/ktype-candidates';
+import type { VehicleMatchLookup } from '../../core/models';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -191,6 +194,27 @@ describe('CarSearchPage', () => {
     // An unknown value is counted, not listed.
     expect(panel).not.toContain('Kerb weight');
     expect(panel).toContain('1 unknown');
+  });
+
+  it('reloads the record after a KType choice without unmounting the candidates panel', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    host.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush(RECORD);
+    fixture.detectChanges();
+    http.match(() => true).forEach((request) => request.flush({}, { status: 503, statusText: 'x' }));
+    const panel = fixture.debugElement.query(By.directive(KTypeCandidates));
+
+    (panel.componentInstance as KTypeCandidates).choiceChanged.emit({} as VehicleMatchLookup);
+    fixture.detectChanges();
+
+    expect(host.querySelector('ns-ktype-candidates')).toBe(panel.nativeElement);
+    http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush(RECORD);
+    fixture.detectChanges();
+    expect(host.querySelector('ns-ktype-candidates')).toBe(panel.nativeElement);
   });
 
   it('filters by registry status', async () => {
