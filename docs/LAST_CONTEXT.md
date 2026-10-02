@@ -2,6 +2,33 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-02 — Pilot database builder: a verified 500k slice of the full build (local, uncommitted)
+
+- New `scripts/build_pilot_database.py` (logic in `ingestion/pilot_database.py`): reads the full build
+  read-only in one snapshot, creates a NEW database on the same server, builds its schema from the 14
+  migration sets, copies class A whole (rules, reviewer decisions, pinned catalog batch, job runs), class B
+  for a seeded slice (vehicles and every row of their TS records), leaves class C empty, recounts chunk and
+  build counters, moves sequences past the full build's ids, ANALYZEs, then verifies (row counts and content
+  checksums per table, slice size and population, catalog batch, foreign keys and undeclared references).
+  Dry run by default; `--commit` builds; `--replace` drops only a database this script made.
+- Dry run on the full build (seed `northstar-live-pilot-v1`, 500,000 of 6,427,730 registered passenger
+  cars): 499,230 TS records, class A 869,902 rows / 0.43 GB, class B 4,158,929 rows / 4.27 GB, 4.69 GB
+  estimated; 76 s. `--commit` was not run on the full build.
+- Validation: 33 integration tests on throwaway databases, 43 new unit tests; unit suite 2,428 passed (the
+  Golf Variant test fails on purpose); ruff, mypy clean. Docs: "Pilot database" in `PRODUCTION_DEPLOYMENT.md`.
+- Risk / next: run `--commit` and time it; live-only rules are not in the pilot (diff live's rule tables
+  first); one closed review item is on a car outside this seed's slice; batch pickers show full-build counts.
+- Review follow-up (same day): default seed is now the match impact seed (imported `SAMPLE_SEED`), so the
+  30k sample is the first 30,000 of the slice; a verified build writes a manifest (file via `--manifest`
+  and `public.northstar_pilot_manifest` in the pilot) and `--verify DATABASE --manifest FILE` re-checks any
+  database read-only (for live after `pg_restore`); a dry run exits 1 when the target is not a pilot build;
+  class B predicates are pinned by a unit test; unit test file renamed to
+  `test_build_pilot_database_script.py` so pytest collects both. Docs: restore with `--exit-on-error`,
+  `ANALYZE`, `--verify`, rule-table comparison SQL, switch by rename, follow-up after go-live.
+- Validation: unit suite 2446 passed + 1 expected xfail; builder integration 41 passed (dump/restore through
+  the Postgres container); ruff and mypy clean; 500k dry run on `app`: 4.69 GB, 499,516 TS records, 30k
+  sample contained. Next: `--size 2000` rehearsal with `--commit`, then the 500k build. Not built yet.
+
 ## 2026-10-02 — Batch B: model names, engine codes, tolerances, parsers, promotion gates (local, measured)
 
 - Model names (matcher side): registry spelling of catalog names (CEE'D -> CEED, SANTA FÉ -> SANTA FE,
@@ -170,22 +197,3 @@ Keep the latest 10 task entries only.
   Golf vs Golf Variant (14 VW Variant gains in the 30k) -- needs the user's decision.
 - Next: decide Variant; Volvo EX40/EC40 (~13k cars with model text but no family); Volvo 140/Amazon/340
   codes blocked by the TS vocabulary; 50k set not on the Mac mini.
-
-## 2026-09-30 — Matcher: exact fuel variant clears the margin; VW and BMW reviewed aliases reach the catalog (local)
-
-- Fuel: a KType sharing only the base fuel with a car registered as a variant (flex-fuel, hybrid, gas),
-  or a variant KType for a car not registered as one, is unverified with a 0.05 penalty
-  (`fuel_variant_penalty`), so the exact-fuel sibling clears the 0.08 margin. Registry basis checked:
-  fuel1/fuel2 codes and `ev_config` (ELHYBRID/LADDHYBRID) mark every variant.
-- Aliases: reviewed model rules are scoped "Volkswagen" but TecDoc says "VW", so none of the 47 VW
-  rules attached (2,143 VW KTypes now do, via the evaluator's manufacturer index,
-  `ReviewedModelAliasIndex.scoped_to_catalog`); "<n> Series" rules now cover TecDoc's number-only BMW
-  families ("3 Touring (F31)"; 1,875 KTypes, BMW 1-8 Series only).
-- Seeded 30k (Mac mini): 55.1% -> 55.9% (fuel: +338 / -77 / 2 moved) -> 60.7% (aliases: +1,444 / -26 /
-  1 moved). VW 42.6% -> 70.1%, BMW 15.9% -> 49.7%, Saab 54.1% -> 64.5%. Engine disagreement among
-  resolved stayed at 122. Lost cars checked one by one: mostly corrections (plug-in hybrids and Golf
-  Plus had resolved to a same-power non-hybrid / Golf VI sibling); 27 Ford flex-fuel go to review
-  (TecDoc's flex-fuel KType starts a year late); 2 SEAT Altea moved to Altea XL (probably wrong).
-- Validation: 1,507 backend unit tests, ruff, mypy; new tests fail without the fixes.
-- Risk / next: MOD-350 lists "GOLF PLUS" as a Golf alias (Golf Plus ties with Golf VI); 50k set not
-  re-measured (its file is on the MacBook).
