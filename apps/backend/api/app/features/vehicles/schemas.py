@@ -78,7 +78,8 @@ class VehicleRow(BaseModel):
     ktype: str | None
     #: `manual` when a person chose the KType, `manual_none` for "none of these".
     match_state: str | None = None
-    #: Fields whose value a reviewer's rule asserted.
+    #: Fields whose value a person asserted: a reviewer's rule, or a correction
+    #: of this one car.
     review_fields: list[str]
     #: Fields a learned enrichment rule filled because no source stated them.
     rule_fields: list[str]

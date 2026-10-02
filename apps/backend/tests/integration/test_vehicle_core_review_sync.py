@@ -9,8 +9,10 @@ import pytest
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from ingestion.vehicle_core_fields import SOURCE_CORRECTION, SourceRef
+from ingestion.vehicle_core_merge import Observation, merge, retract
 from ingestion.vehicle_core_review import sync_applied_review, sync_retired_review
-from ingestion.vehicle_core_store import load_vehicle
+from ingestion.vehicle_core_store import load_vehicle, save_vehicles
 from ingestion.vehicle_core_ts import backfill_vehicle_core
 from ingestion.vehicle_facts_query import compile_predicate
 from ingestion.vehicle_facts_rules import apply_rule, retire_rule
@@ -108,3 +110,73 @@ def test_a_ts_refresh_keeps_the_review(db: Connection) -> None:
     state = load_vehicle(db, vehicle_id)
     assert state is not None
     assert state.values["drive_type"] == "awd"
+
+
+def test_a_rule_waits_behind_a_persons_correction_of_the_car(db: Connection) -> None:
+    """Regression: only a `touched` vehicle was saved, so the rule's value kept behind a
+    correction was dropped and an undo of the correction could not bring it back."""
+
+    vehicle_id = _vehicle(db)
+    state = load_vehicle(db, vehicle_id)
+    assert state is not None and state.values["engine_code"] is None
+    corrected = SourceRef(SOURCE_CORRECTION, "0b9c5e9e-0f4a-4c1e-9d55-3f6f2a1f7c10")
+    merge(state, {"engine_code": Observation("DFGA", corrected)})
+    save_vehicles(db, [state])
+    db.commit()
+
+    rule_id, build_id = _rule(db, "engine_code", "DPCA")
+    predicate = compile_predicate([("source", "model", "equals", ("XC40",))])
+    apply_rule(
+        db, rule_id=rule_id, build_id=build_id, predicate=predicate,
+        target_field="engine_code", target_value="DPCA", override=True,
+        on_batch=sync_applied_review,
+    )
+
+    behind = load_vehicle(db, vehicle_id)
+    assert behind is not None
+    # A many-car rule never overwrites what a person said about one car ...
+    assert behind.values["engine_code"] == "DFGA"
+    assert behind.field_sources["engine_code"] == corrected.encode()
+    # ... and what it said is kept for when the correction goes.
+    assert behind.field_alternatives["engine_code"] == [
+        {"source": f"review:{rule_id}", "value": "DPCA"}
+    ]
+
+    retract(behind, "engine_code", SOURCE_CORRECTION, corrected.ref)
+    save_vehicles(db, [behind])
+    db.commit()
+    undone = load_vehicle(db, vehicle_id)
+    assert undone is not None
+    assert undone.values["engine_code"] == "DPCA"
+    assert undone.field_sources["engine_code"] == f"review:{rule_id}"
+
+    retire_rule(db, rule_id=rule_id, target_field="engine_code", on_retire=sync_retired_review)
+    restored = load_vehicle(db, vehicle_id)
+    assert restored is not None and restored.values["engine_code"] is None
+
+
+def test_retiring_a_rule_takes_its_value_from_behind_a_correction(db: Connection) -> None:
+    vehicle_id = _vehicle(db)
+    state = load_vehicle(db, vehicle_id)
+    assert state is not None
+    corrected = SourceRef(SOURCE_CORRECTION, "5d0f5c0a-7a53-4d6b-8a52-0a2a0c8d4b11")
+    merge(state, {"engine_code": Observation("DFGA", corrected)})
+    save_vehicles(db, [state])
+    db.commit()
+    rule_id, build_id = _rule(db, "engine_code", "DPCA")
+    predicate = compile_predicate([("source", "model", "equals", ("XC40",))])
+    apply_rule(
+        db, rule_id=rule_id, build_id=build_id, predicate=predicate,
+        target_field="engine_code", target_value="DPCA", override=True,
+        on_batch=sync_applied_review,
+    )
+
+    retire_rule(db, rule_id=rule_id, target_field="engine_code", on_retire=sync_retired_review)
+
+    after = load_vehicle(db, vehicle_id)
+    assert after is not None
+    assert after.values["engine_code"] == "DFGA"
+    assert "engine_code" not in after.field_alternatives
+    retract(after, "engine_code", SOURCE_CORRECTION, corrected.ref)
+    save_vehicles(db, [after])
+    db.commit()

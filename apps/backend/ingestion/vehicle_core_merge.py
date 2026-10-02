@@ -1,9 +1,10 @@
 """Merge source observations into one vehicle, field by field.
 
 Pure: no database, no I/O. Every writer -- the TS backfill, the AIS import, a
-reviewer's rule, an enrichment rule -- turns what it knows into `Observation`s and
-calls `merge`, so the precedence in `vehicle_core_fields` is applied the same way
-everywhere and can be tested without a database.
+reviewer's rule, a person's correction of one car, an enrichment rule -- turns
+what it knows into `Observation`s and calls `merge`, so the precedence in
+`vehicle_core_fields` is applied the same way everywhere and can be tested
+without a database.
 
 Nothing a source said is lost. When an observation loses, or displaces the value
 that was there, the other value is kept in `field_alternatives`, keyed by its
@@ -22,6 +23,7 @@ from ingestion.vehicle_core_fields import (
     FIELDS_BY_NAME,
     PROVIDER_SOURCES,
     SOURCE_AIS,
+    SOURCE_CORRECTION,
     SOURCE_DERIVED,
     SOURCE_REVIEW,
     SOURCE_RULE,
@@ -92,6 +94,10 @@ class MergeResult:
 
 
 def _rank(source: str, policy: str) -> int:
+    if source == SOURCE_CORRECTION:
+        # What a person said about this one car stands over a rule about many,
+        # and the rule's value is kept behind it for when the correction goes.
+        return 110
     if source == SOURCE_REVIEW:
         return 100
     if source in PROVIDER_SOURCES:

@@ -941,6 +941,16 @@ export interface VehicleMatchLookup {
   /** The car's KType: the person's choice, else the matcher's when it resolved. */
   effective_ktype?: string | null;
   effective_source?: 'person' | 'matcher' | null;
+  /** The head of each correction chain this car has, withdrawn ones too; by field. */
+  corrections?: FactCorrectionState[];
+  /** The fields a person may correct for this car; empty for a TS-record lookup. */
+  correctable_fields?: CorrectableField[];
+  /**
+   * Why this car's record was stopped before matching (`tyre_size_unrecognized`, ...); empty for
+   * a car that was never stopped. A person may release the car: a correction of the field
+   * `normalization_stop`, which is in `corrections` and not in `correctable_fields`.
+   */
+  stop_reasons?: string[];
 }
 
 // --- A person's KType choice per car (`/v1/vehicles/{id}/ktype-choices`) --------------
@@ -1011,6 +1021,92 @@ export interface KTypeChoiceHistory {
   vehicle_id: string;
   current_choice_id: string | null;
   entries: KTypeChoiceHistoryEntry[];
+}
+
+// --- A person's corrections to one car's data (`/v1/vehicles/{id}/corrections`) -------
+
+export type FactCorrectionAction = 'set' | 'ignore' | 'withdraw';
+
+/** The head of one field's correction chain on a car. */
+export interface FactCorrectionState {
+  field: string;
+  /** `set`: `value` is in force. `ignored`: the car's value is not used. `withdrawn`: no correction. */
+  status: 'set' | 'ignored' | 'withdrawn';
+  correction_id: string;
+  value: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  /** What the matcher used for the field when the correction was made, and where it came from. */
+  previous_value: string | null;
+  previous_source: string | null;
+  group_id: string | null;
+  history_count: number;
+}
+
+/**
+ * One field of the car a person may correct, with what the matcher uses for it today.
+ * The editor is built from `type` and `values`, so a field the server adds needs no web change.
+ */
+export interface CorrectableField {
+  field: string;
+  label: string;
+  /** `list`: several of `values` at once (a car's fuels), carried as one comma-joined string. */
+  type: 'text' | 'integer' | 'list';
+  /** The closed vocabulary; empty when any value is accepted. */
+  values: string[];
+  /**
+   * The matcher evidence keys that belong to the field, e.g. `year` for `production_year`.
+   * A candidate's key or a reason code is the field's when it equals one or starts with one + `_`.
+   */
+  evidence_keys: string[];
+  /** As text; null when the car has no value or its value is ignored. */
+  current_value: string | null;
+  /** `registry`, `ais`, `review`, `rule`, `derived` or `correction`. */
+  current_source: string | null;
+  /** Values the listed candidates carry for the field, without the current one. */
+  suggestions: string[];
+}
+
+export interface FactCorrectionRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the correction id. */
+  operation_id: string;
+  field: string;
+  action: FactCorrectionAction;
+  /** Always text (an integer as digits, a list comma-joined); null unless `action` is `set`. */
+  value: string | null;
+  reviewer: string;
+  reason?: string | null;
+  /** The field's correction the screen showed (also a withdrawn one), or null without one. */
+  supersedes_correction_id: string | null;
+  evidence_fingerprint?: string | null;
+}
+
+export interface FactCorrectionHistoryEntry {
+  correction_id: string;
+  action: FactCorrectionAction;
+  value: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  supersedes_correction_id: string | null;
+  previous_value: string | null;
+  previous_source: string | null;
+  group_id: string | null;
+  catalog_batch: string;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  code_version: string;
+}
+
+/** A car's corrections: one chain per corrected field, each from the current row backwards. */
+export interface FactCorrectionHistory {
+  vehicle_id: string;
+  fields: {
+    field: string;
+    current_correction_id: string | null;
+    entries: FactCorrectionHistoryEntry[];
+  }[];
 }
 
 export interface MatchSummaryRequest extends VehicleSearchRequest {

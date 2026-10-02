@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api-config';
 import type {
+  FactCorrectionHistory,
+  FactCorrectionRequest,
   KTypeChoiceHistory,
   KTypeChoiceRequest,
   CoverageBatch,
@@ -610,6 +612,27 @@ export class Api {
   ktypeChoiceHistory(vehicleId: string): Observable<KTypeChoiceHistory> {
     return this.http.get<KTypeChoiceHistory>(
       `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/ktype-choices`,
+    );
+  }
+
+  /**
+   * Record a person's correction to one field of one car: set a value, ignore the car's
+   * value, or withdraw the correction. The field `normalization_stop` is not a value: ignoring
+   * it releases a car that was stopped before matching. Answers with the lookup as matched
+   * again after the write (201 recorded, 200 replay of the same operation id and content), so
+   * a retry must resend the same body.
+   */
+  recordCorrection(vehicleId: string, body: FactCorrectionRequest): Observable<VehicleMatchLookup> {
+    return this.http.post<VehicleMatchLookup>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections`,
+      body,
+    );
+  }
+
+  /** A car's corrections per field, each from the current one backwards; no matcher run. */
+  correctionHistory(vehicleId: string): Observable<FactCorrectionHistory> {
+    return this.http.get<FactCorrectionHistory>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections`,
     );
   }
 

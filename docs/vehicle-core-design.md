@@ -64,8 +64,10 @@ Every writer turns what it knows into observations and merges them through
 `vehicle_core_merge`. The precedence lives in one place, `vehicle_core_fields`,
 one policy per column:
 
+0. **`correction`**: a person's correction of this one car. It beats everything,
+   a reviewer's rule included: a rule speaks about many cars at once.
 1. **`review`**: a reviewer's resolution rule from the TS data screen. It beats
-   everything.
+   every provider.
 2. **A provider (`transportstyrelsen`, `ais`)**, by the field's policy:
    - `newest`: registry facts that change over a car's life (plate, status,
      vehicle type, colour, fuel after a conversion). The most recent observation
@@ -79,10 +81,11 @@ one policy per column:
 4. **`rule`**: a learned enrichment rule. It only ever fills a gap.
 
 A value that loses is kept in `field_alternatives`, keyed by its source. When a
-review or rule is retired, the next-best value comes back instead of an empty
-field. `field_sources` records where a winning value came from, as
-`<source>[:<ref>][@<YYYY-MM-DD>]`. A field missing from it came from the record
-that created the vehicle (`origin_source`, `origin_observed_on`).
+review or rule is retired, or a correction is withdrawn, the next-best value
+comes back instead of an empty field. `field_sources` records where a winning
+value came from, as `<source>[:<ref>][@<YYYY-MM-DD>]`. A field missing from it
+came from the record that created the vehicle (`origin_source`,
+`origin_observed_on`).
 
 **Dating TS data.** A TS batch is dated by the newest registration it contains,
 not by when it was loaded. Otherwise the December 2023 snapshot, loaded in 2026,
@@ -225,6 +228,13 @@ car's current row in `core.vehicle_ktype_choices` (`manual` with the chosen KTyp
 `manual_none` for "none of these", empty otherwise), with `field_sources` pointing
 at that row as `review:<choice_id>@<date>`. `save_vehicles` leaves the matching
 columns of an existing vehicle alone. See `docs/vehicle-ktype-choices.md`.
+
+### A person's correction of one car's data
+
+A person can set or ignore a value the matcher reads for one car. The truth is
+`core.vehicle_fact_corrections`, which the matcher is handed directly; the vehicle
+carries a copy of every set value under the source `correction:<correction_id>`.
+See `docs/vehicle-fact-corrections.md`.
 
 ### Ledger
 

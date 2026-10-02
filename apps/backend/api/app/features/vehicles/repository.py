@@ -61,12 +61,16 @@ _META_COLUMNS: tuple[str, ...] = (
     "updated_at",
 )
 
-# Which fields a reviewer or a learned rule supplied, read from `field_sources`
+# Which fields a person or a learned rule supplied, read from `field_sources`
 # in the query so the list never ships every row's source map to Python.
 _ASSERTED_FIELDS = (
     "ARRAY(SELECT source.key FROM jsonb_each_text({alias}.field_sources) AS source "
-    "WHERE source.value LIKE %s ORDER BY source.key)"
+    "WHERE source.value LIKE ANY(%s) ORDER BY source.key)"
 )
+# A reviewer's rule and a person's KType choice are `review:`, a person's
+# correction of one car `correction:`: all of them are a person's word.
+_PERSON_SOURCES = ["review%", "correction%"]
+_RULE_SOURCES = ["rule%"]
 LINK_LIMIT = 100
 
 
@@ -97,7 +101,7 @@ class VehicleRepository:
         cursor_sql = f" AND {ALIAS}.vehicle_id > %s" if after else ""
         with self._connection_factory() as connection:
             predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
-            parameters: list[Any] = ["review%", "rule%", *predicate.parameters]
+            parameters: list[Any] = [_PERSON_SOURCES, _RULE_SOURCES, *predicate.parameters]
             if after:
                 parameters.append(after)
             parameters.append(limit)

@@ -2,7 +2,8 @@
 
 A NorthStar vehicle is matched on its merged values (`core.vehicles`): an engine
 code AIS supplied or a reviewer's correction reaches the matcher, not only what
-the TS record that created the car derived.
+the TS record that created the car derived. A person's corrections of that one
+car are laid over them last, so a correction counts at once.
 
 Nothing here reimplements matching. Every outcome comes from
 `TecDocDryRunEvaluator` -- the evaluator the audit CLI runs -- built from the
@@ -21,6 +22,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from api.app.features.vehicle_corrections import fields as correction_fields
 from api.app.features.vehicle_ktype_choices import evidence as choice_evidence
 from api.app.features.vehicle_matching.repository import (
     CarRecord,
@@ -49,6 +51,7 @@ from ingestion.tecdoc.match_run_adapters import (
 )
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.vehicle_core_query import VehicleTerm
+from ingestion.vehicle_fact_corrections import StoredCorrection
 from ingestion.vehicle_ktype_choices import StoredChoice
 
 #: The matcher's own cap on returned candidates. A car showing this many
@@ -287,6 +290,12 @@ class ChoiceReader(Protocol):
     def current(self, vehicle_id: str) -> tuple[StoredChoice, int] | None: ...
 
 
+class CorrectionReader(Protocol):
+    """Reads a vehicle's corrections: each corrected field's head and its chain's length."""
+
+    def current(self, vehicle_id: str) -> dict[str, tuple[StoredCorrection, int]]: ...
+
+
 class VehicleMatchingService:
     def __init__(
         self,
@@ -294,11 +303,13 @@ class VehicleMatchingService:
         matcher: Callable[[], Matcher],
         jobs: SummaryJobs,
         choices: ChoiceReader | None = None,
+        corrections: CorrectionReader | None = None,
     ) -> None:
         self._repository = repository
         self._matcher = matcher
         self._jobs = jobs
         self._choices = choices
+        self._corrections = corrections
 
     def lookup(self, identifier: str) -> VehicleMatchLookup:
         """The vehicle holding this plate or VIN now, or failing that the latest to hold it."""
@@ -362,6 +373,7 @@ class VehicleMatchingService:
             missing_separating_fields=missing_on_car(separating, query),
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
             other_vehicle_ids=list(other_vehicle_ids),
+            stop_reasons=list(car.stop_reasons),
         )
         lookup.evidence_fingerprint = choice_evidence.fingerprint(lookup)
         # One indexed read per vehicle lookup; summary jobs never come through
@@ -377,6 +389,23 @@ class VehicleMatchingService:
         lookup.effective_ktype, lookup.effective_source = choice_evidence.effective(
             lookup.choice, lookup
         )
+        # The matcher already ran on the corrected values (the repository laid them
+        # over the car, and said whether the car has any). The details -- who, when,
+        # how many -- are read only for a car that has corrections, so any other
+        # car costs no second connection. Like the choice's, a failing read fails
+        # the lookup: a correction is never silently hidden.
+        if car.vehicle_id is not None and self._corrections is not None:
+            if car.has_corrections:
+                lookup.corrections = correction_fields.states(
+                    self._corrections.current(car.vehicle_id)
+                )
+            normalized = car.record.payload.get("normalized")
+            lookup.correctable_fields = correction_fields.describe(
+                normalized if isinstance(normalized, dict) else {},
+                car.overlaid,
+                lookup.inputs,
+                lookup.candidates,
+            )
         return lookup
 
     def start_summary(

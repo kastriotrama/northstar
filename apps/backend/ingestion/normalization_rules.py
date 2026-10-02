@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from calendar import monthrange
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -3159,6 +3159,30 @@ _HYBRID_COMBINATION_TOKENS: tuple[tuple[str, str], ...] = (
 )
 
 
+def fuel_match_tokens(carriers: Sequence[str]) -> list[str]:
+    """The fuel tokens a car with these energy carriers is compared on.
+
+    The carriers themselves, plus the single token TecDoc names a hybrid by
+    (hybrid_petrol, hybrid_diesel) when electricity is among them. The one
+    statement of that rule: normalization derives its tokens here, and so does a
+    person's correction of a car's fuel.
+    """
+
+    tokens = list(carriers)
+    if "electricity" in carriers:
+        for carrier, combined in _HYBRID_COMBINATION_TOKENS:
+            if carrier in carriers and combined not in tokens:
+                tokens.append(combined)
+    return tokens
+
+
+def fuel_carriers(tokens: Sequence[str]) -> list[str]:
+    """The energy carriers among comparison tokens: `fuel_match_tokens` read back."""
+
+    combined = {token for _, token in _HYBRID_COMBINATION_TOKENS}
+    return [token for token in tokens if token not in combined]
+
+
 def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
     """Publish the fuel tokens a TecDoc KType can be compared against.
 
@@ -3182,12 +3206,7 @@ def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
     context.normalized.pop("fuel_match_tokens", None)
     if not isinstance(carriers, list) or not carriers:
         return
-    tokens = list(carriers)
-    if "electricity" in carriers:
-        for carrier, combined in _HYBRID_COMBINATION_TOKENS:
-            if carrier in carriers and combined not in tokens:
-                tokens.append(combined)
-    context.normalized["fuel_match_tokens"] = tokens
+    context.normalized["fuel_match_tokens"] = fuel_match_tokens(carriers)
 
 
 def _apply_fuel(context: NormalizationContext) -> None:

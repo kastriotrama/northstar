@@ -40,8 +40,9 @@ docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingest
 # The NorthStar vehicle tables (core.vehicles and friends) the Vehicles tab and the
 # TS screen's rule sync read. Schema and constraint check only; filling them is the
 # deliberate backfill-vehicle-core / import-ais-vin-export sequence, never a deploy.
-# It also creates and verifies core.vehicle_ktype_choices (people's KType choices):
-# a missing or disabled constraint or trigger stops the deploy here.
+# It also creates and verifies core.vehicle_ktype_choices (people's KType choices)
+# and core.vehicle_fact_corrections (their corrections of one car's data): a
+# missing or disabled constraint or trigger stops the deploy here.
 docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-core
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps

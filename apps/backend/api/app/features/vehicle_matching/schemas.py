@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from api.app.features.vehicle_corrections.schemas import CorrectableField, CorrectionState
 from api.app.features.vehicle_ktype_choices.schemas import KTypeChoiceState
 from api.app.features.vehicles.schemas import VehicleFilter
 
@@ -108,6 +109,18 @@ class VehicleMatchLookup(BaseModel):
     effective_ktype: str | None = None
     #: `person` (also for "none of these", where the KType is null) or `matcher`.
     effective_source: Literal["person", "matcher"] | None = None
+    #: The head of every correction chain this vehicle has, by field -- a
+    #: withdrawn one too, so the next correction of that field can supersede it.
+    #: Empty for a `source_record_id` lookup and for a car nobody corrected.
+    corrections: list[CorrectionState] = Field(default_factory=list)
+    #: The fields a person may correct on this vehicle, each with the value the
+    #: matcher uses today. Empty for a `source_record_id` lookup.
+    correctable_fields: list[CorrectableField] = Field(default_factory=list)
+    #: Why this vehicle's record is stopped before matching (its normalization
+    #: asks for review) -- also while a person's release is in force, which
+    #: `corrections` then shows on `normalization_stop`. Empty for a car that
+    #: was never stopped.
+    stop_reasons: list[str] = Field(default_factory=list)
 
 
 class MatchSummaryRequest(VehicleFilter):

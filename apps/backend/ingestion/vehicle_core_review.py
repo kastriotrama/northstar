@@ -5,8 +5,9 @@ registry text and decides. What they assert is a fact about the car, so it must
 reach `core.vehicles` too, in the same transaction as the resolution itself: a
 rule must never be visible on one and missing on the other.
 
-A review outranks every source. The value it displaces is kept, so retiring the
-rule restores exactly what the vehicle said before.
+A review outranks every source but one: a person's correction of the one car
+(`vehicle_fact_corrections`). The value a review displaces is kept, so retiring
+the rule restores exactly what the vehicle said before.
 """
 
 from __future__ import annotations
@@ -73,6 +74,12 @@ def sync_applied_review(
     The batch is read back from the resolution ledger -- the rows this rule holds
     live between the batch's cursors -- so the vehicles get exactly what was
     written, whether the rule filled gaps or overrode values.
+
+    A many-car rule never overwrites what a person said about one car: on a
+    vehicle whose field carries a person's correction the merge leaves the
+    correction on top and keeps the rule's value behind it, which is what the
+    field falls back to when the correction is withdrawn. That vehicle is
+    saved too, so the value kept behind is not lost.
     """
 
     if target_field not in FIELDS_BY_NAME or not _core_exists(connection):
@@ -88,9 +95,11 @@ def sync_applied_review(
     vehicles = _vehicles_for_records(connection, record_ids)
     states = load_vehicles(connection, vehicles.values())
     observation = Observation(_typed(target_field, target_value), SourceRef(SOURCE_REVIEW, str(rule_id)))
-    changed = [
-        state for state in states.values() if merge(state, {target_field: observation}).touched
-    ]
+    changed = []
+    for state in states.values():
+        result = merge(state, {target_field: observation})
+        if result.touched or result.kept:
+            changed.append(state)
     save_vehicles(connection, changed)
     return len(changed)
 

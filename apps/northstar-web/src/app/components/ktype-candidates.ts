@@ -22,6 +22,7 @@ import type {
   MatchBucket,
   VehicleMatchLookup,
 } from '../core/models';
+import { FactCorrections } from './fact-corrections';
 import { type ChoiceError, KTypeChoice, NAME_HINT_ID, type PendingChoice } from './ktype-choice';
 
 const REVIEWER_STORAGE_KEY = 'match-review-reviewer';
@@ -102,7 +103,7 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
  */
 @Component({
   selector: 'ns-ktype-candidates',
-  imports: [DecimalPipe, NgTemplateOutlet, KTypeChoice],
+  imports: [DecimalPipe, NgTemplateOutlet, KTypeChoice, FactCorrections],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (state(); as current) {
@@ -244,6 +245,7 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
         </ng-template>
 
         @if (canChoose()) {
+          <ns-fact-corrections [lookup]="result" [reviewer]="reviewer()" [(reason)]="reason" (corrected)="onCorrected($event)" />
           <ns-ktype-choice
             [lookup]="result"
             [pending]="pending()"
@@ -554,6 +556,14 @@ export class KTypeCandidates {
       });
   }
 
+  /** The corrections panel recorded something, or read the car again: show the lookup it hands on. */
+  protected onCorrected(lookup: VehicleMatchLookup): void {
+    // A choice still waiting for "Confirm" was asked about the matching as it was.
+    if (!this.saving() && !this.saveError()) this.pending.set(null);
+    this.state.set({ loading: false, error: null, lookup });
+    this.choiceChanged.emit(lookup);
+  }
+
   protected loadHistory(): void {
     const vehicleId = this.vehicleId();
     if (this.history()) return;
@@ -673,7 +683,7 @@ export class KTypeCandidates {
     if (!overlaid.length) {
       return lookup?.rule_filled.length ? 'Underlined: supplied by a live rule.' : null;
     }
-    const parts = overlaid.map(([field, source]) => `${field.replace(/_/g, ' ')} from ${sourceName(source)}`);
+    const parts = overlaid.map(([field, source]) => `${field.replace(/_/g, ' ')} ${source === 'correction' ? 'corrected by a person' : `from ${sourceName(source)}`}`);
     return `Underlined: the vehicle record's value, not the TS derivation — ${parts.join(', ')}.`;
   });
 

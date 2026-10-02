@@ -3,16 +3,17 @@
 Two ways in. A NorthStar vehicle (`core.vehicles`, the Vehicles tab) is handed
 to the matcher with its *merged* values -- an engine code AIS supplied, a
 reviewer's correction, a learned rule's fill -- laid over the normalization of
-the TS record that created it. A single TS record (`source_record_id`) is
-handed over as the pipeline would see it after the dashboard's rules ran: its
-latest normalization result with live resolutions laid over it. Both carry the
-raw registry fields the evaluator reads as source evidence.
+the TS record that created it, and a person's corrections of that one car laid
+over both. A single TS record (`source_record_id`) is handed over as the
+pipeline would see it after the dashboard's rules ran: its latest normalization
+result with live resolutions laid over it. Both carry the raw registry fields
+the evaluator reads as source evidence.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -20,13 +21,19 @@ from typing import Any, Protocol
 
 from psycopg import Connection
 
+from api.app.features.vehicle_corrections import fields as correction_fields
 from ingestion.active_rules import load_active_rules
 from ingestion.match_chunk_migrations import MATCH_FIELD_RESOLUTIONS_TABLE
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 from ingestion.tecdoc.match_run_adapters import load_postgres_ktype_catalog
 from ingestion.tecdoc.remote_match_run import SOURCE_EVIDENCE_FIELDS
-from ingestion.vehicle_core_fields import REGISTRY_EVIDENCE_COLUMNS, SOURCE_RULE, parse_source_ref
+from ingestion.vehicle_core_fields import (
+    REGISTRY_EVIDENCE_COLUMNS,
+    SOURCE_CORRECTION,
+    SOURCE_RULE,
+    parse_source_ref,
+)
 from ingestion.vehicle_core_migrations import VEHICLE_IDENTIFIERS_TABLE, VEHICLES_TABLE
 from ingestion.vehicle_core_query import (
     ALIAS,
@@ -35,6 +42,7 @@ from ingestion.vehicle_core_query import (
     is_vehicle_id,
     resolve_search,
 )
+from ingestion.vehicle_fact_corrections import CorrectionHead, correction_heads
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
 from ingestion.vocabulary_alignment import (
@@ -102,6 +110,17 @@ class CarRecord:
     #: Vehicle values that replaced or filled the origin record's derivation,
     #: by field, with the source that supplied each (`ais`, `review`, `rule`, ...).
     overlaid: dict[str, str] = dataclass_field(default_factory=dict)
+    #: A person's corrections in force on this vehicle, by field: what the last
+    #: layer over the values was, and the release of a stopped car.
+    corrections: dict[str, CorrectionHead] = dataclass_field(default_factory=dict)
+    #: Why the car's record is stopped before matching (its normalization asks
+    #: for review); kept when a person released the car, empty when it was
+    #: never stopped.
+    stop_reasons: tuple[str, ...] = ()
+    #: A person has corrected this vehicle at some time (a withdrawn correction
+    #: counts). Read with the car, so a lookup asks for the corrections' details
+    #: only when there are any.
+    has_corrections: bool = False
 
 
 def overlay_resolutions(
@@ -152,6 +171,47 @@ def overlay_vehicle(
         encoded = field_sources.get(name)
         overlaid[name] = parse_source_ref(encoded).source if encoded else origin_source
     return merged, overlaid
+
+
+def overlay_corrections(
+    normalized: dict[str, Any],
+    overlaid: dict[str, str],
+    heads: Mapping[str, CorrectionHead],
+) -> tuple[dict[str, Any], dict[str, str], dict[str, CorrectionHead]]:
+    """Lay a person's corrections of this car over everything else: the last layer.
+
+    `heads` are the heads of the car's correction chains. A `set` replaces
+    whatever the matcher would have read for the field; an `ignore` takes it
+    away, so the matcher has no value for it, whatever the vehicle or the
+    derivation said. Either way the field's source becomes `correction`, which
+    makes it neither an inferred nor a rule-filled value. A withdrawn head
+    changes nothing. Which keys a field is read from, and which the matcher
+    would fall back to, is the field's own definition
+    (`vehicle_corrections.fields`). Returns the values, their sources and the
+    corrections applied; one this version does not know is left alone.
+    """
+
+    merged = dict(normalized)
+    sources = dict(overlaid)
+    applied: dict[str, CorrectionHead] = {}
+    for spec in correction_fields.SPECS.values():
+        head = heads.get(spec.field)
+        if head is None or head.action == "withdraw":
+            continue
+        handed = (
+            correction_fields.matcher_values(spec.field, head.value or "")
+            if head.action == "set"
+            else {}
+        )
+        if head.action == "set" and not handed:
+            continue
+        for key in (*spec.matcher_keys, *spec.matcher_fallbacks):
+            merged.pop(key, None)
+            sources.pop(key, None)
+        merged.update(handed)
+        sources[spec.field] = SOURCE_CORRECTION
+        applied[spec.field] = head
+    return merged, sources, applied
 
 
 def surrogate_record_id(vehicle_id: str) -> int:
@@ -266,6 +326,11 @@ class VehicleMatchingRepository:
         page of two hundred vehicles is index lookups, never a scan. A vehicle no
         TS record created (a new AIS car) has no derivation: the matcher sees its
         merged values alone.
+
+        People's corrections of these cars are read from their own table on
+        the same connection -- the heads of their chains, by the vehicle key --
+        and laid over last. A failing read fails the call: a car is never
+        matched as if nobody had corrected it.
         """
 
         if not vehicle_ids:
@@ -294,7 +359,8 @@ class VehicleMatchingRepository:
                 (STAGING_TABLE, list(vehicle_ids)),
             )
             rows = cursor.fetchall()
-        by_id = {str(row[0]): _vehicle_car_record(row) for row in rows}
+            heads = correction_heads(connection, [str(row[0]) for row in rows])
+        by_id = {str(row[0]): _vehicle_car_record(row, heads.get(str(row[0]))) for row in rows}
         return [by_id[vehicle_id] for vehicle_id in vehicle_ids if vehicle_id in by_id]
 
     def car_records(self, source_record_ids: Sequence[int]) -> list[CarRecord]:
@@ -336,7 +402,9 @@ class VehicleMatchingRepository:
         return [by_id[rid] for rid in source_record_ids if rid in by_id]
 
 
-def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
+def _vehicle_car_record(
+    row: tuple[Any, ...], heads: Mapping[str, CorrectionHead] | None = None
+) -> CarRecord:
     count = len(MATCHER_FIELDS)
     vehicle_id, plate, vin, ts_record_id, origin_source, core_status, sources = row[:7]
     vehicle = dict(zip(MATCHER_FIELDS, row[7 : 7 + count], strict=True))
@@ -350,14 +418,24 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
         dict(sources or {}),
         str(origin_source),
     )
+    normalized, overlaid, applied = overlay_corrections(normalized, overlaid, heads or {})
+    record_status = str(status or core_status or "resolved")
+    reasons = [str(reason) for reason in (review_reasons or [])]
+    stopped_for = correction_fields.stop_reasons(record_status, reasons)
+    release = (heads or {}).get(correction_fields.NORMALIZATION_STOP)
+    if stopped_for and release is not None and release.action == "ignore":
+        # A person released this car: the matcher is handed it as a resolved
+        # record, every guard on. The record itself keeps its status and reasons.
+        record_status, reasons = correction_fields.RELEASED_STATUS, []
+        applied[correction_fields.NORMALIZATION_STOP] = release
     record_id = int(ts_record_id) if ts_record_id else surrogate_record_id(str(vehicle_id))
     record = MatchSourceRecord(
         record_id,
         {
-            "normalization_status": str(status or core_status or "resolved"),
+            "normalization_status": record_status,
             "normalized": normalized,
             "candidates": dict(payload.get("candidates") or {}),
-            "review_reasons": [str(reason) for reason in (review_reasons or [])],
+            "review_reasons": reasons,
             "source_evidence": {
                 field: raw.get(field) or registry.get(field) for field in SOURCE_EVIDENCE_FIELDS
             },
@@ -377,6 +455,9 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
         ),
         vehicle_id=str(vehicle_id),
         overlaid=overlaid,
+        corrections=applied,
+        stop_reasons=stopped_for,
+        has_corrections=bool(heads),
     )
 
 

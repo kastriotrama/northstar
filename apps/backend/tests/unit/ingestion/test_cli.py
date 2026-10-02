@@ -352,10 +352,10 @@ def test_a_missing_ais_export_fails_without_touching_the_database(
     assert main(["import-ais-vin-export", "--file", str(tmp_path / "missing.xml")]) == 1
 
 
-def test_vehicle_core_migration_also_creates_the_ktype_choices_table(
+def test_vehicle_core_migration_also_creates_the_choice_and_correction_tables(
     monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
 ) -> None:
-    """The deploy's schema step is `migrate-vehicle-core`: choices must ride on it."""
+    """The deploy's schema step is `migrate-vehicle-core`: choices and corrections ride on it."""
 
     from contextlib import nullcontext
     from types import SimpleNamespace
@@ -377,10 +377,13 @@ def test_vehicle_core_migration_also_creates_the_ktype_choices_table(
     monkeypatch.setattr(cli, "run_job_bookkeeping_migrations", step("jobs"))
     monkeypatch.setattr(cli, "run_vehicle_core_migrations", step("vehicle core"))
     monkeypatch.setattr(cli, "run_vehicle_ktype_choice_migrations", step("ktype choices"))
+    monkeypatch.setattr(cli, "run_vehicle_fact_correction_migrations", step("fact corrections"))
 
     assert main(["migrate-vehicle-core"]) == 0
-    assert order == ["ledger", "jobs", "vehicle core", "ktype choices"]
-    assert '"applied": ["vehicle core", "ktype choices"]' in capsys.readouterr().out
+    assert order == ["ledger", "jobs", "vehicle core", "ktype choices", "fact corrections"]
+    assert '"applied": ["vehicle core", "ktype choices", "fact corrections"]' in (
+        capsys.readouterr().out
+    )
 
 
 def test_a_failing_ktype_choice_migration_fails_the_deploy(
@@ -400,5 +403,30 @@ def test_a_failing_ktype_choice_migration_fails_the_deploy(
                  "run_vehicle_core_migrations"):
         monkeypatch.setattr(cli, name, lambda _connection: ())
     monkeypatch.setattr(cli, "run_vehicle_ktype_choice_migrations", boom)
+    monkeypatch.setattr(
+        cli, "run_vehicle_fact_correction_migrations",
+        lambda _connection: pytest.fail("corrections follow the choices"),
+    )
+
+    assert main(["migrate-vehicle-core"]) == 1
+
+
+def test_a_failing_fact_correction_migration_fails_the_deploy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from ingestion import cli
+
+    def boom(_connection: object) -> tuple[str, ...]:
+        raise RuntimeError("trigger disabled")
+
+    clients = SimpleNamespace(postgres=SimpleNamespace(connect=lambda: nullcontext(object())))
+    monkeypatch.setattr(cli.DatastoreClients, "from_settings", lambda _settings: clients)
+    for name in ("run_ledger_migrations", "run_job_bookkeeping_migrations",
+                 "run_vehicle_core_migrations", "run_vehicle_ktype_choice_migrations"):
+        monkeypatch.setattr(cli, name, lambda _connection: ())
+    monkeypatch.setattr(cli, "run_vehicle_fact_correction_migrations", boom)
 
     assert main(["migrate-vehicle-core"]) == 1
