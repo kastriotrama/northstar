@@ -60,7 +60,7 @@ def stored(shown: VehicleMatchLookup, action: str = "choose", ktype: str | None 
     """A row as the service would have stored it for the lookup `shown`."""
 
     values: dict[str, Any] = {
-        "choice_id": uuid4(), "vehicle_id": VEHICLE_ID, "action": action,
+        "choice_id": uuid4(), "vehicle_id": VEHICLE_ID, "chain_position": 0, "action": action,
         "ktype": ktype if action == "choose" else None, "supersedes_choice_id": None,
         "reviewer": "Ada", "reason": None, "catalog_batch": shown.catalog_batch,
         "automatic_terminal": shown.terminal, "automatic_ktype": shown.top_ktype,

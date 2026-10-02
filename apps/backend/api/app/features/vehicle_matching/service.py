@@ -75,6 +75,8 @@ class Matcher:
     batch_id: str
     evaluator: TecDocDryRunEvaluator
     catalog: dict[str, VehicleCandidate]
+    #: The active translation rule set the matcher was built from.
+    rule_set_version: str | None = None
     # The evaluator memoizes into a plain dict and was written for one caller. A
     # lookup and a running summary job share it, so each evaluation holds the lock
     # -- per car, not per job, so a lookup waits at most one evaluation.
@@ -106,6 +108,7 @@ def build_matcher(repository: VehicleMatchingRepository, batch_id: str | None) -
         batch_id=resolved_batch,
         evaluator=evaluator,
         catalog={candidate.candidate_reference: candidate for candidate in sources.catalog},
+        rule_set_version=getattr(sources.rule_set, "version", None),
     )
 
 
@@ -374,16 +377,19 @@ class VehicleMatchingService:
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
             other_vehicle_ids=list(other_vehicle_ids),
             stop_reasons=list(car.stop_reasons),
+            rule_set_version=matcher.rule_set_version,
         )
         lookup.evidence_fingerprint = choice_evidence.fingerprint(lookup)
-        # One indexed read per vehicle lookup; summary jobs never come through
-        # here. A failing read fails the lookup: a choice is never silently hidden.
-        if car.vehicle_id is not None and self._choices is not None:
+        # The car's own read already says whether anyone decided it, so a car
+        # without a choice costs no second connection. Summary jobs never come
+        # through here. A failing read fails the lookup: a choice is never
+        # silently hidden.
+        if car.vehicle_id is not None and car.has_choices and self._choices is not None:
             found = self._choices.current(car.vehicle_id)
             if found is not None:
                 choice, history_count = found
-                # A candidate-only KType is offered without being in the loaded
-                # catalog; `assess` only asks about the catalog when it is not offered.
+                # `assess` asks about the catalog only when the chosen KType is no
+                # longer offered: gone from this batch, or merely no longer a candidate.
                 in_catalog = choice.ktype is not None and choice.ktype in matcher.catalog
                 lookup.choice = choice_evidence.assess(choice, lookup, in_catalog, history_count)
         lookup.effective_ktype, lookup.effective_source = choice_evidence.effective(

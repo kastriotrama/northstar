@@ -481,6 +481,138 @@ describe('KTypeCandidates: a person’s choice', () => {
     request.flush({ vehicle_id: VEHICLE_ID, current_choice_id: stored().choice_id, entries: [] });
   });
 
+  it('leads with the person’s choice and labels the matcher’s own result as the matcher’s', async () => {
+    const plain = await open();
+    expect(plain.host.querySelector('.effective')).toBeNull();
+    expect(plain.host.querySelector('.head')?.textContent).not.toContain('Matcher:');
+
+    const chosen = await open({
+      bucket: 'none',
+      choice: stored(),
+      effective_ktype: '000010064',
+      effective_source: 'person',
+    });
+    const top = chosen.host.querySelector('.effective') as HTMLElement;
+    const head = chosen.host.querySelector('.head') as HTMLElement;
+    expect(top.textContent?.replace(/\s+/g, ' ')).toContain("This car's KType: 000010064 · chosen by a person");
+    expect(head.textContent?.replace(/\s+/g, ' ')).toMatch(/Matcher: ?No KType/);
+    // The person's choice comes first on screen, the matcher's badge after it.
+    expect(top.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const none = await open({
+      choice: stored({ status: 'none', ktype: null, chosen_candidate: null }),
+      effective_ktype: null,
+      effective_source: 'person',
+    });
+    expect(none.host.querySelector('.effective')?.textContent).toContain('a person recorded “none of these”');
+  });
+
+  it('gives each choose button its own accessible name', async () => {
+    const page = await open({
+      candidates: [
+        candidate('000010064'),
+        candidate('000059385', { conflicting_fields: ['power_kw'], compatible: false }),
+        candidate('000059386', { conflicting_fields: ['power_kw'], compatible: false }),
+      ],
+    });
+
+    const names = [...page.host.querySelectorAll('.candidate .pick')].map((item) => item.getAttribute('aria-label'));
+
+    expect(names).toEqual([
+      'Choose this KType — KType 000010064',
+      'Choose anyway — KType 000059385',
+      'Choose anyway — KType 000059386',
+    ]);
+    expect(new Set(names).size).toBe(3);
+  });
+
+  it('reloads an open history after a save, and says so when it cannot be loaded', async () => {
+    const page = await open({ choice: stored() });
+    const details = page.host.querySelector('ns-ktype-choice details') as HTMLDetailsElement;
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    await page.settle();
+    const entry = {
+      choice_id: stored().choice_id, action: 'choose', ktype: '000010064', reviewer: 'Anna', reason: null,
+      created_at: '2026-10-01T09:30:00Z', supersedes_choice_id: null, catalog_batch: 'tecdoc-v5',
+      automatic_terminal: 'provisional', automatic_ktype: null, code_version: 'abc',
+    };
+    page.http
+      .expectOne(CHOICE_URL)
+      .flush({ vehicle_id: VEHICLE_ID, current_choice_id: entry.choice_id, entries: [entry] });
+    await page.settle();
+    expect(page.text()).toContain('Anna chose KType 000010064');
+
+    await page.click('Withdraw choice');
+    await page.click('Confirm');
+    const [save] = page.http.match((request) => request.method === 'POST');
+    save.flush(
+      lookup({ evidence_fingerprint: FINGERPRINT, choice: stored({ status: 'withdrawn', ktype: null, reviewer: 'Bea', history_count: 2 }) }),
+      { status: 201, statusText: 'Created' },
+    );
+    await page.settle();
+
+    // Still open: it is fetched again rather than left on "Loading…".
+    const again = page.http.expectOne((request) => request.method === 'GET' && request.url === CHOICE_URL);
+    again.flush({ detail: { code: 'unavailable', message: 'x' } }, { status: 503, statusText: 'x' });
+    await page.settle();
+    expect(page.text()).toContain('The history could not be loaded.');
+    expect(page.text()).not.toContain('Loading…');
+
+    await page.click('Try again');
+    page.http
+      .expectOne((request) => request.method === 'GET' && request.url === CHOICE_URL)
+      .flush({ vehicle_id: VEHICLE_ID, current_choice_id: null, entries: [{ ...entry, action: 'withdraw', ktype: null, reviewer: 'Bea' }, entry] });
+    await page.settle();
+    expect(page.text()).toContain('Bea withdrew');
+
+    // Closed: a later change does not fetch it.
+    details.open = false;
+    details.dispatchEvent(new Event('toggle'));
+    await page.settle();
+    await page.click('Choose this KType', 0);
+    const posts = page.http.match((request) => request.method === 'POST');
+    expect(posts.length).toBe(1);
+    posts[0].flush(lookup({ evidence_fingerprint: FINGERPRINT, choice: stored({ reviewer: 'Bea', history_count: 3 }) }), {
+      status: 201,
+      statusText: 'Created',
+    });
+    await page.settle();
+    page.http.expectNone((request) => request.method === 'GET' && request.url === CHOICE_URL);
+  });
+
+  it('remembers a typed name before any save, so it survives opening another car', async () => {
+    const page = await open({}, '');
+    const name = page.host.querySelector('ns-ktype-choice input') as HTMLInputElement;
+    name.value = ' Dan ';
+    name.dispatchEvent(new Event('input'));
+    await page.settle();
+
+    expect(localStorage.getItem('match-review-reviewer')).toBe('Dan');
+  });
+
+  it('does not offer a retry for a refusal that would be refused again, and shows what was wrong', async () => {
+    const page = await open();
+    await page.click('Choose this KType', 0);
+    page.http
+      .expectOne(CHOICE_URL)
+      .flush({ detail: { code: 'not_storable', message: 'The request holds a value that cannot be stored. Nothing was saved.' } }, { status: 422, statusText: 'x' });
+    await page.settle();
+    let alert = page.host.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Not saved. The request holds a value that cannot be stored.');
+    expect(alert?.querySelector('button')).toBeNull();
+
+    // A malformed request: FastAPI answers a list of problems, each with its message.
+    await page.click('Choose this KType', 0);
+    page.http
+      .expectOne(CHOICE_URL)
+      .flush({ detail: [{ loc: ['body', 'reviewer'], msg: 'Value error, reviewer must not contain control characters' }] }, { status: 422, statusText: 'x' });
+    await page.settle();
+    alert = page.host.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Not saved. Value error, reviewer must not contain control characters');
+    expect(alert?.querySelector('button')).toBeNull();
+  });
+
   it('reads the server’s reason from the new error shape too', async () => {
     const fixture = render();
     await answer(fixture, () => [{ detail: { code: 'unavailable', message: 'Choices are unavailable.' } }, 503]);

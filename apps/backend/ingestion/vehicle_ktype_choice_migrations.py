@@ -7,12 +7,19 @@ a retried request cannot record twice, and rows copy verbatim between databases
 (the enrichment ledger's ids are database-local, which is why the ledger is not
 the store -- see docs/vehicle-ktype-choices.md).
 
-Every chain rule is declarative -- foreign keys, CHECKs and partial unique
-indexes -- so a single-statement bulk load passes in any row order:
+Every chain rule is declarative -- keys, a foreign key and CHECKs -- so a
+single-statement bulk load passes in any row order. Each row carries its place
+in its vehicle's chain (`chain_position`, 0 for the first):
 
-- a row supersedes at most one earlier row *of the same vehicle*;
-- a row is superseded at most once (the chain is linear);
-- a vehicle has one root, forever (a choice after a withdrawal supersedes it).
+- a vehicle has one row per position, so one root and one successor per row;
+- a row at position n > 0 supersedes exactly the row of the same vehicle at
+  position n - 1 (the foreign key carries the position), and the root
+  supersedes nothing.
+
+Positions only go down along the links, so no statement -- not even one
+inserting several rows at once -- can store a cycle, a detached chain, a second
+root or a link into another vehicle. The row with the highest position is the
+car's current choice.
 
 Append-only is enforced by triggers, not convention. Statement names are a
 stable contract; every statement is idempotent, and the verifier compares
@@ -31,44 +38,64 @@ _TABLE_NAME = "vehicle_ktype_choices"
 VEHICLE_KTYPE_CHOICES_TABLE = f"{CORE_SCHEMA_NAME}.{_TABLE_NAME}"
 _BLOCK_FUNCTION = "vehicle_ktype_choices_block_mutation"
 
-SUPERSEDES_ONCE_INDEX = "vehicle_ktype_choices_supersedes_once_idx"
-ONE_ROOT_INDEX = "vehicle_ktype_choices_one_root_idx"
-VEHICLE_INDEX = "vehicle_ktype_choices_vehicle_idx"
+#: One row per (vehicle, position): two writers appending to one head collide here.
+POSITION_KEY = "vehicle_ktype_choices_position_key"
+#: A row links only to the same vehicle's row one position below it.
+SUPERSEDES_FOREIGN_KEY = "vehicle_ktype_choices_supersedes_previous_fkey"
 VEHICLE_FOREIGN_KEY = "vehicle_ktype_choices_vehicle_fkey"
 
-# (name, information_schema data_type, nullable, default)
-_COLUMN_CONTRACT: tuple[tuple[str, str, bool, str | None], ...] = (
-    ("choice_id", "uuid", False, None),
-    ("vehicle_id", "text", False, None),
-    ("action", "text", False, None),
-    ("ktype", "text", True, None),
-    ("supersedes_choice_id", "uuid", True, None),
-    ("reviewer", "text", False, None),
-    ("reason", "text", True, None),
-    ("catalog_batch", "text", False, None),
-    ("automatic_terminal", "text", False, None),
-    ("automatic_ktype", "text", True, None),
-    ("code_version", "text", False, None),
-    ("evidence_fingerprint", "text", False, None),
-    ("evidence", "jsonb", False, None),
-    ("created_at", "timestamp with time zone", False, "now()"),
+_SUPERSEDES_POSITION = "supersedes_position"
+_SUPERSEDES_POSITION_EXPRESSION = (
+    "CASE WHEN (chain_position > 0) THEN (chain_position - 1) ELSE NULL::integer END"
 )
-COLUMNS: tuple[str, ...] = tuple(name for name, _, _, _ in _COLUMN_CONTRACT)
+
+# (name, information_schema data_type, nullable, default, generation expression)
+_COLUMN_CONTRACT: tuple[tuple[str, str, bool, str | None, str | None], ...] = (
+    ("choice_id", "uuid", False, None, None),
+    ("vehicle_id", "text", False, None, None),
+    ("chain_position", "integer", False, None, None),
+    ("action", "text", False, None, None),
+    ("ktype", "text", True, None, None),
+    ("supersedes_choice_id", "uuid", True, None, None),
+    (_SUPERSEDES_POSITION, "integer", True, None, _SUPERSEDES_POSITION_EXPRESSION),
+    ("reviewer", "text", False, None, None),
+    ("reason", "text", True, None, None),
+    ("catalog_batch", "text", False, None, None),
+    ("automatic_terminal", "text", False, None, None),
+    ("automatic_ktype", "text", True, None, None),
+    ("code_version", "text", False, None, None),
+    ("evidence_fingerprint", "text", False, None, None),
+    ("evidence", "jsonb", False, None, None),
+    ("created_at", "timestamp with time zone", False, "now()", None),
+)
+#: The columns a writer or a copy handles; the generated one is the database's own.
+COLUMNS: tuple[str, ...] = tuple(
+    name for name, _, _, _, generated in _COLUMN_CONTRACT if generated is None
+)
 
 # name -> (pg_constraint.contype, fragments pg_get_constraintdef must contain)
 _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
     "vehicle_ktype_choices_pkey": ("p", ("PRIMARY KEY (choice_id)",)),
-    "vehicle_ktype_choices_id_vehicle_key": ("u", ("UNIQUE (choice_id, vehicle_id)",)),
+    POSITION_KEY: ("u", ("UNIQUE (vehicle_id, chain_position)",)),
+    "vehicle_ktype_choices_id_vehicle_position_key": (
+        "u",
+        ("UNIQUE (choice_id, vehicle_id, chain_position)",),
+    ),
     VEHICLE_FOREIGN_KEY: (
         "f",
         ("FOREIGN KEY (vehicle_id)", "REFERENCES core.vehicles(vehicle_id)", "ON DELETE RESTRICT"),
     ),
-    "vehicle_ktype_choices_supersedes_same_vehicle_fkey": (
+    SUPERSEDES_FOREIGN_KEY: (
         "f",
         (
-            "FOREIGN KEY (supersedes_choice_id, vehicle_id)",
-            "REFERENCES core.vehicle_ktype_choices(choice_id, vehicle_id)",
+            "FOREIGN KEY (supersedes_choice_id, vehicle_id, supersedes_position)",
+            "REFERENCES core.vehicle_ktype_choices(choice_id, vehicle_id, chain_position)",
         ),
+    ),
+    "vehicle_ktype_choices_position_nonnegative": ("c", ("chain_position >= 0",)),
+    "vehicle_ktype_choices_root_supersedes_nothing": (
+        "c",
+        ("(supersedes_choice_id IS NULL) = (chain_position = 0)",),
     ),
     "vehicle_ktype_choices_action_values": ("c", ("action", "'choose'", "'none'", "'withdraw'")),
     "vehicle_ktype_choices_ktype_matches_action": (
@@ -79,7 +106,6 @@ _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
         "c",
         ("action <> 'withdraw'", "supersedes_choice_id IS NOT NULL"),
     ),
-    "vehicle_ktype_choices_not_self": ("c", ("supersedes_choice_id <> choice_id",)),
     "vehicle_ktype_choices_reviewer_nonempty": (
         "c",
         ("btrim(reviewer) <> ''", "char_length(reviewer) <= 120"),
@@ -110,19 +136,10 @@ _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("action <> 'choose'", "evidence -> 'candidates'", "@>", "jsonb_build_object('ktype', ktype)"),
     ),
 }
-_REQUIRED_INDEX_FRAGMENTS: dict[str, tuple[str, ...]] = {
-    SUPERSEDES_ONCE_INDEX: (
-        "CREATE UNIQUE INDEX",
-        "(supersedes_choice_id)",
-        "WHERE (supersedes_choice_id IS NOT NULL)",
-    ),
-    ONE_ROOT_INDEX: (
-        "CREATE UNIQUE INDEX",
-        "(vehicle_id)",
-        "WHERE (supersedes_choice_id IS NULL)",
-    ),
-    VEHICLE_INDEX: ("(vehicle_id)",),
-}
+_BLOCK_BODY = (
+    f"BEGIN RAISE EXCEPTION '{VEHICLE_KTYPE_CHOICES_TABLE} is append-only: % is not allowed'"
+    ", TG_OP; END"
+)
 _APPEND_ONLY_TRIGGER = "vehicle_ktype_choices_append_only"
 _APPEND_ONLY_TRUNCATE_TRIGGER = "vehicle_ktype_choices_append_only_truncate"
 # tgtype bits: 27 = BEFORE UPDATE OR DELETE FOR EACH ROW, 34 = BEFORE TRUNCATE.
@@ -149,9 +166,12 @@ _CREATE_TABLE = f"""
 CREATE TABLE IF NOT EXISTS {VEHICLE_KTYPE_CHOICES_TABLE} (
   choice_id UUID NOT NULL,
   vehicle_id TEXT NOT NULL,
+  chain_position INTEGER NOT NULL,
   action TEXT NOT NULL,
   ktype TEXT,
   supersedes_choice_id UUID,
+  {_SUPERSEDES_POSITION} INTEGER GENERATED ALWAYS AS
+    (CASE WHEN chain_position > 0 THEN chain_position - 1 END) STORED,
   reviewer TEXT NOT NULL,
   reason TEXT,
   catalog_batch TEXT NOT NULL,
@@ -162,19 +182,23 @@ CREATE TABLE IF NOT EXISTS {VEHICLE_KTYPE_CHOICES_TABLE} (
   evidence JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT vehicle_ktype_choices_pkey PRIMARY KEY (choice_id),
-  CONSTRAINT vehicle_ktype_choices_id_vehicle_key UNIQUE (choice_id, vehicle_id),
+  CONSTRAINT {POSITION_KEY} UNIQUE (vehicle_id, chain_position),
+  CONSTRAINT vehicle_ktype_choices_id_vehicle_position_key
+    UNIQUE (choice_id, vehicle_id, chain_position),
   CONSTRAINT {VEHICLE_FOREIGN_KEY} FOREIGN KEY (vehicle_id)
     REFERENCES core.vehicles (vehicle_id) ON DELETE RESTRICT,
-  CONSTRAINT vehicle_ktype_choices_supersedes_same_vehicle_fkey
-    FOREIGN KEY (supersedes_choice_id, vehicle_id)
-    REFERENCES {VEHICLE_KTYPE_CHOICES_TABLE} (choice_id, vehicle_id),
+  CONSTRAINT {SUPERSEDES_FOREIGN_KEY}
+    FOREIGN KEY (supersedes_choice_id, vehicle_id, {_SUPERSEDES_POSITION})
+    REFERENCES {VEHICLE_KTYPE_CHOICES_TABLE} (choice_id, vehicle_id, chain_position),
+  CONSTRAINT vehicle_ktype_choices_position_nonnegative CHECK (chain_position >= 0),
+  CONSTRAINT vehicle_ktype_choices_root_supersedes_nothing
+    CHECK ((supersedes_choice_id IS NULL) = (chain_position = 0)),
   CONSTRAINT vehicle_ktype_choices_action_values
     CHECK (action IN ('choose','none','withdraw')),
   CONSTRAINT vehicle_ktype_choices_ktype_matches_action
     CHECK ((action = 'choose') = (ktype IS NOT NULL) AND (ktype IS NULL OR btrim(ktype) <> '')),
   CONSTRAINT vehicle_ktype_choices_withdraw_supersedes
     CHECK (action <> 'withdraw' OR supersedes_choice_id IS NOT NULL),
-  CONSTRAINT vehicle_ktype_choices_not_self CHECK (supersedes_choice_id <> choice_id),
   CONSTRAINT vehicle_ktype_choices_reviewer_nonempty
     CHECK (btrim(reviewer) <> '' AND char_length(reviewer) <= 120),
   CONSTRAINT vehicle_ktype_choices_reason_nonempty
@@ -199,40 +223,11 @@ VEHICLE_KTYPE_CHOICE_MIGRATION_STATEMENTS: tuple[VehicleKTypeChoiceMigrationStat
         name="create_vehicle_ktype_choices_table", kind="table", sql=_CREATE_TABLE.strip()
     ),
     VehicleKTypeChoiceMigrationStatement(
-        name="vehicle_ktype_choices_supersedes_once_index",
-        kind="index",
-        sql=(
-            f"CREATE UNIQUE INDEX IF NOT EXISTS {SUPERSEDES_ONCE_INDEX} "
-            f"ON {VEHICLE_KTYPE_CHOICES_TABLE} (supersedes_choice_id) "
-            "WHERE supersedes_choice_id IS NOT NULL"
-        ),
-    ),
-    VehicleKTypeChoiceMigrationStatement(
-        name="vehicle_ktype_choices_one_root_index",
-        kind="index",
-        sql=(
-            f"CREATE UNIQUE INDEX IF NOT EXISTS {ONE_ROOT_INDEX} "
-            f"ON {VEHICLE_KTYPE_CHOICES_TABLE} (vehicle_id) "
-            "WHERE supersedes_choice_id IS NULL"
-        ),
-    ),
-    VehicleKTypeChoiceMigrationStatement(
-        name="vehicle_ktype_choices_vehicle_index",
-        kind="index",
-        sql=(
-            f"CREATE INDEX IF NOT EXISTS {VEHICLE_INDEX} "
-            f"ON {VEHICLE_KTYPE_CHOICES_TABLE} (vehicle_id)"
-        ),
-    ),
-    VehicleKTypeChoiceMigrationStatement(
         name="vehicle_ktype_choices_append_only_function",
         kind="function",
         sql=(
             f"CREATE OR REPLACE FUNCTION {CORE_SCHEMA_NAME}.{_BLOCK_FUNCTION}() "
-            "RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
-            f"RAISE EXCEPTION '{VEHICLE_KTYPE_CHOICES_TABLE} is append-only: % is not allowed'"
-            ", TG_OP; "
-            "END $$"
+            f"RETURNS trigger LANGUAGE plpgsql AS $$ {_BLOCK_BODY} $$"
         ),
     ),
     VehicleKTypeChoiceMigrationStatement(
@@ -276,57 +271,83 @@ def run_vehicle_ktype_choice_migrations(connection: Connection) -> tuple[str, ..
 
 
 def verify_vehicle_ktype_choice_schema_contract(connection: Connection) -> None:
-    """Fail loudly unless the table carries every invariant, by definition not by name."""
+    """Fail loudly unless the table carries every invariant, by definition not by name.
 
+    Beyond columns and constraints it refuses what would quietly switch the
+    guarantees off: a deferrable constraint, a trigger with a WHEN clause or a
+    column list, a trigger function that no longer raises, any other trigger, a
+    rewrite rule, and a table that is not durable (UNLOGGED).
+    """
+
+    identity = (CORE_SCHEMA_NAME, _TABLE_NAME)
+    relation = (
+        "JOIN pg_class AS table_class ON {} = table_class.oid "
+        "JOIN pg_namespace AS schema_ns ON table_class.relnamespace = schema_ns.oid "
+        "WHERE schema_ns.nspname = %s AND table_class.relname = %s"
+    )
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT column_name, data_type, is_nullable, column_default "
+            "SELECT column_name, data_type, is_nullable, column_default, generation_expression "
             "FROM information_schema.columns "
             "WHERE table_schema = %s AND table_name = %s ORDER BY ordinal_position",
-            (CORE_SCHEMA_NAME, _TABLE_NAME),
+            identity,
         )
         columns = tuple(
-            (str(row[0]), str(row[1]), str(row[2]) == "YES", None if row[3] is None else str(row[3]))
+            (
+                str(row[0]),
+                str(row[1]),
+                str(row[2]) == "YES",
+                None if row[3] is None else str(row[3]),
+                # The server pretty-prints a generation expression over several lines.
+                None if row[4] is None else " ".join(str(row[4]).split()),
+            )
             for row in cursor.fetchall()
         )
         cursor.execute(
             "SELECT constraint_record.conname, constraint_record.contype, "
-            "pg_get_constraintdef(constraint_record.oid), constraint_record.convalidated "
+            "pg_get_constraintdef(constraint_record.oid), "
+            "constraint_record.convalidated AND NOT constraint_record.condeferrable "
             "FROM pg_constraint AS constraint_record "
-            "JOIN pg_class AS table_class ON constraint_record.conrelid = table_class.oid "
-            "JOIN pg_namespace AS schema_ns ON table_class.relnamespace = schema_ns.oid "
-            "WHERE schema_ns.nspname = %s AND table_class.relname = %s",
-            (CORE_SCHEMA_NAME, _TABLE_NAME),
+            + relation.format("constraint_record.conrelid"),
+            identity,
         )
         constraints = {
             str(row[0]): (str(row[1]), str(row[2]), bool(row[3])) for row in cursor.fetchall()
         }
         cursor.execute(
-            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = %s AND tablename = %s",
-            (CORE_SCHEMA_NAME, _TABLE_NAME),
-        )
-        indexes = {str(row[0]): str(row[1]) for row in cursor.fetchall()}
-        cursor.execute(
             "SELECT trigger.tgname, trigger.tgenabled, trigger.tgtype, "
-            "function_ns.nspname, function_record.proname "
+            "function_ns.nspname, function_record.proname, "
+            "trigger.tgqual IS NULL AND trigger.tgattr::text = '', "
+            "btrim(function_record.prosrc) "
             "FROM pg_trigger AS trigger "
-            "JOIN pg_class AS table_class ON trigger.tgrelid = table_class.oid "
-            "JOIN pg_namespace AS schema_ns ON table_class.relnamespace = schema_ns.oid "
             "JOIN pg_proc AS function_record ON trigger.tgfoid = function_record.oid "
             "JOIN pg_namespace AS function_ns ON function_record.pronamespace = function_ns.oid "
-            "WHERE schema_ns.nspname = %s AND table_class.relname = %s "
-            "AND NOT trigger.tgisinternal",
-            (CORE_SCHEMA_NAME, _TABLE_NAME),
+            + relation.format("trigger.tgrelid")
+            + " AND NOT trigger.tgisinternal",
+            identity,
         )
         triggers = {
-            str(row[0]): (str(row[1]), int(row[2]), str(row[3]), str(row[4]))
+            str(row[0]): (str(row[1]), int(row[2]), str(row[3]), str(row[4]), bool(row[5]), str(row[6]))
             for row in cursor.fetchall()
         }
+        cursor.execute(
+            "SELECT table_class.relpersistence, "
+            "(SELECT count(*) FROM pg_rewrite WHERE ev_class = table_class.oid) "
+            "FROM pg_class AS table_class "
+            "JOIN pg_namespace AS schema_ns ON table_class.relnamespace = schema_ns.oid "
+            "WHERE schema_ns.nspname = %s AND table_class.relname = %s",
+            identity,
+        )
+        table_row = cursor.fetchone()
 
     table = VEHICLE_KTYPE_CHOICES_TABLE
     if columns != _COLUMN_CONTRACT:
         raise VehicleKTypeChoiceSchemaContractError(
             f"{table} column contract mismatch: expected {_COLUMN_CONTRACT!r}, got {columns!r}"
+        )
+    if table_row is None or str(table_row[0]) != "p" or int(table_row[1]) != 0:
+        raise VehicleKTypeChoiceSchemaContractError(
+            f"{table} must be a durable table without rewrite rules: got {table_row!r}"
         )
     for name, (expected_type, fragments) in _REQUIRED_CONSTRAINTS.items():
         actual = constraints.get(name)
@@ -339,16 +360,14 @@ def verify_vehicle_ktype_choice_schema_contract(connection: Connection) -> None:
             raise VehicleKTypeChoiceSchemaContractError(
                 f"{table} constraint {name!r} mismatch: got {actual!r}"
             )
-    for name, index_fragments in _REQUIRED_INDEX_FRAGMENTS.items():
-        definition = indexes.get(name)
-        if definition is None or any(fragment not in definition for fragment in index_fragments):
-            raise VehicleKTypeChoiceSchemaContractError(
-                f"{table} index {name!r} mismatch: got {definition!r}"
-            )
+    if set(triggers) != set(_REQUIRED_TRIGGERS):
+        raise VehicleKTypeChoiceSchemaContractError(
+            f"{table} triggers mismatch: expected {sorted(_REQUIRED_TRIGGERS)!r}, "
+            f"got {sorted(triggers)!r}"
+        )
     for name, (event_bits, function_schema, function_name) in _REQUIRED_TRIGGERS.items():
-        actual_trigger = triggers.get(name)
-        expected = ("O", event_bits, function_schema, function_name)
-        if actual_trigger != expected:
+        expected = ("O", event_bits, function_schema, function_name, True, _BLOCK_BODY)
+        if triggers[name] != expected:
             raise VehicleKTypeChoiceSchemaContractError(
-                f"{table} trigger {name!r} mismatch: expected {expected!r}, got {actual_trigger!r}"
+                f"{table} trigger {name!r} mismatch: expected {expected!r}, got {triggers[name]!r}"
             )

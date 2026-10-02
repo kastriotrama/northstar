@@ -65,6 +65,10 @@ from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
 from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
+from ingestion.vehicle_ktype_choice_migrations import (
+    VEHICLE_KTYPE_CHOICES_TABLE,
+    run_vehicle_ktype_choice_migrations,
+)
 
 PILOT_SCHEMAS: tuple[str, ...] = ("core", "staging")
 # The match impact report's seed, imported rather than repeated: with it the
@@ -110,9 +114,11 @@ class PilotBuildError(RuntimeError):
     """The build refused to start or could not finish; the message is safe to print."""
 
 
-# The repo has no single "migrate everything" command. These are the fourteen
-# migration sets, in the order verified on an empty database; none has a foreign
-# key into another.
+# The repo has no single "migrate everything" command. These are the fifteen
+# migration sets, in the order verified on an empty database. Only one has a
+# foreign key into another: people's KType choices reference core.vehicles, so
+# that set follows "vehicle core". Without it the API's vehicle lookups fail on
+# the pilot.
 PILOT_MIGRATIONS: tuple[tuple[str, Callable[[Connection[Any]], tuple[str, ...]]], ...] = (
     ("staging", run_staging_migrations),
     ("ledger", run_ledger_migrations),
@@ -122,6 +128,7 @@ PILOT_MIGRATIONS: tuple[tuple[str, Callable[[Connection[Any]], tuple[str, ...]]]
     ("match runs", run_match_run_migrations),
     ("vehicle facts", run_vehicle_facts_migrations),
     ("vehicle core", run_vehicle_core_migrations),
+    ("vehicle ktype choices", run_vehicle_ktype_choice_migrations),
     ("normalization", run_normalization_migrations),
     ("rule definitions", run_rule_definition_migrations),
     ("match chunks", run_match_chunk_migrations),
@@ -236,6 +243,10 @@ PILOT_TABLES: tuple[TableSpec, ...] = (
     _slice("core.vehicle_identifiers", "vehicle_id", "vehicles", "by vehicle"),
     _slice("core.vehicle_source_links", "vehicle_id", "vehicles", "by vehicle"),
     _slice("core.enrichment_ledger", "target_node_id", "vehicles", "by vehicle"),
+    # A car's whole chain in one COPY statement, so its links check at the end.
+    # The plan refuses a cut that would leave a decided car behind.
+    _slice(VEHICLE_KTYPE_CHOICES_TABLE, "vehicle_id", "vehicles",
+           "people's KType choices, by vehicle"),
     # -- bookkeeping the app reads
     _whole("core.ingest_job_runs", "batch pickers, rule application runs, the AIS claim"),
     _whole("core.match_runs", "only runs a reviewer decision belongs to",
@@ -1005,6 +1016,17 @@ def plan_pilot(
             problems.append(
                 f"{table} holds {rows:,} rows and has no class; classify it in "
                 "ingestion/pilot_database.py before cutting a pilot"
+            )
+    if VEHICLE_KTYPE_CHOICES_TABLE in present:
+        decided = set(_column(
+            source, f"SELECT DISTINCT vehicle_id FROM {VEHICLE_KTYPE_CHOICES_TABLE}", ()
+        ))
+        outside = len(decided - set(keys.vehicles))
+        if outside:
+            problems.append(
+                f"{outside:,} cars with a person's KType choice are outside the slice; their "
+                "choices would be left behind. Pinning decided cars into the slice is not "
+                "built yet (docs/vehicle-ktype-choices.md)"
             )
     if "core.review_queue" in present:
         other_reviews = int(_scalar(

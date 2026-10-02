@@ -243,6 +243,46 @@ describe('KTypeChoice', () => {
     expect(button('None of these')?.hasAttribute('aria-describedby')).toBe(false);
   });
 
+  it('ties the hint to withdraw and keep, and the confirm button to what it confirms', () => {
+    const stale = choice({ needs_review: true, stale_reasons: ['catalog_batch_changed'] });
+    const unnamed = render({ lookup: lookup({ choice: stale }), reviewer: '' });
+    for (const label of ['Withdraw choice', 'Keep this choice']) {
+      const control = unnamed.button(label);
+      expect(control?.disabled, label).toBe(true);
+      const hint = unnamed.host.querySelector(`#${control?.getAttribute('aria-describedby')}`);
+      expect(hint?.textContent, label).toContain('Enter your name to record a choice.');
+    }
+
+    TestBed.resetTestingModule();
+    const asking = render({
+      lookup: lookup({ choice: choice() }),
+      pending: pendingChoice('withdraw'),
+    });
+    expect(asking.button('Withdraw choice')?.hasAttribute('aria-describedby')).toBe(false);
+    const confirm = asking.button('Confirm');
+    const lines = asking.host.querySelector(`#${confirm?.getAttribute('aria-describedby')}`);
+    expect(lines?.textContent).toContain('Withdraw the choice? The automatic result will apply again.');
+  });
+
+  it('says when the history cannot be loaded and offers to try again', () => {
+    const { fixture, host, text, button } = render({
+      lookup: lookup({ choice: choice() }),
+      historyError: true,
+    });
+    const opened: string[] = [];
+    fixture.componentInstance.historyOpened.subscribe(() => opened.push('opened'));
+    fixture.componentInstance.historyClosed.subscribe(() => opened.push('closed'));
+
+    expect(text()).toContain('The history could not be loaded.');
+    expect(text()).not.toContain('Loading…');
+    button('Try again')?.click();
+    const details = host.querySelector('details') as HTMLDetailsElement;
+    details.open = false;
+    details.dispatchEvent(new Event('toggle'));
+
+    expect(opened).toEqual(['opened', 'closed']);
+  });
+
   it('uses native, labelled controls', () => {
     const { host } = render({ lookup: lookup() });
 

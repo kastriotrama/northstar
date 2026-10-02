@@ -15,6 +15,7 @@ from uuid import UUID
 
 from api.app.features.vehicle_ktype_choices import evidence
 from api.app.features.vehicle_ktype_choices.repository import (
+    ChoiceRejectedError,
     ChoiceVehicleNotFoundError,
     VehicleBusyError,
 )
@@ -35,6 +36,7 @@ from ingestion.vehicle_ktype_choices import (
 
 __all__ = [
     "ChoiceChangedError",
+    "ChoiceRejectedError",
     "ChoiceVehicleNotFoundError",
     "EvidenceChangedError",
     "InvalidVehicleIdError",

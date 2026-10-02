@@ -42,10 +42,19 @@ interface ApiError {
   error?: { detail?: unknown };
 }
 
-/** `detail` is a string on older endpoints and `{code, message}` on the choice ones. */
+/**
+ * `detail` is a string on older endpoints, `{code, message}` on the choice ones, and a
+ * list of `{msg}` when the request itself was malformed (a 422 from validation).
+ */
 function errorDetail(err: ApiError): { code: string | null; message: string | null } {
   const detail = err?.error?.detail;
   if (typeof detail === 'string') return { code: null, message: detail };
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item: unknown) => (item as { msg?: unknown } | null)?.msg)
+      .filter((msg): msg is string => typeof msg === 'string');
+    return { code: null, message: messages.join('; ') || null };
+  }
   if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
     const { code, message } = detail as { code?: unknown; message?: unknown };
     return {
@@ -112,7 +121,19 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
       } @else if (current.error) {
         <p class="error">{{ current.error }}</p>
       } @else if (current.lookup; as result) {
+        @if (result.effective_source === 'person') {
+          <p class="effective">
+            @if (result.effective_ktype) {
+              This car's KType: <b class="mono">{{ result.effective_ktype }}</b> · chosen by a person
+            } @else {
+              This car has no KType · a person recorded “none of these”
+            }
+          </p>
+        }
         <div class="head">
+          @if (result.effective_source === 'person') {
+            <span class="muted">Matcher:</span>
+          }
           <span class="bucket bucket--{{ result.bucket }}">{{ bucketLabel(result.bucket) }}</span>
           <span class="muted">
             pipeline: <b>{{ result.terminal }}</b>
@@ -220,6 +241,7 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
                 type="button"
                 class="pick"
                 [disabled]="!reviewer().trim() || saving()"
+                [attr.aria-label]="chooseName(candidate)"
                 [attr.aria-describedby]="reviewer().trim() ? null : hintId"
                 [attr.aria-busy]="saving() && pending()?.body?.ktype === candidate.ktype"
                 (click)="choose(candidate)"
@@ -253,7 +275,9 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
             [error]="saveError()"
             [notice]="notice()"
             [history]="history()"
-            [(reviewer)]="reviewer"
+            [historyError]="historyError()"
+            [reviewer]="reviewer()"
+            (reviewerChange)="onReviewer($event)"
             [(reason)]="reason"
             (confirm)="confirm()"
             (cancel)="pending.set(null)"
@@ -261,7 +285,8 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
             (withdraw)="ask('withdraw', null)"
             (keep)="keep()"
             (retry)="retry()"
-            (historyOpened)="loadHistory()"
+            (historyOpened)="openHistory()"
+            (historyClosed)="historyWanted.set(false)"
           >
             <ng-container [ngTemplateOutlet]="list" />
           </ns-ktype-choice>
@@ -293,6 +318,12 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
       align-items: center;
       gap: 0.6rem;
       flex-wrap: wrap;
+    }
+    .effective {
+      margin: 0;
+      padding: 0.3rem 0.6rem;
+      border-left: 3px solid #1f4d85;
+      background: #eef3fb;
     }
     .bucket {
       font-weight: 650;
@@ -395,6 +426,9 @@ export class KTypeCandidates {
   protected readonly saveError = signal<ChoiceError | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly history = signal<KTypeChoiceHistory | null>(null);
+  protected readonly historyError = signal(false);
+  /** The history is open on screen: reload it whenever the choice may have changed. */
+  protected readonly historyWanted = signal(false);
 
   protected readonly state = signal<{
     loading: boolean;
@@ -445,6 +479,17 @@ export class KTypeCandidates {
   protected chooseLabel(candidate: KTypeCandidate): string {
     if (!candidate.compatible) return 'Choose anyway…';
     return this.standingChoice() ? 'Choose this instead' : 'Choose this KType';
+  }
+
+  /** The button's accessible name: the visible words plus which KType, so each is distinct. */
+  protected chooseName(candidate: KTypeCandidate): string {
+    return `${this.chooseLabel(candidate).replace('…', '')} — KType ${candidate.ktype}`;
+  }
+
+  /** Remember the name as it is typed, so it survives opening another car before a save. */
+  protected onReviewer(name: string): void {
+    this.reviewer.set(name);
+    if (name.trim()) this.storeReviewer(name.trim());
   }
 
   /** One click when nothing is overridden; anything else is asked about first. */
@@ -510,9 +555,9 @@ export class KTypeCandidates {
           this.saving.set(false);
           this.pending.set(null);
           this.reason.set('');
-          this.history.set(null);
           this.storeReviewer(waiting.body.reviewer);
           this.state.set({ loading: false, error: null, lookup });
+          this.refreshHistory();
           this.notice.set(
             waiting.body.action === 'choose'
               ? `Saved. KType ${waiting.body.ktype} chosen for this car.`
@@ -544,7 +589,7 @@ export class KTypeCandidates {
 
   /** Fetch the current lookup in place, so the message above the list stays on screen. */
   private reload(vehicleId: string): void {
-    this.history.set(null);
+    this.refreshHistory();
     this.api
       .matchLookup(vehicleId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -564,9 +609,22 @@ export class KTypeCandidates {
     this.choiceChanged.emit(lookup);
   }
 
-  protected loadHistory(): void {
+  /** The history was opened (or "try again" was pressed): load it unless it is on screen. */
+  protected openHistory(): void {
+    this.historyWanted.set(true);
+    if (!this.history()) this.loadHistory();
+  }
+
+  /** The choice may have changed: what is loaded is out of date; reload it if it is open. */
+  private refreshHistory(): void {
+    this.history.set(null);
+    this.historyError.set(false);
+    if (this.historyWanted()) this.loadHistory();
+  }
+
+  private loadHistory(): void {
     const vehicleId = this.vehicleId();
-    if (this.history()) return;
+    this.historyError.set(false);
     this.api
       .ktypeChoiceHistory(vehicleId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -574,7 +632,9 @@ export class KTypeCandidates {
         next: (history) => {
           if (vehicleId === this.vehicleId()) this.history.set(history);
         },
-        error: () => undefined,
+        error: () => {
+          if (vehicleId === this.vehicleId()) this.historyError.set(true);
+        },
       });
   }
 
@@ -584,6 +644,8 @@ export class KTypeCandidates {
     this.saveError.set(null);
     this.notice.set(null);
     this.history.set(null);
+    this.historyError.set(false);
+    this.historyWanted.set(false);
     this.reason.set('');
   }
 

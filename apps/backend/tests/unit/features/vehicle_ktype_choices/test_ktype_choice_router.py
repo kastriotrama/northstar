@@ -19,6 +19,7 @@ from api.app.features.vehicle_ktype_choices.schemas import (
 )
 from api.app.features.vehicle_ktype_choices.service import (
     ChoiceChangedError,
+    ChoiceRejectedError,
     ChoiceVehicleNotFoundError,
     EvidenceChangedError,
     InvalidVehicleIdError,
@@ -133,6 +134,11 @@ def test_a_replay_answers_200(client: TestClient, fake: _Service) -> None:
         (VehicleBusyError("x"), 503, "vehicle_busy"),
         (NoCatalogError("x"), 503, "unavailable"),
         (psycopg.OperationalError("connection details"), 503, "unavailable"),
+        (psycopg.errors.UndefinedTable("connection details"), 503, "unavailable"),
+        # Permanent refusals are never "try again": the same request would fail again.
+        (ChoiceRejectedError("That value cannot be stored."), 422, "not_storable"),
+        (psycopg.DataError("connection details"), 422, "not_storable"),
+        (psycopg.IntegrityError("connection details"), 422, "not_storable"),
     ],
 )
 def test_each_refusal_has_its_status_and_code(
@@ -155,6 +161,11 @@ def test_each_refusal_has_its_status_and_code(
         _body(action="none"),
         _body(action="none", ktype=None, evidence_fingerprint=None),
         _body(reviewer=" "),
+        # PostgreSQL text cannot hold NUL: refused as a bad request, not as "try again".
+        _body(reviewer="Ada\x00"),
+        _body(reviewer="Ada\nLovelace"),
+        _body(reason="seen\x00on the car"),
+        _body(ktype="A\x00"),
         _body(operation_id="nope"),
         {},
     ],
@@ -164,6 +175,11 @@ def test_a_malformed_body_is_a_422_and_reaches_no_service(
 ) -> None:
     assert client.post(URL, json=body).status_code == 422
     assert fake.requests == []
+
+
+def test_a_reason_may_span_lines(client: TestClient, fake: _Service) -> None:
+    assert client.post(URL, json=_body(reason="first line\nsecond\tline")).status_code == 201
+    assert fake.requests[0][1].reason == "first line\nsecond\tline"
 
 
 def test_history_is_returned_with_evidence_only_when_asked(
@@ -191,6 +207,8 @@ def test_history_refusals(client: TestClient, fake: _Service) -> None:
     fake.error = psycopg.OperationalError("down")
     response = client.get(URL)
     assert (response.status_code, response.json()["detail"]["code"]) == (503, "unavailable")
+    # Reading saves nothing, so the message does not talk about saving.
+    assert "saved" not in response.json()["detail"]["message"]
 
 
 def test_the_choice_routes_do_not_shadow_the_vehicle_routes(client: TestClient) -> None:

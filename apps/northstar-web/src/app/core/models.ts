@@ -781,6 +781,8 @@ export interface NorVehicleRow {
   bodywork_form: string | null;
   colour: string | null;
   ktype: string | null;
+  /** `manual` when a person chose the KType, `manual_none` for "none of these". */
+  match_state?: string | null;
   /** Fields whose value a reviewer's rule asserted. */
   review_fields: string[];
   /** Fields a learned enrichment rule filled because no source stated them. */
@@ -934,6 +936,8 @@ export interface VehicleMatchLookup {
   decision_trace: Record<string, unknown>[];
   /** Other vehicles that held this plate or VIN before, most recent first. */
   other_vehicle_ids: string[];
+  /** The active translation rule set the matcher was built from. */
+  rule_set_version?: string | null;
   /** Identifies the evidence shown; sent back with a choice so the server stores what was seen. */
   evidence_fingerprint?: string;
   /** A person's stored choice for this car; null without one or for a TS-record lookup. */

@@ -42,7 +42,9 @@ def test_the_fingerprint_changes_with_what_the_matcher_saw_or_concluded() -> Non
 
 
 def test_the_snapshot_holds_what_was_shown_and_no_identity() -> None:
-    shown = lookup()
+    shown = lookup(rule_set_version="rules-7")
+    # The rule set is provenance, not part of what names the evaluation.
+    assert shown.evidence_fingerprint == lookup().evidence_fingerprint
 
     snapshot = evidence.snapshot(shown, "abc1234")
 
@@ -59,7 +61,9 @@ def test_the_snapshot_holds_what_was_shown_and_no_identity() -> None:
     assert snapshot["separating_fields"] == ["power_kw"]
     assert snapshot["overlaid_fields"] == {"power_kw": "ais"}
     assert snapshot["source_record_id"] == 7
-    assert snapshot["versions"] == {"code": "abc1234", "confidence_policy": "confidence-routing-v1"}
+    assert snapshot["versions"] == {
+        "code": "abc1234", "confidence_policy": "confidence-routing-v1", "rule_set": "rules-7",
+    }
     text = json.dumps(snapshot)
     for private in (VEHICLE_ID, "ABC123", "YV1BW84S1F1234567", "secret trace", "5F7H"):
         assert private not in text

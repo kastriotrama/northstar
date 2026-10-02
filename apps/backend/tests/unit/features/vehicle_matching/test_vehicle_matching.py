@@ -328,6 +328,8 @@ def _vehicle_row(
         *(vehicle.get(name) for name in MATCHER_FIELDS),
         status, payload, review_reasons or [], raw or {"brand": "VOLVO", "model": "V70"},
         *(None for _ in EVIDENCE_FALLBACK),
+        # The last column: whether a person has recorded a KType choice for the car.
+        False,
     )
 
 
@@ -582,6 +584,8 @@ def _car(rid: int, *, vehicle: bool = True) -> CarRecord:
         overlaid={"engine_code": "ais"} if vehicle else {},
         has_corrections=vehicle and f"V{rid}" in _CORRECTED,
         stop_reasons=_STOPPED.get(f"V{rid}", ()) if vehicle else (),
+        # Vehicle V2 is the car nobody decided; every other vehicle has a chain.
+        has_choices=vehicle and rid != 2,
     )
 
 
@@ -689,7 +693,8 @@ def _head(shown: Any, **overrides: Any) -> Any:
     from ingestion.vehicle_ktype_choices import StoredChoice
 
     values: dict[str, Any] = {
-        "choice_id": uuid4(), "vehicle_id": shown.vehicle_id, "action": "choose", "ktype": "B",
+        "choice_id": uuid4(), "vehicle_id": shown.vehicle_id, "chain_position": 0,
+        "action": "choose", "ktype": "B",
         "supersedes_choice_id": None, "reviewer": "Ada", "reason": None,
         "catalog_batch": shown.catalog_batch, "automatic_terminal": shown.terminal,
         "automatic_ktype": shown.top_ktype, "code_version": "v",
@@ -763,6 +768,9 @@ def test_a_vehicle_lookup_reads_the_choice_once_and_a_record_lookup_never() -> N
 
     service.lookup_vehicle("V1")
     service.lookup("ABC123")
+    assert choices.reads == ["V1", "V1"]
+    # The car's own read says nobody decided V2: no second connection for it.
+    assert service.lookup_vehicle("V2").choice is None
     assert choices.reads == ["V1", "V1"]
 
     by_record = service.lookup_record(9)
@@ -1154,7 +1162,7 @@ def test_a_lookup_whose_database_read_fails_answers_503(client: TestClient) -> N
 
 
 def test_a_car_without_a_ts_record_offers_its_registry_text_as_evidence() -> None:
-    def row(raw: dict[str, Any] | None) -> tuple[Any, ...]:
+    def row(raw: dict[str, Any] | None, decided: bool = False) -> tuple[Any, ...]:
         matcher_values = [None] * len(MATCHER_FIELDS)
         matcher_values[MATCHER_FIELDS.index("manufacturer")] = "Volvo"
         registry = {"registry_brand_text": "VOLVO XC40 RECHARGE", "registry_model_text": "XC40",
@@ -1163,6 +1171,7 @@ def test_a_car_without_a_ts_record_offers_its_registry_text_as_evidence() -> Non
             "NOR-01ARZ3NDEKTSV4RRFFQ69G5FAV", "ABC123", "YV1XZ", None, "ais", "resolved", {},
             *matcher_values, None, None, None, raw,
             *(registry[name] for name in EVIDENCE_FALLBACK.values()),
+            decided,
         )
 
     ais_only = _vehicle_car_record(row(None)).record.payload["source_evidence"]
@@ -1174,3 +1183,6 @@ def test_a_car_without_a_ts_record_offers_its_registry_text_as_evidence() -> Non
     assert ais_only["version"] is None
     # A TS record's own text wins; an empty TS field still falls back.
     assert (with_ts["brand"], with_ts["model"]) == ("VOLVO", "XC40")
+    # The row's last column says whether a person has decided this car.
+    assert _vehicle_car_record(row(None)).has_choices is False
+    assert _vehicle_car_record(row(None, decided=True)).has_choices is True

@@ -50,6 +50,8 @@ from ingestion.pilot_database import (
 from ingestion.vehicle_core_ais import AisExtract, AisRecord, import_ais_extract
 from ingestion.vehicle_core_rules import FAMILIES_BY_ID, apply_rules, learn_rules, store_rules
 from ingestion.vehicle_core_ts import backfill_vehicle_core
+from ingestion.vehicle_ktype_choice_migrations import verify_vehicle_ktype_choice_schema_contract
+from ingestion.vehicle_ktype_choices import project_choices
 from scripts import build_pilot_database as script
 from tests.integration.throwaway_database import throwaway_database
 from tests.integration.vehicle_core_fixtures import insert_ts_record, project, volvo
@@ -341,7 +343,29 @@ def source() -> Iterator[Source]:
                 break
         else:  # pragma: no cover - 2000 seeds each pass with probability about 1/8
             raise AssertionError("no seed puts the wanted cars in the slice")
+        # A person decided one slice car twice: its whole chain must come along.
+        decided = built.vehicle(TWO_RECORD_PLATE)
+        first = _choose(connection, decided, 0, None)
+        _choose(connection, decided, 1, first)
+        project_choices(connection, [decided])
+        connection.commit()
         yield built
+
+
+def _choose(connection: Connection, vehicle_id: str, position: int, supersedes: Any) -> Any:
+    """One stored KType choice, written the way the table itself accepts it."""
+
+    choice_id = uuid4()
+    connection.execute(
+        "INSERT INTO core.vehicle_ktype_choices (choice_id, vehicle_id, chain_position, action, "
+        "ktype, supersedes_choice_id, reviewer, catalog_batch, automatic_terminal, code_version, "
+        "evidence_fingerprint, evidence) VALUES (%s, %s, %s, 'choose', %s, %s, 'Ada', %s, "
+        "'review_required', 'test', %s, %s)",
+        (choice_id, vehicle_id, position, f"K{position}", supersedes, PINNED_BATCH, "a" * 64,
+         Jsonb({"schema": "manual-ktype-choice-evidence-v1", "automatic": {},
+                "candidates": [{"ktype": "K0"}, {"ktype": "K1"}]})),
+    )
+    return choice_id
 
 
 def _drop(database: str) -> None:
@@ -674,8 +698,11 @@ def test_it_refuses_the_source_as_target(source: Source) -> None:
 
 
 def test_replace_rebuilds_a_pilot_build(source: Source, target_name: str) -> None:
-    first = build_pilot_database(source.url, source.options(target_name, size=3), commit=True,
-                                 chunk_size=CHUNK_SIZE)
+    # The smallest slice that still holds the car a person decided: a cut that
+    # would leave its choices behind is refused.
+    smaller = source.sample(source.seed).index(source.vehicle(TWO_RECORD_PLATE)) + 1
+    first = build_pilot_database(source.url, source.options(target_name, size=smaller),
+                                 commit=True, chunk_size=CHUNK_SIZE)
     second = build_pilot_database(source.url, source.options(target_name), commit=True,
                                   replace=True, chunk_size=CHUNK_SIZE)
 
@@ -700,6 +727,59 @@ def test_an_unknown_catalog_batch_or_too_large_a_slice_stops_the_build(
     with pytest.raises(PilotBuildError, match="no-such-batch"):
         build_pilot_database(source.url, source.options(target_name, catalog_batch="no-such-batch"),
                              commit=True, chunk_size=CHUNK_SIZE)
+    assert not _exists(target_name)
+
+
+def test_a_persons_ktype_choices_come_along_with_their_car(source: Source, pilot: Pilot) -> None:
+    decided = source.vehicle(TWO_RECORD_PLATE)
+    query = ("SELECT to_jsonb(c) FROM core.vehicle_ktype_choices AS c "
+             "WHERE vehicle_id = %s ORDER BY chain_position")
+    kept = _rows(source.connection, query, (decided,))
+    source.connection.rollback()
+
+    assert len(kept) == 2
+    assert _rows(pilot.connection, query, (decided,)) == kept
+    assert _one(pilot.connection, "SELECT count(*) FROM core.vehicle_ktype_choices") == 2
+    # The vehicle's copy of the current choice came with the vehicle row.
+    assert _rows(pilot.connection, "SELECT ktype, match_state FROM core.vehicles "
+                 "WHERE vehicle_id = %s", (decided,)) == [("K1", "manual")]
+    # The pilot's table carries every invariant, so the API's lookups work on it.
+    verify_vehicle_ktype_choice_schema_contract(pilot.connection)
+    pilot.connection.rollback()
+    check = next(item for item in pilot.outcome.checks
+                 if item.name.startswith("core.vehicle_ktype_choices"))
+    assert check.ok and "2 rows" in check.detail
+
+
+def test_a_choice_on_a_car_outside_the_slice_stops_the_build(
+    source: Source, target_name: str
+) -> None:
+    """Never silently left behind: the cut is refused until decided cars can be pinned."""
+
+    outside = source.vehicle(PROPOSAL_PLATE)
+    choice_id = _choose(source.connection, outside, 0, None)
+    source.connection.commit()
+    try:
+        plan = build_pilot_database(source.url, source.options(target_name),
+                                    chunk_size=CHUNK_SIZE).plan
+        with pytest.raises(PilotBuildError, match="KType choice"):
+            build_pilot_database(source.url, source.options(target_name), commit=True,
+                                 chunk_size=CHUNK_SIZE)
+    finally:
+        # The table is append-only; only a test may switch its triggers off.
+        source.connection.rollback()
+        source.connection.execute("ALTER TABLE core.vehicle_ktype_choices DISABLE TRIGGER USER")
+        source.connection.execute(
+            "DELETE FROM core.vehicle_ktype_choices WHERE choice_id = %s", (choice_id,))
+        source.connection.execute("ALTER TABLE core.vehicle_ktype_choices ENABLE TRIGGER USER")
+        source.connection.commit()
+
+    (problem,) = plan.problems
+    assert problem == (
+        "1 cars with a person's KType choice are outside the slice; their choices would be "
+        "left behind. Pinning decided cars into the slice is not built yet "
+        "(docs/vehicle-ktype-choices.md)"
+    )
     assert not _exists(target_name)
 
 

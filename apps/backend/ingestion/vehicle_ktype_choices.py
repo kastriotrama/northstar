@@ -1,7 +1,7 @@
 """Read and append a person's KType choice per car, and keep the vehicle's copy.
 
 `core.vehicle_ktype_choices` is the truth: an append-only chain per vehicle
-whose head -- the row nothing supersedes -- is the car's current choice. A
+whose head -- the row with the highest `chain_position` -- is the car's current choice. A
 `withdraw` head means "no choice". `core.vehicles.ktype` / `match_state` and
 their two `field_sources` keys are a derived copy of that head, written by
 `project_choices` in the same transaction, so the Vehicles list can filter on
@@ -71,6 +71,8 @@ class NewChoice:
 class StoredChoice:
     choice_id: UUID
     vehicle_id: str
+    #: 0 for the car's first row; each later row is one higher.
+    chain_position: int
     action: ChoiceAction
     ktype: str | None
     supersedes_choice_id: UUID | None
@@ -115,6 +117,7 @@ def _stored(row: Sequence[Any]) -> StoredChoice:
     return StoredChoice(
         choice_id=record["choice_id"],
         vehicle_id=str(record["vehicle_id"]),
+        chain_position=int(record["chain_position"]),
         action=record["action"],
         ktype=record["ktype"],
         supersedes_choice_id=record["supersedes_choice_id"],
@@ -141,23 +144,22 @@ def fetch_choice(connection: Connection[Any], choice_id: UUID) -> StoredChoice |
 
 
 def current_choice(connection: Connection[Any], vehicle_id: str) -> tuple[StoredChoice, int] | None:
-    """The car's head row and how many rows its chain holds; None without a chain."""
+    """The car's head row and how many rows its chain holds; None without a chain.
+
+    One read of the `(vehicle_id, chain_position)` key's last entry.
+    """
 
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT {_SELECT}, "
-            f"(SELECT count(*) FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS h "
-            "WHERE h.vehicle_id = c.vehicle_id) AS history_count "
-            f"FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c "
-            "WHERE c.vehicle_id = %s AND NOT EXISTS ("
-            f"SELECT 1 FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS s "
-            "WHERE s.supersedes_choice_id = c.choice_id)",
+            f"SELECT {_SELECT} FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c "
+            "WHERE c.vehicle_id = %s ORDER BY c.chain_position DESC LIMIT 1",
             (vehicle_id,),
         )
         row = cursor.fetchone()
     if row is None:
         return None
-    return _stored(row[:-1]), int(row[-1])
+    head = _stored(row)
+    return head, head.chain_position + 1
 
 
 def chain(connection: Connection[Any], vehicle_id: str) -> list[StoredChoice]:
@@ -165,19 +167,11 @@ def chain(connection: Connection[Any], vehicle_id: str) -> list[StoredChoice]:
 
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT {_SELECT} FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c WHERE c.vehicle_id = %s",
+            f"SELECT {_SELECT} FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c "
+            "WHERE c.vehicle_id = %s ORDER BY c.chain_position DESC",
             (vehicle_id,),
         )
-        rows = [_stored(row) for row in cursor.fetchall()]
-    superseded = {row.supersedes_choice_id for row in rows}
-    by_id = {row.choice_id: row for row in rows}
-    ordered: list[StoredChoice] = []
-    cursor_row = next((row for row in rows if row.choice_id not in superseded), None)
-    while cursor_row is not None:
-        ordered.append(cursor_row)
-        previous = cursor_row.supersedes_choice_id
-        cursor_row = by_id.get(previous) if previous is not None else None
-    return ordered
+        return [_stored(row) for row in cursor.fetchall()]
 
 
 def _replay(existing: StoredChoice, new: NewChoice) -> StoredChoice:
@@ -204,8 +198,9 @@ def append_choice(
     already stored with `created=False`; different content for that id raises
     `OperationReusedError`. Otherwise the car's head must be `expected_head`
     (`ChoiceChangedError`), and a withdrawal needs a choice in force
-    (`NothingToWithdrawError`). The database enforces the same chain rules; a
-    caller racing past these reads gets a unique violation instead.
+    (`NothingToWithdrawError`). The row takes the position after the head. The
+    database enforces the same chain rules; a caller racing past these reads
+    gets a unique violation on the position instead.
     """
 
     existing = fetch_choice(connection, new.choice_id)
@@ -224,8 +219,9 @@ def append_choice(
         raise NothingToWithdrawError("There is no choice to withdraw.")
 
     columns = [column for column in COLUMNS if column != "created_at"]
+    given: dict[str, Any] = {"chain_position": history_count, "evidence": Jsonb(new.evidence)}
     values: list[Any] = [
-        Jsonb(new.evidence) if column == "evidence" else getattr(new, column) for column in columns
+        given[column] if column in given else getattr(new, column) for column in columns
     ]
     with connection.cursor() as cursor:
         cursor.execute(
@@ -244,34 +240,36 @@ def append_choice(
     return _stored(inserted), True, history_count + 1
 
 
-_HEAD = f"""
-    SELECT c.vehicle_id, c.action, c.ktype,
-           '{SOURCE_REVIEW}:' || c.choice_id::text || '@'
-             || to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS ref
-    FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c
-    WHERE NOT EXISTS (
-        SELECT 1 FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS s
-        WHERE s.supersedes_choice_id = c.choice_id)
-"""
-
+# What `core.vehicles` should carry for each car in scope: the head's KType and
+# state, and the two source keys that go with them (absent when there is none).
 _WANTED = f"""
     SELECT vehicle.vehicle_id,
            CASE WHEN head.action = 'choose' THEN head.ktype END AS ktype,
            CASE head.action WHEN 'choose' THEN '{MATCH_STATE_MANUAL}'
                             WHEN 'none' THEN '{MATCH_STATE_MANUAL_NONE}' END AS match_state,
-           (coalesce(vehicle.field_sources, '{{}}'::jsonb) - 'ktype' - 'match_state')
-             || CASE head.action
-                  WHEN 'choose' THEN jsonb_build_object('ktype', head.ref, 'match_state', head.ref)
-                  WHEN 'none' THEN jsonb_build_object('match_state', head.ref)
-                  ELSE '{{}}'::jsonb END AS field_sources
+           CASE head.action
+             WHEN 'choose' THEN jsonb_build_object('ktype', head.ref, 'match_state', head.ref)
+             WHEN 'none' THEN jsonb_build_object('match_state', head.ref)
+             ELSE '{{}}'::jsonb END AS source_keys
     FROM {VEHICLES_TABLE} AS vehicle
-    LEFT JOIN ({_HEAD}) AS head ON head.vehicle_id = vehicle.vehicle_id
+    LEFT JOIN LATERAL (
+        SELECT c.action, c.ktype,
+               '{SOURCE_REVIEW}:' || c.choice_id::text || '@'
+                 || to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS ref
+        FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS c
+        WHERE c.vehicle_id = vehicle.vehicle_id
+        ORDER BY c.chain_position DESC
+        LIMIT 1
+    ) AS head ON true
 """
 
-# Without ids: every car that has a chain, or whose copy claims a person's choice.
+# Without ids: every car that has a chain, or whose copy claims a KType or a
+# person's choice (in a column or in a source key) -- a stray value with no
+# chain behind it is cleared too.
 _SCOPE_ALL = (
     f"(vehicle.vehicle_id IN (SELECT vehicle_id FROM {VEHICLE_KTYPE_CHOICES_TABLE}) "
-    f"OR vehicle.match_state IN ('{MATCH_STATE_MANUAL}', '{MATCH_STATE_MANUAL_NONE}'))"
+    "OR vehicle.match_state IS NOT NULL OR vehicle.ktype IS NOT NULL "
+    "OR vehicle.field_sources ?| ARRAY['ktype', 'match_state'])"
 )
 
 
@@ -280,7 +278,9 @@ def project_choices(connection: Connection[Any], vehicle_ids: Sequence[str] | No
 
     A pure function of the head, so repair is a recompute. Touches only `ktype`,
     `match_state`, their two `field_sources` keys and `updated_at`, and only
-    where something differs.
+    where something differs. `field_sources` is rebuilt from the row being
+    updated, never from an earlier read of it, so a key another writer
+    committed in the meantime is kept even when the caller holds no row lock.
     """
 
     if vehicle_ids is not None and not vehicle_ids:
@@ -294,13 +294,16 @@ def project_choices(connection: Connection[Any], vehicle_ids: Sequence[str] | No
             UPDATE {VEHICLES_TABLE} AS target
             SET ktype = wanted.ktype,
                 match_state = wanted.match_state,
-                field_sources = wanted.field_sources,
+                field_sources = (coalesce(target.field_sources, '{{}}'::jsonb)
+                                 - 'ktype' - 'match_state') || wanted.source_keys,
                 updated_at = now()
             FROM wanted
             WHERE target.vehicle_id = wanted.vehicle_id
               AND (target.ktype IS DISTINCT FROM wanted.ktype
                    OR target.match_state IS DISTINCT FROM wanted.match_state
-                   OR target.field_sources IS DISTINCT FROM wanted.field_sources)
+                   OR target.field_sources -> 'ktype' IS DISTINCT FROM wanted.source_keys -> 'ktype'
+                   OR target.field_sources -> 'match_state'
+                      IS DISTINCT FROM wanted.source_keys -> 'match_state')
             """,
             parameters,
         )

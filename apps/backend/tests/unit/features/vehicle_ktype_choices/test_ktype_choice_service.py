@@ -56,6 +56,7 @@ class _Store:
             raise NothingToWithdrawError("nothing")
         row = StoredChoice(
             created_at=datetime(2026, 10, 2, tzinfo=UTC),
+            chain_position=len(self.rows),
             **{name: getattr(new, name) for name in NewChoice.__dataclass_fields__},
         )
         self.rows.append(row)
@@ -177,7 +178,8 @@ def test_an_operation_id_cannot_carry_different_content(
 def test_a_replay_that_lands_inside_the_transaction_is_answered_too(world: _World) -> None:
     request = world.request()
     row = StoredChoice(
-        choice_id=request.operation_id, vehicle_id=VEHICLE_ID, action="choose", ktype="A",
+        choice_id=request.operation_id, vehicle_id=VEHICLE_ID, chain_position=0,
+        action="choose", ktype="A",
         supersedes_choice_id=None, reviewer="Ada", reason=None, catalog_batch="batch-1",
         automatic_terminal="review_required", automatic_ktype="A", code_version="abc1234",
         evidence_fingerprint=world.today.evidence_fingerprint,
