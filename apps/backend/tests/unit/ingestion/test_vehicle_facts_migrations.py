@@ -8,7 +8,6 @@ from ingestion.vehicle_facts_migrations import (
     SOURCE_INTEGER_COLUMNS,
     SOURCE_TEXT_COLUMNS,
     VEHICLE_FACTS_MIGRATIONS,
-    VEHICLE_SCOPE_EXCLUDED,
     canonical_only_columns,
     effective_value,
     unresolved_predicate,
@@ -148,24 +147,7 @@ def test_column_additions_are_idempotent_so_every_deploy_can_run_them() -> None:
             assert "IF NOT EXISTS" in statement, name
 
 
-def test_vehicle_scope_comes_from_the_pipelines_own_exclusion_decisions() -> None:
-    expression = dict(canonical_only_columns())["vehicle_scope"]
+def test_vehicle_scope_is_a_plain_copy_of_what_normalization_stored() -> None:
+    """Normalization owns the classification; the projection must not restate it."""
 
-    assert "'exclude_from_passenger_car_dataset' THEN 'motorhome'" in expression
-    assert "'quarantine_test_record' THEN 'test_record'" in expression
-    assert "'special_modified_vehicle' THEN 'special_modified'" in expression
-    assert "left(btrim(raw.raw_record ->> 'eu_category'), 2) <> 'M1'" in expression
-    assert expression.rstrip().endswith("ELSE 'passenger' END")
-
-
-def test_vehicle_scope_never_reads_tecdocs_is_pc() -> None:
-    """is_pc marks every TecDoc model series, motorcycles included, as a car."""
-
-    assert "is_pc" not in dict(canonical_only_columns())["vehicle_scope"]
-
-
-def test_every_excluded_scope_is_a_value_the_projection_can_produce() -> None:
-    expression = dict(canonical_only_columns())["vehicle_scope"]
-
-    for scope in VEHICLE_SCOPE_EXCLUDED:
-        assert f"THEN '{scope}'" in expression
+    assert dict(canonical_only_columns())["vehicle_scope"] == "norm.payload ->> 'vehicle_scope'"

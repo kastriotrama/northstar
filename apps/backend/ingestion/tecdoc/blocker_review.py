@@ -82,7 +82,7 @@ def classify_match_blocker(evaluation: MatchEvaluation) -> MatchBlockerCategory 
         return None
     reasons = set(evaluation.reason_codes)
     if evaluation.terminal == "hard_conflict" or any(
-        reason.startswith(("conflict:", "route:hard_conflict:"))
+        reason.startswith(("conflict:", "route:hard_conflict:", "hard_conflict_replaced:"))
         for reason in reasons
     ):
         return CATEGORY_BY_CODE["hard_technical_conflict"]

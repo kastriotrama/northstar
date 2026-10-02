@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "CORS_ORIGINS=http://localhost:4200,http://127.0.0.1:4200 exec .venv/bin/uvicorn api.main:app --port 8010"
+      ],
+      "port": 8010,
+      "cwd": "apps/backend"
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "northstar-web",
+        "--port",
+        "4200"
+      ],
+      "port": 4200
+    }
+  ]
+}

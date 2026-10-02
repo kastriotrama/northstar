@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from types import EllipsisType
 
 from psycopg import Connection
 
@@ -71,6 +72,18 @@ def _year(value: str | None) -> int | None:
     return None if value is None else int(value[:4])
 
 
+def _year_month(value: str | None) -> int | None:
+    """TecDoc's production month as YYYYMM, or None when it names no month.
+
+    Kept beside the year so a car's build month can tell apart two KTypes whose
+    runs meet within one year (a facelift in mid-2008).
+    """
+
+    if value is None or len(value) != 6 or not value.isdigit():
+        return None
+    return int(value) if 1 <= int(value[4:]) <= 12 else None
+
+
 #: KT082 (Table 120's own `drive_type_code`) codes that are not a wheel-drive
 #: configuration at all -- a motorcycle's belt, chain, cardan or direct final
 #: drive, per the official TecDoc labels (`reference_data.official_drive_type_labels`).
@@ -95,6 +108,55 @@ def _is_non_passenger_vehicle(record: TecDocHierarchyRecord) -> bool:
     return (
         record.body_type_code == "051"
         and record.drive_type_code in _NON_WHEEL_DRIVE_TYPE_CODES
+    )
+
+
+#: KT 080 (Table 120's `engine_type_code`) 040 is battery electric.
+_BATTERY_ELECTRIC_ENGINE_TYPE_CODE = "040"
+
+#: KT 088 engine labels that name petrol plus an unspecified gas. They stay
+#: unmapped as engine fuel evidence (mapping them would add components to every
+#: KType sharing the engine); the promotion gate alone accepts them when the
+#: KType's own Table 120 fuel is one mapped fuel the label contains.
+_GAS_ENGINE_FUEL_LABELS: dict[str, frozenset[str]] = {
+    "Petrol/Gas": frozenset({"petrol", "lpg", "cng"}),
+    "Petrol/Alcohol/Gas": frozenset({"petrol", "ethanol", "lpg", "cng"}),
+}
+
+
+def _gas_label_vehicle_fuel(
+    engine_fuel_label: str | None, vehicle_fuel_type: str | None,
+) -> str | None:
+    """The KType's own fuel when a petrol-plus-gas engine label contains it."""
+
+    contained = _GAS_ENGINE_FUEL_LABELS.get(engine_fuel_label or "")
+    if contained is None or vehicle_fuel_type not in contained:
+        return None
+    return vehicle_fuel_type
+
+
+def _is_single_battery_electric_motor(
+    record: TecDocHierarchyRecord,
+    engine: EngineAllocation,
+    *,
+    fuel_type: str | None,
+    vehicle_fuel_type: str | None,
+) -> bool:
+    """One electric motor with no displacement anywhere: displacement does not apply.
+
+    Keyed on the KType's engine type 040, not on the fuel label alone. A
+    hydrogen fuel-cell KType (engine type 040, motor labelled Electric, Table
+    120 fuel hydrogen) is left out on purpose: its motor and vehicle fuels
+    differ, so it stays candidate-only for review.
+    """
+
+    return (
+        record.engine_type_code == _BATTERY_ELECTRIC_ENGINE_TYPE_CODE
+        and fuel_type == "electric"
+        and vehicle_fuel_type in (None, "electric")
+        and record.displacement_cc is None
+        and engine.displacement_cc_from is None
+        and engine.displacement_cc_to is None
     )
 
 
@@ -235,6 +297,13 @@ def prepare_canonical_promotions(
                     fuel_components = ()
                 else:
                     fuel_components = fuel_evidence.components
+            # The engine keeps what its own label supports; only the KType may
+            # take its Table 120 fuel through the petrol-plus-gas gate.
+            engine_fuel_type = fuel_type
+            if fuel_type is None and not fuel_components:
+                fuel_type = _gas_label_vehicle_fuel(
+                    fuel_evidence.official_label, vehicle_fuel_type,
+                )
             if fuel_type is None and not fuel_components:
                 skipped["fuel_unresolved"] += 1
                 if retain_candidate_only:
@@ -257,11 +326,31 @@ def prepare_canonical_promotions(
                 exact_displacement = engine.displacement_cc_from
             corroborated = observed_displacements.get(engine.engine_id, set())
             displacement_cc = exact_displacement
-            displacement_source = "table_155_exact"
+            displacement_source: str | None = "table_155_exact"
             if displacement_cc is None and len(corroborated) == 1:
                 displacement_cc = next(iter(corroborated))
                 displacement_source = "table_120_complete_source_consensus"
-            if displacement_cc is None:
+            if (
+                displacement_cc is None
+                and engine.displacement_cc_from is not None
+                and engine.displacement_cc_to is None
+                and record.displacement_cc in (None, engine.displacement_cc_from)
+            ):
+                # A delivery whose Table 155 carries no upper value: the single
+                # 'from' value stands when the KType's own Table 120
+                # displacement does not contradict it.
+                displacement_cc = engine.displacement_cc_from
+                displacement_source = "table_155_from_only"
+            displacement_not_applicable = (
+                displacement_cc is None
+                and _is_single_battery_electric_motor(
+                    record, engine,
+                    fuel_type=fuel_type, vehicle_fuel_type=vehicle_fuel_type,
+                )
+            )
+            if displacement_not_applicable:
+                displacement_source = "not_applicable_electric"
+            if displacement_cc is None and not displacement_not_applicable:
                 skipped["displacement_unresolved"] += 1
                 if retain_candidate_only:
                     candidates_written += _write_candidate_only(
@@ -303,6 +392,7 @@ def prepare_canonical_promotions(
                 engine_fuel_label=fuel_evidence.official_label,
                 fuel_representation=fuel_evidence.representation,
                 vehicle_fuel_type=vehicle_fuel_type,
+                engine_fuel_type=engine_fuel_type,
                 engine_link_status="linked",
                 bodywork_labels=bodywork_labels,
                 bodywork_canonical=bodywork_canonical,
@@ -442,6 +532,8 @@ def _candidate_only_vehicle_candidates(
                 "market": [],
                 "year_from": _year(record.year_from),
                 "year_to": _year(record.year_to),
+                "month_from": _year_month(record.year_from),
+                "month_to": _year_month(record.year_to),
                 "source_name": record.ktype_name,
                 "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
                 "model_family_source_key": f"model:{record.model_id}",
@@ -584,6 +676,7 @@ def _vehicle_candidates(
     bodywork_labels: Mapping[str, str] | None,
     bodywork_canonical: Mapping[str, str] | None,
     transmission_type_labels: Mapping[str, str] | None,
+    engine_fuel_type: str | None | EllipsisType = ...,
     drive_labels: Mapping[str, str] | None,
     drive_canonical: Mapping[str, str] | None,
 ) -> tuple[CanonicalCandidate, ...]:
@@ -629,6 +722,8 @@ def _vehicle_candidates(
                 "market": [],
                 "year_from": year_from,
                 "year_to": _year(record.year_to),
+                "month_from": _year_month(record.year_from),
+                "month_to": _year_month(record.year_to),
                 "source_name": record.ktype_name,
                 "manufacturer_source_key": f"manufacturer:{record.manufacturer_id}",
                 "model_family_source_key": f"model:{record.model_id}",
@@ -702,7 +797,11 @@ def _vehicle_candidates(
                     "engine_code": engine.engine_code,
                     "displacement_cc": displacement_cc,
                     "displacement_source": displacement_source,
-                    "fuel_type": fuel_type,
+                    # A shared engine carries only its own label's fuel, never
+                    # one KType's Table 120 fuel.
+                    "fuel_type": (
+                        fuel_type if engine_fuel_type is ... else engine_fuel_type
+                    ),
                     "fuel_components": list(fuel_components),
                     "tecdoc_engine_fuel_code": engine_fuel_code,
                     "tecdoc_engine_fuel_label": engine_fuel_label,

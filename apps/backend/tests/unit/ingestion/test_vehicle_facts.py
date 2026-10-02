@@ -5,6 +5,7 @@ import pytest
 from ingestion.vehicle_facts import (
     RefreshSummary,
     backfill_canonical_columns,
+    backfill_vehicle_scope,
     build_canonical_backfill_statement,
     build_refresh_statement,
     projected_columns,
@@ -119,7 +120,12 @@ def test_upsert_refreshes_every_column_but_the_key() -> None:
     for name in names:
         if name == "source_record_id":
             continue
-        assert f"{name} = EXCLUDED.{name}" in statement
+        # vehicle_scope alone is kept, not blanked, when an older result has none.
+        assert (
+            f"{name} = coalesce(EXCLUDED.{name}, core.vehicle_facts.{name})"
+            if name == "vehicle_scope"
+            else f"{name} = EXCLUDED.{name}"
+        ) in statement
     assert "source_record_id = EXCLUDED.source_record_id" not in statement
 
 
@@ -195,8 +201,9 @@ def test_canonical_backfill_updates_only_the_canonical_columns() -> None:
 
     assert "UPDATE core.vehicle_facts AS facts" in statement
     assert "INSERT" not in statement
-    for name in ("canonical_fuel", "canonical_transmission", "canonical_euro_class", "vehicle_scope"):
+    for name in ("canonical_fuel", "canonical_transmission", "canonical_euro_class"):
         assert f"{name} = page.{name}" in statement
+    assert "vehicle_scope = coalesce(page.vehicle_scope, facts.vehicle_scope)" in statement
     assert "n_manufacturer" not in statement
 
 
@@ -232,3 +239,97 @@ def test_parameterised_statements_carry_no_bare_percent(build: Any) -> None:
 
     assert statement.count("%s") == 3
     assert "%" not in statement.replace("%s", "")
+
+
+def test_a_result_without_a_scope_keeps_the_one_already_projected() -> None:
+    """A car normalized before v12 has no stored scope; a refresh must not blank it."""
+
+    assert (
+        "vehicle_scope = coalesce(EXCLUDED.vehicle_scope, core.vehicle_facts.vehicle_scope)"
+        in build_refresh_statement()
+    )
+    assert "vehicle_scope = coalesce(page.vehicle_scope, facts.vehicle_scope)" in (
+        build_canonical_backfill_statement()
+    )
+    # Plain copies are still overwritten as before.
+    assert "canonical_fuel = page.canonical_fuel" in build_canonical_backfill_statement()
+
+
+class _ScopeCursor:
+    def __init__(self, pages: list[list[tuple[Any, ...]]]) -> None:
+        self._pages = pages
+        self.writes: list[tuple[list[int], list[str]]] = []
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def execute(self, statement: str, parameters: tuple[Any, ...]) -> None:
+        if statement.lstrip().startswith("UPDATE"):
+            self.writes.append((list(parameters[0]), list(parameters[1])))
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return self._pages.pop(0) if self._pages else []
+
+
+class _ScopeConnection:
+    def __init__(self, pages: list[list[tuple[Any, ...]]]) -> None:
+        self.cursor_ = _ScopeCursor(pages)
+        self.commits = 0
+
+    def cursor(self) -> _ScopeCursor:
+        return self.cursor_
+
+    def commit(self) -> None:
+        self.commits += 1
+
+
+def test_scope_backfill_uses_normalizations_own_rule_for_older_results() -> None:
+    """The Ducati: no EU category, vehicle_type MC -- not a passenger car."""
+
+    pages = [
+        [
+            # id, eu_category, vehicle_type, record_route, exclusion, stored scope
+            (955, None, "MC", None, None, None),
+            (956, "M1", "PB", None, None, None),
+            (957, "M1", "PB", "exclude_from_passenger_car_dataset", None, None),
+            (958, None, None, None, None, None),
+            (959, "M1", "PB", None, None, "passenger"),
+        ]
+    ]
+    connection = _ScopeConnection(pages)
+
+    summary = backfill_vehicle_scope(connection, free_bytes=None)  # type: ignore[arg-type]
+
+    ids, scopes = connection.cursor_.writes[0]
+    assert dict(zip(ids, scopes)) == {
+        955: "other",
+        956: "passenger",
+        957: "motorhome",
+        958: "unknown",
+        959: "passenger",
+    }
+    assert summary == RefreshSummary(rows_written=5, pages=1, highest_source_record_id=959)
+
+
+def test_scope_backfill_prefers_what_normalization_stored() -> None:
+    pages = [[(1, "M1", "PB", None, None, "special_modified")]]
+    connection = _ScopeConnection(pages)
+
+    backfill_vehicle_scope(connection, free_bytes=None)  # type: ignore[arg-type]
+
+    assert connection.cursor_.writes[0][1] == ["special_modified"]
+
+
+def test_scope_backfill_pages_and_commits_each_page() -> None:
+    pages = [[(10, "M1", "PB", None, None, None)], [(20, "N1", None, None, None, None)]]
+    connection = _ScopeConnection(pages)
+
+    summary = backfill_vehicle_scope(connection, page_size=1, free_bytes=None)  # type: ignore[arg-type]
+
+    assert summary.pages == 2
+    assert summary.highest_source_record_id == 20
+    assert connection.commits == 3
+    assert connection.cursor_.writes[1] == ([20], ["goods"])

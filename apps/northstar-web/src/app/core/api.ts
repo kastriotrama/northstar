@@ -39,9 +39,11 @@ import type {
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
-  CarSearchPage,
-  CarSearchRequest,
-  FullVehicleRecord,
+  MatchBucket,
+  MatchCarPage,
+  MatchSummaryJob,
+  MatchSummaryRequest,
+  VehicleMatchLookup,
   VehicleCount,
   VehicleDetail,
   VehicleFacet,
@@ -49,6 +51,11 @@ import type {
   VehiclePage,
   GapGroupingMode,
   GapGroupReport,
+  NorVehicleFacet,
+  NorVehiclePage,
+  NorVehicleRecord,
+  VehicleFieldInfo,
+  VehicleSearchRequest,
 } from './models';
 
 /** Drops null/undefined/empty values so optional filters stay out of the query string. */
@@ -140,7 +147,7 @@ export class Api {
     });
   }
 
-  // --- TecDoc vehicles: filtered, ported from `/v1/vehicles` ----------------------------
+  // --- TecDoc vehicles: filtered, ported from `/v1/ts-records` --------------------------
 
   tecdocVehiclePage(
     filter: TecDocVehicleFilter,
@@ -414,7 +421,7 @@ export class Api {
     conditions: RuleCondition[];
     target_field: string;
   }): Observable<RuleAdvice> {
-    return this.http.post<RuleAdvice>(`${this.base}/v1/vehicles/advise`, body);
+    return this.http.post<RuleAdvice>(`${this.base}/v1/ts-records/advise`, body);
   }
 
   targetVocabulary(buildId: string, targetField: string): Observable<TargetVocabulary> {
@@ -505,18 +512,18 @@ export class Api {
     );
   }
 
-  // --- Filtering the whole vehicle population ------------------------------------------
+  // --- Filtering TS records (`/v1/ts-records`) ------------------------------------------
   // Every call takes the same condition shape the rule endpoints take, so a filter built
   // here can be handed to a rule without being rebuilt.
 
   countVehicles(filter: VehicleFilterRequest): Observable<VehicleCount> {
-    return this.http.post<VehicleCount>(`${this.base}/v1/vehicles/count`, filter);
+    return this.http.post<VehicleCount>(`${this.base}/v1/ts-records/count`, filter);
   }
 
   /** What the filtered set still cannot say about itself -- the worklist. */
   unresolvedSummary(filter: VehicleFilterRequest): Observable<UnresolvedSummary> {
     return this.http.post<UnresolvedSummary>(
-      `${this.base}/v1/vehicles/unresolved-summary`,
+      `${this.base}/v1/ts-records/unresolved-summary`,
       filter,
     );
   }
@@ -526,7 +533,7 @@ export class Api {
     field: string,
     limit = 12,
   ): Observable<VehicleFacet> {
-    return this.http.post<VehicleFacet>(`${this.base}/v1/vehicles/facets`, filter, {
+    return this.http.post<VehicleFacet>(`${this.base}/v1/ts-records/facets`, filter, {
       params: params({ field, limit }),
     });
   }
@@ -536,28 +543,90 @@ export class Api {
     filter: VehicleFilterRequest,
     options: { cursor?: number; limit?: number } = {},
   ): Observable<VehiclePage> {
-    return this.http.post<VehiclePage>(`${this.base}/v1/vehicles/page`, filter, {
+    return this.http.post<VehiclePage>(`${this.base}/v1/ts-records/page`, filter, {
       params: params({ cursor: options.cursor ?? 0, limit: options.limit ?? 100 }),
     });
   }
 
-  /** Cars found by their canonical values, plus optional free text (plate, VIN, make, model). */
-  searchCars(
-    request: CarSearchRequest,
-    options: { cursor?: number; limit?: number } = {},
-  ): Observable<CarSearchPage> {
-    return this.http.post<CarSearchPage>(`${this.base}/v1/vehicles/search`, request, {
-      params: params({ cursor: options.cursor ?? 0, limit: options.limit ?? 50 }),
+  // --- NorthStar vehicles (`core.vehicles`) ---------------------------------------------
+
+  /** Every column of the vehicle record: label, group, and whether it can be filtered. */
+  vehicleFields(): Observable<VehicleFieldInfo[]> {
+    return this.http.get<VehicleFieldInfo[]>(`${this.base}/v1/vehicles/fields`);
+  }
+
+  /** Vehicles by merged value, identifier (current or past) or NOR ID. Keyset-paged. */
+  searchVehicles(
+    request: VehicleSearchRequest,
+    options: { cursor?: string | null; limit?: number } = {},
+  ): Observable<NorVehiclePage> {
+    return this.http.post<NorVehiclePage>(`${this.base}/v1/vehicles/search`, request, {
+      params: params({ cursor: options.cursor ?? undefined, limit: options.limit ?? 50 }),
     });
   }
 
-  /** Everything known about one car: the whole registry row and every normalized value. */
-  fullVehicle(sourceRecordId: number): Observable<FullVehicleRecord> {
-    return this.http.get<FullVehicleRecord>(`${this.base}/v1/vehicles/${sourceRecordId}/full`);
+  /** Top values of one field inside the filter, counted as if it were not filtered on. */
+  vehicleValues(
+    request: VehicleSearchRequest,
+    field: string,
+    limit = 100,
+  ): Observable<NorVehicleFacet> {
+    return this.http.post<NorVehicleFacet>(`${this.base}/v1/vehicles/facets`, request, {
+      params: params({ field, limit }),
+    });
+  }
+
+  /** One vehicle: each value with its source, what lost, plates over time, links. */
+  vehicleRecord(vehicleId: string): Observable<NorVehicleRecord> {
+    return this.http.get<NorVehicleRecord>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}`,
+    );
+  }
+
+  // --- TS-to-TecDoc matching diagnostics ------------------------------------------------
+
+  /** Which KTypes one vehicle could be, matched on its merged values. */
+  matchLookup(vehicleId: string): Observable<VehicleMatchLookup> {
+    return this.http.get<VehicleMatchLookup>(`${this.base}/v1/vehicles/matching/lookup`, {
+      params: params({ vehicle_id: vehicleId }),
+    });
+  }
+
+  /** Start matching a seeded random `limit` cars of a filter; poll the returned job. */
+  startMatchSummary(request: MatchSummaryRequest): Observable<MatchSummaryJob> {
+    return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
+  }
+
+  /** Every summary job the API holds, newest first -- including ones no screen is watching. */
+  matchSummaryJobs(): Observable<MatchSummaryJob[]> {
+    return this.http.get<MatchSummaryJob[]>(`${this.base}/v1/vehicles/matching/summary`);
+  }
+
+  matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
+    return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
+  }
+
+  /** A page of the cars a summary put in one bucket, with why each ended there. */
+  matchSummaryCars(
+    jobId: string,
+    bucket: MatchBucket,
+    offset: number,
+    limit: number,
+  ): Observable<MatchCarPage> {
+    return this.http.get<MatchCarPage>(
+      `${this.base}/v1/vehicles/matching/summary/${jobId}/cars`,
+      { params: params({ bucket, offset, limit }) },
+    );
+  }
+
+  cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {
+    return this.http.delete<MatchSummaryJob>(
+      `${this.base}/v1/vehicles/matching/summary/${jobId}`,
+    );
   }
 
   vehicleDetail(sourceRecordId: number): Observable<VehicleDetail> {
-    return this.http.get<VehicleDetail>(`${this.base}/v1/vehicles/${sourceRecordId}`);
+    return this.http.get<VehicleDetail>(`${this.base}/v1/ts-records/${sourceRecordId}`);
   }
   /**
    * Where a gap lives, grouped by the shape of the value rather than its text.
@@ -569,7 +638,7 @@ export class Api {
     filter: VehicleFilterRequest,
     options: { field: string; mode?: GapGroupingMode; limit?: number },
   ): Observable<GapGroupReport> {
-    return this.http.post<GapGroupReport>(`${this.base}/v1/vehicles/gap-groups`, filter, {
+    return this.http.post<GapGroupReport>(`${this.base}/v1/ts-records/gap-groups`, filter, {
       params: params({
         field: options.field,
         mode: options.mode ?? 'leading_token',

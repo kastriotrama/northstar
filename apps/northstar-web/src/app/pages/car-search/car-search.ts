@@ -1,18 +1,22 @@
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { TableModule } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
+import { KTypeCandidates } from '../../components/ktype-candidates';
+import { MatchingSummary } from '../../components/matching-summary';
 import type {
-  CanonicalVehicleRow,
-  CarSearchRequest,
-  RuleCondition,
-  FullVehicleRecord,
+  NorVehicleRecord,
+  NorVehicleRow,
+  ValueSource,
+  VehicleCondition,
+  VehicleFieldValue,
+  VehicleSearchRequest,
 } from '../../core/models';
 import {
   VEHICLE_TYPES,
@@ -25,65 +29,79 @@ import {
 interface FacetDef {
   key: string;
   label: string;
-  /** `normalized` reads the canonical value; `source` reads the registry column verbatim. */
-  layer: 'source' | 'normalized';
 }
 
-/**
- * Every dropdown filter the screen offers. Most are canonical -- what normalization
- * concluded, or failing that a live rule -- so "diesel" finds a car the registry logged
- * as fuel code "1". Color and vehicle class have no canonical form in the projection yet,
- * so those two read the registry column as-is, codes included.
- */
+/** Every dropdown filter: each reads the vehicle's merged value, whichever source won it. */
 const FACETS: readonly FacetDef[] = [
-  { key: 'manufacturer', label: 'Manufacturer', layer: 'normalized' },
-  { key: 'model_family', label: 'Model family', layer: 'normalized' },
-  { key: 'drive_type', label: 'Drive type', layer: 'normalized' },
-  { key: 'bodywork_form', label: 'Bodywork', layer: 'normalized' },
-  { key: 'engine_code', label: 'Engine code', layer: 'normalized' },
-  { key: 'canonical_fuel', label: 'Fuel', layer: 'normalized' },
-  { key: 'canonical_transmission', label: 'Transmission', layer: 'normalized' },
-  { key: 'canonical_euro_class', label: 'Euro class', layer: 'normalized' },
-  { key: 'color', label: 'Color (registry)', layer: 'source' },
-  { key: 'vehicle_class', label: 'Vehicle class (registry)', layer: 'source' },
+  { key: 'manufacturer', label: 'Manufacturer' },
+  { key: 'model_family', label: 'Model family' },
+  { key: 'fuel', label: 'Fuel' },
+  { key: 'transmission', label: 'Transmission' },
+  { key: 'drive_type', label: 'Drive type' },
+  { key: 'bodywork_form', label: 'Bodywork' },
+  { key: 'engine_code', label: 'Engine code' },
+  { key: 'emission_standard', label: 'Euro class' },
+  { key: 'colour', label: 'Colour' },
 ];
 
-/** Numeric range filters, beyond production year and power. */
-const RANGES: ReadonlyArray<{ key: string; label: string; layer: 'source' | 'normalized' }> = [
-  { key: 'production_year', label: 'Production year', layer: 'normalized' },
-  { key: 'power_kw', label: 'Power (kW)', layer: 'normalized' },
-  { key: 'displacement_cc', label: 'Displacement (cc)', layer: 'normalized' },
-  { key: 'passengers', label: 'Passengers', layer: 'source' },
+const RANGES: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'production_year', label: 'Production year' },
+  { key: 'power_kw', label: 'Power (kW)' },
+  { key: 'displacement_cc', label: 'Displacement (cc)' },
+  { key: 'seats', label: 'Seats' },
 ];
 
-const FIELD_LABELS: Record<string, string> = {
-  manufacturer: 'Manufacturer',
-  model_family: 'Model family',
-  drive_type: 'Drive type',
-  bodywork_form: 'Bodywork',
-  engine_code: 'Engine code',
-  power_kw: 'Power (kW)',
-  displacement_cc: 'Displacement (cc)',
-  production_year: 'Production year',
+export type RegistryStatus = 'any' | 'registered' | 'deregistered';
+
+export const REGISTRY_STATUSES: ReadonlyArray<{ value: RegistryStatus; label: string }> = [
+  { value: 'any', label: 'Any' },
+  { value: 'registered', label: 'In the register' },
+  { value: 'deregistered', label: 'Deregistered' },
+];
+
+const SOURCE_LABELS: Record<string, string> = {
+  transportstyrelsen: 'TS',
+  ais: 'AIS',
+  review: 'Review',
+  rule: 'Learned rule',
+  derived: 'Derived',
+};
+
+const GROUP_LABELS: Record<string, string> = {
+  identity: 'Identity and status',
+  make: 'Make and model',
+  technical: 'Technical',
+  dates: 'Dates',
+  physical: 'Physical',
+  match: 'TecDoc match',
+  normalization: 'Normalization',
 };
 
 const PAGE_SIZE = 50;
 
 /**
- * Vehicles: look a car up by what normalization concluded about it, with the registry's own
- * columns available too for the fields no canonical form exists for yet (fuel, gearbox,
- * color).
+ * Vehicles: NorthStar vehicles (`core.vehicles`), one per physical car, keyed by NOR ID.
  *
- * The four identity filters (manufacturer, model family, drive type, bodywork) and engine
- * code read the canonical value: derived by normalization, or failing that filled by a live
- * rule. The rest read the registry column verbatim -- there is no canonical fuel or gearbox
- * in the projection yet, so those filters are the registry's own codes. The record panel
- * always shows registry-versus-canonical, whichever filter found the car. Read-only: rules
- * are written from TS data, not here.
+ * Every value is the one that won across the providers -- Transportstyrelsen, AIS, a
+ * reviewer's rule, a learned rule -- and the record panel says which source that was,
+ * what lost, and which plates the car has carried. A plate or VIN is an identifier the
+ * car holds for a while, so a previous plate still finds it. Read-only: rules are written
+ * from TS data, not here.
  */
 @Component({
   selector: 'ns-car-search',
-  imports: [DecimalPipe, FormsModule, ButtonModule, InputTextModule, TableModule, TagModule],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    PercentPipe,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    TableModule,
+    TagModule,
+    KTypeCandidates,
+    MatchingSummary,
+  ],
   templateUrl: './car-search.html',
   styleUrl: './car-search.scss',
 })
@@ -91,27 +109,26 @@ export class CarSearchPage implements OnInit {
   private readonly api = inject(Api);
 
   protected readonly facets = FACETS;
+  protected readonly ranges = RANGES;
   protected readonly vehicleTypes = VEHICLE_TYPES;
+  protected readonly registryStatuses = REGISTRY_STATUSES;
   /** Passenger cars first: the default view, still just a filter anyone can change. */
   protected readonly vehicleType = signal<VehicleType>('passenger');
-  /** Cars per `vehicle_scope`, for the option labels. Empty until the column is backfilled. */
+  /** Deregistered cars stay visible by default: a plate lookup must still find them. */
+  protected readonly registryStatus = signal<RegistryStatus>('any');
+  /** Vehicles per `vehicle_scope`, for the option labels. */
   protected readonly scopeCounts = signal<Record<string, number>>({});
   protected readonly scopeLoaded = signal(false);
-  /**
-   * The column exists but holds nothing yet on this server, so "Passenger cars"
-   * cannot exclude anything. Said out loud rather than silently showing everything.
-   */
-  protected readonly scopeNotComputed = computed(
+  /** No vehicle on this server has a type yet: `core.vehicles` has not been backfilled. */
+  protected readonly notBackfilled = computed(
     () => this.scopeLoaded() && Object.keys(this.scopeCounts()).length === 0,
   );
-  protected readonly ranges = RANGES;
-  protected readonly fieldLabels = FIELD_LABELS;
 
   protected readonly text = signal('');
   protected readonly selected = signal<Record<string, string>>(
     Object.fromEntries(FACETS.map((facet) => [facet.key, ''])),
   );
-  protected readonly options = signal<Record<string, { value: string; count: number | null }[]>>(
+  protected readonly options = signal<Record<string, { value: string; count: number }[]>>(
     Object.fromEntries(FACETS.map((facet) => [facet.key, []])),
   );
   protected readonly rangeFrom = signal<Record<string, string>>(
@@ -121,19 +138,63 @@ export class CarSearchPage implements OnInit {
     Object.fromEntries(RANGES.map((range) => [range.key, ''])),
   );
 
-  protected readonly rows = signal<CanonicalVehicleRow[]>([]);
+  protected readonly rows = signal<NorVehicleRow[]>([]);
   protected readonly matched = signal<number | null>(null);
-  protected readonly nextCursor = signal<number | null>(null);
+  protected readonly nextCursor = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly detail = signal<FullVehicleRecord | null>(null);
-  protected readonly openRow = signal<CanonicalVehicleRow | null>(null);
-  protected readonly detailLoading = signal(false);
+  /** Cars list, or the matching summary over the same filter. */
+  protected readonly view = signal<'cars' | 'matching'>('cars');
+  /** The filter exactly as the car list is queried with it, for the matching view. */
+  protected readonly currentConditions = computed(() => this.request().conditions);
+  protected readonly currentText = computed(() => this.request().text);
+
+  protected readonly openId = signal<string | null>(null);
+  protected readonly record = signal<NorVehicleRecord | null>(null);
+  protected readonly recordLoading = signal(false);
+  protected readonly recordError = signal<string | null>(null);
+
+  /** The open vehicle's fields in their groups, empty ones folded away. */
+  protected readonly groups = computed(() => {
+    const current = this.record();
+    if (!current) return [];
+    const order: string[] = [];
+    const byGroup = new Map<string, VehicleFieldValue[]>();
+    for (const field of current.fields) {
+      if (!byGroup.has(field.group)) {
+        byGroup.set(field.group, []);
+        order.push(field.group);
+      }
+      byGroup.get(field.group)?.push(field);
+    }
+    return order.map((group) => {
+      const fields = byGroup.get(group) ?? [];
+      return {
+        group,
+        label: GROUP_LABELS[group] ?? group,
+        filled: fields.filter((field) => !this.isEmpty(field.value)),
+        empty: fields.filter((field) => this.isEmpty(field.value)).length,
+      };
+    });
+  });
+  /** The open vehicle's current plate: from its record once loaded, else from its row. */
+  protected readonly openPlate = computed(() => {
+    const current = this.plates().find((plate) => plate.current);
+    if (current) return current.value;
+    return this.rows().find((row) => row.vehicle_id === this.openId())?.plate ?? null;
+  });
+  protected readonly plates = computed(
+    () => this.record()?.identifiers.filter((identifier) => identifier.kind === 'plate') ?? [],
+  );
+  protected readonly otherIdentifiers = computed(
+    () => this.record()?.identifiers.filter((identifier) => identifier.kind !== 'plate') ?? [],
+  );
 
   protected readonly hasFilter = computed(
     () =>
       this.vehicleType() !== 'passenger' ||
+      this.registryStatus() !== 'any' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -141,33 +202,47 @@ export class CarSearchPage implements OnInit {
   );
 
   private readonly search$ = new Subject<void>();
-  /** Guards the row list against a slow earlier response landing after a newer one. */
-  private generation = 0;
+  private readonly open$ = new Subject<string>();
 
   constructor() {
+    // switchMap drops a slow earlier response the moment a newer search starts.
     this.search$
       .pipe(
         debounceTime(250),
         switchMap(() => {
           this.loading.set(true);
           this.error.set(null);
-          const generation = ++this.generation;
-          return this.api.searchCars(this.request(), { limit: PAGE_SIZE }).pipe(
-            catchError(() => {
-              this.error.set('Vehicle search is unavailable right now.');
+          return this.api.searchVehicles(this.request(), { limit: PAGE_SIZE }).pipe(
+            catchError((err: { error?: { detail?: unknown } }) => {
+              this.error.set(this.detail(err) ?? 'Vehicle search is unavailable right now.');
               return of(null);
             }),
-            switchMap((page) => of({ page, generation })),
           );
         }),
       )
-      .subscribe(({ page, generation }) => {
-        if (generation !== this.generation) return;
+      .subscribe((page) => {
         this.loading.set(false);
         if (!page) return;
         this.rows.set(page.items);
         this.matched.set(page.matched_rows);
         this.nextCursor.set(page.next_cursor);
+      });
+
+    this.open$
+      .pipe(
+        switchMap((vehicleId) =>
+          this.api.vehicleRecord(vehicleId).pipe(
+            map((record) => ({ record, error: null as string | null })),
+            catchError((err: { error?: { detail?: unknown } }) =>
+              of({ record: null, error: this.detail(err) ?? 'Could not load this vehicle.' }),
+            ),
+          ),
+        ),
+      )
+      .subscribe(({ record, error }) => {
+        this.record.set(record);
+        this.recordError.set(error);
+        this.recordLoading.set(false);
       });
   }
 
@@ -207,12 +282,18 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
-  protected scopeLabel(option: { value: VehicleType; label: string }): string {
+  protected onRegistryStatus(value: RegistryStatus): void {
+    this.registryStatus.set(value);
+    this.search$.next();
+  }
+
+  protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
 
   protected reset(): void {
     this.vehicleType.set('passenger');
+    this.registryStatus.set('any');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -225,7 +306,7 @@ export class CarSearchPage implements OnInit {
     const cursor = this.nextCursor();
     if (cursor === null || this.loading()) return;
     this.loading.set(true);
-    this.api.searchCars(this.request(), { cursor, limit: PAGE_SIZE }).subscribe({
+    this.api.searchVehicles(this.request(), { cursor, limit: PAGE_SIZE }).subscribe({
       next: (page) => {
         this.rows.update((current) => [...current, ...page.items]);
         this.nextCursor.set(page.next_cursor);
@@ -238,89 +319,99 @@ export class CarSearchPage implements OnInit {
     });
   }
 
-  protected open(row: CanonicalVehicleRow): void {
-    this.openRow.set(row);
-    this.detail.set(null);
-    this.detailLoading.set(true);
-    this.api.fullVehicle(row.source_record_id).subscribe({
-      next: (detail) => {
-        if (this.openRow()?.source_record_id !== row.source_record_id) return;
-        this.detail.set(detail);
-        this.detailLoading.set(false);
-      },
-      error: () => this.detailLoading.set(false),
-    });
+  protected open(vehicleId: string): void {
+    this.openId.set(vehicleId);
+    this.record.set(null);
+    this.recordError.set(null);
+    this.recordLoading.set(true);
+    this.open$.next(vehicleId);
+  }
+
+  /** An example from the matching view: show that vehicle in the list and open it. */
+  protected openExample(vehicleId: string): void {
+    if (!vehicleId) return;
+    this.view.set('cars');
+    this.onText(vehicleId);
+    this.open(vehicleId);
   }
 
   protected close(): void {
-    this.openRow.set(null);
-    this.detail.set(null);
+    this.openId.set(null);
+    this.record.set(null);
   }
 
-  protected isRuleFilled(row: CanonicalVehicleRow, field: string): boolean {
-    return row.rule_filled.includes(field);
+  protected isAsserted(row: NorVehicleRow, field: string): 'review' | 'rule' | null {
+    if (row.review_fields.includes(field)) return 'review';
+    if (row.rule_fields.includes(field)) return 'rule';
+    return null;
   }
 
-  /** Registry and normalized values are arbitrary JSON; show them as plain text. */
+  protected sourceLabel(source: ValueSource): string {
+    return SOURCE_LABELS[source.source] ?? source.source;
+  }
+
+  /** The source's own reference when it says something a reader can use. */
+  protected sourceDetail(source: ValueSource): string {
+    const parts: string[] = [];
+    if (source.source === 'rule' && source.ref) parts.push(source.ref);
+    if (source.observed_on) parts.push(source.observed_on);
+    return parts.join(' · ');
+  }
+
+  protected isEmpty(value: unknown): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0)
+    );
+  }
+
+  /** Values are arbitrary JSON; show them as plain text. */
   protected show(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '—';
-    if (Array.isArray(value)) {
-      return value.length ? value.map((item) => this.show(item)).join(', ') : '—';
-    }
+    if (this.isEmpty(value)) return '—';
+    if (Array.isArray(value)) return value.map((item) => this.show(item)).join(', ');
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }
 
-  protected entries(record: Record<string, unknown>): Array<[string, unknown]> {
-    return Object.entries(record).sort(([a], [b]) => a.localeCompare(b));
-  }
-
-  protected filled(record: Record<string, unknown>): number {
-    return Object.values(record).filter(
-      (value) => value !== null && value !== undefined && value !== '',
-    ).length;
-  }
-
-  protected statusLabel(status: 'resolved' | 'unresolved' | 'rule_resolved'): string {
-    return { resolved: 'Normalized', rule_resolved: 'Filled by rule', unresolved: 'Unresolved' }[
-      status
-    ];
-  }
-
-  private request(): CarSearchRequest {
+  private request(): VehicleSearchRequest {
     return { conditions: this.conditions(), text: this.text().trim() };
   }
 
-  private conditions(): RuleCondition[] {
-    const conditions: RuleCondition[] = [];
+  private conditions(): VehicleCondition[] {
+    const conditions: VehicleCondition[] = [];
     const scope = vehicleScopeCondition(this.vehicleType());
-    if (scope) conditions.push(scope);
+    if (scope) {
+      conditions.push({ field: scope.field, operator: scope.operator, values: scope.values ?? [] });
+    }
+    if (this.registryStatus() !== 'any') {
+      conditions.push({
+        field: 'registry_status',
+        operator: 'equals',
+        values: [this.registryStatus()],
+      });
+    }
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];
-      if (value) {
-        conditions.push({
-          field: facet.key,
-          layer: facet.layer,
-          operator: 'equals',
-          values: [value],
-        });
-      }
+      if (value) conditions.push({ field: facet.key, operator: 'equals', values: [value] });
     }
     for (const range of this.ranges) {
       const from = this.rangeFrom()[range.key]?.trim() ?? '';
       const to = this.rangeTo()[range.key]?.trim() ?? '';
-      if (/^\d+$/.test(from)) {
-        conditions.push({ field: range.key, layer: range.layer, operator: 'gte', values: [from] });
-      }
-      if (/^\d+$/.test(to)) {
-        conditions.push({ field: range.key, layer: range.layer, operator: 'lte', values: [to] });
-      }
+      if (/^\d+$/.test(from)) conditions.push({ field: range.key, operator: 'gte', values: [from] });
+      if (/^\d+$/.test(to)) conditions.push({ field: range.key, operator: 'lte', values: [to] });
     }
     return conditions;
   }
 
+  private detail(err: { error?: { detail?: unknown } }): string | null {
+    const detail = err?.error?.detail;
+    return typeof detail === 'string' ? detail : null;
+  }
+
   private loadScopeCounts(): void {
-    this.api.vehicleFacet({ conditions: [] }, 'vehicle_scope', 20).subscribe({
+    this.api.vehicleValues({ conditions: [], text: '' }, 'vehicle_scope', 20).subscribe({
       next: (facet) => {
         this.scopeCounts.set(vehicleScopeCounts(facet.values));
         this.scopeLoaded.set(true);
@@ -330,24 +421,15 @@ export class CarSearchPage implements OnInit {
   }
 
   private loadFacet(key: string): void {
-    // Each dropdown is faceted with its own clause lifted (the server does that), so
+    // Each dropdown is counted with its own clause lifted (the server does that), so
     // choosing a value never hides its siblings. Model families narrow by manufacturer.
-    const conditions: RuleCondition[] = [];
+    const conditions: VehicleCondition[] = [];
     const manufacturer = this.selected()['manufacturer'];
     if (key === 'model_family' && manufacturer) {
-      conditions.push({
-        field: 'manufacturer',
-        layer: 'normalized',
-        operator: 'equals',
-        values: [manufacturer],
-      });
+      conditions.push({ field: 'manufacturer', operator: 'equals', values: [manufacturer] });
     }
-    this.api.vehicleFacet({ conditions }, key, 100).subscribe({
-      next: (facet) =>
-        this.options.update((current) => ({
-          ...current,
-          [key]: facet.values.map(({ value, count }) => ({ value, count })),
-        })),
+    this.api.vehicleValues({ conditions, text: '' }, key, 100).subscribe({
+      next: (facet) => this.options.update((current) => ({ ...current, [key]: facet.values })),
       error: () => undefined,
     });
   }

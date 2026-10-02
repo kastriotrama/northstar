@@ -9,7 +9,9 @@ from northstar.node_ids import NodeIdPrefix
 
 
 def test_every_canonical_label_has_an_id_uniqueness_constraint() -> None:
-    assert set(NODE_LABELS_BY_PREFIX) == set(NodeIdPrefix)
+    # `NOR` identifies a vehicle whose system of record is `core.vehicles` in
+    # PostgreSQL, not a graph node, so it has no Neo4j label or constraint.
+    assert set(NODE_LABELS_BY_PREFIX) == set(NodeIdPrefix) - {NodeIdPrefix.VEHICLE}
 
     for label in NODE_LABELS_BY_PREFIX.values():
         matching = [

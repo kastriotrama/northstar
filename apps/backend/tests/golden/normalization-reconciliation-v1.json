@@ -206,6 +206,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -228,9 +240,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -462,6 +475,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -483,9 +508,10 @@
           "production_date": "2023-06",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-01-15"
+          "registration_date": "2024-01-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -817,6 +843,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -841,9 +879,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 81,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -1072,6 +1111,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -1099,9 +1150,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1342,6 +1394,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -1368,9 +1432,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1561,6 +1626,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -1579,9 +1656,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -1787,6 +1865,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -1804,9 +1894,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -1938,6 +2029,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -1950,9 +2053,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -2180,6 +2284,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -2202,9 +2318,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -2436,6 +2553,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -2457,9 +2586,10 @@
           "production_date": "2023-07",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-02-15"
+          "registration_date": "2024-02-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -2791,6 +2921,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -2815,9 +2957,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 82,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -3046,6 +3189,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -3073,9 +3228,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3316,6 +3472,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -3342,9 +3510,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3535,6 +3704,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -3553,9 +3734,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -3761,6 +3943,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -3778,9 +3972,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -3912,6 +4107,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -3924,9 +4131,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -4154,6 +4362,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -4176,9 +4396,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -4410,6 +4631,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -4431,9 +4664,10 @@
           "production_date": "2023-08",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-03-15"
+          "registration_date": "2024-03-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -4765,6 +4999,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -4789,9 +5035,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 83,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -5020,6 +5267,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -5047,9 +5306,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5290,6 +5550,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -5316,9 +5588,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5509,6 +5782,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -5527,9 +5812,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -5735,6 +6021,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -5752,9 +6050,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -5886,6 +6185,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -5898,9 +6209,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -6128,6 +6440,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -6150,9 +6474,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -6384,6 +6709,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -6405,9 +6742,10 @@
           "production_date": "2023-09",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-04-15"
+          "registration_date": "2024-04-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -6739,6 +7077,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -6763,9 +7113,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 84,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -6994,6 +7345,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -7021,9 +7384,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7264,6 +7628,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -7290,9 +7666,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7485,6 +7862,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -7503,9 +7892,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -7711,6 +8101,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -7728,9 +8130,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -7862,6 +8265,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -7874,9 +8289,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -8104,6 +8520,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -8126,9 +8554,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -8360,6 +8789,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -8381,9 +8822,10 @@
           "production_date": "2023-10",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-05-15"
+          "registration_date": "2024-05-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -8715,6 +9157,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -8739,9 +9193,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 85,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -8970,6 +9425,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -8997,9 +9464,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9240,6 +9708,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -9266,9 +9746,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9459,6 +9940,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -9477,9 +9970,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -9685,6 +10179,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -9702,9 +10208,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -9836,6 +10343,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -9848,9 +10367,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -10078,6 +10598,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -10100,9 +10632,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -10334,6 +10867,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -10355,9 +10900,10 @@
           "production_date": "2023-11",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-06-15"
+          "registration_date": "2024-06-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10689,6 +11235,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -10713,9 +11271,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 86,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -10944,6 +11503,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -10971,9 +11542,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11214,6 +11786,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -11240,9 +11824,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11433,6 +12018,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -11451,9 +12048,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -11659,6 +12257,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -11676,9 +12286,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -11810,6 +12421,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -11822,9 +12445,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -12052,6 +12676,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -12074,9 +12710,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -12308,6 +12945,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -12329,9 +12978,10 @@
           "production_date": "2023-12",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-07-15"
+          "registration_date": "2024-07-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12663,6 +13313,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -12687,9 +13349,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 87,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -12918,6 +13581,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -12945,9 +13620,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13188,6 +13864,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -13214,9 +13902,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13407,6 +14096,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -13425,9 +14126,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -13633,6 +14335,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -13650,9 +14364,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -13784,6 +14499,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -13796,9 +14523,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -14026,6 +14754,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -14048,9 +14788,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -14282,6 +15023,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -14303,9 +15056,10 @@
           "production_date": "2023-01",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-08-15"
+          "registration_date": "2024-08-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -14637,6 +15391,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -14661,9 +15427,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 88,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -14892,6 +15659,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -14919,9 +15698,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15162,6 +15942,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -15188,9 +15980,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15381,6 +16174,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -15399,9 +16204,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -15607,6 +16413,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -15624,9 +16442,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -15758,6 +16577,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -15770,9 +16601,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -16000,6 +16832,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -16022,9 +16866,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -16256,6 +17101,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -16277,9 +17134,10 @@
           "production_date": "2023-02",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-09-15"
+          "registration_date": "2024-09-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16611,6 +17469,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -16635,9 +17505,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 89,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -16866,6 +17737,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -16893,9 +17776,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17136,6 +18020,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -17162,9 +18058,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17355,6 +18252,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -17373,9 +18282,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -17581,6 +18491,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -17598,9 +18520,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -17732,6 +18655,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -17744,9 +18679,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -17974,6 +18910,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -17996,9 +18944,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -18230,6 +19179,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -18251,9 +19212,10 @@
           "production_date": "2023-03",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-10-15"
+          "registration_date": "2024-10-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -18585,6 +19547,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -18609,9 +19583,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 90,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -18840,6 +19815,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -18867,9 +19854,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19110,6 +20098,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -19136,9 +20136,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19329,6 +20330,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -19347,9 +20360,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -19555,6 +20569,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -19572,9 +20598,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -19706,6 +20733,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -19718,9 +20757,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -19948,6 +20988,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -19970,9 +21022,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -20204,6 +21257,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -20225,9 +21290,10 @@
           "production_date": "2023-04",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-11-15"
+          "registration_date": "2024-11-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20559,6 +21625,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -20583,9 +21661,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 91,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -20814,6 +21893,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -20841,9 +21932,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21084,6 +22176,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -21110,9 +22214,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21303,6 +22408,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -21321,9 +22438,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -21529,6 +22647,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -21546,9 +22676,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -21680,6 +22811,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -21692,9 +22835,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -21883,6 +23027,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -21899,9 +23055,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22096,6 +23253,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -22111,9 +23280,10 @@
           "production_date": "2023-05",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-12-15"
+          "registration_date": "2024-12-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22408,6 +23578,18 @@
             "sequence": 15,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 16,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -22426,9 +23608,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 92,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22620,6 +23803,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -22641,9 +23836,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -22847,6 +24043,18 @@
             "sequence": 9,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -22867,9 +24075,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23023,6 +24232,18 @@
             "sequence": 7,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -23035,9 +24256,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23205,6 +24427,18 @@
             "sequence": 9,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 10,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -23216,9 +24450,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown",
           "build_date_malformed",
@@ -23351,6 +24586,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -23363,9 +24610,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -23593,6 +24841,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -23615,9 +24875,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -23849,6 +25110,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -23870,9 +25143,10 @@
           "production_date": "2023-06",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-01-15"
+          "registration_date": "2024-01-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24204,6 +25478,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -24228,9 +25514,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 93,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -24459,6 +25746,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -24486,9 +25785,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -24729,6 +26029,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -24755,9 +26067,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -24948,6 +26261,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -24966,9 +26291,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25174,6 +26500,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -25191,9 +26529,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -25325,6 +26664,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -25337,9 +26688,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -25567,6 +26919,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -25589,9 +26953,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -25823,6 +27188,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -25844,9 +27221,10 @@
           "production_date": "2023-07",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-02-15"
+          "registration_date": "2024-02-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26178,6 +27556,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -26202,9 +27592,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 94,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -26433,6 +27824,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -26460,9 +27863,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26703,6 +28107,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -26729,9 +28145,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -26922,6 +28339,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -26940,9 +28369,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27148,6 +28578,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -27165,9 +28607,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -27299,6 +28742,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -27311,9 +28766,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -27541,6 +28997,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -27563,9 +29031,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -27797,6 +29266,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -27818,9 +29299,10 @@
           "production_date": "2023-08",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-03-15"
+          "registration_date": "2024-03-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28152,6 +29634,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -28176,9 +29670,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 95,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -28407,6 +29902,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -28434,9 +29941,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28677,6 +30185,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -28703,9 +30223,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -28896,6 +30417,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -28914,9 +30447,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -29122,6 +30656,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -29139,9 +30685,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -29273,6 +30820,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -29285,9 +30844,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -29515,6 +31075,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -29537,9 +31109,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -29771,6 +31344,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -29792,9 +31377,10 @@
           "production_date": "2023-09",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-04-15"
+          "registration_date": "2024-04-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -30126,6 +31712,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -30150,9 +31748,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 96,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -30381,6 +31980,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -30408,9 +32019,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30651,6 +32263,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -30677,9 +32301,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -30870,6 +32495,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -30888,9 +32525,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31096,6 +32734,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -31113,9 +32763,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -31247,6 +32898,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -31259,9 +32922,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -31489,6 +33153,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -31511,9 +33187,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -31745,6 +33422,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -31766,9 +33455,10 @@
           "production_date": "2023-10",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-05-15"
+          "registration_date": "2024-05-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -32100,6 +33790,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -32124,9 +33826,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 97,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -32355,6 +34058,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -32382,9 +34097,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32625,6 +34341,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -32651,9 +34379,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -32844,6 +34573,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -32862,9 +34603,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -33070,6 +34812,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -33087,9 +34841,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -33221,6 +34976,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -33233,9 +35000,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -33463,6 +35231,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -33485,9 +35265,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -33719,6 +35500,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -33740,9 +35533,10 @@
           "production_date": "2023-11",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-06-15"
+          "registration_date": "2024-06-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -34074,6 +35868,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -34098,9 +35904,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 98,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -34329,6 +36136,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -34356,9 +36175,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -34599,6 +36419,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -34625,9 +36457,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -34818,6 +36651,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -34836,9 +36681,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -35044,6 +36890,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -35061,9 +36919,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -35195,6 +37054,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -35207,9 +37078,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -35437,6 +37309,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -35459,9 +37343,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -35693,6 +37578,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -35714,9 +37611,10 @@
           "production_date": "2023-12",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-07-15"
+          "registration_date": "2024-07-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -36048,6 +37946,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -36072,9 +37982,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 99,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -36303,6 +38214,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -36330,9 +38253,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -36573,6 +38497,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -36599,9 +38535,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -36792,6 +38729,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -36810,9 +38759,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -37018,6 +38968,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -37035,9 +38997,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -37169,6 +39132,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -37181,9 +39156,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -37411,6 +39387,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -37433,9 +39421,10 @@
             "SE"
           ],
           "model_family_candidate": true,
-          "transmission_type": "automatic"
+          "transmission_type": "automatic",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -37667,6 +39656,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.dates"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -37688,9 +39689,10 @@
           "production_date": "2023-01",
           "production_date_precision": "month",
           "production_year": 2023,
-          "registration_date": "2024-08-15"
+          "registration_date": "2024-08-15",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -38022,6 +40024,18 @@
             "sequence": 18,
             "target": "normalized",
             "transformer_id": "ts.engine-measurements"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 19,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -38046,9 +40060,10 @@
           ],
           "model_family_candidate": true,
           "power_kw": 100,
-          "power_source_unit": "kw"
+          "power_source_unit": "kw",
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -38277,6 +40292,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -38304,9 +40331,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -38547,6 +40575,18 @@
             "sequence": 12,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -38573,9 +40613,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -38766,6 +40807,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -38784,9 +40837,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -38992,6 +41046,18 @@
             "sequence": 12,
             "target": "review",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 13,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39009,9 +41075,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "build_date_malformed",
           "transmission_code_unknown",
@@ -39143,6 +41210,18 @@
             "sequence": 7,
             "target": "candidate",
             "transformer_id": "ts.model-family"
+          },
+          {
+            "after": "unknown",
+            "before": null,
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 8,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39155,9 +41234,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "unknown"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "manufacturer_unknown"
         ],
@@ -39337,6 +41417,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39355,9 +41447,10 @@
           "manufacturer_role": "vehicle_manufacturer",
           "market": [
             "SE"
-          ]
+          ],
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39545,6 +41638,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "goods",
+            "before": "N1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39563,9 +41668,10 @@
           "manufacturer_role": "vehicle_manufacturer",
           "market": [
             "SE"
-          ]
+          ],
+          "vehicle_scope": "goods"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39753,6 +41859,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "goods",
+            "before": "N1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39773,9 +41891,10 @@
             "SE"
           ],
           "marketing_body_style": "van",
-          "model_family": "Transit"
+          "model_family": "Transit",
+          "vehicle_scope": "goods"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -39972,6 +42091,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -39992,9 +42123,10 @@
             "SE"
           ],
           "marketing_body_style": "passenger_van",
-          "model_family": "Multivan"
+          "model_family": "Multivan",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -40232,6 +42364,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.bodywork"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -40254,9 +42398,10 @@
             "SE"
           ],
           "marketing_body_style": "passenger_van",
-          "model_family": "Multivan"
+          "model_family": "Multivan",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -45841,6 +47986,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -45882,9 +48039,10 @@
             "size_system": "metric",
             "speed_symbol": "W"
           },
-          "tyre_staggered": true
+          "tyre_staggered": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -46109,6 +48267,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -46150,9 +48320,10 @@
             "size_system": "metric",
             "speed_symbol": "H"
           },
-          "tyre_staggered": false
+          "tyre_staggered": false,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -46375,6 +48546,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -46414,9 +48597,10 @@
             "size_system": "metric",
             "speed_symbol": "T"
           },
-          "tyre_staggered": false
+          "tyre_staggered": false,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -46639,6 +48823,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -46678,9 +48874,10 @@
             "size_system": "metric",
             "speed_symbol": "W"
           },
-          "tyre_staggered": false
+          "tyre_staggered": false,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -46899,6 +49096,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -46934,9 +49143,10 @@
             "size_system": "alpha",
             "speed_symbol": "S"
           },
-          "tyre_staggered": false
+          "tyre_staggered": false,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -47154,6 +49364,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -47187,9 +49409,10 @@
             "section_width_in": 5.6,
             "size_system": "imperial"
           },
-          "tyre_staggered": false
+          "tyre_staggered": false,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -47397,6 +49620,18 @@
             "sequence": 13,
             "target": "review",
             "transformer_id": "ts.tyres"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -47414,9 +49649,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "tyre_size_unrecognized"
         ],
@@ -47636,6 +49872,18 @@
             "sequence": 15,
             "target": "normalized",
             "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 16,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -47659,9 +49907,10 @@
           "type_approval_country": "DE",
           "type_approval_directive": "2007/46",
           "type_approval_extension": "12",
-          "type_approval_number": "0480"
+          "type_approval_number": "0480",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -47876,6 +50125,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -47898,9 +50159,10 @@
           "type_approval_base": "e4*2001/116*0077",
           "type_approval_country": "NL",
           "type_approval_directive": "2001/116",
-          "type_approval_number": "0077"
+          "type_approval_number": "0077",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -48079,6 +50341,18 @@
             "sequence": 11,
             "target": "review",
             "transformer_id": "ts.type-approval"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -48096,9 +50370,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [
           "type_approval_format_unrecognized"
         ],
@@ -48319,6 +50594,18 @@
             "sequence": 14,
             "target": "normalized",
             "transformer_id": "ts.measurements"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 15,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -48341,9 +50628,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -48503,6 +50791,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.measurements"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -48521,9 +50821,10 @@
             "SE"
           ],
           "model_family_candidate": true,
+          "vehicle_scope": "passenger",
           "wheelbase_mm": 2865
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [],
         "status": "provisional"
@@ -48680,6 +50981,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.emission-class"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -48698,9 +51011,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -48867,6 +51181,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.emission-class"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -48885,9 +51211,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -49118,6 +51445,18 @@
             "sequence": 13,
             "target": "normalized",
             "transformer_id": "ts.fuel"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 14,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -49147,9 +51486,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -49364,6 +51704,18 @@
             "sequence": 11,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 12,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -49383,9 +51735,10 @@
           "market": [
             "SE"
           ],
-          "model_family_candidate": true
+          "model_family_candidate": true,
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -49551,6 +51904,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -49570,9 +51935,10 @@
           "market": [
             "SE"
           ],
-          "model_family": "E-Class"
+          "model_family": "E-Class",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {
@@ -49746,6 +52112,18 @@
             "sequence": 10,
             "target": "normalized",
             "transformer_id": "ts.drive"
+          },
+          {
+            "after": "passenger",
+            "before": "M1",
+            "confidence_effect": 0.0,
+            "field": "vehicle_scope",
+            "rule_ids": [
+              "VEHICLE-SCOPE-V1"
+            ],
+            "sequence": 11,
+            "target": "normalized",
+            "transformer_id": "ts.vehicle-scope"
           }
         ],
         "kind": "normalization",
@@ -49765,9 +52143,10 @@
           "market": [
             "SE"
           ],
-          "model_family": "X5"
+          "model_family": "X5",
+          "vehicle_scope": "passenger"
         },
-        "pipeline_version": "normalization-pipeline-v11",
+        "pipeline_version": "normalization-pipeline-v12",
         "review_reasons": [],
         "rule_matches": [
           {

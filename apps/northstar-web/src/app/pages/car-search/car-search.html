@@ -4,7 +4,7 @@
       <h2 class="card__title">Vehicles</h2>
       <span class="muted">
         @if (matched() !== null) {
-          {{ matched() | number }} cars
+          {{ matched() | number }} vehicles
         }
       </span>
     </div>
@@ -13,8 +13,8 @@
       pInputText
       type="search"
       class="search__box"
-      placeholder="Plate, VIN, manufacturer or model — e.g. “volvo v70”"
-      aria-label="Search cars"
+      placeholder="Plate, VIN, NOR ID, a previous plate, manufacturer or model — e.g. “volvo v70”"
+      aria-label="Search vehicles"
       [ngModel]="text()"
       (ngModelChange)="onText($event)"
     />
@@ -31,6 +31,21 @@
           @for (option of vehicleTypes; track option.value) {
             <option [value]="option.value" [selected]="vehicleType() === option.value">
               {{ scopeLabel(option) }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">Registry status</span>
+        <select
+          class="field__select"
+          aria-label="Registry status"
+          [value]="registryStatus()"
+          (change)="onRegistryStatus($any($event.target).value)"
+        >
+          @for (option of registryStatuses; track option.value) {
+            <option [value]="option.value" [selected]="registryStatus() === option.value">
+              {{ option.label }}
             </option>
           }
         </select>
@@ -86,10 +101,11 @@
     </div>
   </section>
 
-  @if (scopeNotComputed()) {
+  @if (notBackfilled()) {
     <p class="notice" role="status">
-      Vehicle type has not been computed on this server yet, so “Passenger cars” is
-      showing every vehicle. It takes effect once the canonical backfill has run.
+      No vehicle on this server has a vehicle type yet, so “Passenger cars” cannot exclude
+      anything. NorthStar vehicles appear once <span class="mono">backfill-vehicle-core</span>
+      has run.
     </p>
   }
 
@@ -97,60 +113,91 @@
     <p class="error" role="alert">{{ text }}</p>
   }
 
-  <div class="results" [class.results--panel]="openRow()">
+  <div class="results" [class.results--panel]="openId()">
     <section class="card">
+      <div class="views" role="tablist" aria-label="Results view">
+        <button
+          type="button"
+          role="tab"
+          class="views__tab"
+          [class.views__tab--active]="view() === 'cars'"
+          [attr.aria-selected]="view() === 'cars'"
+          (click)="view.set('cars')"
+        >
+          Cars
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="views__tab"
+          [class.views__tab--active]="view() === 'matching'"
+          [attr.aria-selected]="view() === 'matching'"
+          (click)="view.set('matching')"
+        >
+          Matching
+        </button>
+      </div>
+
+      @if (view() === 'matching') {
+        <ns-matching-summary
+          [conditions]="currentConditions()"
+          [text]="currentText()"
+          (pick)="openExample($event)"
+        />
+      } @else {
       <p-table [value]="rows()" [scrollable]="true" scrollHeight="62vh" styleClass="p-datatable-sm">
         <ng-template pTemplate="header">
           <tr>
             <th>Plate</th>
+            <th>NOR ID</th>
             <th>Manufacturer</th>
             <th>Model family</th>
             <th class="num">Year</th>
             <th class="num">kW</th>
             <th class="num">cc</th>
             <th>Engine</th>
-            <th>Drive</th>
-            <th>Bodywork</th>
             <th>Fuel</th>
             <th>Transmission</th>
+            <th>Drive</th>
+            <th>Bodywork</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr
-            (click)="open(row)"
-            [class.row--active]="openRow()?.source_record_id === row.source_record_id"
+            (click)="open(row.vehicle_id)"
+            [class.row--active]="openId() === row.vehicle_id"
             style="cursor: pointer"
           >
-            <td class="mono">{{ row.plate }}</td>
-            <td [class.rule]="isRuleFilled(row, 'manufacturer')">{{ row.manufacturer ?? '—' }}</td>
-            <td [class.rule]="isRuleFilled(row, 'model_family')">{{ row.model_family ?? '—' }}</td>
-            <td class="num" [class.rule]="isRuleFilled(row, 'production_year')">
+            <td class="mono">
+              {{ row.plate ?? '—' }}
+              @if (row.registry_status === 'deregistered') {
+                <span class="badge badge--gap" title="No longer in the vehicle register">deregistered</span>
+              }
+            </td>
+            <td class="mono muted nowrap" [title]="row.vehicle_id">{{ row.vehicle_id }}</td>
+            <td [class]="isAsserted(row, 'manufacturer')">{{ row.manufacturer ?? '—' }}</td>
+            <td [class]="isAsserted(row, 'model_family')">{{ row.model_family ?? '—' }}</td>
+            <td class="num" [class]="isAsserted(row, 'production_year')">
               {{ row.production_year ?? '—' }}
             </td>
-            <td class="num" [class.rule]="isRuleFilled(row, 'power_kw')">
-              {{ row.power_kw ?? '—' }}
-            </td>
-            <td class="num" [class.rule]="isRuleFilled(row, 'displacement_cc')">
+            <td class="num" [class]="isAsserted(row, 'power_kw')">{{ row.power_kw ?? '—' }}</td>
+            <td class="num" [class]="isAsserted(row, 'displacement_cc')">
               {{ row.displacement_cc ?? '—' }}
             </td>
-            <td class="mono" [class.rule]="isRuleFilled(row, 'engine_code')">
-              {{ row.engine_code ?? '—' }}
-            </td>
-            <td [class.rule]="isRuleFilled(row, 'drive_type')">{{ row.drive_type ?? '—' }}</td>
-            <td [class.rule]="isRuleFilled(row, 'bodywork_form')">
-              {{ row.bodywork_form ?? '—' }}
-            </td>
+            <td class="mono" [class]="isAsserted(row, 'engine_code')">{{ row.engine_code ?? '—' }}</td>
             <td>{{ row.fuel ?? '—' }}</td>
             <td>{{ row.transmission ?? '—' }}</td>
+            <td [class]="isAsserted(row, 'drive_type')">{{ row.drive_type ?? '—' }}</td>
+            <td [class]="isAsserted(row, 'bodywork_form')">{{ row.bodywork_form ?? '—' }}</td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="11" class="muted" style="padding: 1rem">
+            <td colspan="12" class="muted" style="padding: 1rem">
               @if (loading()) {
                 Searching…
               } @else {
-                No cars match.
+                No vehicles match.
               }
             </td>
           </tr>
@@ -163,7 +210,8 @@
           @if (matched() !== null) {
             of {{ matched() | number }}
           }
-          · <span class="rule-key">underlined</span> = value supplied by a live rule
+          · <span class="review">underlined</span> = asserted by a reviewer ·
+          <span class="rule">dotted</span> = filled by a learned rule
         </span>
         @if (nextCursor() !== null) {
           <p-button
@@ -175,117 +223,196 @@
           />
         }
       </div>
+      }
     </section>
 
-    @if (openRow(); as car) {
-      <aside class="card record" aria-label="Car record">
+    @if (openId(); as vehicleId) {
+      <aside class="card record" aria-label="Vehicle record">
         <div class="card__head">
-          <h3 class="card__title mono">{{ car.plate ?? 'No plate' }}</h3>
+          <h3 class="card__title mono">{{ openPlate() ?? 'No plate' }}</h3>
           <p-button label="Close" size="small" [text]="true" (onClick)="close()" />
         </div>
-        <dl class="record__ids">
-          <dt>VIN</dt>
-          <dd class="mono">{{ car.vin ?? '—' }}</dd>
-          <dt>Fuel</dt>
-          <dd>{{ car.fuel ?? '—' }}</dd>
-          <dt>Transmission</dt>
-          <dd>{{ car.transmission ?? '—' }}</dd>
-          <dt>Euro class</dt>
-          <dd>{{ car.euro_class ?? '—' }}</dd>
-          <dt>Normalization</dt>
-          <dd>
-            <p-tag
-              [value]="car.norm_status ?? '—'"
-              [severity]="car.norm_status === 'resolved' ? 'success' : 'warn'"
-            />
-          </dd>
-        </dl>
 
-        @if (detailLoading()) {
+        @if (recordLoading()) {
           <p class="muted">Loading…</p>
-        } @else if (detail(); as record) {
+        } @else if (recordError(); as text) {
+          <p class="error" role="alert">{{ text }}</p>
+        } @else if (record(); as car) {
+          <dl class="record__ids">
+            <dt>NOR ID</dt>
+            <dd class="mono">{{ car.vehicle_id }}</dd>
+            <dt>Status</dt>
+            <dd>
+              <p-tag
+                [value]="car.registry_status === 'registered' ? 'In the register' : 'Deregistered'"
+                [severity]="car.registry_status === 'registered' ? 'success' : 'warn'"
+              />
+            </dd>
+            <dt>Created from</dt>
+            <dd>
+              {{ car.origin_source === 'transportstyrelsen' ? 'TS' : car.origin_source.toUpperCase() }}
+              @if (car.ts_record_id !== null) {
+                <span class="mono muted">record {{ car.ts_record_id }}</span>
+              }
+              @if (car.origin_observed_on) {
+                <span class="muted">· {{ car.origin_observed_on }}</span>
+              }
+            </dd>
+            <dt>Last changed</dt>
+            <dd>{{ car.updated_at | date: 'yyyy-MM-dd HH:mm' }}</dd>
+          </dl>
+
           <details class="section" open>
-            <summary>Canonical fields <span class="muted">registry → canonical</span></summary>
+            <summary>Candidate KTypes <span class="muted">matched on the merged values</span></summary>
+            <ns-ktype-candidates [vehicleId]="vehicleId" />
+          </details>
+
+          <details class="section" open>
+            <summary>
+              Plates <span class="muted">{{ plates().length }} over the car's life</span>
+            </summary>
             <table class="record__fields">
               <thead>
                 <tr>
-                  <th>Field</th>
-                  <th>Registry said</th>
-                  <th>Canonical</th>
+                  <th>Plate</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Source</th>
                 </tr>
               </thead>
               <tbody>
-                @for (field of record.fields; track field.field) {
+                @for (plate of plates(); track plate.value + (plate.valid_to ?? '')) {
                   <tr>
-                    <td>{{ fieldLabels[field.field] ?? field.field }}</td>
-                    <td class="mono muted">{{ field.source_value ?? '—' }}</td>
-                    <td>
-                      <span>{{ field.normalized_value ?? field.resolved_value ?? '—' }}</span>
-                      <span
-                        class="badge"
-                        [class.badge--rule]="field.status === 'rule_resolved'"
-                        [class.badge--gap]="field.status === 'unresolved'"
-                      >
-                        {{ statusLabel(field.status) }}
-                      </span>
+                    <td class="mono">
+                      {{ plate.value }}
+                      @if (plate.current) {
+                        <span class="badge badge--current">current</span>
+                      }
                     </td>
+                    <td>{{ plate.valid_from ?? '—' }}</td>
+                    <td>{{ plate.valid_to ?? '—' }}</td>
+                    <td class="muted">{{ plate.source === 'transportstyrelsen' ? 'TS' : plate.source.toUpperCase() }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="muted">No plate recorded.</td></tr>
+                }
+              </tbody>
+            </table>
+            @if (otherIdentifiers().length) {
+              <dl class="kv kv--ids">
+                @for (identifier of otherIdentifiers(); track identifier.kind + identifier.value + (identifier.valid_to ?? '')) {
+                  <dt>{{ identifier.kind === 'vin' ? 'VIN' : 'Chassis no.' }}</dt>
+                  <dd class="mono" [class.kv__empty]="!identifier.current">
+                    {{ identifier.value }}
+                    @if (!identifier.current) {
+                      <span class="muted">until {{ identifier.valid_to }}</span>
+                    }
+                  </dd>
+                }
+              </dl>
+            }
+          </details>
+
+          <p class="muted record__legend">
+            Values without a badge come from the record that created this vehicle
+            ({{ car.origin_source === 'transportstyrelsen' ? 'TS' : car.origin_source.toUpperCase() }}{{
+              car.origin_observed_on ? ', ' + car.origin_observed_on : ''
+            }}). A badge names the source that won instead; struck-through values lost.
+          </p>
+
+          @for (group of groups(); track group.group) {
+            <details class="section" [open]="group.group !== 'normalization'">
+              <summary>
+                {{ group.label }}
+                <span class="muted">
+                  {{ group.filled.length }} set
+                  @if (group.empty) {
+                    · {{ group.empty }} unknown
+                  }
+                </span>
+              </summary>
+              <table class="record__fields">
+                <tbody>
+                  @for (field of group.filled; track field.field) {
+                    <tr>
+                      <td class="record__label">{{ field.label }}</td>
+                      <td>
+                        <span>{{ show(field.value) }}</span>
+                        @for (alternative of field.alternatives; track alternative.source.source) {
+                          <div class="alternative">
+                            {{ sourceLabel(alternative.source) }} said
+                            <s>{{ show(alternative.value) }}</s>
+                          </div>
+                        }
+                      </td>
+                      <td class="record__source">
+                        @if (field.source; as source) {
+                          @if (!source.origin) {
+                          <span class="source source--{{ source.source }}" [title]="source.ref ?? ''">
+                            {{ sourceLabel(source) }}
+                          </span>
+                          @if (sourceDetail(source); as detail) {
+                            <span class="muted">{{ detail }}</span>
+                          }
+                          }
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </details>
+          }
+
+          @if (car.rules.length) {
+            <details class="section">
+              <summary>Learned rules <span class="muted">behind {{ car.rules.length }} value(s)</span></summary>
+              <dl class="kv">
+                @for (rule of car.rules; track rule.rule_id) {
+                  <dt class="mono">{{ rule.rule_id }}</dt>
+                  <dd>
+                    {{ rule.target_field }} = <b>{{ rule.value }}</b> when
+                    {{ rule.key_fields.join(', ') }} = {{ rule.key_values.join(', ') }}
+                    <span class="muted">
+                      ({{ rule.support | number }} cars, {{ rule.agreement | percent: '1.0-1' }} agree{{
+                        rule.status === 'retired' ? ', retired' : ''
+                      }})
+                    </span>
+                  </dd>
+                }
+              </dl>
+            </details>
+          }
+
+          <details class="section">
+            <summary>
+              Source records
+              <span class="muted">{{ car.source_link_count | number }} linked</span>
+            </summary>
+            <table class="record__fields">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Record</th>
+                  <th>Observed</th>
+                  <th>Linked by</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (link of car.source_links; track link.source_system + link.source_record_key) {
+                  <tr>
+                    <td>{{ link.source_system === 'transportstyrelsen' ? 'TS' : link.source_system.toUpperCase() }}</td>
+                    <td class="mono">{{ link.source_record_key }}</td>
+                    <td>{{ link.observed_on ?? '—' }}</td>
+                    <td class="muted">{{ link.link_method }}</td>
                   </tr>
                 }
               </tbody>
             </table>
+            @if (car.source_link_count > car.source_links.length) {
+              <p class="muted">Showing the {{ car.source_links.length }} most recent.</p>
+            }
           </details>
-
-          <details class="section" open>
-            <summary>
-              All normalized values
-              <span class="muted">{{ filled(record.normalized) }} of {{ entries(record.normalized).length }} set</span>
-            </summary>
-            <dl class="kv">
-              @for (entry of entries(record.normalized); track entry[0]) {
-                <dt>{{ entry[0] }}</dt>
-                <dd [class.kv__empty]="show(entry[1]) === '—'">{{ show(entry[1]) }}</dd>
-              }
-            </dl>
-          </details>
-
-          <details class="section" open>
-            <summary>
-              Registry record
-              <span class="muted">{{ filled(record.registry) }} of {{ entries(record.registry).length }} fields set</span>
-            </summary>
-            <dl class="kv">
-              @for (entry of entries(record.registry); track entry[0]) {
-                <dt>{{ entry[0] }}</dt>
-                <dd class="mono" [class.kv__empty]="show(entry[1]) === '—'">{{ show(entry[1]) }}</dd>
-              }
-            </dl>
-          </details>
-
-          @if (record.normalization; as run) {
-            <details class="section">
-              <summary>Normalization run</summary>
-              <dl class="kv">
-                <dt>status</dt>
-                <dd>{{ run.status }}</dd>
-                <dt>confidence</dt>
-                <dd>{{ run.confidence }}</dd>
-                <dt>mapping</dt>
-                <dd class="mono">{{ run.mapping_version ?? '—' }}</dd>
-                <dt>rules</dt>
-                <dd class="mono">{{ run.rule_version ?? '—' }}</dd>
-                <dt>pipeline</dt>
-                <dd class="mono">{{ run.pipeline_version ?? '—' }}</dd>
-                <dt>applied rules</dt>
-                <dd class="mono">{{ show(run.applied_rule_ids) }}</dd>
-                <dt>review reasons</dt>
-                <dd>{{ show(run.review_reasons) }}</dd>
-                <dt>ingested</dt>
-                <dd>{{ record.ingested_at ?? '—' }}</dd>
-                <dt>batch</dt>
-                <dd class="mono">{{ record.source_batch_id ?? '—' }}</dd>
-              </dl>
-            </details>
-          }
         }
       </aside>
     }

@@ -284,7 +284,7 @@ export class TsRecordsPage {
     this.reload();
   }
 
-  protected scopeLabel(option: { value: VehicleType; label: string }): string {
+  protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
 

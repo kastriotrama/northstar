@@ -151,6 +151,9 @@ class CanonicalVehicleRow(BaseModel):
     euro_class: str | None
     #: `passenger`, or why the car is not one (motorhome, special_modified,
     #: test_record, other_category). NULL until the projection is backfilled.
+    #: Normalization's `vehicle_scope` (classify_vehicle_scope): `passenger`, or
+    #: why not -- motorhome, special_modified, test_record, goods, trailer, bus,
+    #: other -- or `unknown`. NULL until the projection is backfilled.
     vehicle_scope: str | None
     norm_status: str | None
 

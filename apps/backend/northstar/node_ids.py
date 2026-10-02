@@ -24,7 +24,12 @@ EntropySource = Callable[[int], bytes]
 
 
 class NodeIdPrefix(StrEnum):
-    """Accepted prefixes for the ten canonical graph node labels."""
+    """Accepted prefixes for the canonical node types.
+
+    Ten are graph node labels. `VEHICLE` (`NOR`, for NorthStar) identifies one
+    physical, registered vehicle in `core.vehicles`, the provider-independent
+    vehicle record every source (Transportstyrelsen, AIS, ...) enriches.
+    """
 
     MANUFACTURER = "MFR"
     MODEL_FAMILY = "FAM"
@@ -36,6 +41,7 @@ class NodeIdPrefix(StrEnum):
     DRIVE_TYPE = "DRV"
     VEHICLE_VARIANT = "VEH"
     ALIAS = "ALI"
+    VEHICLE = "NOR"
 
 
 class InvalidNodeIdError(ValueError):

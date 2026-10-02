@@ -39,6 +39,7 @@ _NOT_A_LOOKUP = {
     "RuleHandler": "type alias",
     "DEFAULT_PIPELINE": "the pipeline, listed as transformer stages",
     "_MEASUREMENTS": "rendered separately as measurement_scale rules",
+    "VEHICLE_SCOPES": "the value set of vehicle_scope, documented on its stage; not a lookup",
 }
 
 

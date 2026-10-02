@@ -27,8 +27,10 @@ from ingestion.normalization_migrations import NORMALIZATION_RESULTS_TABLE
 # cannot group rows the matcher would evaluate apart. v1 mirrored that key by
 # hand and drifted once the matcher gained model recovery and manufacturer
 # bridging: 143 chunks over 726 rows held several matcher keys, one of them a
-# Golf, a Sharan and a Variant II all recovered from brand.
-SIGNATURE_VERSION = "2"
+# Golf, a Sharan and a Variant II all recovered from brand. v3: the key gained the
+# build month, the registry model family and the electrification type, so a build
+# resumed across that change must not mix both key schemes.
+SIGNATURE_VERSION = "3"
 
 DEFAULT_STATUS_FILTER = ("review_required",)
 

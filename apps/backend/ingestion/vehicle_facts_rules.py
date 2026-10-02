@@ -21,6 +21,7 @@ supersedes whatever resolution those rows carried, and writes its own.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -46,6 +47,13 @@ DEFAULT_BATCH_SIZE = 50_000
 APPLY_JOB_NAME = "apply-resolution-rule"
 
 _INTEGER_FIELDS: frozenset[str] = frozenset(NORMALIZED_INTEGER_FIELDS)
+
+# Called inside a batch's transaction, before it commits, with what the batch
+# resolved: (connection, rule_id, target_field, target_value, after_id, through_id).
+# Production passes `vehicle_core_review.sync_applied_review`, so the NorthStar
+# vehicles receive the batch in the same transaction as the TS projection.
+BatchSync = Callable[..., Any]
+RetireSync = Callable[..., Any]
 
 
 @dataclass(frozen=True)
@@ -96,6 +104,7 @@ def apply_rule_batch(
     after_id: int,
     batch_size: int = DEFAULT_BATCH_SIZE,
     override: bool = False,
+    on_batch: BatchSync | None = None,
 ) -> ApplyProgress:
     """Resolve one batch of the cars a rule covers.
 
@@ -186,11 +195,21 @@ def apply_rule_batch(
             ],
         )
         row = cursor.fetchone()
-    connection.commit()
-
     written = int(row[0]) if row else 0
     cursor_position = int(row[1]) if row else after_id
     scanned = int(row[2]) if row else 0
+    if on_batch is not None:
+        # Same transaction: the TS projection and the vehicles can never disagree
+        # about what a rule said.
+        on_batch(
+            connection,
+            rule_id=rule_id,
+            target_field=target_field,
+            target_value=target_value,
+            after_id=after_id,
+            through_id=cursor_position,
+        )
+    connection.commit()
     return ApplyProgress(
         rows_written=written, cursor=cursor_position, exhausted=scanned < batch_size
     )
@@ -208,6 +227,7 @@ def apply_rule(
     after_id: int = 0,
     override: bool = False,
     progress: Any = None,
+    on_batch: BatchSync | None = None,
 ) -> ApplySummary:
     """Run a rule to completion, one committed batch at a time."""
 
@@ -226,6 +246,7 @@ def apply_rule(
             after_id=cursor_position,
             batch_size=batch_size,
             override=override,
+            on_batch=on_batch,
         )
         rows_written += step.rows_written
         cursor_position = step.cursor
@@ -241,7 +262,11 @@ def apply_rule(
 
 
 def retire_rule(
-    connection: Connection, *, rule_id: UUID, target_field: str
+    connection: Connection,
+    *,
+    rule_id: UUID,
+    target_field: str,
+    on_retire: RetireSync | None = None,
 ) -> int:
     """Supersede everything a rule wrote and clear its overlay.
 
@@ -282,5 +307,7 @@ def retire_rule(
             [rule_id],
         )
         row = cursor.fetchone()
+    if on_retire is not None:
+        on_retire(connection, rule_id=rule_id, target_field=target_field)
     connection.commit()
     return int(row[0]) if row else 0

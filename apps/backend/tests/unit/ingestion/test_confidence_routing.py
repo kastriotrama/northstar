@@ -75,7 +75,9 @@ def test_required_hard_conflicts_override_a_high_statistical_score(conflict: str
         fuels=frozenset({"diesel"}) if conflict == "fuels" else frozenset({"petrol"}),
         engine_code="D5244T" if conflict == "engine_code" else "B4204T",
     )
-    match = _match(query, candidate)
+    # D5244T belongs to another KType, so it is a known, contradicting engine.
+    sibling = VehicleCandidate("KTYPE-900", "Volvo", "V70", engine_codes=frozenset({"D5244T"}))
+    match = _match(query, candidate, sibling)
     if conflict == "manufacturer":
         top = replace(match.candidates[0], conflicting_fields=("manufacturer",))
         match = replace(match, candidates=(top,))
@@ -275,3 +277,24 @@ def test_non_hard_bodywork_conflict_cannot_resolve_from_high_score() -> None:
     assert decision.route == "review_required"
     assert decision.reason_codes == ("non_hard_context_conflict",)
     assert decision.selected_candidate_reference is None
+
+
+def test_an_unverified_engine_code_holds_a_strong_match_at_provisional() -> None:
+    candidate = VehicleCandidate(
+        "KTYPE-100", "Volvo", "XC90", year_from=2015, year_to=2024,
+        fuels=frozenset({"petrol"}), engine_codes=frozenset({"B4204T"}),
+    )
+    match = _match(
+        VehicleMatchQuery(
+            manufacturer="Volvo", model="XC90", year=2022,
+            fuels=frozenset({"petrol"}), engine_code="XYZ999",
+        ),
+        candidate,
+    )
+
+    decision = ConfidenceRouter().route(match)
+
+    assert "engine_code_unverified" in match.candidates[0].missing_fields
+    assert decision.route == "provisional"
+    assert decision.reason_codes == ("engine_code_unverified",)
+    assert decision.decision_trace[-1].rule_id == "ROUTE-PROVISIONAL-ENGINE-UNVERIFIED-V1"

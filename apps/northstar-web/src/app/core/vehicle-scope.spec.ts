@@ -9,7 +9,7 @@ describe('vehicle scope', () => {
       field: 'vehicle_scope',
       layer: 'normalized',
       operator: 'not_equals',
-      values: ['motorhome', 'special_modified', 'test_record', 'other_category'],
+      values: ['motorhome', 'special_modified', 'test_record', 'goods', 'trailer', 'bus', 'other', 'other_category'],
     });
   });
 
@@ -32,6 +32,34 @@ describe('vehicle scope', () => {
       { value: 'motorhome', count: 42_000 },
     ]);
     expect(vehicleTypeLabel({ value: 'all', label: 'All vehicles' }, counts)).toBe('All vehicles');
+  });
+
+  it('other vehicles selects every non-passenger registry type, old value included', () => {
+    expect(vehicleScopeCondition('other_vehicles')?.values).toEqual([
+      'goods',
+      'trailer',
+      'bus',
+      'other',
+      'other_category',
+    ]);
+  });
+
+  it('a vehicle whose type was never recorded stays in the passenger view', () => {
+    expect(vehicleScopeCondition('passenger')?.values).not.toContain('unknown');
+    expect(vehicleScopeCondition('unknown')?.values).toEqual(['unknown']);
+  });
+
+  it('a grouped option counts every scope it selects', () => {
+    const counts = vehicleScopeCounts([
+      { value: 'other', count: 30 },
+      { value: 'goods', count: 15 },
+    ]);
+    expect(
+      vehicleTypeLabel(
+        { value: 'other_vehicles', label: 'Other', scopes: ['goods', 'trailer', 'other'] },
+        counts,
+      ),
+    ).toBe(`Other (${(45).toLocaleString()})`);
   });
 
   it('labels carry counts only once the column is computed', () => {

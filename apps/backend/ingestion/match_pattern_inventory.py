@@ -48,9 +48,11 @@ def observe_match_pattern(
     )
     conflicts = sorted(
         {
-            reason.removeprefix("conflict:")
+            reason.split(":", 1)[1]
             for reason in evaluation.reason_codes
-            if reason.startswith("conflict:")
+            # A hard conflict whose suggestion a conflict-free reading replaced is
+            # still the conflict that held the car.
+            if reason.startswith(("conflict:", "hard_conflict_replaced:"))
         }
         | {
             str(field)

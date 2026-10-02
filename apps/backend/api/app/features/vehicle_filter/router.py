@@ -1,4 +1,8 @@
-"""HTTP surface for filtering the whole vehicle population.
+"""HTTP surface for filtering TS records (`vehicle_facts`), one row per record.
+
+Served under `/v1/ts-records`: these rows are Transportstyrelsen records and the
+TS data screen's rules resolve them. The NorthStar vehicle every source enriches
+is served by the `vehicles` feature under `/v1/vehicles`.
 
 These endpoints and the match-review rule endpoints speak the same condition
 shape on purpose: whatever narrowed a population here can be handed to a rule
@@ -47,7 +51,7 @@ from api.app.features.vehicle_filter.schemas import (
 )
 from ingestion.vehicle_facts_query import UnknownFieldError
 
-router = APIRouter(prefix="/v1/vehicles", tags=["vehicles"])
+router = APIRouter(prefix="/v1/ts-records", tags=["ts-records"])
 
 
 @lru_cache(maxsize=1)

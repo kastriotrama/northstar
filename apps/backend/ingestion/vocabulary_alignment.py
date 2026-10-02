@@ -189,6 +189,13 @@ def load_drive_alignment(connection: Connection) -> VocabularyComparisonAlignmen
     return load_vocabulary_alignment(connection, vocabulary="drive")
 
 
+def load_bodywork_alignment(connection: Connection) -> VocabularyComparisonAlignment:
+    """Registry-to-TecDoc body rulings. TecDoc's own code rulings (`bodywork_form`,
+    KT086 code to body) are a different kind of ruling and are not read here."""
+
+    return load_vocabulary_alignment(connection, vocabulary="bodywork")
+
+
 # Concepts are looked up before minting so a re-run never creates a second
 # node for the same canonical term.
 _CONCEPT_QUERY = """

@@ -2,127 +2,198 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-09-23 — Vehicle type filter on TS data
+## 2026-10-02 — Pilot database builder: a verified 500k slice of the full build (local, uncommitted)
 
-- Added the Vehicle type dropdown to `/ts-data`, sharing its definitions with Vehicles via
-  `core/vehicle-scope.ts`. It narrows everything the screen shows (count, list, facets,
-  unresolved summary, gap groups) but is never part of a rule: the resolver still reads
-  `FilterState.payload()`, and the rule endpoints reject `vehicle_scope` as a condition
-  anyway. Defaults to "All vehicles" here (Vehicles defaults to "Passenger cars") so the
-  counts a rule is authored from match what the rule will touch. Changed the same day
-  to default to "Passenger cars", matching Vehicles, at the user's request.
-- Validation: 30 web tests (7 new), production build; checked in the browser that the
-  scope changes the counts while "Which cars" stays unconditioned.
+- New `scripts/build_pilot_database.py` (logic in `ingestion/pilot_database.py`): reads the full build
+  read-only in one snapshot, creates a NEW database on the same server, builds its schema from the 14
+  migration sets, copies class A whole (rules, reviewer decisions, pinned catalog batch, job runs), class B
+  for a seeded slice (vehicles and every row of their TS records), leaves class C empty, recounts chunk and
+  build counters, moves sequences past the full build's ids, ANALYZEs, then verifies (row counts and content
+  checksums per table, slice size and population, catalog batch, foreign keys and undeclared references).
+  Dry run by default; `--commit` builds; `--replace` drops only a database this script made.
+- Dry run on the full build (seed `northstar-live-pilot-v1`, 500,000 of 6,427,730 registered passenger
+  cars): 499,230 TS records, class A 869,902 rows / 0.43 GB, class B 4,158,929 rows / 4.27 GB, 4.69 GB
+  estimated; 76 s. `--commit` was not run on the full build.
+- Validation: 33 integration tests on throwaway databases, 43 new unit tests; unit suite 2,428 passed (the
+  Golf Variant test fails on purpose); ruff, mypy clean. Docs: "Pilot database" in `PRODUCTION_DEPLOYMENT.md`.
+- Risk / next: run `--commit` and time it; live-only rules are not in the pilot (diff live's rule tables
+  first); one closed review item is on a car outside this seed's slice; batch pickers show full-build counts.
+- Review follow-up (same day): default seed is now the match impact seed (imported `SAMPLE_SEED`), so the
+  30k sample is the first 30,000 of the slice; a verified build writes a manifest (file via `--manifest`
+  and `public.northstar_pilot_manifest` in the pilot) and `--verify DATABASE --manifest FILE` re-checks any
+  database read-only (for live after `pg_restore`); a dry run exits 1 when the target is not a pilot build;
+  class B predicates are pinned by a unit test; unit test file renamed to
+  `test_build_pilot_database_script.py` so pytest collects both. Docs: restore with `--exit-on-error`,
+  `ANALYZE`, `--verify`, rule-table comparison SQL, switch by rename, follow-up after go-live.
+- Validation: unit suite 2446 passed + 1 expected xfail; builder integration 41 passed (dump/restore through
+  the Postgres container); ruff and mypy clean; 500k dry run on `app`: 4.69 GB, 499,516 TS records, 30k
+  sample contained. Next: `--size 2000` rehearsal with `--commit`, then the 500k build. Not built yet.
 
-## 2026-09-23 — Vehicles tab rebuilt: passenger cars first, schema applied on deploy
+## 2026-10-02 — Batch B: model names, engine codes, tolerances, parsers, promotion gates (local, measured)
 
-- Re-landed the Vehicles tab (reverted 2026-09-22 after its first release 503'd on live:
-  the deploy shipped code reading `canonical_fuel`/`canonical_transmission`/
-  `canonical_euro_class`, but nothing ever added those columns to production's
-  `core.vehicle_facts`). Root fix: new `migrate-vehicle-facts` CLI command (schema only,
-  idempotent) now runs in `infra/production/deploy.sh` before `up -d`, so a column a
-  feature adds exists before the code that reads it goes live.
-- New `vehicle_scope` column (passenger / motorhome / special_modified / test_record /
-  other_category), derived from the pipeline's own `record_route` and
-  `parts_matching_exclusion_reason` plus non-M1 EU categories -- never TecDoc's `is_pc`,
-  which marks motorcycles as passenger cars. Vehicles defaults to "Passenger cars" via
-  `vehicle_scope NOT IN (excluded)`, which keeps un-backfilled NULL rows visible; a
-  notice says so until the backfill has run.
-- New `backfill-canonical-vehicle-facts` command updates only the canonical-only columns
-  (resumable, disk-guarded) instead of a full `refresh-vehicle-facts`. It is not run by
-  deploy -- run it deliberately on production after merging.
-- Validation: 1237 backend unit tests, ruff, mypy, 23 web tests, production web build;
-  reproduced the live failure locally (table predating the column) and confirmed the
-  migration adds it and the page serves without 503. The scope expression was verified
-  read-only against real local rows; the local backfill itself was blocked by the
-  disk guard (host disk at 99%).
+- Model names (matcher side): registry spelling of catalog names (CEE'D -> CEED, SANTA FÉ -> SANTA FE,
+  Å/Ä/Ö kept), reviewed export names (Golf Plus, New Beetle, ID. Buzz, CC, e-Citigo, Pagode, Sovereign,
+  Duett, Scenic E-Tech), glued Mazda numbers, SEAT -> CUPRA; model-vs-brand gate compares by family
+  (Pro Cee'd is no Cee'd); a rule-inferred model reached only through an export name needs power or an
+  engine code to resolve.
+- Engine codes: one relation (`engine_relation`): BMW TU marker and replaced type codes per engine head,
+  Saab `/letter`, Mercedes number forms, maker-scoped families (never exact), reviewed alias table
+  (`tecdoc/engine_code_aliases.py`, completeness check), strict comma lists, 204PT shared by two engines.
+- Tolerances: cc within 3 is unverified, not a conflict (never over an exact-cc sibling held back only by
+  its engine code); hp/PS gap (1.01 kW slack) for US makes; Mazda rotary doubled cc; a rounded cc or unit
+  gap needs one exact figure beside it.
+- Code only, no effect until re-normalization / a new catalog batch: tyre and type-approval parsers;
+  promotion gates for single-motor EVs, Table 155 from-only displacement, Petrol/Gas vehicle fuel.
+- Measured vs guards-v4: 30k 19,479 -> 20,289 (67.6%; +829, -19, 4 moved), 20k 12,977 -> 13,543 (67.7%;
+  +583, -17, 4 moved). Lost are honest ties (V70 II/III 1 cc apart, Ceed 2018, Clubman FWD/ALL4, S60
+  T26/T26P) or were wrong (Megane Scenic on a Megane van); moves are Ceed CD -> JD by build month, a 2017
+  Santa Fe -> Grand Santa Fé, a 2008 XC70 -> XC70 II. 7 baseline ties resolved, each on new evidence.
+- Validation: unit 2,385 passed (Golf Variant test fails on purpose), ruff, mypy; three adversarial reviews.
+- Next: 500k live pilot (random registered passenger cars, built locally, loaded onto live); the wrong-fill
+  data step still has to be run by the user (scratch wave1_data.sh).
 
-## 2026-09-21 — Correcting a value the TS data screen already has
+## 2026-10-02 — Wave 1 (precision first): matcher guards measured; wrong-fill guard ready (local, uncommitted)
 
-- Added an override mode to resolution rules so a reviewer can fix a wrong value, not
-  only fill a missing one: the record panel on `/ts-data` now offers **Edit** beside
-  every resolved field, which pins the car's brand and model into the filter and opens
-  the same resolver panel in correction mode. An override rule selects cars whose
-  effective value differs from the one asserted, supersedes the resolution they carried,
-  and writes its own; the projection now reads `coalesce(r_x, n_x)`, so a reviewer's
-  assertion outranks the derivation it corrects, and Retire puts the derived value back.
-  Correcting is opt-in, stored immutably on the rule (`core.match_resolution_rules.override`),
-  and refuses to run until the exact value has been previewed. Validation: ruff, strict
-  mypy, 1213 backend unit tests, 18 web tests, Angular build. Remaining step: the flipped
-  effective-value index ships with the next `refresh-vehicle-facts` run, which runs the
-  vehicle-facts migrations first; until then a `normalized manufacturer` filter is
-  unindexed. Nothing in production was changed.
+- Non-tie diagnosis (21 agents, 20k): 3,859 unresolved non-tie cars explained; ~935 resolvable by code/data,
+  ~500 more by stakeholder decisions, ~490 genuine non-matches; ties stay manual (user decision).
+- Matcher guards (`fuzzy_matching`, `match_run_adapters`): plug-in power lead, electrification conflict
+  (TecDoc engine type 046-049 vs registry), conflict-free suggestion over a hard conflict (inside the
+  registry family), reading disagreements (IONIQ 5 -> 6, V60 vs V60 CROSS COUNTRY), no fall-through to
+  another reading once a guard held one back. Measured vs final-v4: 30k 19,640 -> 19,479 (-161),
+  20k 13,079 -> 12,977 (-102); 0 gained, 0 moved; every lost car is a wrong match before except 3 V60 CC
+  B5 and 1 Lexus CT the registry calls a plug-in. Chunk SIGNATURE_VERSION 3.
+- Wrong-fill guard (`vehicle_model_guard`, patterns, rule eras): reviewed rule by rule; dry run takes back
+  20,845 wrong fills (EX30 CC 13,929, MAZDA2->CX-3 2,727, CC->Passat 1,113, 230->SL 801, Sportage->Sorento
+  710...). The data step (retire 96 changed rules, learn/apply/check, refill ~19.3k) awaits user approval;
+  model families snapshot in scratch. Caravelle/Multivan naming pending.
+- Validation: unit 1,895 passed (Golf Variant test fails on purpose), integration 189 passed, ruff, mypy.
 
-## 2026-09-06 — Corrected unresolved-fields ownership
+## 2026-10-01 — Build months made precise: model lines, engine sizes, estate names (local, uncommitted)
 
-- Confirmed from historical implementation `25cc983` that the intended rule generator is the population-first **Unresolved fields** workflow: unresolved field/value populations, discriminators, rule preview, save, and save-and-run. Corrected Angular navigation and copy so `/coverage` is **Unresolved fields** and `/chunks` is **Match review** for TS-to-TecDoc blockers. The population-first backend endpoints (`/v1/match-review/unresolved`, `/discriminators`, `/rule-preview`, resolution-rule save/apply) are not yet present in the current backend branch; only the coverage shell is currently wired. Angular build passes.
-## 2026-09-06 — Completed Angular unresolved-pattern rule review
+- Months choose only within the car's model line (`_model_line`: TecDoc name without chassis code,
+  generation and the car's own body name). Own-line KTypes are penalized only when a conflict-free KType
+  of that line covers the build month; other lines whenever outside; conflicting KTypes always. Tolerance
+  stays 0 months (`FuzzyMatchConfig.production_month_tolerance`, documented with the measurements).
+- Body names: another body's word keeps a separate line (registered SUV: GLC Coupe != GLC); makers' estate
+  names (T-Model, Turnier, Grandtour, ST, ...) count as bodies; Sportback/SC/GTC/Allroad do not.
+- Registry text: a decimal number ("2.0", "1,6") is an engine size, never a model number ("QASHQAI 2.0" is
+  no Qashqai +2).
+- Final (prod-v4 vs prod-v2): 30k 64.2% -> 65.5% (+410/-32/8 moved), 20k 64.1% -> 65.4% (+279/-24/6).
+  Against plain months 14 wrong moves taken back (Ibiza SC, Pajero Sport, Tiguan Allspace, GLC Coupe,
+  Qashqai +2, C4 Cactus). Every lost/moved car checked; local API points at prod-v4.
+- Next: non-tie diagnosis workflow (candidate-only, power, model missing/text, normalization, engine,
+  body, other conflicts, rule-filled models) -> plan; ties stay for manual choice.
 
-- Replaced the non-existent Angular advisor/chunk endpoints with the live match-review contract: operation summary, blocker patterns, evidence, and versioned `accept_pattern` / `keep_blocked` / `change_rule` decisions. The Angular Match review page now owns the unresolved TS-to-TecDoc rule-proposal workflow; the Rules page remains the catalog browser. Validation: Nx Angular development build and backend compile pass. The current local API reports no active match-review operation, so pattern data remains empty until an audit run is started.
-## 2026-09-06 — Angular agent and MCP standards
+## 2026-10-01 — prod-v4 (v2 + TecDoc months) and build-month matching (local, uncommitted)
 
-- Added repository-level Angular frontend guidance covering standalone components, signals, strict typing, modern template control flow, DI, observable lifetimes, accessibility, focused tests, and CLI validation. Added tracked `.vscode/mcp.json` to start the installed Angular CLI MCP server from `apps/northstar-web`, with `.vscode` otherwise remaining local-only. Validation: confirmed the installed CLI contains the `mcp` command; Angular build/test remain blocked by local Node 18 versus Angular CLI 22's Node 22.22.3 minimum.
-## 2026-08-31 — Exhaustive blocker-pattern inventory
+- Composed `tecdoc-0326-canonical-full-prod-v4-20261001`: every row of prod-v2 (incl. the 829 transmission
+  entities and gearbox attributes from Table 547) + `month_from`/`month_to` from prod-v3. Verified: equal
+  counts, 0 rows differing from v2 beyond the month keys, 0 month values differing from v3, 0 links
+  differing. The Mac mini's 0326 delivery lacks Tables 547-549 (why v3 had no transmissions).
+- Ported the parked month code (`wip/build-month-matching` 2ac626d) onto the working tree.
+- 30k 64.2% -> 65.4% (+410 / -42 lost / 16 moved); independent 20k 64.1% -> 65.4% (+279 / -30 / 11).
+  Lost go to review, mostly builds 1-3 months before TecDoc's start month; some were wrong before (i20
+  built 04/2014 had resolved to the i20 II starting 11/2014). Moves mostly right (Legacy V, XC60 I);
+  4 doubtful (Pajero -> Pajero Sport, Ibiza -> Ibiza SC).
+- Boundary tolerance on the changed cars (both samples): 0 months +686/-72/27 moved; 1 month
+  +563/-52/17; 2 months +444/-37/16; 3 months +341/-21/14. Decision pending; the API still pins prod-v2.
+- The report refuses to compare runs on different catalog batches; compared car by car with a scratch script.
 
-- Added a plate-free `core.match_run_pattern_inventory` aggregate keyed by operation and deterministic pattern, idempotent batch markers, and a paginated `core.match_run_pattern_members` drill-down. Local and remote audit batches now record every blocker pattern with occurrence totals, safe manufacturer/model/KType examples, and source-row membership; the API/frontend label persisted entries `exhaustive` and let stakeholders page through every member vehicle while retaining plates only in the restricted local view. Added `scripts/backfill_match_pattern_inventory.py` for rows processed by an older audit process. Validation: Ruff, strict mypy, Node syntax check, and 23 focused/API tests pass. The audit and historical backfill remain active; no rules, decisions, aliases, Neo4j state, or push changed.
-## 2026-08-31 — Full 6.5M audit and stakeholder blocker workspace
+## 2026-10-01 — Ford Mustang, BYD Atto 3, and model numbers in family comparisons (local, uncommitted)
 
-- Started a resumable, release-pinned audit of all 6,515,471 local passenger rows against the 72,570-candidate v6 catalog. Added mutually exclusive blocker aggregation, a bounded review sampler, API endpoints and a pattern-first frontend for recurring category triage plus plate-level evidence. Each item now explains why matching stopped, compares TS/TecDoc fields, lists evidence gaps, and states the stakeholder decision required; category proposals remain append-only and cannot persist match decisions, attach aliases or write Neo4j. The latest exact checkpoint is 175,000 rows (2.686%), with 17,717 resolved, 15,723 provisional, 125,825 review-required, 20 unmatched, and 13,165 hard conflicts. The full audit remains running. See `docs/TS_TECDOC_FULL_AUDIT_REVIEW_WORKSPACE_2026-08-31.md`.
-## 2026-08-31 — Remote qualifier-loss work merged and reconciled
+- FORD MUSTANG: blocked by six TS cars filed "Gt" (Mustang GTs whose model text "GT 500" TS read as the
+  Ford GT), not by the Mach-E, which has its own text. Reviewed exception (`MISREAD_STATED_FAMILIES`) plus
+  a fuel check in the guard (`REVIEWED_ELECTRIC_FAMILIES`): 5,356 cars -> Mustang, the one electric car
+  (VIN 3FMTK, a Mach-E) refused. A general "count only brand-text-only siblings" fix was tried and
+  reverted: "BMW X3" is also the brand text of 498 X4s.
+- BYD: TecDoc has no ATTO 3; its "YUAN PLUS" (2022-, EV, 150 kW, FWD) is the Atto 3 -> reviewed export
+  name. All Atto 3s now get YUAN PLUS as top candidate but stop on body: registry MPV vs TecDoc SUV (a
+  body ruling for the data owner).
+- Model numbers now count: the matcher's model-word reading no longer binds "ATTO 3" to ATTO 2, and the
+  guard's family comparison separates ID.4/ID.5, Ioniq 5/6, Model 3/Y. It caught 4,028 wrong fills
+  (3,682 "ID.4" that are ID.5s, 346 "DS 7 Crossback" that are DS4/DS3), retracted and refilled.
+- MINI: a family named like the make answers only when no other family's word follows (7 Countryman/
+  Clubman rules retired, 88 fills).
+- FORD USA: TecDoc files every Mustang, the Mach-E, and the US Explorer/Edge/Probe under "FORD USA"; the
+  matcher now looks there (`REVIEWED_SISTER_MAKERS`) only when the car's model is no family under "FORD".
+  30k: 64.0% -> 64.2% (+47 / 0 lost / 0 moved; all 47 agree on year and power). The guard keeps reading
+  under the make ("CUSTOM" on a Transit Custom would name a 1950s Ford).
+- Local DB: no model family 224,888 -> 221,279; check 0 contradictions. Tests 1,808 pass.
+- Independent 20k sample (new seed `northstar-random-20k-2026-10-01`, ~90 cars shared with the 30k): 64.1%
+  resolved, agreeing with the 30k's 64.2%. Hard conflicts 1,115: power 487, engine code 356, displacement
+  208 (197 within 10 cc -- exact-equality comparison), year 142. Engine codes: 35 are the same engine in
+  another format ("H5H-470, H5H-480"), BMW "M57-TU2D30" vs "M57 D30" ~70. Body conflicts 288 (MPV vs SUV 65).
 
-- Merged remote commit `36a29b0` locally as merge `d1470fd`; no push. Added a digest-pinned, read-only v6 qualifier-loss audit and tests. On the frozen 20k cohort, 1,195 rows lose a trailing qualifier; 430 name a unique specific catalog family, of which 189 already resolve, 59 are provisional, 172 remain review-required and 10 are hard conflicts. C3 Picasso mostly already recovers from raw model evidence; C4 Picasso is commonly blocked by bodywork/conflict gates. No rule, decision, alias, PostgreSQL or Neo4j state changed. See `docs/TS_MODEL_QUALIFIER_LOSS_V6_RECONCILIATION_2026-08-31.md`.
-## 2026-08-31 — SCRUM-170/171 promotion cohort dry-run
+## 2026-10-01 — More model family gaps: chassis codes, VIN model year, classics (local, uncommitted)
 
-- Added `scripts/prepare_controlled_match_promotion_cohort.py` and focused tests. It reads PostgreSQL decision heads and the pinned v6 replay/catalog, computes planned v6 immutable decision IDs, excludes aliases requiring retirement, and runs the existing Neo4j promotion preflight in `DRY_RUN` mode. The corrected private evidence packet is `outputs/scrum170-171-controlled-promotion-cohort-v2-20260831.json`: 9,122 heads, 4,650 changed in replay, 4,472 eligible, 4,005 without an active alias, 467 requiring retirement, 1,000 selected, and 1,000/1,000 Neo4j-preflighted with planned v6 IDs. PostgreSQL writes, ledger persistence, aliases, and Neo4j writes are all zero. Focused tests (6), Ruff and strict mypy pass. No push or production activation; explicit approval is still required before any write.
-## 2026-08-31 — Mixed-fuel hard-conflict adjudication
+- Guard reads "GR" as Grand when the spelled-out text names the filled family (Grand Voyager/Vitara).
+- New family MOD-VINY (VIN descriptor + model-year character; holdout 99.98%, 99.5% where the VIN
+  alone is ambiguous). Reviewed chassis codes checked against TecDoc's codes (Honda RD/EU/CG..., Renault
+  BA/JA/KA/KC, Ford P3TS/GNR), aliases (Trans Am -> Firebird, MCC -> City-coupe, M3 -> 3 Series),
+  Stellantis "e-" versions, Volvo P120/111xx (Amazon, PV 544), classic names (Cortina, Spitfire,
+  Valiant, Fiat 124/128, Austin/BMC Mini...). An alias never competes with a TS name ("allroad").
+- Caught: BMW "2002"/"1602"/"2000" are TecDoc versions, not families -- a filled "2002" lost a 2002
+  Turbo on the 30k; names removed, 109 rules retired, 2,004 fills taken back.
+- Local DB: registered passenger cars without model family 256,738 -> 224,888 (279,453 at the start of
+  this pass); check-model-fills 0 contradictions. 30k 64.0% -> 64.1%.
+- Validation: 1,787 tests pass; ruff/mypy clean; Golf Variant test still awaits a decision.
+- Needs decisions: classic Mercedes numbers (~40k, TS has no names before ~1990), classic VW Type 1
+  (~20k) and 1500/1600 (~6k), FORD MUSTANG text shared with Mach-E (~5k), campers/ambulances (~10k).
 
-- Applied the product-owner authorization to all 28 v5→v6 changes touching a hard-conflict terminal. Approved removal of 11 false fuel conflicts where TS single fuel is a component of the TecDoc mixed set, while preserving provisional/review routing and no score. Rejected four Peugeot 3008 III hybrid and 13 MINI petrol candidate-derived hard conflicts; all 17 remain unresolved with no identity approval. Added a versioned plate-free reviewed manifest, exact checksum/count audit and tests. The other 504 changed cases and full v6 policy remain unapproved; no runtime rule, decision, alias, Neo4j state or push changed. See `docs/TS_TECDOC_HARD_CONFLICT_ADJUDICATION_2026-08-31.md`.
-## 2026-08-31 — Persisted-decision replay and safe alias retirement
+## 2026-09-30 — Model family and manufacturer gaps across the registry (local, uncommitted)
 
-- Replayed all 9,122 current TS decision heads against the v6 complete catalog, active normalization rules and approved Volvo context policy: 4,472 remain resolved on the same KType, 4,533 become review-required, 116 provisional and one a hard year conflict; all 356 KType identity changes are non-resolved. Reconciled 1,000 graph aliases: 467 fresh, 518 now review-required and 15 provisional; 35/105 promoted variants have only stale support, while 4,005 resolved decisions remain unpromoted. Added privacy-safe read-only audit tools and immutable, idempotent alias retirement that preserves historical targets and restores `:Provisional` after the last active assertion. Focused unit/integration tests, Ruff and strict mypy pass. No existing decision, alias, graph edge, push or production state changed. See `docs/SCRUM_170_171_SUPERSESSION_AUDIT_2026-08-31.md`.
-## 2026-08-30 — Reviewed Volvo bodywork rules activated locally
+- Reviewed model names (`REVIEWED_MODEL_NAMES`, ~70 makes: ID.7 Tourer, EV3, EV9, bZ4X, Tipo, Punto,
+  Atto 3...), longest-name reading of model and brand text (trims, repeated makes, make aliases like
+  "VW", "GR" = Grand, Volvo "S + V70", Lexus "IS200", one chassis code in front: "FORD DAW FOCUS"),
+  most-used spelling per name ("RAV4" not "Rav 4"), Volvo classic codes (Amazon, 140, 164, P 1800,
+  Duett, 340, 440, 460), Saab model numbers. New families MFR-BW (manufacturer from the brand text's
+  first word: AIS codes "PO"/"CU" missed Polestar/Cupra) and MOD-BRT (brand text reader).
+- Guarded by review: dropped Trans Am (TS files it under Firebird; 915 fills taken back), "SLC" after a
+  number (450 SLC is TecDoc's SL Coupe), "E-" prefixes, codes that start a family name ("ID. POLO").
+  Changed/retired rules retired with retire_rule before re-applying. check-model-fills: 0 contradictions.
+- Local DB: registered passenger cars without model family 648,695 -> 279,453; without manufacturer
+  39,824 -> 3,939. 30k: 63.5% -> 63.9% (+137 over five runs, 0 lost, 0 moved).
+- Validation: 1,767 tests pass; ruff/mypy clean; `test_source_model_rules` still awaits the Golf Variant
+  decision.
+- Open: classic VW Beetle naming (Beetle vs TecDoc KAEFER, ~20k), FORD MUSTANG text shared with Mach-E,
+  guard reading ignores "GR" (Grand Voyager/Vitara refused, ~3.7k), 173k pre-1990 classics, 13.8k with
+  only the make, camper/ambulance conversions left unfilled on purpose.
 
-- Treated the user's instruction as product-owner approval for all 47 exact Volvo XC40/XC60 II AC/estate→SUV compatibility proposals; Golf still gets no invented KType/scoring rule. Added committed reviewed manifest `volvo-bodywork-reviewed-v1-20260830` and wired manifest/version/SHA pins into the integrated matcher and immutable policy pin. Indexed context rules by exact scope. Same v6 20k: resolved 2,346→2,492, provisional 1,883→1,990, review 14,068→13,815, hard conflicts unchanged at 1,590; all 253 changes are exactly in runtime rule scope, all move from review, and zero selected KTypes change. Five additional XC60 siblings share an exact approved scope beyond the 403 proposal rows. Active 1k performance was 117s vs 98s disabled locally. Frozen holdout, ledger, aliases, Neo4j, push and production remain untouched; broader mixed-fuel catalog adjudication still blocks rollout. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`.
+## 2026-09-30 — Model family from the registry model text; Volvo EX40/EC40 reviewed (local, uncommitted)
 
-- Replayed the 146 review→resolved Volvo cases with the pinned active manifest into private `outputs/scrum101-volvo-bodywork-activated-review-packet-20260830.json`; the packet contains raw source evidence, normalized fields, matcher attempts and candidate evidence but remains pending human review. The audit passed all safety gates: 146/146 exact-scope gains, 4–5 technical fields observed per case, no prohibited conflicts, and no independent verdicts assigned. Extended the replay tool to require and verify reviewed context manifest pins for activated reports. No decision-ledger, alias, Neo4j, push or production writes.
+- 136,223 registered passenger cars had model text but no model family: no normalization rule names
+  new models (EX40, EV3, ID.7...) and spellings like "MAZDA6" / "FIAT TIPO" miss the rules. The
+  matcher already reads most of them from the text, so this is a data/evidence fix, not a match gain.
+- New family MOD-MT (manufacturer + model text, reviewed-pattern learner): answers a TS family name
+  up to case/spaces/make prefix, or a reviewed new name (`REVIEWED_MODEL_NAMES`: Volvo EX40, EC40 --
+  TecDoc "EX40 (536)", "EC40 (539)"). A separator between digits counts (Saab 93 is not the 9-3).
+  The same reviewed names let MOD-PAT read "VOLVO EX40" brand texts.
+- Local DB: MOD-MT 72 rules / 25,346 filled (9 Trail Blazer refused by the guard); MOD-PAT +2 rules /
+  3,975 filled; check-model-fills 0 contradictions. Model-less registered passenger cars
+  677,741 -> 648,695. 30k: 63.5% -> 63.5% (+2 / 0 / 0).
+- Validation: 1,717 tests pass, ruff/mypy clean; `test_source_model_rules` still awaits the Golf
+  Variant decision.
+- Found: the text reading behind the guard reads BYD "ATTO 3" as "ATTO 2" (TecDoc lists the Atto 3 as
+  YUAN PLUS); matcher safely sends them to review. Next: review list of new names (ID.7 Tourer, EV3,
+  EV9, bZ4X, Atto 3 -> Yuan Plus, ...).
 
-- Replayed fresh v5 and v6-disabled controls under current matcher digest `fe252a5b5972959e06ba10aa54a3a4a09b1ce8ffb39af7d7627c2d7a149fbb6b`; counts exactly reproduce the prior catalog A/B. Replayed all 532 catalog changes into private `outputs/scrum101-multifuel-catalog-all-change-review-packet-20260830.json`; audit classifies 222 gains, 160 losses, 128 terminal/conflict changes and 22 unresolved-identity changes, all pending review. Extended replay/audit scope to include non-resolved identity/conflict changes with explicit opt-in. No decisions, aliases, graph writes, push or production activation.
+## 2026-09-30 — Body words in TecDoc model names; Volvo/BMW patterns; VIN + length model rules (local, uncommitted)
 
-- Added `docs/TS_TECDOC_MIXED_FUEL_ADJUDICATION_2026-08-30.md` with current-code controls, transition breakdown, repeated KType cohorts and required domain decisions. The v6 catalog remains held until independent adjudication approves mixed-fuel treatment; frozen holdout, SCRUM-171 ledger persistence, SCRUM-170 alias attachment and Neo4j reconciliation remain blocked.
-
-## 2026-08-30 — Controlled mixed-fuel/engine-set activation held at 20k gate
-
-- Implemented set-valued TecDoc mixed-fuel persistence/scoring and full KType engine-set loading, plus a PostgreSQL-only complete-catalog rebuild mode. Rebuilt immutable local v6 catalog: 72,570 KTypes, 57,613 graph-safe, 14,957 candidate-only, 1,805 mixed-fuel promotions, zero Neo4j writes. Volvo activated 0/47 unreviewed bodywork proposals; Golf activated zero redundant/unsupported scoring rules. Same pinned 20k: resolved 2,284→2,346, provisional 2,218→1,883, review 13,788→14,068, hard conflicts 1,597→1,590; 532 changed rows, 22 identity changes, 160 resolved→review. Activation is held before the unscored holdout pending independent review. Ruff, targeted mypy, compilation, focused PostgreSQL/Neo4j integrations and 813 effective tests pass; one unrelated broad-mypy baseline error remains in `scripts/generate_golden_corpus.py`. Added evidence comments to SCRUM-170/173/174/175 without status changes. See `docs/TS_TECDOC_ACTIVATION_2026-08-30.md`. No push, decision persistence, alias attachment or graph mutation.
-
-## 2026-08-30 — PR #32 green and Jira acceptance audit
-
-- Replaced the stale `normalization-pipeline-v5` integration assertion with the canonical pipeline-version constant and pushed commit `f88d5b1` to PR #32. Local branch and synthetic-merge validation passed compilation, Ruff, mypy for 113 source files, all 205 golden cases, and all 813 tests; GitHub CI run 33306864077 passed both jobs. Audited SCRUM-164–175 and moved only directly worked SCRUM-172–175 to In Progress because the Jira workflow has no In Review state, adding ticket-specific evidence and remaining-risk comments. SCRUM-164–171 were left unchanged. See `docs/SCRUM_164_175_RECOVERY_STATUS_2026-08-30.md`. No rule activation, match-decision persistence, alias attachment, Neo4j write, PR merge, or Jira Done transition occurred.
-
-## 2026-08-28 — PR #32 published
-
-- Committed the integrated matcher, independent approval evidence tooling, mixed-fuel evidence model, full-source audit, tests and gate documentation as `b7b267e`, pushed `feature/SCRUM-101-integrated-matcher-validation`, and opened [PR #32](https://github.com/kastriotrama/northstar/pull/32) targeting `develop`. Local validation passed: 727 unit tests, focused evidence tests, Ruff, strict mypy, compile and diff checks. GitHub checks are running (`images` in progress, `backend` queued). No catalog rebuild, rule activation, decision persistence, alias attachment or Neo4j mutation was performed.
-
-## 2026-08-31 — Frozen mixed-fuel candidate validated locally
-
-- Completed all four requested gates. Reviewed and checksum-pinned all 532 v5→v6 development changes: 222 stable-identity gains, 277 conservative downgrades, 11 false fuel-conflict removals, and 22 rejected candidate identity changes. Added exact Peugeot HNSU source-model repair rules; the final v6 control is 2,492 resolved, 1,990 provisional, 13,819 review-required, 1,586 hard conflicts, 112 policy exclusions and one normalization review out of 20,000. The 11,629-row / 11,107-group frozen holdout passed: zero new hard conflicts, zero changed resolved identities, zero unsafe resolution gains and zero resolved conflict reasons. Final pins are recorded in `ingestion/release_manifests/ts_tecdoc_matcher_candidate_v1_20260831.json`; implementation commits are `d1ed4b0` and `823a830`. 763 tests, Ruff, strict mypy, compile and read-only PostgreSQL integration pass. Match decisions, aliases, Neo4j, production activation and pushes remain untouched.
-
-## 2026-08-31 — Added exhaustive blocker pattern drilldown
-
-- Added persisted, plate-free pattern inventory members and a paginated local review drilldown so stakeholders can inspect every vehicle in a grouped blocker pattern, including restricted local plate evidence and source record IDs. The API and review UI now expose exhaustive pattern coverage with per-pattern vehicle pages; the full audit and member backfill remain active from the 400,000-row checkpoint. Focused tests, Ruff, strict mypy and frontend syntax checks pass. No push, match-decision persistence, alias activation or Neo4j mutation was performed.
-
-## 2026-08-31 — Defaulted pattern review to a compact top-10 view
-
-- The blocker-pattern table now shows the ten highest-occurrence patterns first, with explicit Top 25, Top 50, and All patterns choices. The complete inventory and per-pattern vehicle drilldown remain available. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Added general domain decision summary
-
-- Added a compact review-screen summary for the three cross-vehicle decisions that drive the merge: TS bodywork vocabulary, mixed-fuel representation, and `is_4wd=0` drive ambiguity. Each card shows one plain-language example and links to grouped patterns; no plate-level data is shown in the summary. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Expanded hard technical conflict explanations
-
-- Added a hard-conflict-only technical breakdown in the pattern inspector. It translates conflicting fields into plain-language causes and required independent evidence for power, displacement, fuel, engine, drive, year, and bodywork, while keeping plate-level details behind the existing member drilldown. Integration tests, Ruff and JavaScript syntax checks pass; no matcher data or graph state changed.
-
-## 2026-08-31 — Added exact hard-conflict field comparisons
-
-- Added a plate-free technical-evidence endpoint and inspector section that compares representative TS values with actual TecDoc candidate values per conflicting field, including KType references. This makes the review decision actionable instead of reporting only a generic mismatch. Focused tests, Ruff, strict mypy and JavaScript syntax checks pass; no matcher data or graph state changed.
-
+- Matcher: when a car's registered body equals a KType's body, a body word in the KType's name that
+  names that body ("OCTAVIA III Combi", "V40 Hatchback", "CADDY IV MPV") no longer counts against the
+  model text. Before, the hatchback sibling outscored the right estate KType on text and the car went
+  to review. Words that tell models apart are kept ("GLC Coupe" is an SUV in TecDoc, "XC60 I SUV",
+  "COROLLA Compact").
+- Model family: Volvo 85x codes -> 850 and multi-group codes ("244-410-2111"); BMW "323I/2"; new
+  family MOD-VINL (manufacturer + VIN descriptor + length; Peugeot 3008/5008, holdout 99.99%).
+  Fixed a MOD-PAT re-learn bug that would have retired ~1,250 rules whose cars were all filled.
+  Local DB: MOD-VINL 13,044 + MOD-PAT 35,402 filled; 66 older MOD-VIN Grand California fills
+  retracted; model-less registered passenger cars 721,810 -> 677,741. Live untouched.
+- Seeded 30k (Mac mini, prod-v2): 60.7% -> 63.0% (body words: +710 / -1 genuine 206 tie / 0 moved)
+  -> 63.5% (model fills: +145 / 0 / 0). Skoda 85%. 16 "engine differ" gains are B5252S vs TecDoc
+  "B 5252" (same engine).
+- Validation: 1,699 tests pass; ruff, mypy clean. One failure kept on purpose:
+  `test_source_model_rules` encodes the 2026-08-28 decision that body alone must not settle
+  Golf vs Golf Variant (14 VW Variant gains in the 30k) -- needs the user's decision.
+- Next: decide Variant; Volvo EX40/EC40 (~13k cars with model text but no family); Volvo 140/Amazon/340
+  codes blocked by the TS vocabulary; 50k set not on the Mac mini.
