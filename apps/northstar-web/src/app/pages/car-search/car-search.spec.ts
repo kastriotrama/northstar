@@ -217,6 +217,85 @@ describe('CarSearchPage', () => {
     expect(host.querySelector('ns-ktype-candidates')).toBe(panel.nativeElement);
   });
 
+  it('shows a person’s choice on the car’s row and in its record as soon as it is made', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    const cell = () => host.querySelector('tbody tr td:last-child')?.textContent?.replace(/\s+/g, ' ').trim();
+    expect([...host.querySelectorAll('thead th')].at(-1)?.textContent).toBe('KType');
+    expect(cell()).toBe('—');
+    host.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush(RECORD);
+    fixture.detectChanges();
+    http.match(() => true).forEach((request) => request.flush({}, { status: 503, statusText: 'x' }));
+    const panel = fixture.debugElement.query(By.directive(KTypeCandidates))
+      .componentInstance as KTypeCandidates;
+    const answer = (choice: object | null, fields: NorVehicleRecord['fields'] = RECORD.fields) => {
+      panel.choiceChanged.emit({ choice } as VehicleMatchLookup);
+      fixture.detectChanges();
+      http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush({ ...RECORD, fields });
+      fixture.detectChanges();
+    };
+    const source = { source: 'review', ref: 'c1', observed_on: '2026-10-02', origin: false };
+
+    answer({ status: 'chosen', ktype: '000010064' }, [
+      { field: 'ktype', label: 'KType', group: 'match', value: '000010064', source, alternatives: [] },
+      { field: 'match_state', label: 'Match state', group: 'match', value: 'manual', source, alternatives: [] },
+    ]);
+    expect(cell()).toBe('000010064');
+    expect(host.querySelector('tbody tr td:last-child .review')?.getAttribute('title')).toBe('Chosen by a person');
+    const record = host.querySelector('.record')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(record).toContain('Match stateKType chosen by a person');
+    expect(record).toContain("A person's choice");
+    expect(record).not.toContain('manual');
+
+    answer({ status: 'none', ktype: null }, [
+      { field: 'match_state', label: 'Match state', group: 'match', value: 'manual_none', source, alternatives: [] },
+    ]);
+    expect(cell()).toBe('none of these');
+    expect(host.querySelector('.record')?.textContent).toContain('“None of these”, decided by a person');
+
+    answer({ status: 'withdrawn', ktype: null });
+    expect(cell()).toBe('—');
+  });
+
+  it('filters to cars a person decided, and Clear takes the filter away', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    const select = host.querySelector('select[aria-label="KType choice"]') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent?.trim())).toEqual([
+      'Any', 'Decided by a person', 'KType chosen', '“None of these”',
+    ]);
+    const choose = async (value: string) => {
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      const [request] = await settle(fixture);
+      return (request.request.body.conditions as { field: string }[]).filter(
+        (condition) => condition.field === 'match_state',
+      );
+    };
+
+    expect(await choose('decided')).toEqual([
+      { field: 'match_state', operator: 'equals', values: ['manual', 'manual_none'] },
+    ]);
+    expect(await choose('chosen')).toEqual([
+      { field: 'match_state', operator: 'equals', values: ['manual'] },
+    ]);
+    expect(await choose('none')).toEqual([
+      { field: 'match_state', operator: 'equals', values: ['manual_none'] },
+    ]);
+
+    const clear = host.querySelector('.search__filters p-button button') as HTMLButtonElement;
+    expect(clear.disabled).toBe(false);
+    clear.click();
+    const [request] = await settle(fixture);
+    expect(JSON.stringify(request.request.body.conditions)).not.toContain('match_state');
+    expect(select.value).toBe('any');
+  });
+
   it('filters by registry status', async () => {
     const fixture = render();
     await settle(fixture);

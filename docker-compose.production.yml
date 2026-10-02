@@ -68,6 +68,10 @@ services:
       context: .
       dockerfile: Dockerfile
       target: api
+      args:
+        # deploy.sh sets the commit; the image carries it from then on, so starting
+        # the container later without deploy.sh does not lose it.
+        BUILD_VERSION: ${NORTHSTAR_BUILD_VERSION:-unknown}
     environment:
       ENVIRONMENT: production
       LOG_LEVEL: ${NORTHSTAR_LOG_LEVEL:-INFO}
@@ -82,8 +86,6 @@ services:
       # Unpinned, the matching endpoints take the newest catalog batch, which on a
       # database holding integration-test batches is a 1-3 KType test catalog.
       TECDOC_MATCH_CATALOG_BATCH: ${NORTHSTAR_TECDOC_MATCH_CATALOG_BATCH:-}
-      # Recorded with each KType choice a person makes; deploy.sh sets the commit.
-      BUILD_VERSION: ${NORTHSTAR_BUILD_VERSION:-unknown}
       RESOLVED_MATCH_SHOWCASE_PATH: /run/northstar-private/ts-ktype-resolved-showcase-1000.json
     volumes:
       - ${NORTHSTAR_PRIVATE_DATA_DIRECTORY:-/opt/northstar-private}:/run/northstar-private:ro

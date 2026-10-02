@@ -17,8 +17,8 @@ from psycopg import Connection
 
 from ingestion.vehicle_core_migrations import VEHICLES_TABLE
 from ingestion.vehicle_ktype_choice_migrations import (
-    ONE_ROOT_INDEX,
-    SUPERSEDES_ONCE_INDEX,
+    POSITION_KEY,
+    SUPERSEDES_FOREIGN_KEY,
     VEHICLE_FOREIGN_KEY,
 )
 from ingestion.vehicle_ktype_choices import (
@@ -43,6 +43,10 @@ class ChoiceVehicleNotFoundError(LookupError):
 
 class VehicleBusyError(RuntimeError):
     """The vehicle's row is locked by another writer; retry with the same operation id."""
+
+
+class ChoiceRejectedError(Exception):
+    """The database refused the row for good: sending the same request again cannot succeed."""
 
 
 class KTypeChoiceRepository:
@@ -77,8 +81,10 @@ class KTypeChoiceRepository:
         """Append `new` on top of the head it names and refresh the vehicle's copy.
 
         Returns `(row, created, history_count)`. Raises the append's own errors,
-        `ChoiceVehicleNotFoundError`, or `VehicleBusyError`; any other database
-        error propagates and nothing is written.
+        `ChoiceVehicleNotFoundError`, `VehicleBusyError` (retry), or
+        `ChoiceRejectedError` when the database refuses the content itself (a
+        value it cannot store, a constraint) -- a retry would fail the same way.
+        Any other database error propagates. Nothing is written on any error.
         """
 
         with self._connection_factory() as connection:
@@ -104,13 +110,16 @@ class KTypeChoiceRepository:
             except psycopg.errors.IntegrityError as error:
                 connection.rollback()
                 constraint = error.diag.constraint_name
-                if constraint in (SUPERSEDES_ONCE_INDEX, ONE_ROOT_INDEX):
+                if constraint in (POSITION_KEY, SUPERSEDES_FOREIGN_KEY):
                     raise ChoiceChangedError(
                         "The car's current choice is not the one that was shown."
                     ) from error
                 if constraint == VEHICLE_FOREIGN_KEY:
                     raise ChoiceVehicleNotFoundError(new.vehicle_id) from error
-                raise
+                raise ChoiceRejectedError("The database refused this choice.") from error
+            except psycopg.errors.DataError as error:
+                connection.rollback()
+                raise ChoiceRejectedError("The request holds a value that cannot be stored.") from error
             except BaseException:
                 connection.rollback()
                 raise

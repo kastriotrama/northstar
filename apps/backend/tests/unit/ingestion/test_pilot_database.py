@@ -80,7 +80,7 @@ def test_only_these_slice_tables_carry_a_predicate_besides_their_key() -> None:
         "staging.oem_vin_evidence", "core.match_chunk_samples",
         "staging.transportstyrelsen_raw", "core.normalization_results", "core.vehicle_facts",
         "core.review_queue", "core.vehicles", "core.vehicle_identifiers",
-        "core.vehicle_source_links", "core.enrichment_ledger",
+        "core.vehicle_source_links", "core.enrichment_ledger", "core.vehicle_ktype_choices",
     }
 
 
@@ -132,6 +132,7 @@ def test_parents_come_before_their_children_in_the_load_order() -> None:
         ("core.match_resolution_rules", "core.match_field_resolutions"),
         ("core.vehicles", "core.vehicle_identifiers"),
         ("core.vehicles", "core.vehicle_source_links"),
+        ("core.vehicles", "core.vehicle_ktype_choices"),
         ("core.match_runs", "core.match_review_rule_decisions"),
     ):
         assert order.index(parent) < order.index(child)
@@ -144,9 +145,13 @@ def test_only_the_recounted_counters_are_left_out_of_the_content_check() -> None
     }
 
 
-def test_the_schema_comes_from_all_fourteen_migration_sets() -> None:
-    assert len(PILOT_MIGRATIONS) == 14
-    assert len({name for name, _ in PILOT_MIGRATIONS}) == 14
+def test_the_schema_comes_from_all_fifteen_migration_sets() -> None:
+    names = [name for name, _ in PILOT_MIGRATIONS]
+    assert len(names) == 15
+    assert len(set(names)) == 15
+    # People's KType choices reference core.vehicles: the API's lookups read the
+    # table, so a pilot without it answers 503.
+    assert names.index("vehicle core") < names.index("vehicle ktype choices")
 
 
 def test_the_slice_query_is_the_seeded_sample_of_registered_cars() -> None:

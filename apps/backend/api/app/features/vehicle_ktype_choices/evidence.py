@@ -83,7 +83,11 @@ def snapshot(lookup: VehicleMatchLookup, code_version: str) -> dict[str, Any]:
         "separating_fields": list(lookup.separating_fields),
         "missing_separating_fields": list(lookup.missing_separating_fields),
         "source_record_id": lookup.source_record_id,
-        "versions": {"code": code_version, "confidence_policy": CONFIDENCE_POLICY_VERSION},
+        "versions": {
+            "code": code_version,
+            "confidence_policy": CONFIDENCE_POLICY_VERSION,
+            "rule_set": lookup.rule_set_version,
+        },
     }
 
 

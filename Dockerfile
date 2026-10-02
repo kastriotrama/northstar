@@ -28,6 +28,12 @@ USER appuser
 # EXPOSE is documentation only; remap the host port at runtime (-p host:8000).
 FROM base AS api
 
+# The code version stored with each KType choice a person makes. Baked into the
+# image, so a container started by any `docker compose up` -- not only through
+# deploy.sh -- reports the version it was built from.
+ARG BUILD_VERSION=unknown
+ENV BUILD_VERSION=${BUILD_VERSION}
+
 EXPOSE 8000
 CMD ["/bin/sh", "-c", "exec uvicorn api.main:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8000}"]
 

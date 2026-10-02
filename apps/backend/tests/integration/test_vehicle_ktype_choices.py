@@ -12,6 +12,7 @@ scripted: these tests are about storage and staleness, not about scoring.
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from typing import Any
@@ -24,6 +25,7 @@ from psycopg.conninfo import make_conninfo
 from psycopg.types.json import Jsonb
 
 from api.app.features.vehicle_ktype_choices.repository import (
+    ChoiceRejectedError,
     ChoiceVehicleNotFoundError,
     KTypeChoiceRepository,
     VehicleBusyError,
@@ -167,7 +169,7 @@ def _count(db: Connection) -> int:
 
 
 _COLUMNS = (
-    "choice_id", "vehicle_id", "action", "ktype", "supersedes_choice_id", "reviewer", "reason",
+    "choice_id", "vehicle_id", "chain_position", "action", "ktype", "supersedes_choice_id", "reviewer", "reason",
     "catalog_batch", "automatic_terminal", "automatic_ktype", "code_version",
     "evidence_fingerprint", "evidence",
 )
@@ -176,16 +178,33 @@ _COLUMNS = (
 def _raw_insert(db: Connection, vehicle_id: str, **overrides: Any) -> UUID:
     """INSERT by plain SQL, past every Python check: only the database decides."""
 
-    new = _new(vehicle_id)
-    values = {column: getattr(new, column) for column in _COLUMNS}
-    values.update(overrides)
-    values["evidence"] = Jsonb(values["evidence"])
+    values = _raw_values(vehicle_id, **overrides)
     db.execute(
         f"INSERT INTO {TABLE} ({', '.join(_COLUMNS)}) "
         f"VALUES ({', '.join(['%s'] * len(_COLUMNS))})",
-        [values[column] for column in _COLUMNS],
+        values,
     )
-    return values["choice_id"]  # type: ignore[no-any-return]
+    return values[0]  # type: ignore[no-any-return]
+
+
+def _raw_values(vehicle_id: str, **overrides: Any) -> list[Any]:
+    """One row's values in `_COLUMNS` order; position 0 unless the test says otherwise."""
+
+    new = _new(vehicle_id)
+    values = {column: getattr(new, column, 0) for column in _COLUMNS}
+    values.update(overrides)
+    values["evidence"] = Jsonb(values["evidence"])
+    return [values[column] for column in _COLUMNS]
+
+
+def _raw_insert_many(db: Connection, rows: list[list[Any]]) -> None:
+    """Several rows in ONE statement, the way a bulk load or an import writes them."""
+
+    row = f"({', '.join(['%s'] * len(_COLUMNS))})"
+    db.execute(
+        f"INSERT INTO {TABLE} ({', '.join(_COLUMNS)}) VALUES {', '.join([row] * len(rows))}",
+        [value for values in rows for value in values],
+    )
 
 
 def _refused(db: Connection, vehicle_id: str, **overrides: Any) -> str | None:
@@ -206,37 +225,48 @@ def test_the_migration_is_idempotent_and_its_contract_verifies(db: Connection) -
     verify_vehicle_ktype_choice_schema_contract(db)
 
 
+_FUNCTION = "core.vehicle_ktype_choices_block_mutation"
+_ROW_TRIGGER = "vehicle_ktype_choices_append_only"
+_LINK = "vehicle_ktype_choices_supersedes_previous_fkey"
+_LINK_DEFINITION = (
+    "FOREIGN KEY (supersedes_choice_id, vehicle_id, supersedes_position) "
+    f"REFERENCES {TABLE} (choice_id, vehicle_id, chain_position)"
+)
+
 _DRIFTS: dict[str, tuple[str, ...]] = {
     "a dropped check": (
         f"ALTER TABLE {TABLE} DROP CONSTRAINT vehicle_ktype_choices_ktype_was_shown",
     ),
-    "a disabled row trigger": (
-        f"ALTER TABLE {TABLE} DISABLE TRIGGER vehicle_ktype_choices_append_only",
-    ),
+    "a disabled row trigger": (f"ALTER TABLE {TABLE} DISABLE TRIGGER {_ROW_TRIGGER}",),
     "a disabled truncate trigger": (
         f"ALTER TABLE {TABLE} DISABLE TRIGGER vehicle_ktype_choices_append_only_truncate",
     ),
-    "the once-only index no longer unique": (
-        "DROP INDEX core.vehicle_ktype_choices_supersedes_once_idx",
-        (
-            "CREATE INDEX vehicle_ktype_choices_supersedes_once_idx "
-            f"ON {TABLE} (supersedes_choice_id) WHERE supersedes_choice_id IS NOT NULL"
-        ),
+    "the position no longer unique per vehicle": (
+        f"ALTER TABLE {TABLE} DROP CONSTRAINT {_LINK}",
+        f"ALTER TABLE {TABLE} DROP CONSTRAINT vehicle_ktype_choices_position_key",
     ),
-    "the one-root index without its predicate": (
-        "DROP INDEX core.vehicle_ktype_choices_one_root_idx",
-        f"CREATE UNIQUE INDEX vehicle_ktype_choices_one_root_idx ON {TABLE} (vehicle_id)",
+    "the root rule dropped": (
+        f"ALTER TABLE {TABLE} DROP CONSTRAINT vehicle_ktype_choices_root_supersedes_nothing",
     ),
     "a column made mandatory": (f"ALTER TABLE {TABLE} ALTER COLUMN reason SET NOT NULL",),
     "a dropped default": (f"ALTER TABLE {TABLE} ALTER COLUMN created_at DROP DEFAULT",),
     "an extra column": (f"ALTER TABLE {TABLE} ADD COLUMN note TEXT",),
-    "a dropped composite foreign key": (
+    "a dropped link foreign key": (f"ALTER TABLE {TABLE} DROP CONSTRAINT {_LINK}",),
+    # Same-named but weaker objects: caught by definition, not by name.
+    "a link that no longer carries the position": (
+        f"ALTER TABLE {TABLE} DROP CONSTRAINT {_LINK}",
         (
-            f"ALTER TABLE {TABLE} "
-            "DROP CONSTRAINT vehicle_ktype_choices_supersedes_same_vehicle_fkey"
+            f"ALTER TABLE {TABLE} ADD CONSTRAINT {_LINK} "
+            f"FOREIGN KEY (supersedes_choice_id) REFERENCES {TABLE} (choice_id)"
         ),
     ),
-    # A same-named but weaker constraint: caught by definition, not by name.
+    "a deferrable link": (
+        f"ALTER TABLE {TABLE} DROP CONSTRAINT {_LINK}",
+        (
+            f"ALTER TABLE {TABLE} ADD CONSTRAINT {_LINK} {_LINK_DEFINITION} "
+            "DEFERRABLE INITIALLY DEFERRED"
+        ),
+    ),
     "a weaker check under the same name": (
         f"ALTER TABLE {TABLE} DROP CONSTRAINT vehicle_ktype_choices_action_values",
         (
@@ -244,6 +274,34 @@ _DRIFTS: dict[str, tuple[str, ...]] = {
             "CHECK (action <> '')"
         ),
     ),
+    "a trigger that never fires": (
+        (
+            f"CREATE OR REPLACE TRIGGER {_ROW_TRIGGER} BEFORE UPDATE OR DELETE ON {TABLE} "
+            f"FOR EACH ROW WHEN (false) EXECUTE FUNCTION {_FUNCTION}()"
+        ),
+    ),
+    "a trigger guarding one column only": (
+        (
+            f"CREATE OR REPLACE TRIGGER {_ROW_TRIGGER} BEFORE UPDATE OF reason OR DELETE "
+            f"ON {TABLE} FOR EACH ROW EXECUTE FUNCTION {_FUNCTION}()"
+        ),
+    ),
+    "a trigger function that no longer refuses": (
+        (
+            f"CREATE OR REPLACE FUNCTION {_FUNCTION}() RETURNS trigger LANGUAGE plpgsql "
+            "AS $$ BEGIN RETURN NEW; END $$"
+        ),
+    ),
+    "an extra trigger": (
+        (
+            f"CREATE TRIGGER vehicle_ktype_choices_rewrite BEFORE INSERT ON {TABLE} "
+            "FOR EACH ROW EXECUTE FUNCTION suppress_redundant_updates_trigger()"
+        ),
+    ),
+    "a rule that swallows deletes": (
+        f"CREATE RULE quiet_delete AS ON DELETE TO {TABLE} DO INSTEAD NOTHING",
+    ),
+    "an unlogged table": (f"ALTER TABLE {TABLE} SET UNLOGGED",),
 }
 
 
@@ -257,6 +315,21 @@ def test_schema_drift_is_caught_by_definition(db: Connection, drift: str) -> Non
     db.rollback()
 
     verify_vehicle_ktype_choice_schema_contract(db)
+
+
+def test_a_migration_rerun_restores_the_triggers_and_their_function(db: Connection) -> None:
+    """The deploy step reruns the migration, so a weakened trigger does not survive it."""
+
+    db.execute(_DRIFTS["a trigger that never fires"][0])
+    db.execute(_DRIFTS["a trigger function that no longer refuses"][0])
+    db.commit()
+
+    run_vehicle_ktype_choice_migrations(db)
+
+    _append(db, _new(_vehicle(db)))
+    with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+        db.execute(f"DELETE FROM {TABLE}")
+    db.rollback()
 
 
 def test_a_failed_verification_rolls_the_migration_back(db: Connection) -> None:
@@ -280,6 +353,16 @@ def test_a_failed_verification_rolls_the_migration_back(db: Connection) -> None:
         f"UPDATE {TABLE} SET ktype = 'B'",
         f"DELETE FROM {TABLE}",
         f"TRUNCATE {TABLE}",
+        "TRUNCATE core.vehicles CASCADE",
+        (
+            f"INSERT INTO {TABLE} ({', '.join(_COLUMNS)}) "
+            f"SELECT {', '.join(_COLUMNS)} FROM {TABLE} "
+            "ON CONFLICT (choice_id) DO UPDATE SET reviewer = 'someone else'"
+        ),
+        (
+            f"MERGE INTO {TABLE} AS t USING (SELECT 1) AS s ON true "
+            "WHEN MATCHED THEN UPDATE SET reason = 'rewritten'"
+        ),
     ],
 )
 def test_the_database_refuses_to_change_or_remove_a_choice(db: Connection, statement: str) -> None:
@@ -445,36 +528,97 @@ def test_an_unknown_vehicle_is_not_found(db: Connection) -> None:
 # ------------------------------------------------------------ invalid correction links
 
 
+_POSITION_KEY = "vehicle_ktype_choices_position_key"
+
+
 def test_the_chain_is_linear_and_stays_on_one_vehicle(db: Connection) -> None:
     vehicle_id, other = _vehicle(db), _other_vehicle(db)
     root = _append(db, _new(vehicle_id))
     second = _append(db, _new(vehicle_id, ktype="B", supersedes_choice_id=root))
 
     # Superseding another vehicle's row.
-    assert _refused(db, other, supersedes_choice_id=second) == (
-        "vehicle_ktype_choices_supersedes_same_vehicle_fkey"
-    )
+    assert _refused(db, other, chain_position=2, supersedes_choice_id=second) == _LINK
     # A second successor of a row already superseded.
-    assert _refused(db, vehicle_id, supersedes_choice_id=root) == (
-        "vehicle_ktype_choices_supersedes_once_idx"
-    )
+    assert _refused(db, vehicle_id, chain_position=1, supersedes_choice_id=root) == _POSITION_KEY
+    # A link that skips a row: position 2 must supersede position 1, not the root.
+    assert _refused(db, vehicle_id, chain_position=2, supersedes_choice_id=root) == _LINK
     # A second root for the vehicle.
-    assert _refused(db, vehicle_id) == "vehicle_ktype_choices_one_root_idx"
+    assert _refused(db, vehicle_id) == _POSITION_KEY
+    # A row with a predecessor claiming to be a root, and a root claiming a predecessor.
+    assert _refused(db, other, supersedes_choice_id=second) == (
+        "vehicle_ktype_choices_root_supersedes_nothing"
+    )
+    assert _refused(db, vehicle_id, chain_position=2) == (
+        "vehicle_ktype_choices_root_supersedes_nothing"
+    )
     # A row superseding itself, and one superseding a row that does not exist.
     own = uuid4()
-    assert _refused(db, other, choice_id=own, supersedes_choice_id=own) == (
-        "vehicle_ktype_choices_not_self"
-    )
-    assert _refused(db, vehicle_id, supersedes_choice_id=uuid4()) == (
-        "vehicle_ktype_choices_supersedes_same_vehicle_fkey"
+    assert _refused(db, other, choice_id=own, chain_position=1, supersedes_choice_id=own) == _LINK
+    assert _refused(db, vehicle_id, chain_position=2, supersedes_choice_id=uuid4()) == _LINK
+    assert _refused(db, other, chain_position=-1, supersedes_choice_id=uuid4()) == (
+        "vehicle_ktype_choices_position_nonnegative"
     )
     assert _count(db) == 2
+
+
+def test_one_statement_cannot_store_a_cycle_or_a_detached_chain(db: Connection) -> None:
+    """What an import or a bulk copy could send: several rows checked together at the end."""
+
+    vehicle_id, other = _vehicle(db), _other_vehicle(db)
+    first, second, third = uuid4(), uuid4(), uuid4()
+
+    def refused(rows: list[list[Any]]) -> str | None:
+        with pytest.raises(psycopg.errors.IntegrityError) as caught:
+            _raw_insert_many(db, rows)
+        db.rollback()
+        return caught.value.diag.constraint_name
+
+    # Two rows superseding each other: no root, no head.
+    assert refused([
+        _raw_values(vehicle_id, choice_id=first, chain_position=1, supersedes_choice_id=second),
+        _raw_values(vehicle_id, choice_id=second, chain_position=2, supersedes_choice_id=first),
+    ]) == _LINK
+    assert refused([
+        _raw_values(vehicle_id, choice_id=first, chain_position=1, supersedes_choice_id=second),
+        _raw_values(vehicle_id, choice_id=second, chain_position=1, supersedes_choice_id=first),
+    ]) == _POSITION_KEY
+    # A cycle beside a real chain.
+    root = _append(db, _new(vehicle_id))
+    assert refused([
+        _raw_values(vehicle_id, choice_id=first, chain_position=5, supersedes_choice_id=second),
+        _raw_values(vehicle_id, choice_id=second, chain_position=4, supersedes_choice_id=third),
+        _raw_values(vehicle_id, choice_id=third, chain_position=3, supersedes_choice_id=first),
+    ]) == _LINK
+    # A chain with a gap: position 2 with nothing at position 1.
+    assert refused([
+        _raw_values(vehicle_id, choice_id=first, chain_position=2, supersedes_choice_id=root),
+    ]) == _LINK
+    # A chain whose links cross into another vehicle.
+    assert refused([
+        _raw_values(other, choice_id=first),
+        _raw_values(vehicle_id, choice_id=second, chain_position=1, supersedes_choice_id=first),
+    ]) == _LINK
+    assert _count(db) == 1
+
+    # A whole valid chain in one statement passes in any row order (newest first here).
+    _raw_insert_many(db, [
+        _raw_values(other, choice_id=third, chain_position=2, action="withdraw", ktype=None,
+                    supersedes_choice_id=second),
+        _raw_values(other, choice_id=second, chain_position=1, ktype="B",
+                    supersedes_choice_id=first),
+        _raw_values(other, choice_id=first),
+    ])
+    db.commit()
+    assert [row.choice_id for row in chain(db, other)] == [third, second, first]
+    found = current_choice(db, other)
+    assert found is not None and (found[0].choice_id, found[1]) == (third, 3)
 
 
 @pytest.mark.parametrize(
     ("overrides", "constraint"),
     [
         ({"action": "withdraw", "ktype": None}, "vehicle_ktype_choices_withdraw_supersedes"),
+        ({"chain_position": 1}, "vehicle_ktype_choices_root_supersedes_nothing"),
         ({"action": "choose", "ktype": None}, "vehicle_ktype_choices_ktype_matches_action"),
         ({"action": "choose", "ktype": " "}, "vehicle_ktype_choices_ktype_matches_action"),
         ({"action": "none", "ktype": "A"}, "vehicle_ktype_choices_ktype_matches_action"),
@@ -592,6 +736,90 @@ def test_the_copy_is_recomputed_from_the_choices(db: Connection) -> None:
     assert _copy(db, other)[:4] == (None, None, None, None)
 
 
+def test_a_stray_copy_without_any_choice_is_cleared(db: Connection) -> None:
+    """Repair scope: a KType or a source key nobody chose, with no match state to find it by."""
+
+    vehicle_id, other = _vehicle(db), _other_vehicle(db)
+    clean = _copy(db, vehicle_id), _copy(db, other)
+    db.execute("UPDATE core.vehicles SET ktype = 'X' WHERE vehicle_id = %s", (vehicle_id,))
+    db.execute(
+        "UPDATE core.vehicles SET field_sources = field_sources || %s WHERE vehicle_id = %s",
+        (Jsonb({"match_state": "review:gone@2026-01-01"}), other),
+    )
+    db.commit()
+
+    assert project_choices(db, None) == 2
+    db.commit()
+
+    assert (_copy(db, vehicle_id), _copy(db, other)) == clean
+    assert project_choices(db, None) == 0
+
+
+def _waits_for_a_lock(db: Connection) -> bool:
+    row = db.execute("SELECT count(*) FROM pg_locks WHERE NOT granted").fetchone()
+    db.commit()
+    return bool(row and row[0])
+
+
+def test_the_repair_keeps_a_source_key_another_writer_commits_meanwhile(db: Connection) -> None:
+    """The repair runs without the row lock: it must rebuild `field_sources` from the row
+    as it is when the update lands, not from the read that planned it."""
+
+    vehicle_id = _vehicle(db)
+    append_choice(db, _new(vehicle_id), None)  # a choice whose copy is not written yet
+    db.commit()
+    result: list[Any] = []
+
+    def repair() -> None:
+        with _connection(db) as connection:
+            result.append(project_choices(connection, None))
+            connection.commit()
+
+    with _connection(db) as writer:
+        writer.execute(
+            "UPDATE core.vehicles SET field_sources = field_sources || %s WHERE vehicle_id = %s",
+            (Jsonb({"colour": "ais:record-9@2026-09-30"}), vehicle_id),
+        )
+        thread = threading.Thread(target=repair)
+        thread.start()
+        deadline = time.monotonic() + 10
+        while not _waits_for_a_lock(db) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert _waits_for_a_lock(db), "the repair should be waiting for the writer's row"
+        writer.commit()
+        thread.join(timeout=30)
+    try:
+        assert result == [1]
+        row = db.execute(
+            "SELECT ktype, match_state, field_sources ->> 'colour', field_sources ? 'ktype' "
+            "FROM core.vehicles WHERE vehicle_id = %s", (vehicle_id,),
+        ).fetchone()
+        assert row == ("A", "manual", "ais:record-9@2026-09-30", True)
+        assert project_choices(db, None) == 0
+    finally:
+        db.execute(
+            "UPDATE core.vehicles SET field_sources = field_sources - 'colour' "
+            "WHERE vehicle_id = %s AND field_sources ->> 'colour' = 'ais:record-9@2026-09-30'",
+            (vehicle_id,),
+        )
+        db.commit()
+
+
+def test_a_value_the_database_cannot_store_is_rejected_for_good(db: Connection) -> None:
+    """Not "try again": the same request would fail the same way every time."""
+
+    vehicle_id = _vehicle(db)
+    repository = _own_connections(db)
+
+    with pytest.raises(ChoiceRejectedError):
+        repository.record(_new(vehicle_id, reason="bad\x00byte"))
+    with pytest.raises(ChoiceRejectedError):
+        repository.record(_new(vehicle_id, ktype="Z"))  # not among the stored candidates
+
+    assert _count(db) == 0
+    assert _copy(db, vehicle_id)[:2] == (None, None)
+
+
 def test_a_writer_holding_an_older_state_does_not_undo_a_choice(db: Connection) -> None:
     """`save_vehicles` writes a state loaded earlier, without a lock."""
 
@@ -693,6 +921,16 @@ class _ScriptedEvaluator:
         )
 
 
+class _CountingChoices(KTypeChoiceRepository):
+    """The real repository, counting the lookup's choice reads."""
+
+    reads = 0
+
+    def current(self, vehicle_id: str) -> Any:
+        self.reads += 1
+        return super().current(vehicle_id)
+
+
 class _Api:
     def __init__(self, db: Connection) -> None:
         def factory() -> AbstractContextManager[Connection]:
@@ -705,7 +943,7 @@ class _Api:
                                         model="V70")
             for reference in ("A", "B", "C")
         }
-        self.choices = KTypeChoiceRepository(factory)
+        self.choices = _CountingChoices(factory)
         self.matching = VehicleMatchingService(
             VehicleMatchingRepository(factory), self._matcher, SummaryJobs(), choices=self.choices
         )
@@ -713,7 +951,9 @@ class _Api:
         self.vehicles = VehicleService(VehicleRepository(factory))
 
     def _matcher(self) -> Matcher:
-        return Matcher(self.batch, self.evaluator, self.catalog)  # type: ignore[arg-type]
+        return Matcher(
+            self.batch, self.evaluator, self.catalog, "rules-test-1"  # type: ignore[arg-type]
+        )
 
     def send(self, vehicle_id: str, action: str = "choose", **body: Any) -> KTypeChoiceRequest:
         """A request built from the lookup, the way the screen builds it."""
@@ -768,6 +1008,7 @@ def test_a_choice_is_stored_with_its_evidence_and_shown_by_the_lookup(
     assert evidence["inputs"]["power_kw"] == 133
     assert [item["ktype"] for item in evidence["candidates"]] == ["A", "B"]
     assert evidence["versions"]["code"] == "abc1234"
+    assert evidence["versions"]["rule_set"] == "rules-test-1"
     text = Jsonb(evidence).obj.__repr__()
     assert vehicle_id not in text and "ABC123" not in text and "YV1BW84S1F1234567" not in text
 
@@ -783,6 +1024,27 @@ def test_a_choice_is_stored_with_its_evidence_and_shown_by_the_lookup(
     field = next(item for item in api.vehicles.record(vehicle_id).fields if item.field == "ktype")
     assert field.source is not None
     assert (field.source.source, field.source.ref) == ("review", str(choice.choice_id))
+
+
+def test_a_car_nobody_decided_costs_no_choice_read(api: _Api, db: Connection) -> None:
+    """The live server is small: the car's own read says whether there is a choice."""
+
+    vehicle_id, other = _vehicle(db), _other_vehicle(db)
+    api.matching.lookup_vehicle(vehicle_id)
+    api.matching.lookup("ABC123")
+    assert api.choices.reads == 0
+
+    api.service.record(vehicle_id, api.send(vehicle_id))
+    reads = api.choices.reads
+    assert api.matching.lookup_vehicle(vehicle_id).choice is not None
+    assert api.matching.lookup("ABC123").choice is not None
+    assert api.choices.reads == reads + 2
+    # A withdrawn choice is still read: the next choice must supersede it.
+    api.service.record(vehicle_id, api.send(vehicle_id, "withdraw"))
+    reads = api.choices.reads
+    assert api.matching.lookup_vehicle(vehicle_id).choice is not None
+    assert api.matching.lookup_vehicle(other).choice is None
+    assert api.choices.reads == reads + 1
 
 
 def test_a_stale_choice_is_flagged_and_never_changed(api: _Api, db: Connection) -> None:

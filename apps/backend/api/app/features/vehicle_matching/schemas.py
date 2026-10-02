@@ -96,6 +96,9 @@ class VehicleMatchLookup(BaseModel):
     decision_trace: list[dict[str, Any]]
     #: Other vehicles that held this plate or VIN before, most recent first.
     other_vehicle_ids: list[str] = Field(default_factory=list)
+    #: The active translation rule set the matcher was built from; stored with
+    #: a person's choice as part of its provenance.
+    rule_set_version: str | None = None
     #: Names this evaluation (batch, inputs, outcome, candidates). A choice is
     #: sent back with it, and refused when the matching has changed since.
     evidence_fingerprint: str = ""

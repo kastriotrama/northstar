@@ -36,6 +36,8 @@ export interface ChoiceError {
 
 /** The id the "enter your name" hint carries, for the choose buttons' `aria-describedby`. */
 export const NAME_HINT_ID = 'ktype-choice-name-hint';
+/** The id of what the Confirm button is about to do, for its `aria-describedby`. */
+const CONFIRM_LINES_ID = 'ktype-choice-confirm-lines';
 
 function show(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -75,7 +77,14 @@ function show(value: unknown): string {
           @if (current.reason) {
             <p class="quote">“{{ current.reason }}”</p>
           }
-          <button type="button" [disabled]="blocked()" (click)="withdraw.emit()">Withdraw choice</button>
+          <button
+            type="button"
+            [disabled]="blocked()"
+            [attr.aria-describedby]="named() ? null : hintId"
+            (click)="withdraw.emit()"
+          >
+            Withdraw choice
+          </button>
         </div>
 
         @if (current.needs_review) {
@@ -88,7 +97,12 @@ function show(value: unknown): string {
             </ul>
             <p>Nothing was changed. The choice stands until someone changes it.</p>
             @if (canKeep()) {
-              <button type="button" [disabled]="blocked()" (click)="keep.emit()">
+              <button
+                type="button"
+                [disabled]="blocked()"
+                [attr.aria-describedby]="named() ? null : hintId"
+                (click)="keep.emit()"
+              >
                 {{ current.status === 'none' ? 'Keep “none of these”' : 'Keep this choice' }}
               </button>
             }
@@ -113,7 +127,7 @@ function show(value: unknown): string {
           maxlength="120"
           autocomplete="name"
           [value]="reviewer()"
-          (input)="reviewer.set($any($event.target).value)"
+          (input)="reviewer.set(typed($event))"
         />
       </label>
       <label>
@@ -122,7 +136,7 @@ function show(value: unknown): string {
           rows="1"
           maxlength="1000"
           [value]="reason()"
-          (input)="reason.set($any($event.target).value)"
+          (input)="reason.set(typed($event))"
         ></textarea>
       </label>
     </div>
@@ -146,10 +160,19 @@ function show(value: unknown): string {
     @if (pending(); as waiting) {
       @if (waiting.needsConfirm && !error()) {
         <div class="confirm" role="group" aria-label="Confirm the choice">
-          @for (line of confirmLines(); track line) {
-            <p>{{ line }}</p>
-          }
-          <button #confirmButton type="button" [disabled]="saving()" [attr.aria-busy]="saving()" (click)="confirm.emit()">
+          <div class="lines" [id]="confirmLinesId">
+            @for (line of confirmLines(); track line) {
+              <p>{{ line }}</p>
+            }
+          </div>
+          <button
+            #confirmButton
+            type="button"
+            [disabled]="saving()"
+            [attr.aria-busy]="saving()"
+            [attr.aria-describedby]="confirmLinesId"
+            (click)="confirm.emit()"
+          >
             Confirm
           </button>
           <button type="button" [disabled]="saving()" (click)="cancel.emit()">Cancel</button>
@@ -185,6 +208,11 @@ function show(value: unknown): string {
               </li>
             }
           </ol>
+        } @else if (historyError()) {
+          <p class="error" role="alert">
+            The history could not be loaded.
+            <button type="button" (click)="historyOpened.emit()">Try again</button>
+          </p>
         } @else {
           <p class="muted">Loading…</p>
         }
@@ -208,7 +236,7 @@ function show(value: unknown): string {
     .stale { border-left-color: #c0392b; background: #fdf1f0; }
     .stale ul, ol { margin: 0; padding-left: 1.1rem; }
     .confirm { border-left-color: #d99a00; background: #fffaf0; flex-direction: row; flex-wrap: wrap; }
-    .confirm p { flex-basis: 100%; }
+    .confirm .lines { flex-basis: 100%; }
     .quote { font-style: italic; }
     .gone { border: 1px dashed var(--p-surface-300); border-radius: 6px; padding: 0.3rem 0.5rem; }
     .tag { font-size: 0.66rem; padding: 0.05rem 0.35rem; border-radius: 999px; background: #fde4e4; color: #8a2020; }
@@ -232,6 +260,7 @@ export class KTypeChoice {
   readonly error = input<ChoiceError | null>(null);
   readonly notice = input<string | null>(null);
   readonly history = input<KTypeChoiceHistory | null>(null);
+  readonly historyError = input(false);
 
   readonly reviewer = model('');
   readonly reason = model('');
@@ -243,8 +272,10 @@ export class KTypeChoice {
   readonly keep = output<void>();
   readonly retry = output<void>();
   readonly historyOpened = output<void>();
+  readonly historyClosed = output<void>();
 
   protected readonly hintId = NAME_HINT_ID;
+  protected readonly confirmLinesId = CONFIRM_LINES_ID;
   private readonly confirmButton = viewChild<ElementRef<HTMLButtonElement>>('confirmButton');
 
   constructor() {
@@ -357,5 +388,11 @@ export class KTypeChoice {
 
   protected onHistoryToggle(event: Event): void {
     if ((event.target as HTMLDetailsElement).open) this.historyOpened.emit();
+    else this.historyClosed.emit();
+  }
+
+  /** The text of the input or textarea an `input` event came from. */
+  protected typed(event: Event): string {
+    return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
   }
 }

@@ -2,6 +2,23 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-02 — A person can choose a car's KType on the Vehicles tab (branch feature/manual-ktype-choice)
+
+- New append-only `core.vehicle_ktype_choices` (one linear chain per vehicle by `chain_position`; keys, a
+  position-carrying foreign key, CHECKs and append-only triggers; created and verified by
+  `migrate-vehicle-core`, which the deploy script already runs). API: `POST` / `GET
+  /v1/vehicles/{id}/ktype-choices` (choose, "none of these", withdraw; idempotent by operation id); the
+  matching lookup returns the choice, the effective KType and the stale flags. Web: choice controls in the
+  matching panel, a "KType choice" filter and a KType column on the Vehicles list. PostgreSQL only: no
+  graph, alias, canonical id or ledger write. Details: `docs/vehicle-ktype-choices.md`.
+- After review: chain positions (no cycle or detached chain from a multi-row statement), a race-safe repair
+  of the vehicle copy, no extra connection for cars without a choice, permanent database refusals answer 422
+  instead of "try again", the person's choice leads the panel, the build version is baked into the API image,
+  the pilot builder creates and copies the table and refuses a cut that leaves a decided car behind.
+- Validation: backend unit and integration suites, ruff, mypy, `nx build` and `nx test` (see the PR).
+- Risk / next: **live's choices are not carried into a pilot rebuild yet** (export/import/pinning are not
+  built; the runbook stops a switch when live holds any choice). Flagged choices cannot be listed.
+
 ## 2026-10-02 — Pilot database builder: a verified 500k slice of the full build (local, uncommitted)
 
 - New `scripts/build_pilot_database.py` (logic in `ingestion/pilot_database.py`): reads the full build
@@ -176,24 +193,3 @@ Keep the latest 10 task entries only.
 - Found: the text reading behind the guard reads BYD "ATTO 3" as "ATTO 2" (TecDoc lists the Atto 3 as
   YUAN PLUS); matcher safely sends them to review. Next: review list of new names (ID.7 Tourer, EV3,
   EV9, bZ4X, Atto 3 -> Yuan Plus, ...).
-
-## 2026-09-30 — Body words in TecDoc model names; Volvo/BMW patterns; VIN + length model rules (local, uncommitted)
-
-- Matcher: when a car's registered body equals a KType's body, a body word in the KType's name that
-  names that body ("OCTAVIA III Combi", "V40 Hatchback", "CADDY IV MPV") no longer counts against the
-  model text. Before, the hatchback sibling outscored the right estate KType on text and the car went
-  to review. Words that tell models apart are kept ("GLC Coupe" is an SUV in TecDoc, "XC60 I SUV",
-  "COROLLA Compact").
-- Model family: Volvo 85x codes -> 850 and multi-group codes ("244-410-2111"); BMW "323I/2"; new
-  family MOD-VINL (manufacturer + VIN descriptor + length; Peugeot 3008/5008, holdout 99.99%).
-  Fixed a MOD-PAT re-learn bug that would have retired ~1,250 rules whose cars were all filled.
-  Local DB: MOD-VINL 13,044 + MOD-PAT 35,402 filled; 66 older MOD-VIN Grand California fills
-  retracted; model-less registered passenger cars 721,810 -> 677,741. Live untouched.
-- Seeded 30k (Mac mini, prod-v2): 60.7% -> 63.0% (body words: +710 / -1 genuine 206 tie / 0 moved)
-  -> 63.5% (model fills: +145 / 0 / 0). Skoda 85%. 16 "engine differ" gains are B5252S vs TecDoc
-  "B 5252" (same engine).
-- Validation: 1,699 tests pass; ruff, mypy clean. One failure kept on purpose:
-  `test_source_model_rules` encodes the 2026-08-28 decision that body alone must not settle
-  Golf vs Golf Variant (14 VW Variant gains in the 30k) -- needs the user's decision.
-- Next: decide Variant; Volvo EX40/EC40 (~13k cars with model text but no family); Volvo 140/Amazon/340
-  codes blocked by the TS vocabulary; 50k set not on the Mac mini.

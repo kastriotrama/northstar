@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -17,6 +18,15 @@ StaleReason = Literal[
     "ktype_not_a_candidate",
     "new_candidates",
 ]
+
+
+def _has_control_character(value: str, *, allowed: str = "") -> bool:
+    """A NUL or another control character: PostgreSQL text cannot hold NUL at all."""
+
+    return any(
+        unicodedata.category(character) == "Cc" and character not in allowed
+        for character in value
+    )
 
 
 class KTypeChoiceRequest(BaseModel):
@@ -39,6 +49,8 @@ class KTypeChoiceRequest(BaseModel):
         trimmed = value.strip()
         if not 1 <= len(trimmed) <= 120:
             raise ValueError("reviewer must be 1 to 120 characters")
+        if _has_control_character(trimmed):
+            raise ValueError("reviewer must not contain control characters")
         return trimmed
 
     @field_validator("reason")
@@ -47,12 +59,17 @@ class KTypeChoiceRequest(BaseModel):
         trimmed = (value or "").strip()
         if len(trimmed) > 1000:
             raise ValueError("reason must be at most 1000 characters")
+        if _has_control_character(trimmed, allowed="\n\r\t"):
+            raise ValueError("reason must not contain control characters")
         return trimmed or None
 
     @field_validator("ktype")
     @classmethod
     def _ktype(cls, value: str | None) -> str | None:
-        return (value or "").strip() or None
+        trimmed = (value or "").strip()
+        if _has_control_character(trimmed):
+            raise ValueError("ktype must not contain control characters")
+        return trimmed or None
 
     @model_validator(mode="after")
     def _consistent(self) -> KTypeChoiceRequest:

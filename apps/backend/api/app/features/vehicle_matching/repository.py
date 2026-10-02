@@ -37,6 +37,7 @@ from ingestion.vehicle_core_query import (
 )
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
+from ingestion.vehicle_ktype_choice_migrations import VEHICLE_KTYPE_CHOICES_TABLE
 from ingestion.vocabulary_alignment import (
     load_bodywork_alignment,
     load_drive_alignment,
@@ -102,6 +103,10 @@ class CarRecord:
     #: Vehicle values that replaced or filled the origin record's derivation,
     #: by field, with the source that supplied each (`ais`, `review`, `rule`, ...).
     overlaid: dict[str, str] = dataclass_field(default_factory=dict)
+    #: A person has recorded a KType choice for this vehicle (a withdrawn one
+    #: counts). Read with the car, so a lookup opens a second connection for the
+    #: choice only when there is one.
+    has_choices: bool = False
 
 
 def overlay_resolutions(
@@ -262,8 +267,9 @@ class VehicleMatchingRepository:
     def vehicle_car_records(self, vehicle_ids: Sequence[str]) -> list[CarRecord]:
         """Match records for these vehicles, in the order asked for.
 
-        Primary-key reads plus the origin TS record's latest normalization, so a
-        page of two hundred vehicles is index lookups, never a scan. A vehicle no
+        Primary-key reads plus the origin TS record's latest normalization and one
+        index probe for "has a person's KType choice", so a page of two hundred
+        vehicles is index lookups, never a scan. A vehicle no
         TS record created (a new AIS car) has no derivation: the matcher sees its
         merged values alone.
         """
@@ -279,7 +285,9 @@ class VehicleMatchingRepository:
                        vehicle.origin_source, vehicle.normalization_status,
                        vehicle.field_sources, {columns},
                        latest.status, latest.normalized_payload, latest.review_reasons,
-                       raw.raw_record, {fallback}
+                       raw.raw_record, {fallback},
+                       EXISTS (SELECT 1 FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS choice
+                               WHERE choice.vehicle_id = vehicle.vehicle_id)
                 FROM {VEHICLES_TABLE} AS vehicle
                 LEFT JOIN LATERAL (
                     SELECT status, normalized_payload, review_reasons
@@ -341,7 +349,8 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
     vehicle_id, plate, vin, ts_record_id, origin_source, core_status, sources = row[:7]
     vehicle = dict(zip(MATCHER_FIELDS, row[7 : 7 + count], strict=True))
     status, payload, review_reasons, raw = row[7 + count : 11 + count]
-    registry = dict(zip(EVIDENCE_FALLBACK, row[11 + count :], strict=True))
+    registry = dict(zip(EVIDENCE_FALLBACK, row[11 + count : -1], strict=True))
+    has_choices = bool(row[-1])
     payload = dict(payload or {})
     raw = dict(raw or {})
     normalized, overlaid = overlay_vehicle(
@@ -377,6 +386,7 @@ def _vehicle_car_record(row: tuple[Any, ...]) -> CarRecord:
         ),
         vehicle_id=str(vehicle_id),
         overlaid=overlaid,
+        has_choices=has_choices,
     )
 
 

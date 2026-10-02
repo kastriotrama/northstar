@@ -17,6 +17,7 @@ from api.app.features.vehicle_ktype_choices.schemas import (
 )
 from api.app.features.vehicle_ktype_choices.service import (
     ChoiceChangedError,
+    ChoiceRejectedError,
     ChoiceVehicleNotFoundError,
     EvidenceChangedError,
     InvalidVehicleIdError,
@@ -55,6 +56,8 @@ def _error(status_code: int, code: str, message: str) -> HTTPException:
 
 
 _UNAVAILABLE = "KType choices are temporarily unavailable. Nothing was saved; try again."
+_HISTORY_UNAVAILABLE = "The choice history is temporarily unavailable; try again."
+_NOT_STORABLE = "The request holds a value that cannot be stored. Nothing was saved."
 
 
 @router.post(
@@ -73,7 +76,8 @@ def record_ktype_choice(
 
     Append-only and idempotent by `operation_id`: resend the same body after a
     network error or a 503 and it is recorded once. Returns the car's refreshed
-    lookup; 201 when recorded, 200 for a replay.
+    lookup; 201 when recorded, 200 for a replay. Only a 503 is worth retrying:
+    every 4xx says the same request would be refused again.
     """
 
     try:
@@ -94,6 +98,11 @@ def record_ktype_choice(
         raise _error(422, "nothing_to_withdraw", str(error)) from error
     except VehicleBusyError as error:
         raise _error(503, "vehicle_busy", str(error)) from error
+    except ChoiceRejectedError as error:
+        raise _error(422, "not_storable", f"{error} Nothing was saved.") from error
+    except (psycopg.errors.DataError, psycopg.errors.IntegrityError) as error:
+        # The database refused the content itself; a retry would fail the same way.
+        raise _error(422, "not_storable", _NOT_STORABLE) from error
     except (NoCatalogError, psycopg.Error) as error:
         raise _error(503, "unavailable", _UNAVAILABLE) from error
     if not created:
@@ -114,4 +123,4 @@ def ktype_choice_history(
     except InvalidVehicleIdError as error:
         raise _error(422, "invalid_vehicle_id", str(error)) from error
     except psycopg.Error as error:
-        raise _error(503, "unavailable", _UNAVAILABLE) from error
+        raise _error(503, "unavailable", _HISTORY_UNAVAILABLE) from error

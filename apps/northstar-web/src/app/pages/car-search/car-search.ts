@@ -16,6 +16,7 @@ import type {
   ValueSource,
   VehicleCondition,
   VehicleFieldValue,
+  VehicleMatchLookup,
   VehicleSearchRequest,
 } from '../../core/models';
 import {
@@ -58,6 +59,29 @@ export const REGISTRY_STATUSES: ReadonlyArray<{ value: RegistryStatus; label: st
   { value: 'registered', label: 'In the register' },
   { value: 'deregistered', label: 'Deregistered' },
 ];
+
+/** Cars a person decided the KType for: `core.vehicles.match_state`, kept by the choice. */
+export type KTypeChoiceFilter = 'any' | 'decided' | 'chosen' | 'none';
+
+export const KTYPE_CHOICE_FILTERS: ReadonlyArray<{
+  value: KTypeChoiceFilter;
+  label: string;
+  states: readonly string[];
+}> = [
+  { value: 'any', label: 'Any', states: [] },
+  { value: 'decided', label: 'Decided by a person', states: ['manual', 'manual_none'] },
+  { value: 'chosen', label: 'KType chosen', states: ['manual'] },
+  { value: 'none', label: '“None of these”', states: ['manual_none'] },
+];
+
+/** What the stored match state means, in the words the matching panel uses. */
+const MATCH_STATE_LABELS: Record<string, string> = {
+  manual: 'KType chosen by a person',
+  manual_none: '“None of these”, decided by a person',
+};
+
+/** The two fields a person's KType choice writes; their "review" source is that choice. */
+const CHOICE_FIELDS: readonly string[] = ['ktype', 'match_state'];
 
 const SOURCE_LABELS: Record<string, string> = {
   transportstyrelsen: 'TS',
@@ -112,6 +136,9 @@ export class CarSearchPage implements OnInit {
   protected readonly ranges = RANGES;
   protected readonly vehicleTypes = VEHICLE_TYPES;
   protected readonly registryStatuses = REGISTRY_STATUSES;
+  protected readonly ktypeChoiceFilters = KTYPE_CHOICE_FILTERS;
+  /** Narrow the list to cars whose KType a person decided. */
+  protected readonly ktypeChoice = signal<KTypeChoiceFilter>('any');
   /** Passenger cars first: the default view, still just a filter anyone can change. */
   protected readonly vehicleType = signal<VehicleType>('passenger');
   /** Deregistered cars stay visible by default: a plate lookup must still find them. */
@@ -195,6 +222,7 @@ export class CarSearchPage implements OnInit {
     () =>
       this.vehicleType() !== 'passenger' ||
       this.registryStatus() !== 'any' ||
+      this.ktypeChoice() !== 'any' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -287,6 +315,13 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
+  protected onKtypeChoice(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const known = KTYPE_CHOICE_FILTERS.find((option) => option.value === value);
+    this.ktypeChoice.set(known ? known.value : 'any');
+    this.search$.next();
+  }
+
   protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
@@ -294,6 +329,7 @@ export class CarSearchPage implements OnInit {
   protected reset(): void {
     this.vehicleType.set('passenger');
     this.registryStatus.set('any');
+    this.ktypeChoice.set('any');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -328,10 +364,30 @@ export class CarSearchPage implements OnInit {
   }
 
   /**
-   * A person's KType choice changed: reload the record so its KType and source show it.
-   * The record is not cleared first, so the candidates panel stays mounted with its notice.
+   * A person's KType choice changed: show it on the car's row at once, and reload the
+   * record so its KType and source show it. The record is not cleared first, so the
+   * candidates panel stays mounted with its notice.
    */
-  protected onChoiceChanged(vehicleId: string): void {
+  protected onChoiceChanged(vehicleId: string, lookup: VehicleMatchLookup): void {
+    const choice = lookup?.choice ?? null;
+    const ktype = choice?.status === 'chosen' ? choice.ktype : null;
+    const state =
+      choice?.status === 'chosen' ? 'manual' : choice?.status === 'none' ? 'manual_none' : null;
+    this.rows.update((rows) =>
+      rows.map((row) =>
+        row.vehicle_id === vehicleId
+          ? {
+              ...row,
+              ktype,
+              match_state: state,
+              review_fields: [
+                ...row.review_fields.filter((field) => field !== 'ktype'),
+                ...(ktype ? ['ktype'] : []),
+              ],
+            }
+          : row,
+      ),
+    );
     if (this.openId() === vehicleId) this.open$.next(vehicleId);
   }
 
@@ -356,6 +412,23 @@ export class CarSearchPage implements OnInit {
 
   protected sourceLabel(source: ValueSource): string {
     return SOURCE_LABELS[source.source] ?? source.source;
+  }
+
+  /** A field's source badge: a person's KType choice is not a reviewer's rule. */
+  protected fieldSourceLabel(field: VehicleFieldValue): string {
+    if (!field.source) return '';
+    if (field.source.source === 'review' && CHOICE_FIELDS.includes(field.field)) {
+      return "A person's choice";
+    }
+    return this.sourceLabel(field.source);
+  }
+
+  /** A field's value in words where the stored code would not be understood. */
+  protected showField(field: VehicleFieldValue): string {
+    if (field.field === 'match_state' && typeof field.value === 'string') {
+      return MATCH_STATE_LABELS[field.value] ?? field.value;
+    }
+    return this.show(field.value);
   }
 
   /** The source's own reference when it says something a reader can use. */
@@ -399,6 +472,10 @@ export class CarSearchPage implements OnInit {
         operator: 'equals',
         values: [this.registryStatus()],
       });
+    }
+    const decided = KTYPE_CHOICE_FILTERS.find((option) => option.value === this.ktypeChoice());
+    if (decided && decided.states.length) {
+      conditions.push({ field: 'match_state', operator: 'equals', values: [...decided.states] });
     }
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];

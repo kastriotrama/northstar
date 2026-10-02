@@ -50,6 +50,21 @@
           }
         </select>
       </label>
+      <label class="field">
+        <span class="field__label">KType choice</span>
+        <select
+          class="field__select"
+          aria-label="KType choice"
+          [value]="ktypeChoice()"
+          (change)="onKtypeChoice($event)"
+        >
+          @for (option of ktypeChoiceFilters; track option.value) {
+            <option [value]="option.value" [selected]="ktypeChoice() === option.value">
+              {{ option.label }}
+            </option>
+          }
+        </select>
+      </label>
       @for (facet of facets; track facet.key) {
         <label class="field">
           <span class="field__label">{{ facet.label }}</span>
@@ -160,6 +175,7 @@
             <th>Transmission</th>
             <th>Drive</th>
             <th>Bodywork</th>
+            <th>KType</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
@@ -189,11 +205,20 @@
             <td>{{ row.transmission ?? '—' }}</td>
             <td [class]="isAsserted(row, 'drive_type')">{{ row.drive_type ?? '—' }}</td>
             <td [class]="isAsserted(row, 'bodywork_form')">{{ row.bodywork_form ?? '—' }}</td>
+            <td class="mono nowrap">
+              @if (row.match_state === 'manual_none') {
+                <span class="badge badge--gap" title="A person decided that no candidate KType is this car">none of these</span>
+              } @else if (row.ktype) {
+                <span [class.review]="row.match_state === 'manual'" [title]="row.match_state === 'manual' ? 'Chosen by a person' : ''">{{ row.ktype }}</span>
+              } @else {
+                —
+              }
+            </td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="12" class="muted" style="padding: 1rem">
+            <td colspan="13" class="muted" style="padding: 1rem">
               @if (loading()) {
                 Searching…
               } @else {
@@ -264,7 +289,10 @@
 
           <details class="section" open>
             <summary>Candidate KTypes <span class="muted">matched on the merged values</span></summary>
-            <ns-ktype-candidates [vehicleId]="vehicleId" (choiceChanged)="onChoiceChanged(vehicleId)" />
+            <ns-ktype-candidates
+              [vehicleId]="vehicleId"
+              (choiceChanged)="onChoiceChanged(vehicleId, $event)"
+            />
           </details>
 
           <details class="section" open>
@@ -337,7 +365,7 @@
                     <tr>
                       <td class="record__label">{{ field.label }}</td>
                       <td>
-                        <span>{{ show(field.value) }}</span>
+                        <span>{{ showField(field) }}</span>
                         @for (alternative of field.alternatives; track alternative.source.source) {
                           <div class="alternative">
                             {{ sourceLabel(alternative.source) }} said
@@ -349,7 +377,7 @@
                         @if (field.source; as source) {
                           @if (!source.origin) {
                           <span class="source source--{{ source.source }}" [title]="source.ref ?? ''">
-                            {{ sourceLabel(source) }}
+                            {{ fieldSourceLabel(field) }}
                           </span>
                           @if (sourceDetail(source); as detail) {
                             <span class="muted">{{ detail }}</span>
