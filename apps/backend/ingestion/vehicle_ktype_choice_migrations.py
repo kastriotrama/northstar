@@ -122,18 +122,30 @@ _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
         "c",
         ("evidence_fingerprint ~ '^[0-9a-f]{64}$'",),
     ),
+    # Both evidence checks are NULL-safe: a CHECK passes on NULL, and a missing key
+    # makes these comparisons NULL, so without the COALESCE a row lacking
+    # `automatic` or `candidates` would be let through.
     "vehicle_ktype_choices_evidence_shape": (
         "c",
         (
+            "COALESCE(",
             "jsonb_typeof(evidence) = 'object'",
             "evidence ? 'schema'",
             "jsonb_typeof((evidence -> 'automatic'",
             "jsonb_typeof((evidence -> 'candidates'",
+            ", false)",
         ),
     ),
     "vehicle_ktype_choices_ktype_was_shown": (
         "c",
-        ("action <> 'choose'", "evidence -> 'candidates'", "@>", "jsonb_build_object('ktype', ktype)"),
+        (
+            "action <> 'choose'",
+            "COALESCE(",
+            "evidence -> 'candidates'",
+            "@>",
+            "jsonb_build_object('ktype', ktype)",
+            ", false)",
+        ),
     ),
 }
 _BLOCK_BODY = (
@@ -209,12 +221,13 @@ CREATE TABLE IF NOT EXISTS {VEHICLE_KTYPE_CHOICES_TABLE} (
   CONSTRAINT vehicle_ktype_choices_fingerprint_format
     CHECK (evidence_fingerprint ~ '^[0-9a-f]{{64}}$'),
   CONSTRAINT vehicle_ktype_choices_evidence_shape
-    CHECK (jsonb_typeof(evidence) = 'object' AND evidence ? 'schema'
+    CHECK (coalesce(jsonb_typeof(evidence) = 'object' AND evidence ? 'schema'
            AND jsonb_typeof(evidence -> 'automatic') = 'object'
-           AND jsonb_typeof(evidence -> 'candidates') = 'array'),
+           AND jsonb_typeof(evidence -> 'candidates') = 'array', false)),
   CONSTRAINT vehicle_ktype_choices_ktype_was_shown
     CHECK (action <> 'choose'
-           OR evidence -> 'candidates' @> jsonb_build_array(jsonb_build_object('ktype', ktype)))
+           OR coalesce(evidence -> 'candidates'
+                       @> jsonb_build_array(jsonb_build_object('ktype', ktype)), false))
 )
 """
 

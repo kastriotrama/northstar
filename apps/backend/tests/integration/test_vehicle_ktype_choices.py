@@ -635,6 +635,16 @@ def test_one_statement_cannot_store_a_cycle_or_a_detached_chain(db: Connection) 
             {"evidence": {"schema": "x", "automatic": {}, "candidates": {}}},
             "vehicle_ktype_choices_evidence_shape",
         ),
+        # A missing key makes the comparison NULL, and a CHECK passes on NULL: the
+        # checks must refuse these, not let them through.
+        (
+            {"evidence": {"schema": "x", "candidates": [{"ktype": "A"}]}},
+            "vehicle_ktype_choices_evidence_shape",
+        ),
+        (
+            {"action": "none", "ktype": None, "evidence": {"schema": "x", "automatic": {}}},
+            "vehicle_ktype_choices_evidence_shape",
+        ),
     ],
 )
 def test_a_malformed_row_is_refused_by_a_named_constraint(
