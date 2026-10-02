@@ -1,6 +1,7 @@
 import pytest
 
 from ingestion.fuzzy_matching import (
+    FuzzyCandidateMatch,
     FuzzyMatchConfig,
     FuzzyVehicleMatcher,
     ManufacturerCandidateIndex,
@@ -737,6 +738,94 @@ def test_sibling_separated_only_by_missing_evidence_remains_ambiguous() -> None:
     assert result.reason == "candidate_margin_not_met"
 
 
+def _combi_and_hatchback() -> tuple[VehicleCandidate, VehicleCandidate]:
+    shared = {
+        "manufacturer": "SKODA",
+        "candidate_type": "TecDocKType",
+        "year_from": 2014,
+        "year_to": 2020,
+        "fuels": frozenset({"petrol"}),
+        "displacement_cc": 1395,
+        "power_kw": 110,
+        "drive_type": "fwd",
+    }
+    return (
+        VehicleCandidate(
+            candidate_reference="KTYPE-HATCH",
+            model="OCTAVIA III (5E3, NL3, NR3)",
+            model_aliases=("OCTAVIA", "OCTAVIA III"),
+            bodyworks=frozenset({"hatchback"}),
+            **shared,
+        ),
+        VehicleCandidate(
+            candidate_reference="KTYPE-COMBI",
+            model="OCTAVIA III Combi (5E5, 5E6)",
+            model_aliases=("OCTAVIA COMBI", "OCTAVIA III Combi"),
+            bodyworks=frozenset({"estate"}),
+            **shared,
+        ),
+    )
+
+
+def _octavia_query(bodywork: str | None) -> VehicleMatchQuery:
+    return VehicleMatchQuery(
+        manufacturer="Skoda",
+        model="Octavia",
+        year=2017,
+        fuels=frozenset({"petrol"}),
+        displacement_cc=1395,
+        power_kw=110,
+        drive_type="fwd",
+        bodywork=bodywork,
+    )
+
+
+def test_registered_estate_resolves_to_the_combi_ktype_despite_its_body_word() -> None:
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex(_combi_and_hatchback())).match(
+        _octavia_query("estate")
+    )
+
+    top = result.candidates[0]
+    assert top.candidate_reference == "KTYPE-COMBI"
+    assert top.text_score == 1.0
+    assert "model_partial" not in top.matched_fields
+    assert result.eligible_for_auto_resolution is True
+
+
+def test_body_word_is_kept_when_the_car_body_is_not_the_ktype_body() -> None:
+    hatch_result = FuzzyVehicleMatcher(ManufacturerCandidateIndex(_combi_and_hatchback())).match(
+        _octavia_query("hatchback")
+    )
+    no_body_result = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex(_combi_and_hatchback())
+    ).match(_octavia_query(None))
+
+    assert hatch_result.candidates[0].candidate_reference == "KTYPE-HATCH"
+    combi = {c.candidate_reference: c for c in no_body_result.candidates}.get("KTYPE-COMBI")
+    assert combi is None or combi.text_score < 1.0
+
+
+def test_a_body_word_that_is_not_the_car_body_still_tells_models_apart() -> None:
+    # TecDoc files the GLC Coupe as an SUV: "Coupe" names the model, not the body.
+    shared = {
+        "manufacturer": "MERCEDES-BENZ", "candidate_type": "TecDocKType",
+        "year_from": 2016, "year_to": 2022, "fuels": frozenset({"diesel"}),
+        "displacement_cc": 2143, "power_kw": 125, "bodyworks": frozenset({"suv"}),
+    }
+    catalog = (
+        VehicleCandidate(candidate_reference="GLC", model="GLC (X253)", model_aliases=("GLC",), **shared),
+        VehicleCandidate(candidate_reference="GLC-COUPE", model="GLC Coupe (C253)",
+                         model_aliases=("GLC Coupe",), **shared),
+    )
+    result = FuzzyVehicleMatcher(ManufacturerCandidateIndex(catalog)).match(VehicleMatchQuery(
+        manufacturer="Mercedes-Benz", model="GLC", year=2019, fuels=frozenset({"diesel"}),
+        displacement_cc=2143, power_kw=125, bodywork="suv",
+    ))
+
+    assert result.candidates[0].candidate_reference == "GLC"
+    assert result.eligible_for_auto_resolution is True
+
+
 def _power_candidates() -> tuple[VehicleCandidate, VehicleCandidate]:
     shared = {"manufacturer": "Volvo", "model": "V60", "year_from": 2010, "year_to": 2018}
     return (
@@ -1035,3 +1124,440 @@ def test_an_exact_body_still_separates_from_a_compatible_sibling() -> None:
 
     assert [c.candidate_reference for c in result.candidates] == ["mpv", "van"]
     assert result.reason != "candidate_margin_not_met"
+
+
+def _facelift_siblings(build_month: int | None, *, with_months: bool = True):  # type: ignore[no-untyped-def]
+    """Two KTypes whose runs meet in 2008; only the build month can tell them apart."""
+
+    def ktype(reference: str, year_from: int, year_to: int, month_from: int, month_to: int) -> VehicleCandidate:
+        return VehicleCandidate(
+            reference, "Volvo", "V70", year_from=year_from, year_to=year_to,
+            month_from=month_from if with_months else None, month_to=month_to if with_months else None,
+            power_kw=120,
+        )
+
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((ktype("PRE", 2000, 2008, 200001, 200804), ktype("FACELIFT", 2008, 2013, 200805, 201312)))
+    )
+    return matcher.match(
+        VehicleMatchQuery("V70", manufacturer="Volvo", year=2008, build_month=build_month, power_kw=120)
+    )
+
+
+@pytest.mark.parametrize(("build_month", "winner"), [(200803, "PRE"), (200811, "FACELIFT")])
+def test_the_build_month_decides_between_ktypes_whose_runs_meet_in_one_year(build_month: int, winner: str) -> None:
+    result = _facelift_siblings(build_month)
+
+    assert result.candidates[0].candidate_reference == winner
+    assert result.reason != "candidate_margin_not_met"
+    other = result.candidates[1]
+    assert "year_month_outside_unverified" in other.missing_fields
+    assert "year" not in other.conflicting_fields
+
+
+@pytest.mark.parametrize(("build_month", "with_months"), [(None, True), (200803, False)])
+def test_without_a_month_on_either_side_the_year_alone_still_ties(build_month: int | None, with_months: bool) -> None:
+    result = _facelift_siblings(build_month, with_months=with_months)
+
+    assert result.reason == "candidate_margin_not_met"
+    assert all("year" in candidate.matched_fields for candidate in result.candidates)
+
+
+def test_production_months_must_be_real_months() -> None:
+    with pytest.raises(ValueError):
+        VehicleCandidate("k", "Volvo", "V70", month_from=200813)
+    with pytest.raises(ValueError):
+        VehicleMatchQuery("V70", manufacturer="Volvo", build_month=2008)
+
+
+@pytest.mark.parametrize(
+    ("model", "body", "line"),
+    [
+        # Generations, chassis codes and the car's own body word leave one line.
+        ("LEGACY IV Estate (BP)", "ESTATE", "LEGACY"),
+        ("PASSAT B8 Variant (3G5, CB5)", "ESTATE", "PASSAT"),
+        ("ASTRA J Sports Tourer (P10)", "ESTATE", "ASTRA"),
+        ("INSIGNIA B Grand Sport (Z18)", "HATCHBACK", "INSIGNIA"),
+        ("XC60 I SUV (156)", "SUV", "XC60"),
+        # Makers' own estate names are bodies too, alone or as two words.
+        ("E-CLASS T-Model (S210)", "ESTATE", "E CLASS"),
+        ("MEGANE III Grandtour (KZ0/1)", "ESTATE", "MEGANE"),
+        ("LEON ST (5F8)", "ESTATE", "LEON"),
+        ("LANCER I Station Wagon (A7_V)", "ESTATE", "LANCER"),
+        # A body registered only as closed contradicts no body name.
+        ("E-CLASS T-Model (S210)", "COVERED BODY", "E CLASS"),
+        ("E-CLASS T-Model (S210)", "SEDAN", "E CLASS MODEL"),
+        # Another body's word stays: a registered SUV is not the GLC Coupe's line.
+        ("GLC Coupe (C253)", "SUV", "GLC COUPE"),
+        ("GLC Coupe (C253)", "COUPE", "GLC"),
+        ("GLC Coupe (C253)", "", "GLC"),
+        ("PASSAT B8 Variant (3G5, CB5)", "SEDAN", "PASSAT VARIANT"),
+        # A name that tells models apart stays.
+        ("PAJERO SPORT I (K7_, K9_)", "", "PAJERO SPORT"),
+        ("IBIZA IV SC (6J1, 6P5)", "", "IBIZA SC"),
+        ("PASSAT ALLTRACK B8 (3G5, CB5)", "ESTATE", "PASSAT ALLTRACK"),
+        ("A3 Sportback (8PA)", "HATCHBACK", "A3 SPORTBACK"),
+        # The model's own first word is never a body name.
+        ("GRAND SPORT", "", "GRAND SPORT"),
+        ("MODEL S (5YJS)", "", "MODEL S"),
+    ],
+)
+def test_a_model_line_drops_generation_and_body_words_only(model: str, body: str, line: str) -> None:
+    from ingestion.fuzzy_matching import _model_line
+
+    assert _model_line(model, body) == line
+
+
+def _built_in(build_month: int, *candidates: VehicleCandidate, model: str, body: str | None = None,
+              config: FuzzyMatchConfig | None = None) -> dict[str, FuzzyCandidateMatch]:
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex(candidates), config=config)
+    query = VehicleMatchQuery(model, manufacturer=candidates[0].manufacturer, year=build_month // 100,
+                              build_month=build_month, power_kw=100, bodywork=body)
+    return {match.candidate_reference: match for match in matcher.match(query).candidates}
+
+
+def _ktype(reference: str, model: str, months: tuple[int, int | None], *, make: str = "Make",
+           alias: str | None = None, body: str | None = None) -> VehicleCandidate:
+    month_from, month_to = months
+    return VehicleCandidate(
+        reference, make, model, model_aliases=(alias,) if alias else (),
+        year_from=month_from // 100, year_to=month_to // 100 if month_to else None,
+        month_from=month_from, month_to=month_to, power_kw=100,
+        bodyworks=frozenset({body}) if body else frozenset(),
+    )
+
+
+def test_the_build_month_tolerance_is_zero_months_unless_set() -> None:
+    early = _ktype("early", "V70 II (285)", (200001, 200804), alias="V70")
+    late = _ktype("late", "V70 III (135)", (200805, 201312), alias="V70")
+
+    assert FuzzyMatchConfig().production_month_tolerance == 0
+    a_month_early = _built_in(200804, early, late, model="V70")["late"]
+    assert "year_month_outside_unverified" in a_month_early.missing_fields
+    widened = _built_in(200804, early, late, model="V70", config=FuzzyMatchConfig(production_month_tolerance=1))
+    assert "year_month_outside_unverified" not in widened["late"].missing_fields
+    with pytest.raises(ValueError):
+        FuzzyMatchConfig(production_month_tolerance=-1)
+
+
+def test_the_build_month_moves_a_car_to_its_lines_next_generation() -> None:
+    # A Legacy estate built 08/2009, after TecDoc's Legacy IV ends and the V starts.
+    old = _ktype("iv", "LEGACY IV Estate (BP)", (200309, 200904), alias="LEGACY", body="estate")
+    new = _ktype("v", "LEGACY V Estate (BR)", (200905, 201412), alias="LEGACY", body="estate")
+
+    scored = _built_in(200908, old, new, model="LEGACY", body="estate")
+
+    assert "year_month_outside_unverified" in scored["iv"].missing_fields
+    assert scored["v"].separation_score > scored["iv"].separation_score
+
+
+def test_the_build_month_never_sends_a_car_to_another_line() -> None:
+    # A Pajero built 03/2000, a month before TecDoc's Pajero III starts, is no
+    # Pajero Sport just because the Sport's run covers the month.
+    pajero = _ktype("pajero", "PAJERO III (V7_W, V6_W)", (200004, 200701), alias="PAJERO")
+    sport = _ktype("sport", "PAJERO SPORT I (K7_, K9_)", (199811, 200806), alias="PAJERO SPORT")
+
+    scored = _built_in(200003, pajero, sport, model="PAJERO")
+
+    assert "year_month_outside_unverified" not in scored["pajero"].missing_fields
+    assert scored["pajero"].separation_score > scored["sport"].separation_score
+
+
+def test_a_body_word_of_another_body_keeps_its_ktype_another_line() -> None:
+    # An SUV GLC built 10/2022: TecDoc's GLC (X253) ends 06/2022, the GLC Coupe
+    # (also an SUV in TecDoc) runs on. The Coupe is not the SUV's line.
+    glc = _ktype("glc", "GLC (X253)", (201911, 202206), alias="GLC", body="suv")
+    coupe = _ktype("coupe", "GLC Coupe (C253)", (201911, 202303), alias="GLC Coupe", body="suv")
+
+    scored = _built_in(202210, glc, coupe, model="GLC", body="suv")
+
+    assert "year_month_outside_unverified" not in scored["glc"].missing_fields
+    assert scored["glc"].separation_score > scored["coupe"].separation_score
+
+
+def test_another_lines_ktype_built_outside_the_month_is_demoted() -> None:
+    # A Passat estate built 01/2015 is no Passat Alltrack, which TecDoc starts later.
+    passat = _ktype("passat", "PASSAT B8 Variant (3G5, CB5)", (201408, 202310), alias="PASSAT", body="estate")
+    alltrack = _ktype("alltrack", "PASSAT ALLTRACK B8 (3G5, CB5)", (201503, 202310), alias="PASSAT",
+                      body="estate")
+
+    scored = _built_in(201501, passat, alltrack, model="PASSAT", body="estate")
+
+    assert "year_month_outside_unverified" in scored["alltrack"].missing_fields
+    assert scored["passat"].separation_score > scored["alltrack"].separation_score
+
+
+@pytest.mark.parametrize(
+    ("brand", "model"),
+    [
+        # "2.0" is the engine size, not the Qashqai +2.
+        ("NISSAN QASHQAI 2.0 ACENT", "QASHQAI"),
+        ("NISSAN QASHQAI 1,6", "QASHQAI"),
+        ("NISSAN QASHQAI+2 2.0", "QASHQAI +2 (JJ10E)"),
+    ],
+)
+def test_an_engine_size_in_registry_text_is_no_model_number(brand: str, model: str) -> None:
+    index = ManufacturerCandidateIndex((
+        VehicleCandidate("one", "Nissan", "QASHQAI I (J10, NJ10)", model_aliases=("QASHQAI",)),
+        VehicleCandidate("plus", "Nissan", "QASHQAI +2 (JJ10E)", model_aliases=("QASHQAI +2",)),
+    ))
+
+    assert index.recover_model_from_evidence("Nissan", {"brand": brand}) == (model, "brand")
+
+
+def test_a_label_holding_the_whole_decimal_still_reads_it() -> None:
+    from ingestion.fuzzy_matching import _decimal_points, _reads_without_cutting_a_number
+
+    text, points = " VW GOLF 1 6 FSI ", _decimal_points("VW GOLF 1.6 FSI")
+
+    assert _reads_without_cutting_a_number("1 6 FSI", text, points)
+    assert not _reads_without_cutting_a_number("GOLF 1", text, points)
+    assert not _reads_without_cutting_a_number("6 FSI", text, points)
+
+
+@pytest.mark.parametrize(("j01_fuel", "demoted"), [("electric", True), ("petrol", False)])
+def test_a_conflicting_ktype_gets_no_shelter_from_the_cars_own_line(j01_fuel: str, demoted: bool) -> None:
+    # "MINI COOPER S" built 10/2023: the text names the line of TecDoc's "MINI COOPER
+    # (J01)", which starts 11/2023. An electric J01 conflicts with a petrol car, so it
+    # is demoted as any KType outside the month; a petrol one keeps its line's shelter.
+    f56 = VehicleCandidate("f56", "MINI", "MINI (F56)", model_aliases=("MINI",), year_from=2020,
+                           month_from=202011, power_kw=131, fuels=frozenset({"petrol"}))
+    j01 = VehicleCandidate("j01", "MINI", "MINI COOPER (J01)", model_aliases=("MINI COOPER",), year_from=2023,
+                           month_from=202311, power_kw=131, fuels=frozenset({j01_fuel}))
+    matcher = FuzzyVehicleMatcher(ManufacturerCandidateIndex((f56, j01)))
+
+    result = matcher.match(VehicleMatchQuery("MINI COOPER", manufacturer="MINI", year=2023, build_month=202310,
+                                             power_kw=131, fuels=frozenset({"petrol"})))
+    scored = {match.candidate_reference: match for match in result.candidates}
+
+    assert ("fuels" in scored["j01"].conflicting_fields) is demoted
+    assert ("year_month_outside_unverified" in scored["j01"].missing_fields) is demoted
+
+
+# --- plug-in power guard ------------------------------------------------------------------
+# The registry gives a hybrid's combustion power (150 kW), TecDoc a plug-in's system
+# power (230 kW). Exact power alone must not set a mild hybrid apart from its plug-in
+# sibling: GLC 300 e cars resolved to the GLC 200 4MATIC mild hybrid that way.
+
+_HYBRID_FUELS = frozenset({"petrol", "electric", "hybrid_petrol"})
+
+
+def _glc(reference: str, power_kw: int, electrification: str | None, **fields: object) -> VehicleCandidate:
+    return VehicleCandidate(
+        reference, "Mercedes-Benz", "GLC", fuels=frozenset({"hybrid_petrol"}), power_kw=power_kw,
+        electrification=electrification, **fields,  # type: ignore[arg-type]
+    )
+
+
+def _glc_match(*catalog: VehicleCandidate, model: str = "GLC", **query: object):  # type: ignore[no-untyped-def]
+    fields: dict[str, object] = {"fuels": _HYBRID_FUELS, "power_kw": 150, **query}
+    return FuzzyVehicleMatcher(ManufacturerCandidateIndex(catalog)).match(
+        VehicleMatchQuery(model, manufacturer="Mercedes-Benz", **fields)  # type: ignore[arg-type]
+    )
+
+
+@pytest.mark.parametrize("registered", [None, "plug_in_hybrid"])  # an AIS car states none
+def test_exact_power_alone_never_sets_a_hybrid_apart_from_its_plug_in_sibling(registered: str | None) -> None:
+    from ingestion.fuzzy_matching import PLUG_IN_POWER_GUARD
+
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid"), _glc("glc300e", 230, "plug_in_hybrid"), electrification=registered
+    )
+
+    assert result.reason == "candidate_margin_not_met"
+    assert not result.eligible_for_auto_resolution
+    assert result.guards == (PLUG_IN_POWER_GUARD,)
+    # The mild hybrid stays the suggestion, with the plug-in in front of the reviewer.
+    assert [match.candidate_reference for match in result.candidates] == ["glc200", "glc300e"]
+
+
+def test_without_the_plug_in_sibling_exact_power_still_resolves() -> None:
+    result = _glc_match(_glc("glc200", 150, "mild_hybrid"), _glc("glc300", 190, "mild_hybrid"))
+
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_a_car_registered_as_a_non_plug_in_hybrid_keeps_its_exact_power() -> None:
+    # ELHYBRID (or a word such as "48V"): a 540i xDrive or X5 xDrive40i mild hybrid is
+    # right on its exact power, whatever plug-in sibling TecDoc has.
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid"), _glc("glc300e", 230, "plug_in_hybrid"), electrification="hybrid"
+    )
+
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_a_plug_in_rival_with_another_engine_code_never_holds_the_top_back() -> None:
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid", engine_codes=frozenset({"M 254.920"})),
+        _glc("glc300e", 230, "plug_in_hybrid", engine_codes=frozenset({"M 264.920"})),
+        engine_code="M 254.920",
+    )
+
+    assert "engine_code" in result.candidates[1].conflicting_fields
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_an_exact_engine_code_a_margin_apart_keeps_the_car_resolved() -> None:
+    # The plug-in carries no engine code: unverified, not a conflict. The exact code
+    # alone (0.12) clears the margin once the power swing is taken out.
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid", engine_codes=frozenset({"M 254.920"})),
+        _glc("glc300e", 230, "plug_in_hybrid"),
+        engine_code="M 254.920",
+    )
+
+    assert "power_kw_hybrid_unverified" in result.candidates[1].missing_fields
+    assert result.reason == "automatic_candidate_threshold_met"
+
+
+def test_an_engine_family_match_is_too_little_to_keep_them_apart() -> None:
+    # Same engine family (0.03) on the mild hybrid only: with the 0.10 power swing
+    # taken out the two are 0.03 apart, under the margin.
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid", engine_codes=frozenset({"B47D20"})),
+        _glc("glc300e", 230, "plug_in_hybrid"),
+        engine_code="B47D20A",
+    )
+
+    assert "engine_code_family" in result.candidates[0].matched_fields
+    assert result.reason == "candidate_margin_not_met"
+
+
+def test_a_plug_in_rival_contradicting_the_car_never_holds_the_top_back() -> None:
+    # A plug-in GLC Coupe for a registered SUV: its body conflicts. The mild hybrid's
+    # year is just outside its run (and its body unknown) while the Coupe's year fits,
+    # so but for the conflict the two would be 0.05 apart once the power swing is out.
+    result = _glc_match(
+        _glc("suv200", 150, "mild_hybrid", year_from=2016, year_to=2022),
+        _glc("coupe300e", 230, "plug_in_hybrid", year_from=2016, year_to=2024, bodyworks=frozenset({"coupe"})),
+        year=2023, bodywork="suv",
+    )
+
+    assert "bodywork" in result.candidates[1].conflicting_fields
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_a_higher_power_mild_or_combustion_sibling_is_no_plug_in_rival() -> None:
+    # Captur TCe 140 (103 kW) against TCe 160 (116 kW): both mild hybrids.
+    def captur(reference: str, power_kw: int, electrification: str) -> VehicleCandidate:
+        return VehicleCandidate(reference, "Renault", "CAPTUR", fuels=frozenset({"hybrid_petrol"}),
+                                power_kw=power_kw, electrification=electrification)
+
+    for rival in ("mild_hybrid", "combustion"):
+        result = FuzzyVehicleMatcher(
+            ManufacturerCandidateIndex((captur("tce140", 103, "mild_hybrid"), captur("tce160", 116, rival)))
+        ).match(VehicleMatchQuery("CAPTUR", manufacturer="Renault", fuels=_HYBRID_FUELS, power_kw=103))
+
+        assert result.reason == "automatic_candidate_threshold_met", rival
+
+
+def test_a_car_without_electricity_is_never_guarded() -> None:
+    # A petrol-only car against hybrid KTypes, reviewed as compatible fuels.
+    matcher = FuzzyVehicleMatcher(
+        ManufacturerCandidateIndex((_glc("glc200", 150, "mild_hybrid"), _glc("glc300e", 230, "plug_in_hybrid"))),
+        fuel_compatible_pairs=frozenset({("petrol", "hybrid_petrol")}),
+    )
+
+    result = matcher.match(
+        VehicleMatchQuery("GLC", manufacturer="Mercedes-Benz", fuels=frozenset({"petrol"}), power_kw=150)
+    )
+
+    assert "power_kw_hybrid_unverified" in result.candidates[1].missing_fields
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_a_top_below_the_automatic_threshold_ties_with_its_plug_in_sibling_too() -> None:
+    from ingestion.fuzzy_matching import PLUG_IN_POWER_GUARD
+
+    # Text that only nearly matches ("CLA" against "CLAX": 0.75) keeps the top at
+    # 0.85: it would have been routed on its own score, provisional at best.
+    result = _glc_match(
+        VehicleCandidate("cla200", "Mercedes-Benz", "CLAX", fuels=frozenset({"hybrid_petrol"}), power_kw=150,
+                         electrification="mild_hybrid"),
+        VehicleCandidate("cla250e", "Mercedes-Benz", "CLAX", fuels=frozenset({"hybrid_petrol"}), power_kw=160,
+                         electrification="plug_in_hybrid"),
+        model="CLA",
+    )
+
+    assert result.candidates[0].confidence < FuzzyMatchConfig().automatic_threshold
+    assert result.reason == "candidate_margin_not_met"
+    assert result.guards == (PLUG_IN_POWER_GUARD,)
+
+
+@pytest.mark.parametrize(
+    ("top", "rival"),
+    [
+        (None, "plug_in_hybrid"),  # the top's engine type was never loaded
+        ("mild_hybrid", None),  # nor the rival's
+        ("plug_in_hybrid", "plug_in_hybrid"),  # a plug-in top is the plug-in reading
+        ("range_extender", "plug_in_hybrid"),
+    ],
+)
+def test_unknown_electrification_or_a_plug_in_top_is_never_guarded(top: str | None, rival: str | None) -> None:
+    result = _glc_match(_glc("glc200", 150, top), _glc("glc300e", 230, rival))
+
+    assert result.reason == "automatic_candidate_threshold_met"
+    assert result.guards == ()
+
+
+def test_a_top_already_tied_with_its_runner_up_carries_no_guard() -> None:
+    result = _glc_match(
+        _glc("glc200", 150, "mild_hybrid"), _glc("glc200-b", 150, "mild_hybrid"), _glc("glc300e", 230, "plug_in_hybrid")
+    )
+
+    assert result.reason == "candidate_margin_not_met"
+    assert result.guards == ()
+
+
+def test_a_range_extender_counts_as_a_plug_in_rival() -> None:
+    result = _glc_match(_glc("glc200", 150, "mild_hybrid"), _glc("glc300e", 230, "range_extender"))
+
+    assert result.reason == "candidate_margin_not_met"
+
+
+def test_reviewed_aliases_keep_electrification_so_the_alias_matcher_is_guarded_too() -> None:
+    from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
+    from ingestion.translation_dictionaries import TranslationRule, TranslationRuleSet
+
+    aliases = ReviewedModelAliasIndex(TranslationRuleSet(version="rules-v1", rules=(TranslationRule(
+        rule_id="MOD-001", area="model_family", source_fields=("model",), source_terms=("GLC KUPE",),
+        canonical_field="model_family", canonical_value="GLC", decision="accepted",
+        manufacturers=("Mercedes-Benz",),
+    ),)))
+    catalog = (_glc("glc200", 150, "mild_hybrid"), _glc("glc300e", 230, "plug_in_hybrid"))
+    expanded = tuple(aliases.expand(candidate) for candidate in catalog)
+
+    assert [candidate.electrification for candidate in expanded] == ["mild_hybrid", "plug_in_hybrid"]
+    assert "GLC KUPE" in expanded[0].model_aliases
+    assert _glc_match(*expanded, model="GLC KUPE").reason == "candidate_margin_not_met"
+
+
+def test_matching_text_is_compared_as_written_only_catalog_aliases_are_respelled() -> None:
+    from ingestion.fuzzy_matching import _normalized_text
+
+    # "CEE'D" and "SANTA FÉ" meet the registry's "CEED" and "SANTA FE" through catalog
+    # aliases (`match_run_adapters.registry_spelling`), never by folding text here:
+    # that would also change manufacturer keys and the registry's own Å, Ä and Ö.
+    assert _normalized_text("Cee'd") == "CEE D"
+    assert _normalized_text("Santa Fé") == "SANTA FÉ"
+    assert _normalized_text("Kapitän") == "KAPITÄN"
+
+
+def test_a_label_shared_by_generations_is_their_family_in_the_registrys_spelling_too() -> None:
+    from ingestion.fuzzy_matching import _unique_or_family
+
+    # "CEE'D (JD)" normalizes to "CEE D JD", which never starts with "CEED": read as
+    # written only, the shared label recovered nothing and the model went unread.
+    assert _unique_or_family({("CEED", "CEE'D (JD)", "model"), ("CEED", "CEED (CD)", "model")}) == ("CEED", "model")
+    assert _unique_or_family(
+        {("SANTA FE", "SANTA FÉ II (CM)", "model"), ("SANTA FE", "SANTA FÉ III (DM, DMA)", "model")}
+    ) == ("SANTA FE", "model")
+    # A label that is no family name of every canonical still recovers nothing.
+    assert _unique_or_family({("CEED", "CEE'D (JD)", "model"), ("CEED", "PRO CEE'D (JD)", "model")}) is None
+    assert _unique_or_family({("KAPITAN", "KAPITÄN A", "model"), ("KAPITAN", "KAPITÄN B", "model")}) is None

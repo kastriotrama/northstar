@@ -35,7 +35,7 @@ def test_signature_mirrors_matcher_fields_and_sorts_fuels() -> None:
     assert signature["manufacturer"] == "Volvo"
     assert signature["energy_sources"] == ["electric", "petrol"]
     assert signature["displacement_cc"] == 1969
-    assert signature["signature_version"] == "2"
+    assert signature["signature_version"] == "3"
 
 
 def test_signature_falls_back_to_candidates_for_identity_fields() -> None:

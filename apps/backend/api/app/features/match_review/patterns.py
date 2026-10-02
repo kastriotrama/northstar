@@ -163,7 +163,11 @@ def _pattern_evidence(
     match_evidence = dict(top_match.get("evidence") or {})
     conflicts = sorted(
         {
-            *[value.removeprefix("conflict:") for value in reasons if value.startswith("conflict:")],
+            *[
+                value.split(":", 1)[1]
+                for value in reasons
+                if value.startswith(("conflict:", "hard_conflict_replaced:"))
+            ],
             *[str(value) for value in match_evidence.get("conflicting_fields") or []],
         }
     )

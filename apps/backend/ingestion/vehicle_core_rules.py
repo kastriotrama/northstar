@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
@@ -51,13 +51,22 @@ from ingestion.vehicle_core_store import (
     record_ledger_rows,
     save_vehicles,
 )
-from ingestion.vehicle_model_patterns import pattern_model
+from ingestion.vehicle_model_patterns import (
+    MISREAD_STATED_FAMILIES,
+    REVIEWED_MODEL_NAMES,
+    REVIEWED_NON_FAMILIES,
+    model_text_family,
+    pattern_model,
+    preferred_spellings,
+)
 
 Purpose = Literal["enrichment", "completion"]
 #: What a pattern-proposed rule was learned from: the reviewed patterns, not a source.
 PATTERN_SOURCE = "reviewed-pattern"
 #: The statistical family keyed like the patterns; a key it learns needs no pattern.
 STATISTICS_FAMILY_OF_PATTERNS = "MOD-BT"
+#: The family that learns which brand-text words name which make.
+MAKE_WORD_FAMILY = "MFR-BW"
 
 DEFAULT_MIN_SUPPORT = 5
 DEFAULT_MIN_AGREEMENT = 0.95
@@ -100,10 +109,21 @@ _AFTER_MAKE = (
 )
 KEY_EXPRESSIONS: dict[str, str] = {
     "vin_descriptor": "CASE WHEN length({alias}vin) = 17 THEN left({alias}vin, 8) END",
+    # The VIN's tenth character, its model year: a descriptor a model kept through a
+    # rename ("XC40" became "EX40") names one model per year.
+    "vin_year": "CASE WHEN length({alias}vin) = 17 THEN substr({alias}vin, 10, 1) END",
     "brand_text": f"CASE WHEN strpos({_BRAND}, ' ') > 0 THEN {_BRAND} END",
     "brand_token": (
         f"CASE WHEN strpos({_BRAND}, ' ') > 0 AND {_AFTER_MAKE} <> '' "
         f"AND {_AFTER_MAKE} <> split_part({_BRAND}, ' ', 1) THEN {_AFTER_MAKE} END"
+    ),
+    # The brand text's first word, the make as the registry writes it ("POLESTAR" in
+    # "POLESTAR POLESTAR 4", "VOLKSWAGEN" in "VOLKSWAGEN, VW").
+    "brand_make_word": f"NULLIF(substring({_BRAND} from '^[^ ,&/+]+'), '')",
+    # The registry's own model text ("EX40", "FIAT TIPO"), as the model families read it.
+    "model_text": (
+        "CASE WHEN btrim({alias}registry_model_text) <> '' "
+        "THEN upper(btrim({alias}registry_model_text)) END"
     ),
 }
 
@@ -133,12 +153,25 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                SOURCE_AIS, "enrichment", "Max weight by make, variant and version"),
     RuleFamily("LEN-VV", "length_mm", ("registry_make_code", "variant_code", "version_code"),
                SOURCE_AIS, "enrichment", "Length by make, variant and version"),
+    # AIS sends its own make codes for newer makes ("PO" is Pontiac in TS, Polestar in
+    # AIS): the brand text's first word names the make where the code cannot.
+    RuleFamily("MFR-BW", "manufacturer", ("brand_make_word",),
+               SOURCE_TS, "enrichment", "Manufacturer by the brand text's first word",
+               min_support=10, min_agreement=0.98),
     # A model is identity, not a detail: the bar is higher than for the fields above.
     RuleFamily("MOD-VV", "model_family", ("registry_make_code", "variant_code", "version_code"),
                SOURCE_TS, "enrichment", "Model family by make, variant and version",
                min_support=10, min_agreement=0.98),
     RuleFamily("MOD-VIN", "model_family", ("manufacturer", "vin_descriptor"),
                SOURCE_TS, "enrichment", "Model family by manufacturer and VIN descriptor",
+               min_support=10, min_agreement=0.98),
+    # Sister models can share a VIN descriptor (Peugeot 3008 and 5008 are both
+    # VR3KAHPY); their registered length still tells them apart.
+    RuleFamily("MOD-VINL", "model_family", ("manufacturer", "vin_descriptor", "length_mm"),
+               SOURCE_TS, "enrichment", "Model family by manufacturer, VIN descriptor and length",
+               min_support=10, min_agreement=0.98),
+    RuleFamily("MOD-VINY", "model_family", ("manufacturer", "vin_descriptor", "vin_year"),
+               SOURCE_TS, "enrichment", "Model family by manufacturer, VIN descriptor and model year",
                min_support=10, min_agreement=0.98),
     RuleFamily("MOD-TP", "model_family", ("registry_make_code", "registry_type_code"),
                SOURCE_TS, "enrichment", "Model family by make and type code",
@@ -153,6 +186,16 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                SOURCE_TS, "enrichment", "Model family by make and the brand text's word after the make",
                min_support=10, min_agreement=0.98),
     # Last: only for words no sibling taught, such as an old Volvo's type code.
+    # The car's own model text, where it names a family TS uses or one reviewed
+    # (`REVIEWED_MODEL_NAMES`) but no normalization rule maps it yet.
+    RuleFamily("MOD-MT", "model_family", ("manufacturer", "model_text"),
+               PATTERN_SOURCE, "enrichment", "Model family read from the registry model text",
+               min_support=1, min_agreement=0.98, learner="patterns"),
+    # The whole brand text read the same way, for AIS texts that repeat the make
+    # ("TOYOTA TOYOTA YARIS CROSS") and so give no model word.
+    RuleFamily("MOD-BRT", "model_family", ("manufacturer", "brand_text"),
+               PATTERN_SOURCE, "enrichment", "Model family read from the registry brand text",
+               min_support=1, min_agreement=0.98, learner="patterns"),
     RuleFamily("MOD-PAT", "model_family", ("registry_make_code", "brand_token"),
                PATTERN_SOURCE, "enrichment", "Model family read from the brand text by reviewed patterns",
                min_support=1, min_agreement=0.98, learner="patterns"),
@@ -272,6 +315,139 @@ VOCABULARY_MIN_VEHICLES = 3
 PATTERN_TOLERATED_DISAGREEMENTS = 1
 
 
+def model_vocabulary(
+    connection: Connection, target_field: str = "model_family", *, reviewed: bool = True
+) -> dict[str, set[str]]:
+    """Each make's model families as TS spells them, with the reviewed names
+    (`REVIEWED_MODEL_NAMES`): what a pattern may answer, and what the model guard
+    reads a car's own text by. `reviewed=False`: only the names TS itself states.
+    A reviewed non-family (`REVIEWED_NON_FAMILIES`, Renault "B") is never one."""
+
+    source = _SOURCE_OF.format(field=target_field)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT manufacturer, {target_field}, count(*)
+            FROM {VEHICLES_TABLE}
+            WHERE {target_field} IS NOT NULL AND manufacturer IS NOT NULL AND {source} = %s
+            GROUP BY 1, 2 HAVING count(*) >= %s
+            """,
+            (SOURCE_TS, VOCABULARY_MIN_VEHICLES),
+        )
+        stated = [(str(make), str(model), int(count)) for make, model, count in cursor.fetchall()]
+    return vocabulary_of(stated, reviewed=reviewed)
+
+
+def vocabulary_of(
+    stated: Iterable[tuple[str, str, int]], *, reviewed: bool = True
+) -> dict[str, set[str]]:
+    """The vocabulary from the (make, family, cars) TS states: one spelling per name,
+    the reviewed names added when `reviewed`, no reviewed non-family."""
+
+    # A reviewed name counts as used once, so TS's own spelling of it wins.
+    reviewed_names = REVIEWED_MODEL_NAMES if reviewed else {}
+    counts: dict[str, dict[str, int]] = {
+        manufacturer: dict.fromkeys(names, 1) for manufacturer, names in reviewed_names.items()
+    }
+    for manufacturer, model, count in stated:
+        if model not in REVIEWED_NON_FAMILIES.get(manufacturer, ()):
+            counts.setdefault(manufacturer, {})[model] = count
+    return {manufacturer: preferred_spellings(names) for manufacturer, names in counts.items()}
+
+
+#: The registry text fields a stated sibling is matched by, as the guard names them.
+_STATED_TEXT_COLUMNS = {"model": "registry_model_text", "brand": "registry_brand_text"}
+
+
+def stated_text_families(connection: Connection) -> dict[tuple[str, str, str], dict[str, int]]:
+    """The families TS states for the cars with each registry text, by make, field
+    ("model", "brand") and the text in upper case: TS states Clio for all 60 cars
+    with the brand text "RENAULT B". What the pattern families check a reading
+    against (`pattern_rules`), for the model guard."""
+
+    source = _SOURCE_OF.format(field="model_family")
+    families: dict[tuple[str, str, str], dict[str, int]] = {}
+    with connection.cursor() as cursor:
+        for field_name, column in _STATED_TEXT_COLUMNS.items():
+            cursor.execute(
+                f"""
+                SELECT manufacturer, upper(btrim({column})), model_family, count(*)
+                FROM {VEHICLES_TABLE}
+                WHERE model_family IS NOT NULL AND manufacturer IS NOT NULL
+                  AND btrim({column}) <> '' AND {source} = %s
+                GROUP BY 1, 2, 3
+                """,
+                (SOURCE_TS,),
+            )
+            for manufacturer, text, family, count in cursor.fetchall():
+                key = (str(manufacturer), field_name, str(text))
+                families.setdefault(key, {})[str(family)] = int(count)
+    return families
+
+
+def tolerated_disagreements(stated_total: int, min_agreement: float) -> int:
+    """Known vehicles under a key that may disagree with a reading of it."""
+
+    return max(PATTERN_TOLERATED_DISAGREEMENTS, int((1 - min_agreement) * stated_total))
+
+
+#: The rule families keyed on the VIN's descriptor section, which the maker gives
+#: each model: the key that best tells two sibling models apart.
+VIN_KEY_FAMILIES = ("MOD-VIN", "MOD-VINL", "MOD-VINY")
+
+
+def unanimous_vin_rule_eras(connection: Connection) -> dict[str, tuple[int, int]]:
+    """The VIN-descriptor model rules every TS-named car under the key agreed with,
+    and the build years of those cars.
+
+    Such a key tells a car apart from a sibling better than one car's own text in
+    TS's words: of 446 TS-named cars with the descriptor of a "LEXUS LS250" (a
+    misspelt IS 250), all are IS. A maker reuses a descriptor decades later ("BMW
+    735 IA" of 1984 under the X6's), hence the years. Retired rules count, since
+    their fills stay until a check takes them back.
+    """
+
+    source = _SOURCE_OF.format(field="model_family")
+    descriptor = key_sql("vin_descriptor")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            WITH known AS MATERIALIZED (
+                SELECT manufacturer, {descriptor} AS descriptor, model_family AS value,
+                       min(production_year) AS first_year, max(production_year) AS last_year
+                FROM {VEHICLES_TABLE}
+                WHERE {descriptor} IS NOT NULL AND model_family IS NOT NULL
+                  AND manufacturer IS NOT NULL AND production_year IS NOT NULL AND {source} = %s
+                GROUP BY 1, 2, 3
+            )
+            SELECT r.rule_id, known.first_year, known.last_year
+            FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
+            JOIN known
+              ON known.manufacturer = r.key_values[1] AND known.descriptor = r.key_values[2]
+             AND known.value = r.value
+            WHERE r.rule_family = ANY(%s) AND r.agreement >= 1
+            """,
+            (SOURCE_TS, list(VIN_KEY_FAMILIES)),
+        )
+        return {str(rule_id): (int(first), int(last)) for rule_id, first, last in cursor.fetchall()}
+
+
+def make_words(connection: Connection) -> dict[str, set[str]]:
+    """The words the registry writes each make by ("VW", "VOLKSWAGEN"), as the
+    manufacturer rules learned them: a text reader skips them in front."""
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT value, key_values[1] FROM {VEHICLE_ENRICHMENT_RULES_TABLE} "
+            "WHERE rule_family = %s AND status = 'active'",
+            (MAKE_WORD_FAMILY,),
+        )
+        words: dict[str, set[str]] = {}
+        for manufacturer, word in cursor.fetchall():
+            words.setdefault(str(manufacturer), set()).add(str(word))
+    return words
+
+
 def pattern_rules(
     connection: Connection,
     family: RuleFamily,
@@ -294,27 +470,22 @@ def pattern_rules(
     make_field, token_field = family.key_fields
     token = key_sql(token_field)
     source = _SOURCE_OF.format(field=family.target_field)
+    vocabulary = model_vocabulary(connection, family.target_field)
     with connection.cursor() as cursor:
-        cursor.execute(
-            f"""
-            SELECT manufacturer, {family.target_field}
-            FROM {VEHICLES_TABLE}
-            WHERE {family.target_field} IS NOT NULL AND manufacturer IS NOT NULL AND {source} = %s
-            GROUP BY 1, 2 HAVING count(*) >= %s
-            """,
-            (SOURCE_TS, VOCABULARY_MIN_VEHICLES),
-        )
-        vocabulary: dict[str, set[str]] = {}
-        for manufacturer, model in cursor.fetchall():
-            vocabulary.setdefault(str(manufacturer), set()).add(str(model))
+        # A car this family already filled still needs its rule: counting only the
+        # empty ones would drop every rule that filled all its cars on the next learn.
         cursor.execute(
             f"""
             SELECT {make_field}::text, {token}, array_agg(DISTINCT manufacturer), count(*),
-                   count(*) FILTER (WHERE {family.target_field} IS NULL)
+                   count(*) FILTER (
+                       WHERE {family.target_field} IS NULL
+                          OR starts_with(coalesce(field_sources ->> %s, ''), %s)
+                   )
             FROM {VEHICLES_TABLE}
             WHERE {make_field} IS NOT NULL AND {token} IS NOT NULL AND manufacturer IS NOT NULL
             GROUP BY 1, 2
-            """
+            """,
+            (family.target_field, f"{SOURCE_RULE}:{family.family}-"),
         )
         keys = cursor.fetchall()
         cursor.execute(
@@ -330,6 +501,11 @@ def pattern_rules(
         known: dict[tuple[str, str], dict[str, int]] = {}
         for make, word, model, count in cursor.fetchall():
             known.setdefault((str(make), str(word)), {})[str(model)] = int(count)
+    words_by_make = make_words(connection)
+    # Only the brand-word patterns share their key with a statistical family; a
+    # text family is keyed on the manufacturer, which AIS cars reach by other codes.
+    shares_statistics_key = family.key_fields == statistics_family.key_fields
+    reads_text = token_field in {"model_text", "brand_text"}
     rules: list[LearnedRule] = []
     for make, word, manufacturers, total, missing in keys:
         if len(manufacturers) != 1 or not missing or int(total) < min_support:
@@ -337,16 +513,25 @@ def pattern_rules(
         stated = known.get((str(make), str(word)), {})
         stated_total = sum(stated.values())
         if (
-            stated_total >= statistics_family.min_support
+            shares_statistics_key
+            and stated_total >= statistics_family.min_support
             and max(stated.values()) >= statistics_family.min_agreement * stated_total
         ):
             continue
         manufacturer = str(manufacturers[0])
-        value = pattern_model(manufacturer, str(word), vocabulary.get(manufacturer, ()))
+        if reads_text:
+            value = model_text_family(
+                manufacturer, str(word), vocabulary.get(manufacturer, ()),
+                make_words=words_by_make.get(manufacturer, ()),
+            )
+        else:
+            value = pattern_model(manufacturer, str(word), vocabulary.get(manufacturer, ()))
         if value is None:
             continue
-        disagreeing = stated_total - stated.get(value, 0)
-        if disagreeing > max(PATTERN_TOLERATED_DISAGREEMENTS, int((1 - min_agreement) * stated_total)):
+        # A sibling TS misread is no evidence against the answer (MISREAD_STATED_FAMILIES).
+        misread = MISREAD_STATED_FAMILIES.get(manufacturer, {}).get(value, ())
+        disagreeing = stated_total - stated.get(value, 0) - sum(stated.get(other, 0) for other in misread)
+        if disagreeing > tolerated_disagreements(stated_total, min_agreement):
             continue
         key_values = (str(make), str(word))
         rules.append(
@@ -453,7 +638,8 @@ class ApplySummary:
 
 
 class ModelChecker(Protocol):
-    """What judges a learned model against the car (`vehicle_model_guard.ModelGuard`)."""
+    """What judges a learned model against the car (`vehicle_model_guard.ModelGuard`):
+    the car's texts, fuel, engine and build year, and the rule that would fill it."""
 
     def verdict(
         self,
@@ -461,6 +647,10 @@ class ModelChecker(Protocol):
         manufacturer: str | None,
         model_family: str,
         evidence: Mapping[str, str | None],
+        fuel: str | None = None,
+        engine_code: str | None = None,
+        year: int | None = None,
+        rule_id: str | None = None,
     ) -> object | None: ...
 
 
@@ -597,6 +787,103 @@ def _outside_era(eras: Mapping[str, tuple[int, int]], rule_id: str, year: int | 
     return era is not None and year is not None and not era[0] - ERA_SLACK <= year <= era[1] + ERA_SLACK
 
 
+Eras = tuple[tuple[int, int | None], ...]
+
+#: The build years a model rule's answer is right for, reviewed one by one for
+#: rules keyed on a number, a letter or a name that meant another car in another
+#: era (2026-10-01). The learned era (`number_rule_eras`) cannot see these: it
+#: covers only brand-word numbers, and the years it learns from are biased to cars
+#: TS named, which are mostly recent. Keyed by the rule's content -- family, key
+#: values and answer -- of which its id is the hash, so an era follows its rule
+#: through any re-learn. A range is inclusive; None leaves it open.
+REVIEWED_RULE_ERAS: dict[tuple[str, tuple[str, ...], str], Eras] = {
+    # "MERCEDES-BENZ 230" is the R230 SL from 2001; before it the 230 saloon (W110/
+    # W111, W114/W115, W123): 503 of 557 fills were. The 1963-67 230 SL (W113) is no
+    # era of its own: about 70 of the 81 fills from those years are 4.75-5.25 m
+    # saloons and estates, and only some 7 the 4.3 m SL, which goes unfilled.
+    # Its sister key without the hyphen filled 293 cars, 255 of them W123s.
+    ("MOD-BR", ("MB", "MERCEDES-BENZ 230"), "SL"): ((2001, None),),
+    ("MOD-BR", ("MB", "MERCEDES BENZ 230"), "SL"): ((2001, None),),
+    # The S4 of 1992-94 is the Audi 100 (C4); the A4's S4 starts in 1997.
+    ("MOD-BT", ("AU", "S4"), "A4"): ((1995, None),),
+    # "CITROEN B 11", "B 425", "B 602": Traction Avants, 2CVs and Ami 6s; the C4 is from 2004.
+    ("MOD-BT", ("CI", "B"), "C4"): ((2004, None),),
+}
+REVIEWED_ERAS_BY_RULE_ID: dict[str, Eras] = {
+    rule_id_for(family, key_values, value): eras
+    for (family, key_values, value), eras in REVIEWED_RULE_ERAS.items()
+}
+
+#: The build years a family's name means that car, by make, for names an older or a
+#: newer car's text reads the same (2026-10-01). Whatever rule answers with one --
+#: and whichever key a re-learn gives it -- fills only cars of those years, and the
+#: guard reads a text naming it as no family for a car built outside them.
+REVIEWED_FAMILY_ERAS: dict[tuple[str, str], Eras] = {
+    # The 1955-60 Saab 93 ("SAAB 93 B DE LUXE"); "SAAB 93 AERO" and the other 1998+
+    # cars registered "SAAB 93" are 9-3s.
+    ("Saab", "93"): ((1955, 1960),),
+    # The Renault 4 from 1961; "RENAULT 4 CV R 1062" before it is the 4CV.
+    ("Renault", "4"): ((1961, None),),
+    # The Clio from 1990: "RENAULT B 40805" of 1989 is no Clio II.
+    ("Renault", "Clio"): ((1990, None),),
+    # The A-Class from 1997, the B-Class from 2005: "MERCEDES A CABR 170 S" is a 1950s
+    # 170 S Cabriolet A, "MERCEDES B 170 S" of 1950 and "M B 250 CE" of 1972 abbreviate
+    # Mercedes-Benz.
+    ("Mercedes-Benz", "A-Class"): ((1997, None),),
+    ("Mercedes-Benz", "B-Class"): ((2005, None),),
+    # TecDoc "CABRIOLET B3 (8G7)" of 1991-2000 and "COUPE (81, 85)", "COUPE (8B3)" of
+    # 1980-96: the "AUDI CABRIO 2,4" of 2002-04 is an A4 Cabriolet.
+    ("Audi", "Cabriolet"): ((1991, 2000),),
+    ("Audi", "Coupe"): ((1980, 1996),),
+    # The Fiat Coupé (type 175), built until late 2000, the registry's last ones 2001;
+    # "FIAT 130 COUPÉ" of 1973 and "FIAT COUPE 124" of 1968 are no Coupe.
+    ("Fiat", "Coupe"): ((1993, 2001),),
+    # The Galaxie of model years 1959-74, built from 1958; a 2009 "FORD GALAXIE"
+    # misspells the Galaxy.
+    ("Ford", "Galaxie"): ((1958, 1974),),
+    ("Ford", "Galaxie 500"): ((1958, 1974),),
+}
+
+
+def _outside(eras: Eras | None, year: int | None) -> bool:
+    return (
+        eras is not None
+        and year is not None
+        and not any(first <= year and (last is None or year <= last) for first, last in eras)
+    )
+
+
+def outside_reviewed_era(rule_id: str, year: int | None) -> bool:
+    """True when the rule has a reviewed era (`REVIEWED_RULE_ERAS`) and the car's
+    build year is outside it. A car without a build year is not judged."""
+
+    return _outside(REVIEWED_ERAS_BY_RULE_ID.get(rule_id), year)
+
+
+def outside_family_era(manufacturer: str | None, family: str, year: int | None) -> bool:
+    """True when the family has a reviewed era (`REVIEWED_FAMILY_ERAS`) and the car's
+    build year is outside it. A car without a build year is not judged."""
+
+    eras = REVIEWED_FAMILY_ERAS.get((manufacturer, family)) if manufacturer else None
+    return _outside(eras, year)
+
+
+def _era_refusal(
+    eras: Mapping[str, tuple[int, int]],
+    rule_id: str,
+    year: int | None,
+    manufacturer: str | None = None,
+    value: str | None = None,
+) -> str | None:
+    if _outside_era(eras, rule_id, year):
+        return "outside_learned_era"
+    if outside_reviewed_era(rule_id, year) or (
+        value is not None and outside_family_era(manufacturer, value, year)
+    ):
+        return "outside_reviewed_era"
+    return None
+
+
 def _apply_guarded(
     connection: Connection, family: RuleFamily, guard: ModelChecker, source_batch_id: str | None
 ) -> ApplySummary:
@@ -611,7 +898,7 @@ def _apply_guarded(
         cursor.execute(
             f"""
             SELECT v.vehicle_id, r.rule_id, r.value, r.agreement, v.manufacturer, v.production_year,
-                   {_EVIDENCE_SELECT}
+                   v.fuel, v.engine_code, {_EVIDENCE_SELECT}
             FROM {VEHICLES_TABLE} AS v
             JOIN {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
               ON r.rule_family = %s AND r.status = 'active' AND {key_match}
@@ -622,13 +909,14 @@ def _apply_guarded(
         proposed = cursor.fetchall()
         refused: Counter[str] = Counter()
         accepted = []
-        for vehicle_id, rule_id, value, agreement, manufacturer, year, *texts in proposed:
-            if _outside_era(eras, str(rule_id), year):
-                refused["outside_learned_era"] += 1
+        for vehicle_id, rule_id, value, agreement, manufacturer, year, fuel, engine_code, *texts in proposed:
+            if era_refusal := _era_refusal(eras, str(rule_id), year, manufacturer, str(value)):
+                refused[era_refusal] += 1
                 continue
             verdict = guard.verdict(
                 manufacturer=manufacturer, model_family=str(value),
-                evidence=dict(zip(REGISTRY_EVIDENCE_COLUMNS, texts, strict=True)),
+                evidence=dict(zip(REGISTRY_EVIDENCE_COLUMNS, texts, strict=True)), fuel=fuel,
+                engine_code=engine_code, year=year, rule_id=str(rule_id),
             )
             if verdict is None:
                 accepted.append((vehicle_id, rule_id, value, agreement))
@@ -702,19 +990,22 @@ def check_model_fills(
         cursor.execute(
             f"""
             SELECT v.vehicle_id, substring(v.field_sources ->> 'model_family' from 6), v.model_family,
-                   v.manufacturer, v.production_year, {_EVIDENCE_SELECT}
+                   v.manufacturer, v.production_year, v.fuel, v.engine_code, {_EVIDENCE_SELECT}
             FROM {VEHICLES_TABLE} AS v
             WHERE v.field_sources ->> 'model_family' LIKE 'rule:MOD-%'
             """
         )
-        for vehicle_id, rule_id, value, manufacturer, year, *texts in cursor:
+        for vehicle_id, rule_id, value, manufacturer, year, fuel, engine_code, *texts in cursor:
             summary.checked += 1
             evidence = dict(zip(REGISTRY_EVIDENCE_COLUMNS, texts, strict=True))
             verdict: object | None
-            if _outside_era(eras, str(rule_id), year):
-                verdict, reason = "outside_learned_era", "outside_learned_era"
+            if era_refusal := _era_refusal(eras, str(rule_id), year, manufacturer, str(value)):
+                verdict, reason = era_refusal, era_refusal
             else:
-                verdict = guard.verdict(manufacturer=manufacturer, model_family=str(value), evidence=evidence)
+                verdict = guard.verdict(
+                    manufacturer=manufacturer, model_family=str(value), evidence=evidence, fuel=fuel,
+                    engine_code=engine_code, year=year, rule_id=str(rule_id),
+                )
                 if verdict is None:
                     continue
                 reason = str(getattr(verdict, "reason", verdict))

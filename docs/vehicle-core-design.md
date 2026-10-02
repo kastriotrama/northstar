@@ -123,11 +123,52 @@ version, which does not scale to ~368k rules.
   | --- | --- | --- |
   | `MOD-VV` | make + variant + version | 99.99 % |
   | `MOD-VIN` | manufacturer + VIN characters 1–8 (manufacturer and descriptor section; full VINs only) | 99.98 % |
+  | `MOD-VINL` | manufacturer + VIN characters 1–8 + length (sister models sharing a descriptor: Peugeot 3008/5008, Volvo XC40/C40) | 99.99 % (99.99 % where the VIN alone is ambiguous) |
+  | `MOD-VINY` | manufacturer + VIN characters 1–8 + model-year character 10 (a model renamed on one descriptor) | 99.98 % (99.5 % where the VIN alone is ambiguous) |
   | `MOD-TP` | make + type code | 99.97 % |
   | `MOD-VAR` | make + variant | 99.98 % |
   | `MOD-BR` | make + registry brand text | 99.98 % |
   | `MOD-BT` | make + the brand text's model word | 99.99 % |
-  | `MOD-PAT` | make + the brand text's model word, read by reviewed patterns | checked per key |
+  | `MOD-MT` | manufacturer + the registry model text, read by `model_text_family` | checked per key |
+  | `MOD-BRT` | manufacturer + the whole registry brand text, read the same way (AIS texts that repeat the make, "TOYOTA TOYOTA YARIS CROSS", give no model word) | checked per key |
+  | `MOD-PAT` | make + the brand text's model word, read by reviewed patterns (Volvo type codes incl. Amazon/140/164/P 1800/Duett/340/440/460, BMW, Mercedes, Saab model numbers) | checked per key |
+
+  `model_text_family` answers a family TS spells (the most used spelling: "RAV4",
+  not "Rav 4") or a reviewed name (`vehicle_model_patterns.REVIEWED_MODEL_NAMES`,
+  new models no normalization rule names: EX40, ID.7 Tourer, EV3, Tipo, ...). It
+  takes the longest name the text starts with ("ID.7 TOURER GTX" → ID.7 Tourer),
+  skips the make and the words the registry writes it by ("VOLKSWAGEN, VW"), reads
+  "GR" as Grand, a Volvo "S + V70" after the plus, a Lexus "IS200" as IS, and one
+  chassis code in front ("FORD DAW FOCUS") only when the model is all that follows.
+  A separator between digits counts: Saab's 93 is not the 9-3. Reviewed aliases
+  (`REVIEWED_MODEL_ALIASES`: "TRANS AM" → Firebird, "M3" → 3 Series) never compete
+  with a name TS uses itself; reviewed chassis codes (`REVIEWED_CHASSIS_CODES`:
+  Honda "RD1" → CR-V, Renault "BA" → Mégane) are kept only where TecDoc gives the
+  code to one family. Stellantis "e-" versions read as their family (e-C3 → C3).
+
+- **The guard** refuses a fill the car contradicts:
+  - its own text names another family, compared with model numbers respected
+    ("ID.4" is not TecDoc's "ID.5 (E39)", "Atto 3" not "ATTO 2"; "GR" may be read
+    as Grand);
+  - its fuel names another family (`REVIEWED_ELECTRIC_FAMILIES`: an electric
+    "FORD MUSTANG" is a Mach-E);
+  - a family named like the make ("MINI") with another family's word after it
+    ("MINI JCW COUNTRYMAN").
+
+  TecDoc families sold under another name carry it as an alias
+  (`match_run_adapters.REVIEWED_EXPORT_NAMES`: BYD "YUAN PLUS" is the Atto 3).
+  The matcher looks under a sister maker (`REVIEWED_SISTER_MAKERS`: "FORD USA",
+  then "FORD AUSTRALIA") only when the car's model is no family under the make
+  itself: TecDoc files every Mustang and Mach-E under FORD USA. The guard keeps
+  reading under the make: a word such as "CUSTOM" would otherwise name a 1950s
+  Ford on a Transit Custom.
+  Siblings TS misread are not counted against a rule
+  (`MISREAD_STATED_FAMILIES`: six Mustang GTs TS filed under the Ford GT).
+
+- **Manufacturer** (`MFR-BW`): the brand text's first word, learned from TS
+  (10 vehicles, 98 %). AIS sends its own make codes for newer makes ("PO" is
+  Pontiac in TS, Polestar in AIS), so ~36k Polestar, Cupra, BYD and XPENG cars had
+  none. It runs before the model families, which are keyed on the manufacturer.
 
   Holdout accuracy: rules learned from 90 % of the vehicles with a known model,
   checked on the other 10 %. The computed keys (`vin_descriptor`, `brand_text`,

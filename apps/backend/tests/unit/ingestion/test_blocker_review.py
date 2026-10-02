@@ -13,6 +13,16 @@ def test_hard_conflict_has_precedence_over_context_category() -> None:
     assert category.code == "hard_technical_conflict"
 
 
+def test_a_replaced_hard_conflict_is_still_a_hard_technical_conflict() -> None:
+    # A conflict-free reading replaced the suggestion; the car stays in review for the
+    # conflict, which the reason keeps as hard_conflict_replaced:<field>.
+    category = classify_match_blocker(
+        MatchEvaluation("review_required", ("hard_conflict_replaced:year", "route:candidate_margin_below_gate"))
+    )
+    assert category is not None
+    assert category.code == "hard_technical_conflict"
+
+
 def test_bodywork_and_margin_are_stable_categories() -> None:
     bodywork = classify_match_blocker(
         MatchEvaluation("review_required", ("context_conflict:bodywork",))

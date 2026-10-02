@@ -71,6 +71,7 @@ MATCHER_FIELDS: tuple[str, ...] = (
     "manufacturer",
     "model_family",
     "production_year",
+    "production_month",
     "power_kw",
     "displacement_cc",
     "engine_code",

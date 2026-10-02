@@ -50,6 +50,112 @@ fills cars of the era it was learned from (±2 years). For example, Mercedes-Ben
 "220" was learned from W220 S-Classes and would otherwise have made the 1970s
 "220 D" saloons S-Classes.
 
+**Added 2026-10-01 (local, not on live): the car's own text in TS's words, and reviewed eras.**
+
+- When the model field names nothing the catalog knows, the guard reads the brand
+  text's model word: model "SL" with brand "KIA SPORTAGE 2,0 CRDI EX" is no Sorento.
+  The matcher itself does not fall back this way.
+- The model field and the brand text are also read the way `MOD-MT`/`MOD-BRT` read
+  them (`model_text_family`, TS vocabulary plus the reviewed tables), with the same
+  sibling check: when the TS-named cars with the very same text mostly carry another
+  family, the reading counts for nothing. TS states Clio for all 60 cars with the
+  brand text "RENAULT B", so "B" is not read there.
+- A fill is refused when a text names a family and no text names the fill's family:
+  "MAZDA2" is no CX-3, "MAZDA6" no CX-5, VW "CC" no Passat, "FIAT DOBL 1,6" no 500,
+  "VOLVO P 44507 M" (a 1950s Duett) no 440.
+- When the model field names the fill in TS's words, no catalog reading refuses it.
+  Brand "JAGUAR XK8" with model "XKR CONVERTIBLE" is an XKR, although TecDoc files
+  the XKR under the XK 8, and "PLYMOUTH BELVEDERE" with model "GTX/SPORT" is a GTX.
+- A model field that is exactly one family's name ("EX30") refuses a narrower
+  sibling ("EX30 Cross Country") unless another text names it.
+- **A unanimous VIN-descriptor rule outranks one car's text in TS's words.** This
+  applies to `MOD-VIN`, `MOD-VINL` and `MOD-VINY` rules where every TS-named car
+  under the key agreed, for a car built within the years of those cars (±2). Such a
+  rule is not refused by a reading of a family TS states elsewhere, and it lets a
+  narrower sibling stand.
+  - Kept: "LEXUS LS250" (446 TS-named IS under its descriptor), "MAZDA MZ-5", "MG F"
+    on a 100 kW TF, a "GRANTURISMO SPORT" convertible under the GranCabrio's
+    descriptor, "BMW 120I GRAN TOURER", "MERCEDES-BENZ C LK320" and "E350CLS", and
+    the 4 EX30 Cross Countrys registered "EX30".
+  - Not kept: a reviewed name TS never states ("CC", "Caravelle") says nothing by its
+    absence under the key, so VW "CC" is still no Passat. A key a maker reused
+    decades later ("BMW 735 IA" of 1984 under the X6's descriptor) is outside its
+    years, so the reading still refuses the fill.
+- **Reading fixes**, shared with the learners (`vehicle_model_patterns`):
+  - A make word written over several registry words must end where one of them
+    ends, so "FORD-T" is no make in "FORD T.E.C" (no Ford "E"). Within the first
+    registry word it may end anywhere ("VW-GOLF", "CHEV.ASTRO"). A learned make word
+    that is the make glued to a number ("BMW525") is never one, so "BMW 525 IX" is a
+    5 Series, not the iX.
+  - "MERCEDES B" and "M B" spell Mercedes-Benz: "MERCEDES B E240" is an E-Class.
+  - A number with a decimal point or comma is an engine size, letters glued to it
+    included ("4,2Q", "3,0I"): "MAZDA 2.3 KOMBI" is no Mazda 2, and "MAZDA 929 3,0I"
+    no Mazda 3. A number that spells a name still names it: "SAAB 9.3" is a 9-3.
+  - A make word that is also a family, written first ("CHEVY CAPRICE"), is the make.
+  - A Volvo text naming two sibling series ("944-964", "745-765") names neither, and
+    the engine decides between 940 and 960: B6xxx is a 960, four-cylinder B2xx a 940,
+    and a D24 diesel decides nothing. A number after a type code is its engine or
+    version, even when it looks like a type code ("944-855" is a 940).
+  - BMW numbers with a 0 as second digit ("306 D5", the 535d's engine; the 1950s
+    507) name no series.
+  - "MZ-5" and "5X-5" are typing errors for the MX-5.
+- **Reviewed tables:**
+  - Renault "B" is not a family (`REVIEWED_NON_FAMILIES`).
+  - The Renault 4CV ("4 CV", "R 1062") has no family (`REVIEWED_OTHER_CARS`).
+  - iX1/X1 and iX3/X3 are one family (`REVIEWED_SAME_FAMILIES`). TS files every
+    iX1 and iX3 it names under X1 and X3.
+  - Some naming questions are on hold with the data owner (`NAMING_ON_HOLD`). Until
+    they are decided, these fills are not refused:
+    - Multivan fills on T4/T5 cars whose text says CARAVELLE;
+    - 4x4 fills where the text says Niva;
+    - Megane fills where the text says Scenic.
+- A motorhome converter in the text (`REVIEWED_CONVERTER_WORDS`: Rapido, Hymer,
+  Adria...) keeps only the van families it builds on (`REVIEWED_CONVERTER_BASES`).
+- **Reviewed eras** keep a rule from filling a car of another era. There is still no
+  generic TecDoc-year check.
+  - Per rule (`REVIEWED_RULE_ERAS`), for keys that meant another car in another
+    era:
+    - "MERCEDES-BENZ 230" and "MERCEDES BENZ 230" → SL only from 2001 (1963-67
+      fills are mostly W110/W111 saloons, so the few W113 230 SLs stay unfilled);
+    - "S4" → A4 from 1995;
+    - Citroën "B" → C4 from 2004.
+  - Per family (`REVIEWED_FAMILY_ERAS`), whatever rule or key answers with it, and
+    after any re-learn:
+    - Saab "93" only 1955-60;
+    - Renault "4" from 1961, Clio from 1990;
+    - Mercedes A-Class from 1997, B-Class from 2005;
+    - Audi Cabriolet 1991-2000, Coupe 1980-96, Fiat Coupe 1993-2001;
+    - Ford Galaxie 1958-74 (model years 1959-74).
+
+    A text read as one of these families on a car built outside its years names no
+    family. "AUDI S5 COUPE", "S4 CABRIOLET" and "TTS COUPÉ" are A5, A4 and TT, and the
+    "AUDI CABRIO 2,4" of 2002 is an A4 Cabriolet, while the "AUDI S2 COUPE" of 1993
+    is still the Coupe. TS's own cars confirm it too: TS states A5 for all 14 cars
+    with the brand text "AUDI S5 COUPE 4,2Q".
+- **Dry run (2026-10-01, read-only, local copy of live).** `check-model-fills` with
+  this guard would take back 20,845 of 2,477,659 rule fills. The largest groups:
+  - 13,929 EX30 → EX30 Cross Country (type code "2");
+  - 2,727 "MAZDA2" → CX-3;
+  - 1,113 "CC" → Passat;
+  - 801 "MERCEDES(-)BENZ 230" → SL outside its eras;
+  - 710 Kia "SL" → Sorento.
+
+  A refill simulation (learn, then apply) gives 19,278 of these cars a family again,
+  such as EX30, 2, CC, Sportage and Duett, and leaves 1,567 empty. The match impact
+  report has not been run on this.
+- **The next learn retires some pattern rules.** `--activate` retires them in status
+  only, and their fills stay until `retire_rule` takes them back.
+  - Worth retiring with `retire_rule`, because their fills are wrong:
+    - `MOD-PAT` BMW numbers with a 0 second, mostly the 1950s "501", "502", "503",
+      "507", "600" and "700" filled 5/6/7 Series (14 rules, 190 fills), and the
+      matching `MOD-BRT` brand texts (27 fills);
+    - `MOD-BRT` "MAZDA 929 3,0I" → 3 (33 fills);
+    - the "FORD T.E.C…" texts → E (16 fills);
+    - "RENAULT B/C 53" → B.
+  - Not to be retired: the Volvo two-series `MOD-PAT` rules ("944-964", "945-965",
+    "744-764", "745-765", "744-762", "745-762"; 122 fills). Their four-cylinder cars
+    are right, and the engine check already takes back the six-cylinder ones.
+
 **3. How the matcher reads a model from registry text**
 (`fuzzy_matching.recover_model_from_evidence`). There are three readings:
 
@@ -148,16 +254,29 @@ had lost. The fifth resolves again only without the merged year tolerance.
 
 ## Operating it
 
+The manufacturer first: the model families are learned per manufacturer, so cars
+whose make only the brand text names must have it before they are learned.
+
 ```bash
-python -m ingestion.cli learn-vehicle-rules --family MOD-VV --family MOD-VIN --family MOD-TP --family MOD-VAR --family MOD-BR --family MOD-BT --family MOD-PAT --activate
+python -m ingestion.cli learn-vehicle-rules --family MFR-BW --activate
 ```
 
 ```bash
-python -m ingestion.cli apply-vehicle-rules --catalog-batch tecdoc-0326-canonical-full-prod-v2-20260914 --family MOD-VV --family MOD-VIN --family MOD-TP --family MOD-VAR --family MOD-BR --family MOD-BT --family MOD-PAT
+python -m ingestion.cli apply-vehicle-rules --catalog-batch tecdoc-0326-canonical-full-prod-v2-20260914 --family MFR-BW
+```
+
+```bash
+python -m ingestion.cli learn-vehicle-rules --family MOD-VV --family MOD-VIN --family MOD-VINL --family MOD-VINY --family MOD-TP --family MOD-VAR --family MOD-BR --family MOD-BT --family MOD-MT --family MOD-BRT --family MOD-PAT --activate
+```
+
+```bash
+python -m ingestion.cli apply-vehicle-rules --catalog-batch tecdoc-0326-canonical-full-prod-v2-20260914 --family MOD-VV --family MOD-VIN --family MOD-VINL --family MOD-VINY --family MOD-TP --family MOD-VAR --family MOD-BR --family MOD-BT --family MOD-MT --family MOD-BRT --family MOD-PAT
 ```
 
 ```bash
 python -m ingestion.cli check-model-fills --catalog-batch tecdoc-0326-canonical-full-prod-v2-20260914 --retract
 ```
 
-Run the check after any catalog or matcher change as well.
+Run the check after any catalog or matcher change as well. A rule whose answer
+changes on a later learn is retired only in status by `--activate`; retire it with
+`retire_rule` first (it takes back what it filled), then apply again.

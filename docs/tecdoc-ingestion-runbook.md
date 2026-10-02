@@ -142,6 +142,32 @@ conflict. Unknown or unmapped fuel still fails closed. Exact Table 155
 displacement is preferred; a single Table 120 displacement observed across the
 complete restored source is accepted as corroboration.
 
+Three gate refinements (2026-10-02; they take effect only in a newly built batch):
+
+- **Electric motors.** Displacement does not apply to a KType with engine type
+  `040` (KT 080, battery electric), one active engine labelled Electric, a Table
+  120 fuel of electric (or none), and no displacement in Table 120 or Table 155.
+  It promotes with `displacement_cc=null` and
+  `displacement_source=not_applicable_electric`. The rule keys on the engine
+  type, not the fuel label. Hydrogen fuel-cell KTypes (engine type 040, Table 120
+  fuel hydrogen; 9 in the 0326 delivery) are left out on purpose and stay
+  `displacement_unresolved`: including them is a separate decision.
+- **Table 155 without an upper value.** The 0326 delivery has no
+  `displacement_cc_to` on any link, so `table_155_exact` never applies. After the
+  exact value and the Table 120 consensus, a lone `displacement_cc_from` is
+  accepted as `table_155_from_only` when the KType's own Table 120 displacement
+  is equal to it or absent. A KType whose own displacement differs (a shared
+  engine listed at 1,984 cc on a 1,968 cc KType) stays `displacement_unresolved`,
+  so no promoted KType's displacement differs from its Table 120 value.
+- **Petrol/Gas engines.** The KT 088 labels `Petrol/Gas` and `Petrol/Alcohol/Gas`
+  stay unmapped engine fuel evidence (`fuel_representation=unmapped`, no
+  components, engine candidate `fuel_type=null`). The gate alone accepts such an
+  engine when the KType's Table 120 fuel is one mapped fuel the label contains
+  (petrol, lpg, cng; also ethanol for `Petrol/Alcohol/Gas`), and the variant is
+  promoted with that vehicle fuel. Do not add these labels to
+  `_MIXED_ENGINE_FUEL_LABELS`: that changes the matcher's fuel components for
+  every KType sharing the engine and was measured to turn resolved cars into ties.
+
 Manufacturer, ModelFamily, provisional VehicleVariant, Engine and KType Alias
 nodes may then be created. Every promoted variant receives a `VARIANT_OF`
 relationship to its known ModelFamily, which connects to Manufacturer through
@@ -165,11 +191,89 @@ Transmission is also optional: resolve Table 547 KType allocations through Table
 `USES_TRANSMISSION` only for one distinct transmission. Preserve multiple
 allocations as `transmission_link_status=ambiguous` without choosing one.
 
+Production months: promotion keeps TecDoc's `YYYYMM` start and end beside the
+years as `month_from` / `month_to`. The matcher compares a car's build month with
+them: a month outside a KType's run inside a covered year is unverified (a small
+penalty, never a conflict), since TecDoc's month boundaries are approximate.
+
+The month rule is deliberately narrow (`FuzzyMatchConfig.production_month_tolerance`
+= 0 months, measured 2026-10-01 on the 30k and an independent 20k):
+
+- Months choose only within the car's model line: the TecDoc name without chassis
+  code, generation and the car's own body word ("LEGACY IV Estate" and "LEGACY V
+  Estate" are one line). A KType of the car's own line is penalized only when a
+  KType of that line without a conflict covers the build month; a KType of another
+  line ("PAJERO SPORT", "IBIZA IV SC", "PASSAT ALLTRACK") whenever its run misses
+  the month. A car is never sent to another line because that line's run covers
+  its month.
+- A body word naming another body than the car's keeps its KType another line: for
+  a registered SUV, "GLC Coupe" is not the line of "GLC". Makers' own estate names
+  count as body words (T-Model, Turnier, Grandtour, Sportstourer, ST, Shooting
+  Brake, Station Wagon, Weekend, Aerodeck, Variable, Traveller); names that tell
+  a door count or another car apart (Sportback, SC, GTC, Allroad, Cross Country)
+  do not, so months never choose between them.
+- A KType that conflicts with the car gets no protection from its line.
+- Result against no months (prod-v4 vs prod-v2): 30k 64.2% -> 65.5% resolved
+  (+410, -32 to review, 8 moved), 20k 64.1% -> 65.4% (+279, -24, 6 moved).
+- Widening the tolerance to 1-3 months loses gains (686 -> 563 -> 444 -> 341); any
+  change to it or to the line rule needs both samples re-measured car by car.
+
+#### Composing a batch when a delivery lacks a table (prod-v4, 2026-10-01, local)
+
+The `0326` delivery on the Mac mini has no Tables 547-549, so a rebuild from it
+(`prod-v3-20260930`) carries months but no transmissions, while `prod-v2-20260914`
+(built from a source with Table 547) carries transmissions but no months. Every
+KType is otherwise identical in the two. `prod-v4-20261001` takes every row of v2
+(candidates with their node IDs, the 829 transmission entities, all relationships)
+and adds only `month_from` / `month_to` from v3, KType by KType, in one
+transaction under a new batch row; v2 and v3 stay untouched. Verified: equal row
+counts per entity type, 0 rows differing from v2 beyond the two month keys, 0 month
+values differing from v3, 0 relationships differing from v2. A full rebuild from a
+delivery that includes Tables 547-549 replaces this.
+
 Drive is a VehicleVariant property sourced from Table 120 KT 082. Map Front-
 Wheel Drive to `fwd`, Rear-Wheel Drive to `rwd`, and all explicit selectable,
 permanent, or electronically regulated all-wheel forms to `awd`. Preserve
 mechanism values such as Chain, Direct, Cardan, Belts, Vario and Direct 2x2 as
 review evidence without inferring wheel drive.
+
+#### Electrification and reading guards in the matcher (2026-10-01)
+
+Both catalog loaders (`load_postgres_ktype_catalog`, and the graph's
+`load_ktype_catalog`) read the variant's `tecdoc_engine_type_code` (KT 080) into
+`VehicleCandidate.electrification`: 046 plug-in hybrid, 047 range extender, 048
+full hybrid, 049 mild hybrid, 040 battery electric, 001-004 combustion. A missing
+or other code is unknown, and no check ever reads unknown as "not a plug-in". The
+car's side is normalization's `electrification_type` (ELHYBRID or a word such as
+eTSI: `hybrid`; LADDHYBRID: `plug_in_hybrid`).
+
+These checks only send a car to review, or change what a hard-conflict car is
+shown: none raises a route or resolves a car to another KType. Each adds a reason
+code and a routing-gate entry to the decision trace, so the Matching tab's verdict
+names it:
+
+| Reason | When |
+|---|---|
+| `match_guard:plug_in_power_unverified` | Electric plus combustion fuel, not registered `hybrid`; only exact power set a KType TecDoc knows is no plug-in apart from a plug-in or range-extender sibling (the registry gives engine power, TecDoc a plug-in's system power). The two tie. |
+| `electrification_conflict` | Registered plug-in, KType known to be none; or registered `hybrid`, KType a plug-in in a TecDoc family that has a full or mild hybrid KType. |
+| `hard_conflict_replaced:<field>` | The suggestion had a hard conflict; the best reading that contradicts nothing, inside the registry family (or the conflict's own family), is shown instead. The car stays in review. |
+| `reading_disagreement:outside_registry_family` | The KType came from an alternative model value, outside the registry family, while another reading lies inside it (IONIQ5 read as IONIQ 6). |
+| `reading_disagreement:other_matcher_family` | On the winning model value the other matcher (base or reviewed aliases) also reaches provisional or resolved, in another family. |
+| `reading_disagreement:other_value_ktype` | Another model value, as text, also resolves, to another KType ("V60" against "V60 CROSS COUNTRY"). |
+
+The evaluation key gains `("electrification", ...)` and `("registry_family", ...)`
+when a car has them, so those cars' chunk signatures change once.
+
+Measured with the real implementation on prod-v4 (every car of both samples
+against the design's baseline): 20k 102 resolved and 13 provisional cars to
+review, 13 hard conflicts relabelled to review; 30k 161, 19 and 35. Every other
+car is unchanged: 0 resolved cars moved to another KType, 0 cars newly resolved.
+Known costs: a 2024 V60 Cross Country B5 that its own text got right; a car the
+registry wrongly calls a plug-in (a Lexus CT200h); and likely LADDHYBRID Outlander
+IVs, since TecDoc codes that plug-in "2.4 Hybrid" 048. Kia cars a rule
+filled "Sorento" whose "SL" text reads the Sportage III keep their Sorento
+suggestion, since a replacement stays in the registry family. Settling the plug-in
+ties by kerb weight is open stakeholder question S15.
 
 ### Frontend inspection
 
