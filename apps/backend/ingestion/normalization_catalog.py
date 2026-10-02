@@ -115,9 +115,7 @@ _TABLES: tuple[_TableSpec, ...] = (
         prefix="EVA",
         source_fields=("manufacturer", "brand"),
         canonical_field="manufacturer_evidence",
-        notes=(
-            "Resolved for evidence comparison only. It never sets manufacturer on its own."
-        ),
+        notes=("Resolved for evidence comparison only. It never sets manufacturer on its own."),
     ),
     _TableSpec(
         name="_CONVERTER_ALIASES",
@@ -319,6 +317,7 @@ _TABLES: tuple[_TableSpec, ...] = (
 #: canonical value: the rule is the arithmetic, not a mapping.
 _MEASUREMENT_TRANSFORMER = "ts.measurements"
 
+
 #: Regex grammars. A pattern is the rule, so the pattern itself is shown.
 @dataclass(frozen=True)
 class _GrammarSpec:
@@ -339,7 +338,8 @@ _GRAMMARS: tuple[_GrammarSpec, ...] = (
         writes="tyre_front, tyre_rear",
         summary=(
             "Modern metric size. Yields width, aspect, construction, rim, load index and "
-            "speed symbol. C is a commercial casing, not part of the rim diameter."
+            "speed symbol. C is a commercial casing, not part of the rim diameter. Also reads "
+            "the speed symbol inside the size (185/70SR14), run-flat RF/ZRF and the HL prefix."
         ),
     ),
     _GrammarSpec(
@@ -350,7 +350,8 @@ _GRAMMARS: tuple[_GrammarSpec, ...] = (
         writes="tyre_front, tyre_rear",
         summary=(
             "Pre-1980 alpha size such as 175SR14: the speed symbol sits inside and there is "
-            "no aspect ratio. A missing aspect ratio stays missing."
+            "no aspect ratio. A missing aspect ratio stays missing. A service description "
+            "(175R1488S), commercial casing (185R14C) or ply rating may follow."
         ),
     ),
     _GrammarSpec(
@@ -370,6 +371,61 @@ _GRAMMARS: tuple[_GrammarSpec, ...] = (
         summary="Dashed metric size such as 175-15, read as bias construction.",
     ),
     _GrammarSpec(
+        rule_id="TYRE-IMPERIAL-FULL",
+        transformer_id="ts.tyres",
+        constant="_TYRE_IMPERIAL_FULL",
+        source_fields=("tyre_front", "tyre_rear"),
+        writes="tyre_front, tyre_rear",
+        summary=(
+            "Imperial size with more than the bare width and rim: a radial (7.25R13), a speed "
+            "symbol (5.20S-10), a commercial casing (9.00-16C) or a ply rating (5.60-15/4)."
+        ),
+    ),
+    _GrammarSpec(
+        rule_id="TYRE-ALPHANUMERIC",
+        transformer_id="ts.tyres",
+        constant="_TYRE_ALPHANUMERIC",
+        source_fields=("tyre_front", "tyre_rear"),
+        writes="tyre_front, tyre_rear",
+        summary=(
+            "US alpha-numeric size such as GR78-15: load letter, R for radial, series and rim. "
+            "It names no section width, so none is written."
+        ),
+    ),
+    _GrammarSpec(
+        rule_id="TYRE-PAX",
+        transformer_id="ts.tyres",
+        constant="_TYRE_PAX",
+        source_fields=("tyre_front", "tyre_rear"),
+        writes="tyre_front, tyre_rear",
+        summary=(
+            "PAX run-flat size such as 215/650R440: width, overall diameter and rim are all in "
+            "millimetres."
+        ),
+    ),
+    _GrammarSpec(
+        rule_id="TYRE-MM-RIM",
+        transformer_id="ts.tyres",
+        constant="_TYRE_MM_RIM",
+        source_fields=("tyre_front", "tyre_rear"),
+        writes="tyre_front, tyre_rear",
+        summary=(
+            "Size on a millimetre rim such as 165R400 or 125-380. Only the known millimetre rim "
+            "diameters are read."
+        ),
+    ),
+    _GrammarSpec(
+        rule_id="TYRE-FLOTATION",
+        transformer_id="ts.tyres",
+        constant="_TYRE_FLOTATION",
+        source_fields=("tyre_front", "tyre_rear"),
+        writes="tyre_front, tyre_rear",
+        summary=(
+            "Light-truck flotation size such as 31X10.50R15 LT: overall diameter and width in "
+            "inches."
+        ),
+    ),
+    _GrammarSpec(
         rule_id="TYPE-APPROVAL",
         transformer_id="ts.type-approval",
         constant="_TYPE_APPROVAL",
@@ -379,7 +435,8 @@ _GRAMMARS: tuple[_GrammarSpec, ...] = (
             "type_approval_extension"
         ),
         summary=(
-            "Splits the EC type approval into country, directive, number and extension. Text "
+            "Splits the EC type approval into country, directive, number and extension. "
+            "Small-series approvals (KS07/46) keep that marker in the directive. Text "
             "that does not match is kept as a candidate with "
             "type_approval_format_unrecognized."
         ),
@@ -440,6 +497,7 @@ _GRAMMARS: tuple[_GrammarSpec, ...] = (
         ),
     ),
 )
+
 
 #: Text canonicalization runs first and rewrites the working copy every later
 #: stage reads, so its four rules belong in the same list.
@@ -736,9 +794,7 @@ def code_rules() -> tuple[EmbeddedRule, ...]:
                 canonical_field=target_field,
                 canonical_value=f"x {multiplier:g}",
                 display_value=f"{source_field} x {multiplier:g} -> {target_field}",
-                notes=(
-                    "Rounded to a whole number." if rounded else "Kept to one decimal."
-                )
+                notes=("Rounded to a whole number." if rounded else "Kept to one decimal.")
                 + " Reading this field with another field's scale is a tenfold error.",
             )
         )

@@ -2008,11 +2008,18 @@ def _engine_badge(canonical_family: object, source_term: str, model_key: str) ->
 # framework directive, approval number, then the extension. The extension is an
 # amendment of the same approval, so the base identifies the type and the full
 # string identifies the revision -- joins should prefer the base.
+# Small-series approvals put "KS" in front of the directive (e11*KS07/46*0040*03);
+# it stays part of the directive so they never share a base with the full
+# approval of the same number. The registry also leaves the extension empty
+# behind its separator (e1*2001/116*0144*), which is the approval without one.
+# A national scheme with no directive (e5*NKS*9993*00) is not an EC approval and
+# stays in review by an approved golden case, as do misplaced or missing
+# separators, which are typos.
 _TYPE_APPROVAL = re.compile(
     r"^\s*(?P<country>[eE]\d{1,2})"
-    r"\s*\*\s*(?P<directive>[0-9]{2,4}/[0-9]{1,3})"
+    r"\s*\*\s*(?P<directive>(?:[kK][sS])?[0-9]{2,4}/[0-9]{1,3})"
     r"\s*\*\s*(?P<number>[0-9A-Za-z]+)"
-    r"(?:\s*\*\s*(?P<extension>[0-9A-Za-z]+))?\s*$"
+    r"(?:\s*\*\s*(?P<extension>[0-9A-Za-z]*))?\s*$"
 )
 
 
@@ -2021,16 +2028,75 @@ _TYPE_APPROVAL = re.compile(
 # pre-1980 alpha with the speed symbol inside and no aspect ratio at all, and a
 # missing aspect ratio must stay missing -- the old 82-series default is wrong
 # for most of these.
+# Further real notations, each accepted only in its complete, unambiguous form:
+# the speed symbol inside the size (185/70SR14), run-flat RF/ZRF, the HL
+# high-load prefix, a slash in front of the construction (245/45/R19), alpha
+# sizes with a service description glued on (175R1488S, 185R14C), US
+# alpha-numeric sizes (GR78-15), PAX and millimetre rims (215/650R440, 165R400),
+# imperial radials and ply ratings (7.25R13, 5.60-15/4) and LT flotation sizes
+# (31X10.50R15 LT). Text with a missing rim or width, a wrong separator, two
+# widths, a rim specification or an axle label stays unrecognized.
 _TYRE_METRIC = re.compile(
-    r"^(?P<p>P|LT)?\s*(?P<width>\d{3})\s*/\s*(?P<aspect>\d{2})\s*"
-    r"(?P<construction>ZR|R|B|D|-)?\s*(?P<rim>\d{2}(?:\.\d)?)\s*(?P<commercial>C)?\s*"
+    r"^(?P<p>P|LT|HL)?\s*(?P<width>\d{3})\s*/\s*(?P<aspect>\d{2})\s*(?:/\s*(?=Z?R))?"
+    r"(?P<construction>Z\s?RF|RF|Z\s?R|[SHV]R|R|B|D|-)?\s*(?P<rim>\d{2}(?:\.\d)?)\s*"
+    r"(?P<commercial>C)?\s*(?:\.\s+|-\s*)?"
     r"(?:\(\s*(?P<load_paren>\d{2,3})\s*\)|(?P<load>\d{2,3}))?\s*"
     r"(?P<speed>[A-Z]{1,2})?\s*(?P<rest>.*)$"
 )
-_TYRE_ALPHA = re.compile(r"^(?P<width>\d{3})\s*(?P<speed>[A-Z])?R\s*(?P<rim>\d{2})$")
+_TYRE_SERVICE = (
+    r"(?:\s*(?P<load>\d{2,3})\s*(?P<service_speed>[A-Z])?)?"
+    r"(?:\s*/\s*(?:(?P<ply>4|6|8|10)|(?P<reinforced>REINF[A-Z]*)))?"
+)
+_TYRE_ALPHA = re.compile(
+    r"^(?P<width>\d{3})\s*(?P<speed>[A-Z])?R\s*(?P<rim>\d{2})\s*(?P<commercial>C)?"
+    + _TYRE_SERVICE
+    + r"$"
+)
 _TYRE_IMPERIAL = re.compile(r"^(?P<width>\d(?:\.\d{2})?)\s*-\s*(?P<rim>\d{2})$")
+_TYRE_IMPERIAL_FULL = re.compile(
+    r"^(?P<width>\d{1,2}\.\d{2})\s*(?P<speed>[SHV])?\s*(?P<construction>R|-)\s*"
+    r"(?P<rim>\d{2}(?:\.5)?)\s*(?P<commercial>C)?" + _TYRE_SERVICE + r"$"
+)
 _TYRE_DASH = re.compile(r"^(?P<width>\d{3})\s*-\s*(?P<rim>\d{2})$")
-_TYRE_CONSTRUCTION = {"R": "radial", "ZR": "radial", "B": "belted_bias", "D": "bias", "-": "bias"}
+_TYRE_ALPHANUMERIC = re.compile(
+    r"^(?P<load_letter>[A-N])\s*(?P<construction>[RB])?\s*(?P<aspect>50|60|70|78)"
+    r"\s*-\s*(?P<rim>\d{2})$"
+)
+_TYRE_PAX = re.compile(
+    r"^(?P<width>\d{3})\s*/\s*(?P<diameter>\d{3})\s*R\s*(?P<rim>\d{3})\s*(?P<seat>A)?"
+    r"(?:\s*(?P<load>\d{2,3})\s*(?P<speed>[A-Z]))?$"
+)
+_TYRE_MM_RIM = re.compile(
+    r"^(?P<width>\d{3})\s*(?P<construction>R|-)\s*(?P<rim>315|340|365|380|390|400|415)$"
+)
+_TYRE_FLOTATION = re.compile(
+    r"^(?P<diameter>\d{2})\s*X\s*(?P<width>\d{1,2}\.\d{1,2})\s*R\s*(?P<rim>\d{2})"
+    r"\s*(?P<lt>LT)?$"
+)
+_TYRE_CONSTRUCTION = {
+    "R": "radial",
+    "ZR": "radial",
+    "RF": "radial",
+    "ZRF": "radial",
+    "B": "belted_bias",
+    "D": "bias",
+    "-": "bias",
+}
+
+
+def _tyre_service(spec: dict[str, Any], match: re.Match[str]) -> None:
+    """Add the service description written behind an alpha or imperial size."""
+
+    if match.group("commercial"):
+        spec["load_range"] = "c"
+    if match.group("load"):
+        spec["load_index"] = int(match.group("load"))
+    if match.group("service_speed"):
+        spec["speed_symbol"] = match.group("service_speed")
+    if match.group("ply"):
+        spec["ply_rating"] = int(match.group("ply"))
+    if match.group("reinforced"):
+        spec["load_range"] = "xl"
 
 
 def _parse_tyre(value: object) -> dict[str, Any] | None:
@@ -2048,17 +2114,24 @@ def _parse_tyre(value: object) -> dict[str, Any] | None:
         spec["size_system"] = {"P": "p_metric", "LT": "lt_metric"}.get(match.group("p"), "metric")
         spec["section_width_mm"] = int(match.group("width"))
         spec["aspect_ratio"] = int(match.group("aspect"))
-        spec["construction"] = _TYRE_CONSTRUCTION.get(match.group("construction") or "R", "radial")
+        construction = (match.group("construction") or "R").replace(" ", "")
+        spec["construction"] = _TYRE_CONSTRUCTION.get(construction, "radial")
+        if construction.endswith("RF"):
+            spec["run_flat"] = True
         spec["rim_diameter_in"] = float(match.group("rim"))
         load = match.group("load") or match.group("load_paren")
         if load:
             spec["load_index"] = int(load)
         if match.group("speed"):
             spec["speed_symbol"] = match.group("speed")
+        elif construction in {"SR", "HR", "VR"}:
+            spec["speed_symbol"] = construction[0]
         if match.group("commercial"):
             spec["load_range"] = "c"
         if "XL" in rest or "REINF" in rest:
             spec["load_range"] = "xl"
+        if match.group("p") == "HL":
+            spec["load_range"] = "hl"
         if "M+S" in rest or "M+ S" in rest or "MS" in rest.split():
             spec["mud_snow"] = True
         return spec
@@ -2071,6 +2144,7 @@ def _parse_tyre(value: object) -> dict[str, Any] | None:
         spec["rim_diameter_in"] = float(match.group("rim"))
         if match.group("speed"):
             spec["speed_symbol"] = match.group("speed")
+        _tyre_service(spec, match)
         return spec
 
     match = _TYRE_IMPERIAL.match(cleaned)
@@ -2087,6 +2161,59 @@ def _parse_tyre(value: object) -> dict[str, Any] | None:
         spec["section_width_mm"] = int(match.group("width"))
         spec["construction"] = "bias"
         spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+
+    match = _TYRE_IMPERIAL_FULL.match(cleaned)
+    # Section widths in inches run from about 3.5 to 16; "29.04-14" is no tyre.
+    if match is not None and 3.5 <= float(match.group("width")) <= 16.0:
+        spec["size_system"] = "imperial"
+        spec["section_width_in"] = float(match.group("width"))
+        spec["construction"] = "radial" if match.group("construction") == "R" else "bias"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        if match.group("speed"):
+            spec["speed_symbol"] = match.group("speed")
+        _tyre_service(spec, match)
+        return spec
+
+    match = _TYRE_ALPHANUMERIC.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "alphanumeric"
+        spec["load_letter"] = match.group("load_letter")
+        spec["aspect_ratio"] = int(match.group("aspect"))
+        spec["construction"] = _TYRE_CONSTRUCTION[match.group("construction") or "-"]
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        return spec
+
+    match = _TYRE_PAX.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "pax"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["overall_diameter_mm"] = int(match.group("diameter"))
+        spec["construction"] = "radial"
+        spec["rim_diameter_mm"] = int(match.group("rim"))
+        spec["run_flat"] = True
+        if match.group("load"):
+            spec["load_index"] = int(match.group("load"))
+            spec["speed_symbol"] = match.group("speed")
+        return spec
+
+    match = _TYRE_MM_RIM.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "metric"
+        spec["section_width_mm"] = int(match.group("width"))
+        spec["construction"] = _TYRE_CONSTRUCTION[match.group("construction")]
+        spec["rim_diameter_mm"] = int(match.group("rim"))
+        return spec
+
+    match = _TYRE_FLOTATION.match(cleaned)
+    if match is not None:
+        spec["size_system"] = "flotation"
+        spec["overall_diameter_in"] = float(match.group("diameter"))
+        spec["section_width_in"] = float(match.group("width"))
+        spec["construction"] = "radial"
+        spec["rim_diameter_in"] = float(match.group("rim"))
+        if match.group("lt"):
+            spec["load_range"] = "lt"
         return spec
     return None
 
@@ -2193,9 +2320,9 @@ def _apply_type_approval(context: NormalizationContext) -> None:
         return
 
     country_token = match.group("country").lower()
-    directive = match.group("directive")
+    directive = match.group("directive").upper()
     number = match.group("number").upper()
-    extension = match.group("extension")
+    extension = match.group("extension") or None
 
     base = f"{country_token}*{directive}*{number}"
     normalized["type_approval_base"] = base
