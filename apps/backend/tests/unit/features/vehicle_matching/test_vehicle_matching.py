@@ -6,6 +6,7 @@ a person's corrections laid over the car and the job lifecycle -- with a scripte
 evaluator standing in for the catalog.
 """
 
+import copy
 from typing import Any
 from uuid import uuid4
 
@@ -16,7 +17,10 @@ from api.app.features.vehicle_matching.repository import (
     EVIDENCE_FALLBACK,
     MATCHER_FIELDS,
     CarRecord,
+    Hypothetical,
     _vehicle_car_record,
+    lay_hypothetical,
+    matcher_input_hash,
     overlay_corrections,
     overlay_resolutions,
     overlay_vehicle,
@@ -32,6 +36,7 @@ from api.app.features.vehicle_matching.service import (
     VehicleNotFoundError,
     bucket_for,
     missing_on_car,
+    outcome_of,
     separating_fields,
     verdict_of,
 )
@@ -365,10 +370,11 @@ def test_a_corrected_field_is_neither_inferred_nor_rule_filled() -> None:
     assert corrected.source_record_id == plain.source_record_id == 7
 
 
-def test_the_vehicles_copy_of_a_correction_is_read_as_a_correction_too() -> None:
-    """The copy on the vehicle carries the source `correction:<id>`: it is no rule's fill
-    and no inferred value, whether or not the table's own layer follows."""
+def test_the_vehicles_copy_of_a_correction_is_used_only_while_that_correction_stands() -> None:
+    """`core.vehicles` carries a copy of a `set` under the source `correction:<id>`. The table
+    is the truth: the copy is handed to the matcher only when the field's head is that `set`."""
 
+    # The merge itself labels such a value a correction, whoever wrote it.
     merged, overlaid = overlay_vehicle(
         {"engine_code": "DPCA", "model_family": "V70"},
         {"engine_code": "DFGA", "model_family": "XC70"},
@@ -378,14 +384,147 @@ def test_the_vehicles_copy_of_a_correction_is_read_as_a_correction_too() -> None
     assert (merged["engine_code"], merged["model_family"]) == ("DFGA", "XC70")
     assert overlaid == {"engine_code": "correction", "model_family": "correction"}
 
+    engine, model = _set("DFGA"), _set("XC70")
+    derived = {"manufacturer": "Volvo", "model_family": "V70", "engine_code": "DPCA"}
     row = _vehicle_row(
         {"manufacturer": "Volvo", "model_family": "XC70", "engine_code": "DFGA"},
-        sources={"model_family": "correction:5d0f5c0a", "engine_code": "correction:0b9c5e9e"},
+        sources={
+            "model_family": f"correction:{model.correction_id}",
+            "engine_code": f"correction:{engine.correction_id}",
+        },
+        normalized=derived,
+    )
+
+    # One direction: the corrections stand, the copies are theirs and are used.
+    standing = _vehicle_car_record(row, {"engine_code": engine, "model_family": model})
+    values: dict[str, Any] = standing.record.payload["normalized"]  # type: ignore[assignment]
+    assert (values["engine_code"], values["model_family"]) == ("DFGA", "XC70")
+    assert standing.overlaid == {"engine_code": "correction", "model_family": "correction"}
+    assert (standing.rule_filled, standing.record.payload["inferred_fields"]) == ((), [])
+    assert standing.copy_drift == ()
+
+    # The other: nobody's correction is behind a copy. It is skipped, the
+    # derivation stands, and the car says which fields drifted.
+    for heads in (
+        None,
+        {},
+        {"engine_code": _withdrawn(), "model_family": _withdrawn()},
+        {"engine_code": _set("DFGA"), "model_family": _set("XC70")},  # other ids
+    ):
+        stale = _vehicle_car_record(row, heads)
+        if heads and all(head.action == "set" for head in heads.values()):
+            continue_values: dict[str, Any] = stale.record.payload["normalized"]  # type: ignore[assignment]
+            # Another standing correction still decides the value: the table, not the copy.
+            assert (continue_values["engine_code"], continue_values["model_family"]) == (
+                "DFGA", "XC70")
+        else:
+            left: dict[str, Any] = stale.record.payload["normalized"]  # type: ignore[assignment]
+            assert (left["engine_code"], left["model_family"]) == ("DPCA", "V70")
+            assert stale.overlaid == {}
+        assert stale.copy_drift == ("model_family", "engine_code")
+
+    # An ignore on the field is no `set`: a copy left behind is stale under it too.
+    ignored = _vehicle_car_record(row, {"engine_code": _ignore(), "model_family": model})
+    assert "engine_code" not in ignored.record.payload["normalized"]  # type: ignore[operator]
+    assert ignored.copy_drift == ("engine_code",)
+
+
+def test_a_stale_fuel_copy_on_any_of_its_columns_is_skipped() -> None:
+    head = _set("diesel")
+    derived = {"manufacturer": "Volvo", "energy_sources": ["petrol"],
+               "fuel_match_tokens": ["petrol"]}
+    vehicle = {"manufacturer": "Volvo", "fuel": "diesel", "fuel_secondary": "electricity"}
+
+    def car(sources: dict[str, str], heads: dict[str, CorrectionHead] | None) -> CarRecord:
+        return _vehicle_car_record(_vehicle_row(vehicle, sources=sources, normalized=derived), heads)
+
+    ours = f"correction:{head.correction_id}"
+    assert car({"fuel": ours, "fuel_secondary": ours}, {"fuel": head}).copy_drift == ()
+    # Only the second fuel's source names a correction nobody stands behind.
+    drifted = car({"fuel": "transportstyrelsen", "fuel_secondary": f"correction:{uuid4()}"}, None)
+    assert drifted.copy_drift == ("fuel",)
+    assert drifted.record.payload["normalized"]["fuel_match_tokens"] == ["petrol"]  # type: ignore[index]
+    # A value from any other source is no correction's copy.
+    assert car({"fuel": "ais:x@2026-09-19"}, None).copy_drift == ()
+
+
+def test_a_hypothetical_correction_is_one_more_layer_and_writes_nothing() -> None:
+    derived = {"manufacturer": "Volvo", "power_kw": 133}
+    vehicle = {"manufacturer": "Volvo", "model_family": "V70", "power_kw": 133,
+               "engine_code": "DPCA", "drive_type": "fwd"}
+    sources = {"engine_code": "review:rule-7", "model_family": "rule:MOD-1"}
+    standing = {"power_kw": _set("120")}
+    car = _vehicle_car_record(_vehicle_row(vehicle, sources=sources, normalized=derived), standing)
+    before = copy.deepcopy(car)
+
+    def laid(field: str, action: str, value: str | None = None) -> CarRecord:
+        return lay_hypothetical(car, Hypothetical(field, action, value))  # type: ignore[arg-type]
+
+    engine = laid("engine_code", "set", "DFGA")
+    values: dict[str, Any] = engine.record.payload["normalized"]  # type: ignore[assignment]
+    # After the standing corrections, like a stored one: the value, its source,
+    # and no longer a rule's fill.
+    assert (values["engine_code"], values["power_kw"]) == ("DFGA", 120)
+    assert engine.overlaid["engine_code"] == "correction"
+    assert (car.rule_filled, engine.rule_filled) == (
+        ("engine_code", "model_family"), ("model_family",))
+    # The stored corrections the record lists stay the stored ones.
+    assert engine.corrections == car.corrections == standing
+    assert engine.record.source_record_id == car.record.source_record_id
+
+    ignored = laid("drive_type", "ignore")
+    assert "drive_type" not in ignored.record.payload["normalized"]  # type: ignore[operator]
+    family = laid("model_family", "set", "XC70")
+    assert (family.model_family, family.record.payload["inferred_fields"]) == ("XC70", [])
+    # It replaces a standing correction of the same field in the evaluation only.
+    assert laid("power_kw", "set", "140").record.payload["normalized"]["power_kw"] == 140  # type: ignore[index]
+
+    # A pure layer: the car that was read is untouched.
+    assert car == before
+    # The hash names exactly what the matcher is handed, whichever record carries it.
+    assert matcher_input_hash(car.record) == matcher_input_hash(before.record)
+    assert matcher_input_hash(engine.record) != matcher_input_hash(car.record)
+    # Setting the value the car already has hands the matcher the same: no effect.
+    assert matcher_input_hash(laid("engine_code", "set", "DPCA").record) == matcher_input_hash(
+        car.record)
+    assert matcher_input_hash(MatchSourceRecord(1, {"a": 1})) == matcher_input_hash(
+        MatchSourceRecord(2, {"a": 1}))
+    assert len(matcher_input_hash(car.record)) == 64
+
+
+def test_what_if_runs_the_real_matcher_on_the_layered_car_and_remembers_nothing() -> None:
+    catalog = (
+        VehicleCandidate("K1", "Volvo", "V70", engine_codes=frozenset({"D4204T14"})),
+        VehicleCandidate("K2", "Volvo", "V70", engine_codes=frozenset({"D4204T23"})),
+    )
+    evaluator = TecDocDryRunEvaluator(catalog)
+    row = _vehicle_row(
+        {"manufacturer": "Volvo", "model_family": "V70"},
         normalized={"manufacturer": "Volvo", "model_family": "V70"},
     )
-    car = _vehicle_car_record(row)
-    assert car.overlaid == {"engine_code": "correction", "model_family": "correction"}
-    assert (car.rule_filled, car.record.payload["inferred_fields"]) == ((), [])
+
+    class _OneCar:
+        def vehicle_car_records(self, ids: list[str]) -> list[CarRecord]:
+            return [] if ids == ["V404"] else [_vehicle_car_record(row)]
+
+    matcher = Matcher("batch-1", evaluator, {item.candidate_reference: item for item in catalog})
+    service = VehicleMatchingService(_OneCar(), lambda: matcher, SummaryJobs())  # type: ignore[arg-type]
+
+    lookup = service.lookup_vehicle("v1")
+    remembered = evaluator.cache_size
+    outcome = service.what_if("v1", Hypothetical("engine_code", "set", "D4204T23"))
+
+    assert lookup.terminal != "resolved"
+    assert lookup.matcher_input_hash == matcher_input_hash(_vehicle_car_record(row).record)
+    assert outcome == ("resolved", "K2")
+    assert evaluator.cache_size == remembered
+    # The same evaluation as a stored correction gets.
+    stored = _vehicle_car_record(row, {"engine_code": _set("D4204T23")})
+    assert outcome_of(evaluator.evaluate(stored.record)) == outcome
+    assert service.matcher() is matcher
+    assert matcher.key(stored.record) == evaluator.evaluation_key(stored.record)
+    with pytest.raises(VehicleNotFoundError):
+        service.what_if("V404", Hypothetical("engine_code", "ignore"))
 
 
 def test_a_car_whose_corrections_were_all_withdrawn_still_says_it_has_some() -> None:
@@ -874,6 +1013,42 @@ def test_a_vehicle_lookup_describes_its_corrections_and_what_can_be_corrected() 
     # Describing changes nothing the matcher concluded.
     assert described.evidence_fingerprint == plain.evidence_fingerprint
     assert (described.terminal, described.bucket) == (plain.terminal, plain.bucket)
+
+
+def test_a_lookup_names_the_decision_behind_a_row_many_cars_share() -> None:
+    from dataclasses import replace
+
+    from ingestion.vehicle_correction_decisions import DecisionRef
+
+    group, decision_id = uuid4(), uuid4()
+    asked: list[list[Any]] = []
+
+    class _Decided(_Corrections):
+        def decisions(self, group_ids: Any) -> Any:
+            asked.append(list(group_ids))
+            return {group: DecisionRef(decision_id, "All Volvo XC60 cars with no drive type", 59, "Bo")}
+
+    corrections = _Decided()
+    service = _with_corrections(_service({1: _evaluation(_match("A"))}), corrections)
+    own = _correction_head("V1", "power_kw", "set", "140")
+    shared = replace(_correction_head("V1", "drive_type", "set", "awd"), group_id=group)
+    corrections.heads["V1"] = {"power_kw": (own, 1), "drive_type": (shared, 1)}
+    _CORRECTED.add("V1")
+
+    described = service.lookup_vehicle("V1")
+
+    by_field = {item.field: item for item in described.corrections}
+    assert by_field["power_kw"].decision is None
+    decision = by_field["drive_type"].decision
+    assert decision is not None
+    assert (decision.decision_id, decision.scope_label, decision.member_count, decision.reviewer) == (
+        decision_id, "All Volvo XC60 cars with no drive type", 59, "Bo")
+    assert asked == [[group]]
+    # A car whose rows are all its own costs no decision read.
+    corrections.heads["V1"] = {"power_kw": (own, 1)}
+    service.lookup_vehicle("V1")
+    assert asked == [[group]]
+    assert described.copy_drift == []
 
 
 def test_the_build_month_shown_comes_from_what_the_matcher_keyed_on() -> None:

@@ -1686,3 +1686,47 @@ def test_an_inferred_sl_without_power_is_no_pagode_by_its_year() -> None:
     stated = _car({"manufacturer": "Mercedes-Benz", "model_family": "SL", "production_year": 1964,
                    "fuel_match_tokens": ["petrol"]}, evidence={"brand": "MB 230 SL"})
     assert not _export_name_guard(evaluator.evaluate(stated))
+
+
+# --- evaluating without remembering (a check over many cars) ------------------------------
+
+
+def _what_if_records() -> tuple[MatchSourceRecord, ...]:
+    """A car for every way an evaluation ends, so every branch that writes the memo runs."""
+
+    return (
+        _glc_car(None),
+        _glc_car("plug_in_hybrid", 2),
+        _glc_car("hybrid", 3),
+        _car({"manufacturer": "Volvo", "model_family": "V60"}, record_id=4),
+        # No catalog manufacturer, and a model no query can be built from.
+        _car({"manufacturer": "Unknown Motors", "model_family": "GLC"}, record_id=5),
+        _car({"manufacturer": "Mercedes-Benz", "model_family": "---"}, record_id=6),
+        # Stopped before matching: nothing is scored, nothing is remembered either way.
+        _car({"manufacturer": "Mercedes-Benz"}, record_id=7),
+        MatchSourceRecord(8, {"normalization_status": "review_required"}),
+    )
+
+
+def test_an_evaluation_that_is_not_remembered_is_the_same_evaluation() -> None:
+    catalog = (*_glc_catalog(), VehicleCandidate("v60", "Volvo", "V60"))
+    records = _what_if_records()
+    remembering, forgetting = TecDocDryRunEvaluator(catalog), TecDocDryRunEvaluator(catalog)
+
+    remembered = [remembering.evaluate(record) for record in records]
+    forgotten = [forgetting.evaluate(record, remember=False) for record in records]
+
+    assert forgotten == remembered
+    assert [evaluation.reason_codes for evaluation in remembered[4:6]] == [
+        ("manufacturer_global_scope",), ("invalid_match_query_evidence",)]
+    assert {evaluation.terminal for evaluation in remembered} == {
+        "resolved", "review_required", "normalization_review"}
+    # However many cars were checked, the memo did not grow ...
+    assert (forgetting.cache_size, remembering.cache_size) == (0, 6)
+    # ... a remembered answer is read rather than computed again, and stays what it was ...
+    for record, evaluation in zip(records[:6], remembered[:6], strict=True):
+        assert remembering.evaluate(record, remember=False) is evaluation
+    assert remembering.cache_size == 6
+    # ... and remembering afterwards gives the same answers once more.
+    assert [forgetting.evaluate(record) for record in records] == remembered
+    assert forgetting.cache_size == 6

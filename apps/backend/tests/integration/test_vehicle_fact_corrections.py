@@ -36,6 +36,7 @@ from api.app.features.vehicle_corrections.repository import (
 )
 from api.app.features.vehicle_corrections.schemas import CorrectionRequest
 from api.app.features.vehicle_corrections.service import (
+    ConfirmationRequiredError,
     CorrectionService,
     EvidenceChangedError,
     InvalidValueError,
@@ -781,6 +782,10 @@ def test_one_statement_cannot_store_a_cycle_or_a_detached_chain(db: Connection) 
         ({"code_version": " "}, "vehicle_fact_corrections_provenance_nonempty"),
         ({"evidence_fingerprint": "ABC"}, "vehicle_fact_corrections_fingerprint_format"),
         ({"evidence": {"automatic": {}}}, "vehicle_fact_corrections_evidence_shape"),
+        # A key that is missing makes the comparison NULL, which a CHECK lets
+        # through: the check is NULL-safe, so the row is refused all the same.
+        ({"evidence": {"schema": "x"}}, "vehicle_fact_corrections_evidence_shape"),
+        ({"evidence": {}}, "vehicle_fact_corrections_evidence_shape"),
         ({"evidence": {"schema": "x", "automatic": []}}, "vehicle_fact_corrections_evidence_shape"),
         ({"evidence": ["schema"]}, "vehicle_fact_corrections_evidence_shape"),
     ],
@@ -792,17 +797,21 @@ def test_a_malformed_row_is_refused_by_a_named_constraint(
     assert _count(db) == 0
 
 
-def test_the_table_takes_any_field_name_and_a_reserved_group_id(db: Connection) -> None:
-    """Which fields can be corrected is the service's rule; a later phase adds without a migration."""
+def test_the_table_takes_any_field_name_and_only_a_real_decisions_group_id(
+    db: Connection,
+) -> None:
+    """Which fields can be corrected is the service's rule; a later phase adds without a migration.
+    A group id names the decision event that wrote the row, and the database insists on it."""
 
-    vehicle_id, group = _vehicle(db), uuid4()
+    vehicle_id = _vehicle(db)
 
-    _raw_insert(db, vehicle_id, field="some_later_field", value="x", group_id=group)
+    _raw_insert(db, vehicle_id, field="some_later_field", value="x")
     db.commit()
 
     head, _ = current_corrections(db, vehicle_id)["some_later_field"]
-    assert (head.group_id, head.previous_value, head.previous_source) == (group, None, "registry")
+    assert (head.group_id, head.previous_value, head.previous_source) == (None, None, "registry")
     db.rollback()
+    assert _refused(db, vehicle_id, group_id=uuid4()) == "vehicle_fact_corrections_group_fkey"
 
 
 def test_a_correction_for_a_vehicle_that_does_not_exist_is_refused(db: Connection) -> None:
@@ -1378,7 +1387,10 @@ class _Api:
             self.repository, self._matcher, SummaryJobs(),
             choices=self.choices, corrections=self.corrections,
         )
-        self.service = CorrectionService(self.corrections, self.matching.lookup_vehicle, "abc1234")
+        self.service = CorrectionService(
+            self.corrections, self.matching.lookup_vehicle, "abc1234",
+            what_if=self.matching.what_if,
+        )
         self.choice_service = KTypeChoiceService(
             self.choices, self.matching.lookup_vehicle, "abc1234"
         )
@@ -1526,7 +1538,15 @@ def test_two_fields_of_one_car_are_corrected_independently(api: _Api, db: Connec
     vehicle_id = _vehicle(db)
 
     api.correct(vehicle_id)
-    both = api.correct(vehicle_id, field="power_kw", value="158")
+    # The car resolves to K2 now. Another power takes that away: the real matcher
+    # is asked first, and nothing is written until the person confirms.
+    with pytest.raises(ConfirmationRequiredError) as asked:
+        api.correct(vehicle_id, field="power_kw", value="158")
+    assert asked.value.before == ("resolved", "K2")
+    assert (asked.value.after.terminal != "resolved", asked.value.after.ktype) == (True, None)
+    db.rollback()
+    assert _count(db) == 1
+    both = api.correct(vehicle_id, field="power_kw", value="158", confirm_change=True)
     api.correct(vehicle_id, "withdraw")
 
     assert [(item.field, item.status) for item in both.corrections] == [
@@ -1766,7 +1786,7 @@ def test_a_correction_writes_nothing_that_promotion_or_the_ledger_reads(
         (vehicle_id,)).fetchone()
     before = counts()
     api.correct(vehicle_id)
-    api.correct(vehicle_id, "ignore")
+    api.correct(vehicle_id, "ignore", confirm_change=True)
     api.correct(vehicle_id, "withdraw")
 
     assert counts() == before

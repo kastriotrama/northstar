@@ -8,16 +8,20 @@ over both. A single TS record (`source_record_id`) is handed over as the
 pipeline would see it after the dashboard's rules ran: its latest normalization
 result with live resolutions laid over it. Both carry the raw registry fields
 the evaluator reads as source evidence.
+
+A check of what a correction would do lays that correction over a car the same
+way, as one more layer on top (`lay_hypothetical`). It reads and writes nothing.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
-from typing import Any, Protocol
+from typing import Any, Literal, NamedTuple, Protocol, TypeVar
 
 from psycopg import Connection
 
@@ -126,6 +130,30 @@ class CarRecord:
     #: counts). Read with the car, so a lookup opens a second connection for the
     #: choice only when there is one.
     has_choices: bool = False
+    #: Correctable fields whose copy on the vehicle no standing correction is
+    #: behind (see `without_stale_copies`). The copy was not handed to the matcher.
+    copy_drift: tuple[str, ...] = ()
+
+
+class Hypothetical(NamedTuple):
+    """A correction nobody stored: the "what if" a check asks about one field."""
+
+    field: str
+    action: Literal["set", "ignore"]
+    value: str | None = None
+
+
+class _Layer(Protocol):
+    """What a correction layer needs of a head: a stored one, or a hypothetical."""
+
+    @property
+    def action(self) -> str: ...
+
+    @property
+    def value(self) -> str | None: ...
+
+
+_L = TypeVar("_L", bound=_Layer)
 
 
 def overlay_resolutions(
@@ -178,11 +206,47 @@ def overlay_vehicle(
     return merged, overlaid
 
 
+def without_stale_copies(
+    vehicle: Mapping[str, Any],
+    field_sources: Mapping[str, str],
+    heads: Mapping[str, CorrectionHead],
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """Take a correction's copy off the vehicle's values unless that correction stands.
+
+    `core.vehicles` carries a copy of every `set` under the source
+    `correction:<id>`. A writer that saved an older state can leave such a copy
+    behind after the correction was withdrawn or replaced. The table is the
+    truth, so a value whose source is a correction is used only when the
+    field's head is a `set` with exactly that id; any other is dropped here and
+    the derivation underneath (or nothing) stands. Returns the values to lay
+    over and the correctable fields a stale copy was found on -- for a field
+    with several columns (the fuel), on any of them.
+    """
+
+    kept = dict(vehicle)
+    drifted: list[str] = []
+    for spec in correction_fields.SPECS.values():
+        head = heads.get(spec.field)
+        standing = str(head.correction_id) if head is not None and head.action == "set" else None
+        stale = False
+        for column in spec.vehicle_columns:
+            encoded = field_sources.get(column)
+            if not encoded:
+                continue
+            source = parse_source_ref(encoded)
+            if source.source == SOURCE_CORRECTION and source.ref != standing:
+                kept.pop(column, None)
+                stale = True
+        if stale:
+            drifted.append(spec.field)
+    return kept, tuple(drifted)
+
+
 def overlay_corrections(
     normalized: dict[str, Any],
     overlaid: dict[str, str],
-    heads: Mapping[str, CorrectionHead],
-) -> tuple[dict[str, Any], dict[str, str], dict[str, CorrectionHead]]:
+    heads: Mapping[str, _L],
+) -> tuple[dict[str, Any], dict[str, str], dict[str, _L]]:
     """Lay a person's corrections of this car over everything else: the last layer.
 
     `heads` are the heads of the car's correction chains. A `set` replaces
@@ -198,7 +262,7 @@ def overlay_corrections(
 
     merged = dict(normalized)
     sources = dict(overlaid)
-    applied: dict[str, CorrectionHead] = {}
+    applied: dict[str, _L] = {}
     for spec in correction_fields.SPECS.values():
         head = heads.get(spec.field)
         if head is None or head.action == "withdraw":
@@ -217,6 +281,60 @@ def overlay_corrections(
         sources[spec.field] = SOURCE_CORRECTION
         applied[spec.field] = head
     return merged, sources, applied
+
+
+def _inferred(overlaid: Mapping[str, str]) -> list[str]:
+    """Values a learned rule filled: the matcher reads the car's own text first."""
+
+    return sorted(name for name, source in overlaid.items() if source == SOURCE_RULE)
+
+
+def _rule_filled(overlaid: Mapping[str, str]) -> tuple[str, ...]:
+    return tuple(sorted(name for name, source in overlaid.items() if source in {"review", "rule"}))
+
+
+def lay_hypothetical(car: CarRecord, hypothetical: Hypothetical) -> CarRecord:
+    """The car as the matcher would be handed it with one more correction on top.
+
+    A pure layer over a car already read, applied after the corrections that
+    stand: a `set` replaces what the matcher would read for the field, an
+    `ignore` takes it away, exactly as a stored correction does
+    (`overlay_corrections`), so the field is no longer an inferred or a
+    rule-filled value either. Nothing is read or written; the corrections the
+    car record lists stay the ones that are stored.
+    """
+
+    payload = dict(car.record.payload)
+    current = payload.get("normalized")
+    normalized, overlaid, _ = overlay_corrections(
+        dict(current) if isinstance(current, dict) else {},
+        car.overlaid,
+        {hypothetical.field: hypothetical},
+    )
+    payload["normalized"] = normalized
+    payload["inferred_fields"] = _inferred(overlaid)
+    return replace(
+        car,
+        manufacturer=normalized.get("manufacturer"),
+        model_family=normalized.get("model_family"),
+        record=MatchSourceRecord(car.record.source_record_id, payload),
+        rule_filled=_rule_filled(overlaid),
+        overlaid=overlaid,
+    )
+
+
+def matcher_input_hash(record: MatchSourceRecord) -> str:
+    """sha256 of exactly what the matcher is handed for a car.
+
+    Two cars with one hash get one evaluation, and a car whose hash is what it
+    was when something was decided about it is, to the matcher, the same car.
+    The record id is left out: the matcher does not read it.
+    """
+
+    canonical = json.dumps(
+        record.payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def surrogate_record_id(vehicle_id: str) -> int:
@@ -341,35 +459,8 @@ class VehicleMatchingRepository:
 
         if not vehicle_ids:
             return []
-        columns = ", ".join(f"vehicle.{name}" for name in MATCHER_FIELDS)
-        fallback = ", ".join(f"vehicle.{name}" for name in EVIDENCE_FALLBACK.values())
-        with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT vehicle.vehicle_id, vehicle.plate, vehicle.vin, vehicle.ts_record_id,
-                       vehicle.origin_source, vehicle.normalization_status,
-                       vehicle.field_sources, {columns},
-                       latest.status, latest.normalized_payload, latest.review_reasons,
-                       raw.raw_record, {fallback},
-                       EXISTS (SELECT 1 FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS choice
-                               WHERE choice.vehicle_id = vehicle.vehicle_id)
-                FROM {VEHICLES_TABLE} AS vehicle
-                LEFT JOIN LATERAL (
-                    SELECT status, normalized_payload, review_reasons
-                    FROM {NORMALIZATION_RESULTS_TABLE}
-                    WHERE source_table = %s AND source_record_id = vehicle.ts_record_id
-                    ORDER BY updated_at DESC, id DESC
-                    LIMIT 1
-                ) AS latest ON true
-                LEFT JOIN {STAGING_TABLE} AS raw ON raw.id = vehicle.ts_record_id
-                WHERE vehicle.vehicle_id = ANY(%s)
-                """,
-                (STAGING_TABLE, list(vehicle_ids)),
-            )
-            rows = cursor.fetchall()
-            heads = correction_heads(connection, [str(row[0]) for row in rows])
-        by_id = {str(row[0]): _vehicle_car_record(row, heads.get(str(row[0]))) for row in rows}
-        return [by_id[vehicle_id] for vehicle_id in vehicle_ids if vehicle_id in by_id]
+        with self._connection_factory() as connection:
+            return read_vehicle_car_records(connection, vehicle_ids)
 
     def car_records(self, source_record_ids: Sequence[int]) -> list[CarRecord]:
         """Match records for these cars, in the order asked for.
@@ -410,6 +501,48 @@ class VehicleMatchingRepository:
         return [by_id[rid] for rid in source_record_ids if rid in by_id]
 
 
+def read_vehicle_car_records(
+    connection: Connection[Any], vehicle_ids: Sequence[str]
+) -> list[CarRecord]:
+    """`VehicleMatchingRepository.vehicle_car_records` on a connection the caller holds.
+
+    A writer that has locked a vehicle's row reads the car again through here,
+    in its own transaction, to see what the matcher is handed at that moment.
+    """
+
+    if not vehicle_ids:
+        return []
+    columns = ", ".join(f"vehicle.{name}" for name in MATCHER_FIELDS)
+    fallback = ", ".join(f"vehicle.{name}" for name in EVIDENCE_FALLBACK.values())
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT vehicle.vehicle_id, vehicle.plate, vehicle.vin, vehicle.ts_record_id,
+                   vehicle.origin_source, vehicle.normalization_status,
+                   vehicle.field_sources, {columns},
+                   latest.status, latest.normalized_payload, latest.review_reasons,
+                   raw.raw_record, {fallback},
+                   EXISTS (SELECT 1 FROM {VEHICLE_KTYPE_CHOICES_TABLE} AS choice
+                           WHERE choice.vehicle_id = vehicle.vehicle_id)
+            FROM {VEHICLES_TABLE} AS vehicle
+            LEFT JOIN LATERAL (
+                SELECT status, normalized_payload, review_reasons
+                FROM {NORMALIZATION_RESULTS_TABLE}
+                WHERE source_table = %s AND source_record_id = vehicle.ts_record_id
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+            ) AS latest ON true
+            LEFT JOIN {STAGING_TABLE} AS raw ON raw.id = vehicle.ts_record_id
+            WHERE vehicle.vehicle_id = ANY(%s)
+            """,
+            (STAGING_TABLE, list(vehicle_ids)),
+        )
+        rows = cursor.fetchall()
+    heads = correction_heads(connection, [str(row[0]) for row in rows])
+    by_id = {str(row[0]): _vehicle_car_record(row, heads.get(str(row[0]))) for row in rows}
+    return [by_id[vehicle_id] for vehicle_id in vehicle_ids if vehicle_id in by_id]
+
+
 def _vehicle_car_record(
     row: tuple[Any, ...], heads: Mapping[str, CorrectionHead] | None = None
 ) -> CarRecord:
@@ -421,6 +554,9 @@ def _vehicle_car_record(
     has_choices = bool(row[-1])
     payload = dict(payload or {})
     raw = dict(raw or {})
+    # The table is the truth: a correction's copy on the vehicle that no
+    # standing correction is behind is never handed to the matcher.
+    vehicle, copy_drift = without_stale_copies(vehicle, dict(sources or {}), heads or {})
     normalized, overlaid = overlay_vehicle(
         dict(payload.get("normalized") or {}),
         vehicle,
@@ -448,8 +584,7 @@ def _vehicle_car_record(
             "source_evidence": {
                 field: raw.get(field) or registry.get(field) for field in SOURCE_EVIDENCE_FIELDS
             },
-            # Values a learned rule filled: the matcher reads the car's own text first.
-            "inferred_fields": sorted(name for name, source in overlaid.items() if source == SOURCE_RULE),
+            "inferred_fields": _inferred(overlaid),
         },
     )
     return CarRecord(
@@ -459,15 +594,14 @@ def _vehicle_car_record(
         manufacturer=normalized.get("manufacturer"),
         model_family=normalized.get("model_family"),
         record=record,
-        rule_filled=tuple(
-            sorted(name for name, source in overlaid.items() if source in {"review", "rule"})
-        ),
+        rule_filled=_rule_filled(overlaid),
         vehicle_id=str(vehicle_id),
         overlaid=overlaid,
         corrections=applied,
         stop_reasons=stopped_for,
         has_corrections=bool(heads),
         has_choices=has_choices,
+        copy_drift=copy_drift,
     )
 
 

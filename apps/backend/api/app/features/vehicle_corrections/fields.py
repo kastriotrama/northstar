@@ -22,10 +22,12 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
+from uuid import UUID
 
 from api.app.features.match_review.field_resolution import RESOLVABLE_TARGETS, _canonical_values
 from api.app.features.vehicle_corrections.schemas import (
     CorrectableField,
+    CorrectionDecision,
     CorrectionState,
     CorrectionStatus,
     FieldType,
@@ -40,6 +42,7 @@ from ingestion.vehicle_core_fields import (
     clean_int,
     clean_text,
 )
+from ingestion.vehicle_correction_decisions import DecisionRef
 from ingestion.vehicle_fact_corrections import StoredCorrection
 
 #: Free text is a name or a code, never a sentence.
@@ -101,7 +104,8 @@ class CorrectableSpec:
     #: What the matcher uses for the field today, as text.
     current: Current
     #: The closed vocabulary; empty when the field takes any text, or any
-    #: number within its bounds.
+    #: number within its bounds. A whole number with few values (the month)
+    #: lists them, so a screen can show and enforce the range.
     values: tuple[str, ...] = ()
     #: An integer's inclusive range; an open upper end moves with the calendar.
     bounds: tuple[int, int | None] | None = None
@@ -245,6 +249,7 @@ SPECS: dict[str, CorrectableSpec] = {
             "production_month",
             label="Build month",
             bounds=(1, 12),
+            values=tuple(str(month) for month in range(1, 13)),
             evidence_keys=("year_month",),
             fallbacks=_DATE_FALLBACK,
             current=_build_month,
@@ -398,6 +403,27 @@ def same_value(field: str, value: str, current: str | None) -> bool:
     return value == current
 
 
+def same_present(field: str, value: str | None, other: str | None) -> bool:
+    """True when two cars have the same present value for a field; both having none counts."""
+
+    if value is None or other is None:
+        return value is None and other is None
+    return same_value(field, value, other)
+
+
+def changes_nothing(field: str, action: str, value: str | None, current: str | None) -> bool:
+    """True when a `set` or an `ignore` would change nothing the matcher is handed.
+
+    A `set` to the value the matcher already uses, or an `ignore` where it has
+    none: what one car's correction is refused for, and what a check over many
+    cars sorts a car out for.
+    """
+
+    if action == "set":
+        return value is not None and same_value(field, value, current)
+    return current is None
+
+
 def current_source(spec: CorrectableSpec, overlaid: Mapping[str, str]) -> str:
     """Where the field's value comes from: the car's own record unless something supplied it."""
 
@@ -457,8 +483,26 @@ def describe(
     return fields
 
 
-def states(heads: Mapping[str, tuple[StoredCorrection, int]]) -> list[CorrectionState]:
-    """The head of every chain the car has, by field; a withdrawn one too."""
+def states(
+    heads: Mapping[str, tuple[StoredCorrection, int]],
+    decisions: Mapping[UUID, DecisionRef] | None = None,
+) -> list[CorrectionState]:
+    """The head of every chain the car has, by field; a withdrawn one too.
+
+    `decisions` names, by `group_id`, the decision behind a row a decision
+    about many cars wrote.
+    """
+
+    def decision(head: StoredCorrection) -> CorrectionDecision | None:
+        found = (decisions or {}).get(head.group_id) if head.group_id is not None else None
+        if found is None:
+            return None
+        return CorrectionDecision(
+            decision_id=found.decision_id,
+            scope_label=found.scope_label,
+            member_count=found.member_count,
+            reviewer=found.reviewer,
+        )
 
     return [
         CorrectionState(
@@ -473,6 +517,7 @@ def states(heads: Mapping[str, tuple[StoredCorrection, int]]) -> list[Correction
             previous_source=head.previous_source,
             group_id=head.group_id,
             history_count=history_count,
+            decision=decision(head),
         )
         for head, history_count in sorted(heads.values(), key=lambda item: item[0].field)
     ]

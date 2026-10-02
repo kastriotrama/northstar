@@ -145,3 +145,46 @@ def test_vehicle_ids_are_recognised_by_shape() -> None:
     assert not is_vehicle_id("VEH-01J8Z3Y5W2QK4T7B9C1D3E5F7G")
     assert not is_vehicle_id("NOR-81J8Z3Y5W2QK4T7B9C1D3E5F7G")  # beyond 128 bits
     assert not is_vehicle_id("ABC123")
+
+
+def test_is_empty_matches_a_column_that_holds_nothing_and_takes_no_values() -> None:
+    # Text: NULL or the empty string, both read off the column's own index.
+    text = compile_term("engine_code", "is_empty", [])
+    assert (text.sql, text.parameters) == ("(v.engine_code IS NULL OR v.engine_code = '')", [])
+    assert compile_term("drive_type", "is_empty", ["", "  "]).sql == (
+        "(v.drive_type IS NULL OR v.drive_type = '')")
+    # A number or a date has no empty string.
+    assert compile_term("power_kw", "is_empty", []).sql == "v.power_kw IS NULL"
+    assert compile_term("production_month", "is_empty", []).sql == "v.production_month IS NULL"
+    assert compile_term("first_registration_date", "is_empty", []).sql == (
+        "v.first_registration_date IS NULL")
+    with pytest.raises(ValueError, match="takes no values"):
+        compile_term("engine_code", "is_empty", ["DFGA"])
+    with pytest.raises(UnknownFieldError):
+        compile_term("field_sources", "is_empty", [])
+
+
+def test_is_empty_combines_with_other_clauses_and_binds_nothing() -> None:
+    compiled = compile_vehicle_filter([
+        ("manufacturer", "equals", ("VOLVO",)),
+        ("drive_type", "is_empty", ()),
+        ("power_kw", "is_empty", ()),
+    ])
+
+    assert compiled.sql == (
+        "v.manufacturer = ANY(%s) AND (v.drive_type IS NULL OR v.drive_type = '') "
+        "AND v.power_kw IS NULL"
+    )
+    assert compiled.parameters == [["VOLVO"]]
+
+
+def test_the_ts_screens_filter_has_no_is_empty() -> None:
+    from ingestion.vehicle_core_query import VEHICLE_OPERATORS
+    from ingestion.vehicle_facts_query import SUPPORTED_OPERATORS
+    from ingestion.vehicle_facts_query import compile_term as compile_ts_term
+
+    assert VEHICLE_OPERATORS - SUPPORTED_OPERATORS == {"is_empty"}
+    with pytest.raises(ValueError, match="unsupported operator"):
+        compile_ts_term("source", "model", "is_empty", ())
+    with pytest.raises(ValueError, match="unsupported operator"):
+        compile_term("engine_code", "is_null", [])

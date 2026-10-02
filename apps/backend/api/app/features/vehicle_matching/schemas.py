@@ -103,6 +103,9 @@ class VehicleMatchLookup(BaseModel):
     #: Names this evaluation (batch, inputs, outcome, candidates). A choice is
     #: sent back with it, and refused when the matching has changed since.
     evidence_fingerprint: str = ""
+    #: sha256 of exactly what the matcher was handed for this car. A write
+    #: decided on this lookup checks it again under the vehicle's lock.
+    matcher_input_hash: str = ""
     #: The person's choice in force for this vehicle (a withdrawn one too, so the
     #: next choice can supersede it). None for a `source_record_id` lookup and
     #: for a car nobody has decided.
@@ -124,6 +127,10 @@ class VehicleMatchLookup(BaseModel):
     #: `corrections` then shows on `normalization_stop`. Empty for a car that
     #: was never stopped.
     stop_reasons: list[str] = Field(default_factory=list)
+    #: Correctable fields whose copy on the vehicle record no standing
+    #: correction is behind (a writer saved an older state). The matcher was
+    #: not handed that copy; the list and the record view may still show it.
+    copy_drift: list[str] = Field(default_factory=list)
 
 
 class MatchSummaryRequest(VehicleFilter):

@@ -89,7 +89,30 @@ const SOURCE_LABELS: Record<string, string> = {
   review: 'Review',
   rule: 'Learned rule',
   derived: 'Derived',
+  correction: "A person's correction",
 };
+
+/** The list's columns a person may correct, by how the row holds them. */
+const ROW_TEXT = ['manufacturer', 'model_family', 'engine_code', 'drive_type', 'bodywork_form'] as const;
+const ROW_NUMBERS = ['production_year', 'power_kw', 'displacement_cc'] as const;
+
+/** A row's values a correction touched: what the matcher uses for each field after it. */
+function correctedValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
+  const values: Partial<NorVehicleRow> = {};
+  // Only fields a person's correction stands on, or stood on: the rest is the row's own.
+  const touched = new Set((lookup?.corrections ?? []).map((head) => head.field));
+  for (const field of lookup?.correctable_fields ?? []) {
+    if (!touched.has(field.field)) continue;
+    const text = ROW_TEXT.find((name) => name === field.field);
+    const number = ROW_NUMBERS.find((name) => name === field.field);
+    if (text) values[text] = field.current_value;
+    if (number) {
+      const parsed = field.current_value === null ? null : Number(field.current_value);
+      values[number] = parsed === null || Number.isFinite(parsed) ? parsed : null;
+    }
+  }
+  return values;
+}
 
 const GROUP_LABELS: Record<string, string> = {
   identity: 'Identity and status',
@@ -373,17 +396,25 @@ export class CarSearchPage implements OnInit {
     const ktype = choice?.status === 'chosen' ? choice.ktype : null;
     const state =
       choice?.status === 'chosen' ? 'manual' : choice?.status === 'none' ? 'manual_none' : null;
+    // A correction was saved or undone: the row shows the corrected values at once too.
+    const values = correctedValues(lookup);
     this.rows.update((rows) =>
       rows.map((row) =>
         row.vehicle_id === vehicleId
           ? {
               ...row,
-              ktype,
-              match_state: state,
-              review_fields: [
-                ...row.review_fields.filter((field) => field !== 'ktype'),
-                ...(ktype ? ['ktype'] : []),
-              ],
+              ...values,
+              // Without a choice, now or before, the KType on the row is not a person's to change.
+              ...(choice
+                ? {
+                    ktype,
+                    match_state: state,
+                    review_fields: [
+                      ...row.review_fields.filter((field) => field !== 'ktype'),
+                      ...(ktype ? ['ktype'] : []),
+                    ],
+                  }
+                : {}),
             }
           : row,
       ),

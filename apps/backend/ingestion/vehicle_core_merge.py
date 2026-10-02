@@ -229,6 +229,14 @@ def merge_one(state: VehicleState, name: str, observation: Observation, result: 
         return
 
     if _same(current_value, new_value):
+        if current_ref.source == SOURCE_CORRECTION and new_ref.source != SOURCE_CORRECTION:
+            # A person's correction holds the value and another source now states
+            # the same. That source's word is kept behind the correction, so
+            # withdrawing the correction falls back to it instead of emptying the
+            # field. The writer must save the vehicle, as for any value kept behind.
+            _set_alternative(state, name, new_ref, new_value)
+            result.kept.append(name)
+            return
         # A source confirming what is already there changes nothing -- not even the
         # recorded source. Re-stamping every confirmed value with the newest source
         # would put a reference on most fields of every vehicle after each import,

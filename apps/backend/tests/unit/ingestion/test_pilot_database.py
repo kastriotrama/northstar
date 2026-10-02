@@ -81,6 +81,7 @@ def test_only_these_slice_tables_carry_a_predicate_besides_their_key() -> None:
         "staging.transportstyrelsen_raw", "core.normalization_results", "core.vehicle_facts",
         "core.review_queue", "core.vehicles", "core.vehicle_identifiers",
         "core.vehicle_source_links", "core.enrichment_ledger", "core.vehicle_ktype_choices",
+        "core.vehicle_fact_corrections",
     }
 
 
@@ -104,6 +105,8 @@ def test_the_tables_reviewers_and_rules_write_are_copied_whole() -> None:
         "core.tecdoc_rule_versions", "core.tecdoc_rules", "core.vehicle_enrichment_rules",
         "core.match_review_rule_decisions", "core.match_chunk_builds",
         "core.tecdoc_identity_registry", "core.ingest_job_runs",
+        # A decision covers cars in and outside any slice: all of them come along.
+        "core.vehicle_correction_decisions",
     } <= whole
 
 
@@ -133,6 +136,8 @@ def test_parents_come_before_their_children_in_the_load_order() -> None:
         ("core.vehicles", "core.vehicle_identifiers"),
         ("core.vehicles", "core.vehicle_source_links"),
         ("core.vehicles", "core.vehicle_ktype_choices"),
+        ("core.vehicles", "core.vehicle_fact_corrections"),
+        ("core.vehicle_correction_decisions", "core.vehicle_fact_corrections"),
         ("core.match_runs", "core.match_review_rule_decisions"),
     ):
         assert order.index(parent) < order.index(child)
@@ -145,13 +150,19 @@ def test_only_the_recounted_counters_are_left_out_of_the_content_check() -> None
     }
 
 
-def test_the_schema_comes_from_all_fifteen_migration_sets() -> None:
+def test_the_schema_comes_from_all_seventeen_migration_sets() -> None:
     names = [name for name, _ in PILOT_MIGRATIONS]
-    assert len(names) == 15
-    assert len(set(names)) == 15
+    assert len(names) == 17
+    assert len(set(names)) == 17
     # People's KType choices reference core.vehicles: the API's lookups read the
     # table, so a pilot without it answers 503.
     assert names.index("vehicle core") < names.index("vehicle ktype choices")
+    # So do their corrections, whose rows name the decision that wrote them.
+    assert (
+        names.index("vehicle core")
+        < names.index("vehicle correction decisions")
+        < names.index("vehicle fact corrections")
+    )
 
 
 def test_the_slice_query_is_the_seeded_sample_of_registered_cars() -> None:

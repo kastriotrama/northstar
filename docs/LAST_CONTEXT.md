@@ -2,6 +2,30 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — A person corrects a car's data, for one car or the cars like it (branch feature/vehicle-corrections)
+
+- One car (committed earlier on the branch): append-only `core.vehicle_fact_corrections` (set / ignore /
+  withdraw per field, release of a stopped car), laid over the car at the matcher's read seam, copied onto
+  `core.vehicles`. Added now: a `set`/`ignore` that would take a resolved car's KType away or move it
+  answers 409 `confirmation_required` (`before`/`after`) until resent with `confirm_change: true`; the car
+  is re-read under its row lock and refused (`evidence_changed`) when its matcher input hash changed; a
+  vehicle copy no standing `set` is behind is skipped and reported as `copy_drift`; the merge keeps another
+  source's equal value behind a correction so a withdrawal falls back to it; the build month lists 1-12.
+- Many cars: scopes (same data, or a ladder of "all cars like this" per field, make first, `is_empty` for
+  absent values), a bounded in-process check (one at a time, 500 cars / 240 s, stoppable, each distinct
+  matcher input evaluated once with `remember=False`, outcomes gained/lost/moved/worse/same/...), and
+  append-only `core.vehicle_correction_decisions` (propose / apply / withdraw; NULL-safe JSON CHECKs;
+  nothing applied on a partial check). Apply writes only checked cars, skips cars changed or corrected
+  since, leaves harmed cars out unless included, refuses a check that harms as many as it fixes; withdraw
+  undoes the whole decision. The lookup names the decision behind a correction. Pilot builder creates both
+  tables, copies slice corrections and all decisions, refuses a cut that leaves a corrected car behind;
+  the runbook counts corrections and decisions on live before a switch. Details:
+  `docs/vehicle-fact-corrections.md`.
+- Validation: backend unit 2,962 passed (1 expected xfail), integration 474 passed (throwaway databases),
+  ruff and mypy clean. Web half and its gates are a separate change.
+- Risk / next: live's corrections and decisions are not carried into a pilot rebuild (no export/import);
+  checks live in one API process's memory; measuring a proposal on all cars is not built.
+
 ## 2026-10-02 — A person can choose a car's KType on the Vehicles tab (branch feature/manual-ktype-choice)
 
 - New append-only `core.vehicle_ktype_choices` (one linear chain per vehicle by `chain_position`; keys, a
@@ -175,21 +199,3 @@ Keep the latest 10 task entries only.
 - Open: classic VW Beetle naming (Beetle vs TecDoc KAEFER, ~20k), FORD MUSTANG text shared with Mach-E,
   guard reading ignores "GR" (Grand Voyager/Vitara refused, ~3.7k), 173k pre-1990 classics, 13.8k with
   only the make, camper/ambulance conversions left unfilled on purpose.
-
-## 2026-09-30 — Model family from the registry model text; Volvo EX40/EC40 reviewed (local, uncommitted)
-
-- 136,223 registered passenger cars had model text but no model family: no normalization rule names
-  new models (EX40, EV3, ID.7...) and spellings like "MAZDA6" / "FIAT TIPO" miss the rules. The
-  matcher already reads most of them from the text, so this is a data/evidence fix, not a match gain.
-- New family MOD-MT (manufacturer + model text, reviewed-pattern learner): answers a TS family name
-  up to case/spaces/make prefix, or a reviewed new name (`REVIEWED_MODEL_NAMES`: Volvo EX40, EC40 --
-  TecDoc "EX40 (536)", "EC40 (539)"). A separator between digits counts (Saab 93 is not the 9-3).
-  The same reviewed names let MOD-PAT read "VOLVO EX40" brand texts.
-- Local DB: MOD-MT 72 rules / 25,346 filled (9 Trail Blazer refused by the guard); MOD-PAT +2 rules /
-  3,975 filled; check-model-fills 0 contradictions. Model-less registered passenger cars
-  677,741 -> 648,695. 30k: 63.5% -> 63.5% (+2 / 0 / 0).
-- Validation: 1,717 tests pass, ruff/mypy clean; `test_source_model_rules` still awaits the Golf
-  Variant decision.
-- Found: the text reading behind the guard reads BYD "ATTO 3" as "ATTO 2" (TecDoc lists the Atto 3 as
-  YUAN PLUS); matcher safely sends them to review. Next: review list of new names (ID.7 Tourer, EV3,
-  EV9, bZ4X, Atto 3 -> Yuan Plus, ...).

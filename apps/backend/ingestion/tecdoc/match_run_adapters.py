@@ -997,8 +997,12 @@ class TecDocDryRunEvaluator:
         resolved = self._resolve_query(record)
         return resolved.key if isinstance(resolved, ResolvedMatchQuery) else None
 
-    def evaluate(self, record: MatchSourceRecord) -> MatchEvaluation:
-        """Evaluate one row without retaining its plate, VIN, or raw payload."""
+    def evaluate(self, record: MatchSourceRecord, *, remember: bool = True) -> MatchEvaluation:
+        """Evaluate one row without retaining its plate, VIN, or raw payload.
+
+        `remember=False` reads the memo but adds nothing to it, so a what-if
+        check over many cars cannot grow it. The evaluation is the same either way.
+        """
 
         resolved = self._resolve_query(record)
         if isinstance(resolved, MatchEvaluation):
@@ -1030,7 +1034,8 @@ class TecDocDryRunEvaluator:
             # evidence and can turn one dirty manufacturer into hours of work.
             terminal = "review_required"
             evaluation = MatchEvaluation(terminal, ("manufacturer_global_scope",))
-            self._cache[cache_key] = evaluation
+            if remember:
+                self._cache[cache_key] = evaluation
             return evaluation
         preferred: list[_Reading] = []
         readings: list[_Reading] = []
@@ -1065,7 +1070,8 @@ class TecDocDryRunEvaluator:
             evaluation = MatchEvaluation(
                 "review_required", ("invalid_match_query_evidence",)
             )
-            self._cache[cache_key] = evaluation
+            if remember:
+                self._cache[cache_key] = evaluation
             return evaluation
         winner = max(
             preferred,
@@ -1161,7 +1167,8 @@ class TecDocDryRunEvaluator:
             decision_trace=tuple(trace),
             confidence=decision.confidence,
         )
-        self._cache[cache_key] = evaluation
+        if remember:
+            self._cache[cache_key] = evaluation
         return evaluation
 
     def _conflict_free_reading(

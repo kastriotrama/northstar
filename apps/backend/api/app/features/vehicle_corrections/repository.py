@@ -4,10 +4,15 @@ The append and the vehicle's copy commit together. The vehicle row is locked
 first -- the same lock a KType choice takes -- so two people correcting the same
 car are serialized and the second is told the correction changed; the lock waits
 a bounded time, never a request's lifetime.
+
+The service decides on a lookup it made before that lock. Once the row is
+locked the car is read again through the matcher's own seam, and the write goes
+ahead only when the matcher would still be handed what that lookup was made on.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 from uuid import UUID
@@ -16,7 +21,12 @@ import psycopg
 from psycopg import Connection
 
 from api.app.features.vehicle_corrections.fields import vehicle_copy
+from api.app.features.vehicle_matching.repository import (
+    matcher_input_hash,
+    read_vehicle_car_records,
+)
 from ingestion.vehicle_core_migrations import VEHICLES_TABLE
+from ingestion.vehicle_correction_decisions import DecisionRef, decision_refs
 from ingestion.vehicle_fact_correction_migrations import (
     POSITION_KEY,
     SUPERSEDES_FOREIGN_KEY,
@@ -50,6 +60,10 @@ class CorrectionRejectedError(Exception):
     """The database refused the row for good: sending the same request again cannot succeed."""
 
 
+class EvidenceChangedError(Exception):
+    """The car's matching is no longer what the screen showed."""
+
+
 class CorrectionRepository:
     def __init__(self, connection_factory: ConnectionFactory, *, lock_timeout: str = "3s") -> None:
         self._connection_factory = connection_factory
@@ -81,8 +95,29 @@ class CorrectionRepository:
             finally:
                 connection.rollback()
 
-    def record(self, new: NewCorrection) -> tuple[StoredCorrection, bool]:
+    def decisions(self, group_ids: Sequence[UUID]) -> dict[UUID, DecisionRef]:
+        """The decisions behind the rows that carry these group ids, by group id.
+
+        Only asked for a car one of whose heads a decision about many cars wrote.
+        """
+
+        with self._connection_factory() as connection:
+            try:
+                return decision_refs(connection, group_ids)
+            finally:
+                connection.rollback()
+
+    def record(
+        self, new: NewCorrection, *, checked_on: str | None = None
+    ) -> tuple[StoredCorrection, bool]:
         """Append `new` on top of the head it names and refresh the vehicle's copy.
+
+        `checked_on` is the hash of the matcher input the correction was decided
+        on (`lookup.matcher_input_hash`). Under the vehicle's lock the car is
+        read again through the matcher's seam -- no matcher run -- and a car
+        that is handed anything else by then is refused (`EvidenceChangedError`).
+        A replay of an operation already stored is answered without that check.
+        `None` skips it: a caller that decided on nothing it read before.
 
         Returns `(row, created)`. Raises the append's own errors,
         `CorrectionVehicleNotFoundError`, `VehicleBusyError` (retry), or
@@ -103,6 +138,15 @@ class CorrectionRepository:
                     )
                     if cursor.fetchone() is None:
                         raise CorrectionVehicleNotFoundError(new.vehicle_id)
+                if (
+                    checked_on is not None
+                    and fetch_correction(connection, new.correction_id) is None
+                ):
+                    cars = read_vehicle_car_records(connection, [new.vehicle_id])
+                    if not cars or matcher_input_hash(cars[0].record) != checked_on:
+                        raise EvidenceChangedError(
+                            "The car's matching changed since it was shown."
+                        )
                 row, created, superseded = append_correction(
                     connection, new, new.supersedes_correction_id
                 )

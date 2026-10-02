@@ -48,6 +48,13 @@ from ingestion.vehicle_facts_query import (
 ALIAS = "v"
 MAX_SEARCH_TOKENS = 6
 
+#: A vehicle column that holds nothing: NULL, or for text the empty string. It
+#: takes no values. The TS screen's filter (`vehicle_facts_query`) has no such
+#: operator and is not changed.
+IS_EMPTY = "is_empty"
+VEHICLE_OPERATORS: frozenset[str] = SUPPORTED_OPERATORS | {IS_EMPTY}
+_TEXT_TYPES = frozenset({"text"})
+
 #: (field, operator, values) -- structural, so this module does not depend on
 #: the API's schemas.
 VehicleTerm = tuple[str, str, Sequence[str]]
@@ -95,11 +102,19 @@ def _escape_like(text: str) -> str:
 
 
 def compile_term(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
-    """One clause. Values inside a clause are OR-ed."""
+    """One clause. Values inside a clause are OR-ed; `is_empty` takes none."""
 
-    if operator not in SUPPORTED_OPERATORS:
+    if operator not in VEHICLE_OPERATORS:
         raise ValueError(f"unsupported operator: {operator}")
     terms = [str(value) for value in values if value is not None and str(value).strip()]
+    if operator == IS_EMPTY:
+        if terms:
+            raise ValueError(f"{IS_EMPTY} takes no values")
+        column, sql_type = _column(field)
+        # Two plain comparisons of the column itself, so its index answers both.
+        if sql_type in _TEXT_TYPES:
+            return CompiledPredicate(f"({column} IS NULL OR {column} = '')", [])
+        return CompiledPredicate(f"{column} IS NULL", [])
     if not terms:
         raise ValueError(f"condition on {field!r} has no values")
     column, sql_type = _column(field)

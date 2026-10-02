@@ -377,11 +377,21 @@ def test_vehicle_core_migration_also_creates_the_choice_and_correction_tables(
     monkeypatch.setattr(cli, "run_job_bookkeeping_migrations", step("jobs"))
     monkeypatch.setattr(cli, "run_vehicle_core_migrations", step("vehicle core"))
     monkeypatch.setattr(cli, "run_vehicle_ktype_choice_migrations", step("ktype choices"))
+    monkeypatch.setattr(
+        cli, "run_vehicle_correction_decision_migrations", step("correction decisions")
+    )
     monkeypatch.setattr(cli, "run_vehicle_fact_correction_migrations", step("fact corrections"))
 
     assert main(["migrate-vehicle-core"]) == 0
-    assert order == ["ledger", "jobs", "vehicle core", "ktype choices", "fact corrections"]
-    assert '"applied": ["vehicle core", "ktype choices", "fact corrections"]' in (
+    # A correction a decision wrote references that decision: its table comes first.
+    assert order == [
+        "ledger", "jobs", "vehicle core", "ktype choices", "correction decisions",
+        "fact corrections",
+    ]
+    assert (
+        '"applied": ["vehicle core", "ktype choices", "correction decisions", '
+        '"fact corrections"]'
+    ) in (
         capsys.readouterr().out
     )
 

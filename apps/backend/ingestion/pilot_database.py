@@ -64,6 +64,14 @@ from ingestion.tecdoc.canonical_rule_migrations import run_tecdoc_rule_migration
 from ingestion.tecdoc.migrations import run_tecdoc_migrations
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
 from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
+from ingestion.vehicle_correction_decision_migrations import (
+    VEHICLE_CORRECTION_DECISIONS_TABLE,
+    run_vehicle_correction_decision_migrations,
+)
+from ingestion.vehicle_fact_correction_migrations import (
+    VEHICLE_FACT_CORRECTIONS_TABLE,
+    run_vehicle_fact_correction_migrations,
+)
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.vehicle_ktype_choice_migrations import (
     VEHICLE_KTYPE_CHOICES_TABLE,
@@ -114,11 +122,13 @@ class PilotBuildError(RuntimeError):
     """The build refused to start or could not finish; the message is safe to print."""
 
 
-# The repo has no single "migrate everything" command. These are the fifteen
-# migration sets, in the order verified on an empty database. Only one has a
-# foreign key into another: people's KType choices reference core.vehicles, so
-# that set follows "vehicle core". Without it the API's vehicle lookups fail on
-# the pilot.
+# The repo has no single "migrate everything" command. These are the seventeen
+# migration sets, in the order verified on an empty database. Three have a
+# foreign key into another: people's KType choices and their corrections of a
+# car's data reference core.vehicles, so those sets follow "vehicle core", and a
+# correction a decision about many cars wrote names that decision, so the
+# decisions come before the corrections. Without them the API's vehicle lookups
+# fail on the pilot.
 PILOT_MIGRATIONS: tuple[tuple[str, Callable[[Connection[Any]], tuple[str, ...]]], ...] = (
     ("staging", run_staging_migrations),
     ("ledger", run_ledger_migrations),
@@ -129,6 +139,8 @@ PILOT_MIGRATIONS: tuple[tuple[str, Callable[[Connection[Any]], tuple[str, ...]]]
     ("vehicle facts", run_vehicle_facts_migrations),
     ("vehicle core", run_vehicle_core_migrations),
     ("vehicle ktype choices", run_vehicle_ktype_choice_migrations),
+    ("vehicle correction decisions", run_vehicle_correction_decision_migrations),
+    ("vehicle fact corrections", run_vehicle_fact_correction_migrations),
     ("normalization", run_normalization_migrations),
     ("rule definitions", run_rule_definition_migrations),
     ("match chunks", run_match_chunk_migrations),
@@ -247,6 +259,13 @@ PILOT_TABLES: tuple[TableSpec, ...] = (
     # The plan refuses a cut that would leave a decided car behind.
     _slice(VEHICLE_KTYPE_CHOICES_TABLE, "vehicle_id", "vehicles",
            "people's KType choices, by vehicle"),
+    # People's decisions that correct many cars: few rows, copied whole, and
+    # before the corrections, whose rows name the event that wrote them.
+    _whole(VEHICLE_CORRECTION_DECISIONS_TABLE, "people's decisions about many cars"),
+    # A car's correction chains in one COPY statement, like its choices. The plan
+    # refuses a cut that would leave a corrected car behind.
+    _slice(VEHICLE_FACT_CORRECTIONS_TABLE, "vehicle_id", "vehicles",
+           "people's corrections of a car's data, by vehicle"),
     # -- bookkeeping the app reads
     _whole("core.ingest_job_runs", "batch pickers, rule application runs, the AIS claim"),
     _whole("core.match_runs", "only runs a reviewer decision belongs to",
@@ -1027,6 +1046,17 @@ def plan_pilot(
                 f"{outside:,} cars with a person's KType choice are outside the slice; their "
                 "choices would be left behind. Pinning decided cars into the slice is not "
                 "built yet (docs/vehicle-ktype-choices.md)"
+            )
+    if VEHICLE_FACT_CORRECTIONS_TABLE in present:
+        corrected = set(_column(
+            source, f"SELECT DISTINCT vehicle_id FROM {VEHICLE_FACT_CORRECTIONS_TABLE}", ()
+        ))
+        outside = len(corrected - set(keys.vehicles))
+        if outside:
+            problems.append(
+                f"{outside:,} cars with a person's correction are outside the slice; their "
+                "corrections would be left behind. Pinning corrected cars into the slice is "
+                "not built yet (docs/vehicle-fact-corrections.md)"
             )
     if "core.review_queue" in present:
         other_reviews = int(_scalar(

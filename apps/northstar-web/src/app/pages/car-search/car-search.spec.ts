@@ -217,6 +217,64 @@ describe('CarSearchPage', () => {
     expect(host.querySelector('ns-ktype-candidates')).toBe(panel.nativeElement);
   });
 
+  it('shows a person’s correction on the car’s row and in its record as soon as it is saved or undone', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    const rowText = () => host.querySelector('tbody tr')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(rowText()).toContain('D5244T');
+    host.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush(RECORD);
+    fixture.detectChanges();
+    http.match(() => true).forEach((request) => request.flush({}, { status: 503, statusText: 'x' }));
+    const panel = fixture.debugElement.query(By.directive(KTypeCandidates))
+      .componentInstance as KTypeCandidates;
+    const field = (name: string, value: string | null) => ({
+      field: name,
+      label: name,
+      type: 'text' as const,
+      values: [],
+      evidence_keys: [],
+      current_value: value,
+      current_source: 'correction',
+      suggestions: [],
+    });
+    const say = (engine: string | null, power: string | null, fields = RECORD.fields) => {
+      panel.choiceChanged.emit({
+        choice: null,
+        corrections: [{ field: 'engine_code' }, { field: 'power_kw' }],
+        correctable_fields: [field('engine_code', engine), field('power_kw', power), field('drive_type', 'awd')],
+      } as unknown as VehicleMatchLookup);
+      fixture.detectChanges();
+      http.expectOne(`${API_BASE}/v1/vehicles/${VEHICLE_ID}`).flush({ ...RECORD, fields });
+      fixture.detectChanges();
+    };
+
+    say('D5244T9', '136', [
+      {
+        field: 'engine_code',
+        label: 'Engine code',
+        group: 'technical',
+        value: 'D5244T9',
+        source: { source: 'correction', ref: 'c1', observed_on: '2026-10-02', origin: false },
+        alternatives: [],
+      },
+    ]);
+    expect(rowText()).toContain('D5244T9');
+    expect(rowText()).toContain('136');
+    // A field nobody corrected keeps what the row has.
+    expect(rowText()).not.toContain('awd');
+    expect(host.querySelector('.record')?.textContent).toContain("A person's correction");
+
+    // Undone: the car's own data is back, and a value marked as wrong reads as none.
+    say('D5244T', null);
+    expect(rowText()).toContain('D5244T');
+    expect(rowText()).not.toContain('D5244T9');
+    expect(rowText()).not.toContain('136');
+  });
+
   it('shows a person’s choice on the car’s row and in its record as soon as it is made', async () => {
     const fixture = render();
     await settle(fixture);

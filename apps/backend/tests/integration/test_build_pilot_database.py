@@ -50,6 +50,12 @@ from ingestion.pilot_database import (
 from ingestion.vehicle_core_ais import AisExtract, AisRecord, import_ais_extract
 from ingestion.vehicle_core_rules import FAMILIES_BY_ID, apply_rules, learn_rules, store_rules
 from ingestion.vehicle_core_ts import backfill_vehicle_core
+from ingestion.vehicle_correction_decision_migrations import (
+    verify_vehicle_correction_decision_schema_contract,
+)
+from ingestion.vehicle_fact_correction_migrations import (
+    verify_vehicle_fact_correction_schema_contract,
+)
 from ingestion.vehicle_ktype_choice_migrations import verify_vehicle_ktype_choice_schema_contract
 from ingestion.vehicle_ktype_choices import project_choices
 from scripts import build_pilot_database as script
@@ -348,6 +354,12 @@ def source() -> Iterator[Source]:
         first = _choose(connection, decided, 0, None)
         _choose(connection, decided, 1, first)
         project_choices(connection, [decided])
+        # The same car was corrected twice: once by a decision about many cars,
+        # once by a person on top. A second decision is only a proposal.
+        applied = _decide(connection, "apply")
+        _decide(connection, "propose")
+        member = _correct(connection, decided, 0, None, group=applied)
+        _correct(connection, decided, 1, member)
         connection.commit()
         yield built
 
@@ -687,6 +699,41 @@ def test_it_never_drops_a_database_it_did_not_build(source: Source, target_name:
     assert _exists(target_name)
 
 
+def _decide(connection: Connection, event: str) -> Any:
+    """One stored decision about many cars: its root event."""
+
+    event_id = uuid4()
+    connection.execute(
+        "INSERT INTO core.vehicle_correction_decisions (event_id, decision_id, chain_position, "
+        "event, field, action, value, scope, scope_label, manufacturer, reviewer, reason, "
+        "catalog_batch, code_version, measurement) VALUES (%s, %s, 0, %s, 'engine_code', 'set', "
+        "'D4204T23', %s, 'All made-up cars', 'VOLVO', 'Ada', %s, %s, 'test', %s)",
+        (event_id, event_id, event,
+         Jsonb({"kind": "like_this", "conditions": [], "anchor_value": None}),
+         None if event == "propose" else "seen", PINNED_BATCH,
+         Jsonb({"affected": 1, "checked": 1, "complete": event == "apply", "gained": 1,
+                "lost": 0, "moved": 0, "worse": 0})),
+    )
+    return event_id
+
+
+def _correct(connection: Connection, vehicle_id: str, position: int, supersedes: Any,
+             *, group: Any = None) -> Any:
+    """One stored correction of a car's engine code, the way the table itself accepts it."""
+
+    correction_id = uuid4()
+    connection.execute(
+        "INSERT INTO core.vehicle_fact_corrections (correction_id, vehicle_id, field, "
+        "chain_position, action, value, supersedes_correction_id, group_id, reviewer, reason, "
+        "previous_source, catalog_batch, automatic_terminal, code_version, "
+        "evidence_fingerprint, evidence) VALUES (%s, %s, 'engine_code', %s, 'set', %s, %s, %s, "
+        "'Ada', 'seen', 'registry', %s, 'review_required', 'test', %s, %s)",
+        (correction_id, vehicle_id, position, f"D4204T{position}", supersedes, group,
+         PINNED_BATCH, "a" * 64, Jsonb({"schema": "x", "automatic": {}})),
+    )
+    return correction_id
+
+
 def test_it_refuses_the_source_as_target(source: Source) -> None:
     name = str(source.connection.info.dbname)
 
@@ -749,6 +796,65 @@ def test_a_persons_ktype_choices_come_along_with_their_car(source: Source, pilot
     check = next(item for item in pilot.outcome.checks
                  if item.name.startswith("core.vehicle_ktype_choices"))
     assert check.ok and "2 rows" in check.detail
+
+
+def test_a_persons_corrections_come_along_and_every_decision_does(
+    source: Source, pilot: Pilot
+) -> None:
+    corrected = source.vehicle(TWO_RECORD_PLATE)
+    rows = ("SELECT to_jsonb(c) FROM core.vehicle_fact_corrections AS c "
+            "WHERE vehicle_id = %s ORDER BY chain_position")
+    decisions = "SELECT to_jsonb(d) FROM core.vehicle_correction_decisions AS d ORDER BY event_id"
+    kept = _rows(source.connection, rows, (corrected,))
+    decided = _rows(source.connection, decisions)
+    source.connection.rollback()
+
+    assert (len(kept), len(decided)) == (2, 2)
+    # The car's whole chain, and the decisions whole: a proposal has no car at all.
+    assert _rows(pilot.connection, rows, (corrected,)) == kept
+    assert _one(pilot.connection, "SELECT count(*) FROM core.vehicle_fact_corrections") == 2
+    assert _rows(pilot.connection, decisions) == decided
+    # Both tables carry every invariant on the pilot, the foreign key between them too.
+    verify_vehicle_correction_decision_schema_contract(pilot.connection)
+    verify_vehicle_fact_correction_schema_contract(pilot.connection)
+    pilot.connection.rollback()
+    for table, expected in (("core.vehicle_fact_corrections", "2 rows"),
+                            ("core.vehicle_correction_decisions", "2 rows")):
+        check = next(item for item in pilot.outcome.checks if item.name.startswith(table))
+        assert check.ok and expected in check.detail
+
+
+def test_a_correction_on_a_car_outside_the_slice_stops_the_build(
+    source: Source, target_name: str
+) -> None:
+    """Never silently left behind: the cut is refused until corrected cars can be pinned."""
+
+    outside = source.vehicle(PROPOSAL_PLATE)
+    correction_id = _correct(source.connection, outside, 0, None)
+    source.connection.commit()
+    try:
+        plan = build_pilot_database(source.url, source.options(target_name),
+                                    chunk_size=CHUNK_SIZE).plan
+        with pytest.raises(PilotBuildError, match="person's correction"):
+            build_pilot_database(source.url, source.options(target_name), commit=True,
+                                 chunk_size=CHUNK_SIZE)
+    finally:
+        # The table is append-only; only a test may switch its triggers off.
+        source.connection.rollback()
+        source.connection.execute("ALTER TABLE core.vehicle_fact_corrections DISABLE TRIGGER USER")
+        source.connection.execute(
+            "DELETE FROM core.vehicle_fact_corrections WHERE correction_id = %s",
+            (correction_id,))
+        source.connection.execute("ALTER TABLE core.vehicle_fact_corrections ENABLE TRIGGER USER")
+        source.connection.commit()
+
+    (problem,) = plan.problems
+    assert problem == (
+        "1 cars with a person's correction are outside the slice; their corrections would be "
+        "left behind. Pinning corrected cars into the slice is not built yet "
+        "(docs/vehicle-fact-corrections.md)"
+    )
+    assert not _exists(target_name)
 
 
 def test_a_choice_on_a_car_outside_the_slice_stops_the_build(

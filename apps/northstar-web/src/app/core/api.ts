@@ -4,6 +4,16 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api-config';
 import type {
+  CorrectionDecisionRequest,
+  CorrectionDecisionResult,
+  CorrectionOutcome,
+  CorrectionPreviewCars,
+  CorrectionPreviewJob,
+  CorrectionPreviewRequest,
+  CorrectionScopes,
+  CorrectionScopesRequest,
+  CorrectionWithdrawRequest,
+  CorrectionWithdrawal,
   FactCorrectionHistory,
   FactCorrectionRequest,
   KTypeChoiceHistory,
@@ -633,6 +643,81 @@ export class Api {
   correctionHistory(vehicleId: string): Observable<FactCorrectionHistory> {
     return this.http.get<FactCorrectionHistory>(
       `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections`,
+    );
+  }
+
+  // --- One correction for several cars ---------------------------------------------------
+  // Nothing is saved before a check: the matcher runs on each car of the scope as it is and
+  // with the correction, and only what was checked can be applied.
+
+  /** Whom a correction of this car could also apply to, with a count each. Saves nothing. */
+  correctionScopes(vehicleId: string, body: CorrectionScopesRequest): Observable<CorrectionScopes> {
+    return this.http.post<CorrectionScopes>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections/scopes`,
+      body,
+    );
+  }
+
+  /**
+   * Start checking what a correction would change for the cars of a scope. Answers with the
+   * job (202); poll `correctionPreview` until its status settles. The server runs one check
+   * at a time: a second is refused with 429 `busy`.
+   */
+  startCorrectionPreview(
+    vehicleId: string,
+    body: CorrectionPreviewRequest,
+  ): Observable<CorrectionPreviewJob> {
+    return this.http.post<CorrectionPreviewJob>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections/preview`,
+      body,
+    );
+  }
+
+  correctionPreview(previewId: string): Observable<CorrectionPreviewJob> {
+    return this.http.get<CorrectionPreviewJob>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}`,
+    );
+  }
+
+  /** The checked cars of one outcome, each with where the matcher ends before and after. */
+  correctionPreviewCars(
+    previewId: string,
+    outcome: CorrectionOutcome,
+    limit: number,
+  ): Observable<CorrectionPreviewCars> {
+    return this.http.get<CorrectionPreviewCars>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}/cars`,
+      { params: params({ outcome, limit }) },
+    );
+  }
+
+  /** Stop a running check; it keeps what it found so far and frees the server for the next. */
+  stopCorrectionPreview(previewId: string): Observable<unknown> {
+    return this.http.delete<unknown>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}`,
+    );
+  }
+
+  /**
+   * Apply a checked correction to its cars, or keep it as a proposal that writes no car.
+   * 201 when recorded, 200 for a replay of the same operation id, so a retry must resend
+   * the same body.
+   */
+  decideCorrection(body: CorrectionDecisionRequest): Observable<CorrectionDecisionResult> {
+    return this.http.post<CorrectionDecisionResult>(
+      `${this.base}/v1/vehicle-corrections/decisions`,
+      body,
+    );
+  }
+
+  /** Undo a decision on every car it still stands on; cars a person changed since are left. */
+  withdrawCorrectionDecision(
+    decisionId: string,
+    body: CorrectionWithdrawRequest,
+  ): Observable<CorrectionWithdrawal> {
+    return this.http.post<CorrectionWithdrawal>(
+      `${this.base}/v1/vehicle-corrections/decisions/${encodeURIComponent(decisionId)}/withdraw`,
+      body,
     );
   }
 

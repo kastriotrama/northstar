@@ -18,6 +18,7 @@ from api.app.features.vehicle_corrections.schemas import (
     CorrectionRequest,
 )
 from api.app.features.vehicle_corrections.service import (
+    ConfirmationRequiredError,
     CorrectionChangedError,
     CorrectionRejectedError,
     CorrectionVehicleNotFoundError,
@@ -33,7 +34,11 @@ from api.app.features.vehicle_corrections.service import (
     VehicleBusyError,
 )
 from api.app.features.vehicle_matching.schemas import VehicleMatchLookup
-from api.app.features.vehicle_matching.service import NoCatalogError, VehicleNotFoundError
+from api.app.features.vehicle_matching.service import (
+    MatchOutcome,
+    NoCatalogError,
+    VehicleNotFoundError,
+)
 from ingestion.vehicle_fact_corrections import CorrectionHead
 
 URL = f"/v1/vehicles/{VEHICLE_ID}/corrections"
@@ -112,8 +117,12 @@ def test_a_recorded_correction_answers_201_with_the_refreshed_lookup(
     (correction,) = payload["corrections"]
     assert set(correction) == {
         "field", "status", "correction_id", "value", "reviewer", "reason", "created_at",
-        "previous_value", "previous_source", "group_id", "history_count",
+        "previous_value", "previous_source", "group_id", "history_count", "decision",
     }
+    assert correction["decision"] is None
+    assert payload["copy_drift"] == []
+    month = payload["correctable_fields"][8]
+    assert (month["type"], month["values"]) == ("integer", [str(n) for n in range(1, 13)])
     assert correction["correction_id"] == body["operation_id"]
     assert (correction["field"], correction["status"], correction["value"]) == (
         "engine_code", "set", "DFGA")
@@ -184,6 +193,33 @@ def test_each_refusal_has_its_status_and_code(
     assert detail["code"] == code and detail["message"]
     assert "connection details" not in detail["message"]
     assert "relation" not in detail["message"]
+
+
+def test_a_correction_that_would_harm_a_resolved_car_asks_for_confirmation(
+    client: TestClient, fake: _Service
+) -> None:
+    fake.error = ConfirmationRequiredError(
+        "This car resolves today. With this correction it would no longer resolve.",
+        MatchOutcome("resolved", "K1"),
+        MatchOutcome("review_required", None),
+    )
+
+    response = client.post(URL, json=_body())
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "code": "confirmation_required",
+        "message": "This car resolves today. With this correction it would no longer resolve.",
+        "before": {"terminal": "resolved", "ktype": "K1"},
+        "after": {"terminal": "review_required", "ktype": None},
+    }
+
+    # The confirmation is an optional field of the same request and reaches the service.
+    fake.error = None
+    assert client.post(URL, json=_body(confirm_change=True)).status_code == 201
+    assert client.post(URL, json=_body()).status_code == 201
+    assert [sent.confirm_change for _, sent in fake.requests] == [True, False]
+    assert client.post(URL, json=_body(confirm_change="perhaps")).status_code == 422
 
 
 @pytest.mark.parametrize(

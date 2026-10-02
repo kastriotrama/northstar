@@ -1,4 +1,4 @@
-"""Read and append a person's corrections of one car's data, and keep the vehicle's copy.
+"""Read and append a person's corrections of a car's data, and keep the vehicle's copy.
 
 `core.vehicle_fact_corrections` is the truth: an append-only chain per field of
 a vehicle whose head -- the row with the highest `chain_position` -- says what
@@ -15,8 +15,12 @@ reads the copy to match a car.
 Which fields can be corrected, what a value looks like and which vehicle columns
 carry its copy is defined in one place, with the API
 (`api.app.features.vehicle_corrections.fields`). This module stores and links
-rows whatever the field; the two functions that write the copy are handed that
+rows whatever the field; the functions that write the copy are handed that
 definition's `vehicle_copy` as `copy_of`.
+
+A decision that corrects many cars (`vehicle_correction_decisions`) writes one
+ordinary row per car through `append_many` and `project_many`: the same rows and
+the same copy as one car's, in one round trip each.
 
 Sync, PostgreSQL only. Callers own the transaction: nothing here commits.
 Nothing here writes Neo4j, aliases, canonical ids, the enrichment ledger or the
@@ -308,6 +312,91 @@ def append_correction(
     return _stored(inserted), True, head
 
 
+def field_heads(
+    connection: Connection[Any], vehicle_ids: Sequence[str], field: str
+) -> dict[str, StoredCorrection]:
+    """The head row of one field's chain, for each of these vehicles that has one.
+
+    A withdrawn head is included: the next correction of the field supersedes
+    it. One query, answered from the `(vehicle_id, field, chain_position)` key.
+    """
+
+    if not vehicle_ids:
+        return {}
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT DISTINCT ON (c.vehicle_id) {_SELECT} "
+            f"FROM {VEHICLE_FACT_CORRECTIONS_TABLE} AS c "
+            "WHERE c.vehicle_id = ANY(%s) AND c.field = %s "
+            "ORDER BY c.vehicle_id DESC, c.chain_position DESC",
+            (list(vehicle_ids), field),
+        )
+        heads = [_stored(row) for row in cursor.fetchall()]
+    return {head.vehicle_id: head for head in heads}
+
+
+def append_many(
+    connection: Connection[Any], rows: Sequence[tuple[NewCorrection, StoredCorrection | None]]
+) -> int:
+    """Append one row per pair, each on top of the head given with it; returns the rows written.
+
+    For a decision that writes many cars: one round trip instead of three reads
+    and a write per car. The caller holds every vehicle's row lock and read the
+    heads under it. Each row takes the position after its head and supersedes
+    it, whatever `supersedes_correction_id` it was built with. Nothing is
+    skipped here: an id already stored, or a head that is no longer the field's,
+    violates a key and fails the whole statement, so the caller's transaction
+    writes all of its rows or none.
+    """
+
+    if not rows:
+        return 0
+    columns = [column for column in COLUMNS if column != "created_at"]
+    values: list[list[Any]] = []
+    for new, head in rows:
+        given: dict[str, Any] = {
+            "chain_position": head.chain_position + 1 if head else 0,
+            "supersedes_correction_id": head.correction_id if head else None,
+            "evidence": Jsonb(new.evidence),
+        }
+        values.append(
+            [given[column] if column in given else getattr(new, column) for column in columns]
+        )
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            f"INSERT INTO {VEHICLE_FACT_CORRECTIONS_TABLE} ({', '.join(columns)}) "
+            f"VALUES ({', '.join(['%s'] * len(columns))})",
+            values,
+        )
+    return len(values)
+
+
+def group_rows(connection: Connection[Any], group_id: UUID) -> list[StoredCorrection]:
+    """The rows one decision event wrote, by vehicle; read off the group index."""
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT {_SELECT} FROM {VEHICLE_FACT_CORRECTIONS_TABLE} AS c "
+            "WHERE c.group_id = %s ORDER BY c.vehicle_id, c.field",
+            (group_id,),
+        )
+        return [_stored(row) for row in cursor.fetchall()]
+
+
+def group_sizes(connection: Connection[Any], group_ids: Sequence[UUID]) -> dict[UUID, int]:
+    """How many rows each of these decision events wrote; an event that wrote none is absent."""
+
+    if not group_ids:
+        return {}
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT c.group_id, count(*) FROM {VEHICLE_FACT_CORRECTIONS_TABLE} AS c "
+            "WHERE c.group_id = ANY(%s) GROUP BY c.group_id",
+            (list(group_ids),),
+        )
+        return {row[0]: int(row[1]) for row in cursor.fetchall()}
+
+
 def correction_heads(
     connection: Connection[Any], vehicle_ids: Sequence[str] | None
 ) -> dict[str, dict[str, CorrectionHead]]:
@@ -371,6 +460,18 @@ def _lock_vehicles(
         return [str(row[0]) for row in cursor.fetchall()]
 
 
+def lock_vehicles(connection: Connection[Any], vehicle_ids: Sequence[str]) -> list[str]:
+    """Lock these vehicles' rows in id order; returns the ids that exist.
+
+    The lock one car's correction and a KType choice take. Every writer of
+    several cars takes them in the same order, so two of them cannot deadlock.
+    """
+
+    if not vehicle_ids:
+        return []
+    return _lock_vehicles(connection, "vehicle_id = ANY(%s)", (list(vehicle_ids),))
+
+
 def _merge_copy(state: VehicleState, copy: VehicleCopy, correction_id: UUID) -> bool:
     """Merge a `set`'s copy as `correction:<id>`; a column it leaves empty is cleared."""
 
@@ -427,16 +528,49 @@ def project_correction(
     if not _lock_vehicles(connection, "vehicle_id = %s", (vehicle_id,)):
         return False
     state = load_vehicles(connection, [vehicle_id])[vehicle_id]
-    touched = False
-    if head.action == "set":
-        touched = _merge_copy(state, copy_of(head.field, head.value or ""), head.correction_id)
-    elif superseded is not None and superseded.action == "set":
-        touched = _retract_copy(
-            state, copy_of(superseded.field, superseded.value or ""), superseded.correction_id
-        )
+    touched = _project(state, head, superseded, copy_of)
     if touched:
         save_vehicles(connection, [state])
     return touched
+
+
+def _project(
+    state: VehicleState,
+    head: NewCorrection | StoredCorrection,
+    superseded: StoredCorrection | None,
+    copy_of: CopyOf,
+) -> bool:
+    """Bring one vehicle's state in line with a new head; True when it changed."""
+
+    if head.action == "set":
+        return _merge_copy(state, copy_of(head.field, head.value or ""), head.correction_id)
+    if superseded is not None and superseded.action == "set":
+        return _retract_copy(
+            state, copy_of(superseded.field, superseded.value or ""), superseded.correction_id
+        )
+    return False
+
+
+def project_many(
+    connection: Connection[Any],
+    changes: Sequence[tuple[NewCorrection, StoredCorrection | None]],
+    copy_of: CopyOf,
+) -> int:
+    """`project_correction` for many vehicles: one read and one write; returns the rows changed.
+
+    Each pair is a row just appended and the head it superseded, as handed to
+    `append_many`. The caller holds every vehicle's row lock, so the states
+    written back are never older than the ones read.
+    """
+
+    states = load_vehicles(connection, [new.vehicle_id for new, _ in changes])
+    changed: dict[str, VehicleState] = {}
+    for new, superseded in changes:
+        state = states.get(new.vehicle_id)
+        if state is not None and _project(state, new, superseded, copy_of):
+            changed[state.vehicle_id] = state
+    save_vehicles(connection, changed.values())
+    return len(changed)
 
 
 def reproject_corrections(

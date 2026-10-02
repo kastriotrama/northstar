@@ -65,7 +65,15 @@ def test_every_field_has_the_rules_its_type_needs() -> None:
 def test_closed_vocabularies_are_the_reviewed_ones() -> None:
     closed = {name: spec.values for name, spec in fields.SPECS.items() if spec.values}
 
-    assert set(closed) == {"drive_type", "bodywork_form", "fuel", "electrification_type"}
+    assert set(closed) == {
+        "drive_type", "bodywork_form", "production_month", "fuel", "electrification_type"}
+    # The month is a whole number with few values: it lists them, so a screen
+    # can show and enforce the range, and stays an integer field.
+    assert closed["production_month"] == tuple(str(month) for month in range(1, 13))
+    assert fields.SPECS["production_month"].type == "integer"
+    assert fields.canonical_value("production_month", " 07 ") == "7"
+    with pytest.raises(fields.InvalidValueError):
+        fields.canonical_value("production_month", "13")
     assert closed["drive_type"] == RESOLVABLE_TARGETS["drive_type"] == ("fwd", "rwd", "awd")
     assert closed["bodywork_form"] == RESOLVABLE_TARGETS["bodywork_form"]
     assert closed["electrification_type"] == (

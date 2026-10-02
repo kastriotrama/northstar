@@ -210,6 +210,74 @@ def test_a_rule_or_an_import_arriving_under_a_correction_is_kept_behind_it() -> 
     assert state.values["bodywork_form"] == "coupe"
 
 
+def test_a_source_confirming_a_corrected_value_is_kept_behind_the_correction() -> None:
+    """Withdrawing the correction then falls back to that source instead of emptying the field."""
+
+    state = ts_vehicle()
+    merge(state, {"engine_code": correction("D4204T14")})
+    assert "engine_code" not in state.field_alternatives  # the correction filled a gap
+
+    confirmed = merge(state, {"engine_code": ais("D4204T14")})
+
+    # Nothing visible changed, but the provider's word was kept: the writer must save it.
+    assert (confirmed.touched, confirmed.kept) == (False, ["engine_code"])
+    assert state.field_sources["engine_code"] == "correction:c1"
+    assert state.field_alternatives["engine_code"] == [
+        {"source": "ais@2026-09-19", "value": "D4204T14"}]
+    # The same source saying it again keeps one entry, not two.
+    merge(state, {"engine_code": ais("D4204T14")})
+    assert len(state.field_alternatives["engine_code"]) == 1
+
+    retract(state, "engine_code", "correction", "c1")
+
+    assert state.values["engine_code"] == "D4204T14"
+    assert state.field_sources["engine_code"] == "ais@2026-09-19"
+    assert "engine_code" not in state.field_alternatives
+
+
+def test_a_source_that_comes_to_agree_with_a_correction_replaces_what_it_said_before() -> None:
+    state = ts_vehicle(power_kw=133)
+    merge(state, {"power_kw": correction(150)})
+    assert [entry["value"] for entry in state.field_alternatives["power_kw"]] == [133]
+
+    # The registry is re-imported with the corrected figure, and a rule agrees too.
+    merge(state, {"power_kw": ts(150)})
+    merge(state, {"power_kw": review(150)})
+
+    assert {entry["source"].split("@")[0].split(":")[0]: entry["value"]
+            for entry in state.field_alternatives["power_kw"]} == {
+        "transportstyrelsen": 150, "review": 150}
+    retract(state, "power_kw", "correction", "c1")
+    assert (state.values["power_kw"], state.field_sources["power_kw"]) == (150, "review:r1")
+
+
+def test_only_a_correction_keeps_the_source_that_confirms_it() -> None:
+    """Every other source is confirmed as before: nothing is kept and nothing re-stamped."""
+
+    state = ts_vehicle(bodywork_form="estate")
+    merge(state, {"bodywork_form": review("suv")})
+
+    for confirming in (ais("suv"), rule("suv"), review("suv")):
+        result = merge(state, {"bodywork_form": confirming})
+        assert (result.touched, result.kept) == (False, [])
+    assert state.field_sources["bodywork_form"] == "review:r1"
+    assert [entry["value"] for entry in state.field_alternatives["bodywork_form"]] == ["estate"]
+    # A provider that now agrees with the rule no longer says what it said before.
+    assert not merge(state, {"bodywork_form": ts("suv")}).kept
+    assert "bodywork_form" not in state.field_alternatives
+
+    # A correction stating its own value again is one source speaking twice.
+    corrected = ts_vehicle()
+    merge(corrected, {"engine_code": correction("D4204T14")})
+    again = merge(corrected, {"engine_code": correction("D4204T14")})
+    assert (again.touched, again.kept) == (False, [])
+    assert "engine_code" not in corrected.field_alternatives
+    # And a correction that confirms the car's own value leaves no trace at all.
+    own = ts_vehicle(power_kw=133)
+    assert not merge(own, {"power_kw": correction(133)}).kept
+    assert (own.field_sources, own.field_alternatives) == ({}, {})
+
+
 def test_a_later_correction_replaces_an_earlier_one_and_keeps_what_the_first_displaced() -> None:
     state = ts_vehicle(power_kw=133)
     merge(state, {"power_kw": correction(150, "c1")})

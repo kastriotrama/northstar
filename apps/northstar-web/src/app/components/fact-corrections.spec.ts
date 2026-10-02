@@ -315,7 +315,9 @@ describe('FactCorrections', () => {
     });
 
     expect(page.host.querySelector('h4')?.textContent).toBe("Correct this car's data");
-    expect(squash(page.host)).toContain('For this car only. The car is matched again after each change.');
+    expect(squash(page.host)).toContain(
+      'For this car only, unless you choose other cars under “Apply to”. The car is matched again after each change.',
+    );
     // Nothing blocks this car, so the rows keep the server's order.
     expect(page.labels()).toEqual([
       'Manufacturer',
@@ -746,6 +748,11 @@ describe('FactCorrections', () => {
     const page = render();
     await page.click('Power (kW)', 'Correct…');
     await page.click('Power (kW)', 'Mark the present value as wrong');
+    // Chosen first, so that whom it applies to can be picked; "Save" records it.
+    expect(squash(page.row('Power (kW)'))).toContain(
+      'The present value, 120, will be marked as wrong and no longer used.',
+    );
+    await page.click('Power (kW)', 'Save');
 
     const request = page.http.expectOne(CORRECTION_URL);
     expect(request.request.body).toEqual({
@@ -1580,6 +1587,7 @@ describe('KTypeCandidates: correcting the car’s data', () => {
     await page.enter(reason, 'Registration papers');
     await page.click(page.row('Power (kW)'), 'Correct…');
     await page.click(page.row('Power (kW)'), 'Mark the present value as wrong');
+    await page.click(page.row('Power (kW)'), 'Save');
     page.http
       .expectOne(CORRECTION_URL)
       .flush({ detail: { code: 'evidence_changed', message: 'x' } }, { status: 409, statusText: 'x' });

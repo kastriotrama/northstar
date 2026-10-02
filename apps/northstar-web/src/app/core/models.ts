@@ -955,6 +955,8 @@ export interface VehicleMatchLookup {
    * `normalization_stop`, which is in `corrections` and not in `correctable_fields`.
    */
   stop_reasons?: string[];
+  /** Fields whose stored vehicle copy no longer agrees with what the matcher is handed. */
+  copy_drift?: string[];
 }
 
 // --- A person's KType choice per car (`/v1/vehicles/{id}/ktype-choices`) --------------
@@ -1045,6 +1047,8 @@ export interface FactCorrectionState {
   previous_value: string | null;
   previous_source: string | null;
   group_id: string | null;
+  /** The decision for several cars that wrote the correction; null for one car's own. */
+  decision?: CorrectionDecisionRef | null;
   history_count: number;
 }
 
@@ -1084,6 +1088,11 @@ export interface FactCorrectionRequest {
   /** The field's correction the screen showed (also a withdrawn one), or null without one. */
   supersedes_correction_id: string | null;
   evidence_fingerprint?: string | null;
+  /**
+   * Sent with the same operation id after a 409 `confirmation_required`: the person saw that
+   * the car, resolved today, would lose or change its KType, and saves anyway.
+   */
+  confirm_change?: boolean;
 }
 
 export interface FactCorrectionHistoryEntry {
@@ -1111,6 +1120,199 @@ export interface FactCorrectionHistory {
     current_correction_id: string | null;
     entries: FactCorrectionHistoryEntry[];
   }[];
+}
+
+// --- One correction for several cars ----------------------------------------------------
+// (`/v1/vehicles/{id}/corrections/scopes`, `.../corrections/preview`, `/v1/vehicle-corrections`)
+// Nothing is saved for more than one car before a check of what it would change, car by car.
+
+/** Where the matcher ends for one car: its terminal, and the KType when it resolves. */
+export interface CarMatch {
+  terminal: string;
+  ktype: string | null;
+}
+
+/** One clause of a scope on a vehicle column; `is_empty` (no value) takes no values. */
+export interface CorrectionScopeCondition {
+  field: string;
+  operator: VehicleOperator | 'is_empty';
+  values: string[];
+}
+
+/** A condition a person may add to a wide scope, prefilled with this car's own value. */
+export interface CorrectionNarrowable {
+  field: string;
+  label: string;
+  /** As text; null when this car has no value there. */
+  value: string | null;
+}
+
+/** Whom a correction could apply to. `this_car` carries nothing but its kind. */
+export interface CorrectionScopeOption {
+  kind: 'this_car' | 'same_data' | 'like_this';
+  /** The cars in plain words, e.g. "All Volvo V70 cars with no drive type". */
+  label?: string;
+  /** Cars the scope covers, this one included; null when counting them took too long. */
+  count?: number | null;
+  too_broad?: boolean;
+  /** `like_this` only: which of the field's groups this is, 0 the narrowest; sent back with the check. */
+  rung?: number | null;
+  conditions?: CorrectionScopeCondition[];
+  narrowable?: CorrectionNarrowable[];
+}
+
+/** A scope that reaches beyond this car: nothing is saved for it before a check. */
+export type CorrectionWideScope = CorrectionScopeOption & { kind: 'same_data' | 'like_this' };
+
+export interface CorrectionScopesRequest {
+  field: string;
+  action: 'set' | 'ignore';
+  /** As in a correction: text, and null unless `action` is `set`. */
+  value: string | null;
+}
+
+export interface CorrectionScopes {
+  scopes: CorrectionScopeOption[];
+}
+
+/** The scope a person picked beyond this car, with the conditions that narrow it. */
+export interface CorrectionScopeChoice {
+  option: CorrectionWideScope;
+  narrow: CorrectionScopeCondition[];
+}
+
+export interface CorrectionPreviewRequest {
+  field: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  /**
+   * The picked option by what the scopes call gave it -- `like_this` may come as several
+   * options, told apart by `rung` and `conditions` -- with what narrows it.
+   */
+  scope: {
+    kind: 'same_data' | 'like_this';
+    rung: number | null;
+    conditions: CorrectionScopeCondition[] | null;
+    narrow: CorrectionScopeCondition[];
+  };
+  /** The lookup's fingerprint of the car the correction was entered on. */
+  evidence_fingerprint: string;
+}
+
+/** What a correction would do to one checked car; every car has exactly one. */
+export type CorrectionOutcome =
+  | 'gained'
+  | 'lost'
+  | 'moved'
+  | 'same'
+  | 'worse'
+  | 'still_unresolved'
+  | 'no_effect'
+  | 'already_corrected'
+  | 'not_like_this';
+
+export interface CorrectionPreviewCounts extends Record<CorrectionOutcome, number> {
+  /** Checked cars whose KType a person chose; the choice stays. */
+  with_choice: number;
+  /** Of those, the cars the matcher would then resolve to another KType than the chosen one. */
+  choice_would_disagree: number;
+  /** The `still_unresolved` cars by the terminal they end on. */
+  still_unresolved_by_terminal: Record<string, number>;
+}
+
+/** The check of a correction on the cars of a scope: a job on the server, polled. */
+export interface CorrectionPreviewJob {
+  preview_id: string;
+  status: 'running' | 'done' | 'failed' | 'cancelled';
+  field: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  scope: { kind: 'same_data' | 'like_this'; label: string };
+  /** Cars the scope covers; at most `cap` of them are checked. */
+  affected: number;
+  cap: number;
+  checked: number;
+  /** Every affected car was checked: no cap, no time-out, not stopped. Only then can it be applied. */
+  complete: boolean;
+  stopped_by: string | null;
+  /** Partial while running, final once it has ended. */
+  counts: CorrectionPreviewCounts;
+  /** For the `gained` cars: whether the new KType's engines include the car's engine code. */
+  engine_check: { agree: number; differ: number; unchecked: number };
+  /** Cars an apply would write when the harmed ones (`lost`, `moved`, `worse`) are left out. */
+  would_write: number;
+  can_apply: boolean;
+  /** `not_all_cars_checked`, `nothing_to_apply`, `harms_more_than_it_fixes`, `preview_expired`. */
+  blocked_by: string[];
+  /** Set when `status` is `failed`. */
+  error?: string | null;
+}
+
+/** One checked car, as the lists behind the counts show it. */
+export interface CorrectionPreviewCar {
+  vehicle_id: string;
+  plate: string | null;
+  before: CarMatch | null;
+  after: CarMatch | null;
+}
+
+export interface CorrectionPreviewCars {
+  /** Checked cars of the outcome asked for; `cars` holds at most `limit` of them. */
+  total?: number;
+  cars: CorrectionPreviewCar[];
+}
+
+export interface CorrectionDecisionRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the decision's event id. */
+  operation_id: string;
+  preview_id: string;
+  /** `apply` writes the checked cars; `propose` keeps the decision and writes no car. */
+  event: 'apply' | 'propose';
+  /** Also write the cars that would lose or change their KType or get harder to match. */
+  include_changed: boolean;
+  reviewer: string;
+  /** Required to apply. */
+  reason: string | null;
+}
+
+export interface CorrectionWithdrawRequest {
+  operation_id: string;
+  reviewer: string;
+  reason: string;
+}
+
+/** What an apply or a proposal did. */
+export interface CorrectionDecisionResult {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  /** Cars written; 0 for a proposal. */
+  written: number;
+  /** Checked cars an apply left as they are when it looked again. */
+  skipped?: { changed_since_check?: number; corrected_meanwhile?: number };
+  counts?: CorrectionPreviewCounts;
+  scope_label?: string;
+  /** The written cars by the outcome the check gave them. */
+  written_by_outcome?: Partial<Record<CorrectionOutcome, number>>;
+}
+
+/** What undoing a decision did. */
+export interface CorrectionWithdrawal {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  /** Cars whose correction was taken back. */
+  withdrawn: number;
+  /** Cars a person changed since: left as they are. */
+  left_changed: number;
+  member_count?: number;
+  scope_label?: string;
+}
+
+/** The decision for several cars a car's correction came from. */
+export interface CorrectionDecisionRef {
+  decision_id: string;
+  scope_label: string;
+  member_count: number;
+  reviewer: string;
 }
 
 export interface MatchSummaryRequest extends VehicleSearchRequest {

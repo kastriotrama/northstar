@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from api.app.features.vehicle_corrections import fields, service
 from api.app.features.vehicle_corrections.schemas import CorrectionRequest
 from api.app.features.vehicle_corrections.service import (
+    ConfirmationRequiredError,
     CorrectionChangedError,
     CorrectionService,
     EvidenceChangedError,
@@ -27,8 +28,9 @@ from api.app.features.vehicle_corrections.service import (
     ValueUnchangedError,
     snapshot,
 )
+from api.app.features.vehicle_matching.repository import Hypothetical
 from api.app.features.vehicle_matching.schemas import VehicleMatchLookup
-from api.app.features.vehicle_matching.service import VehicleNotFoundError
+from api.app.features.vehicle_matching.service import MatchOutcome, VehicleNotFoundError
 from ingestion.vehicle_fact_corrections import CorrectionHead, NewCorrection, StoredCorrection
 
 STOP = fields.NORMALIZATION_STOP
@@ -40,6 +42,8 @@ class _Store:
     def __init__(self) -> None:
         self.rows: list[StoredCorrection] = []
         self.record_calls = 0
+        #: The matcher input hash each write was decided on, as handed to the store.
+        self.checked_on: list[str | None] = []
 
     def head(self, field: str) -> StoredCorrection | None:
         return next((row for row in reversed(self.rows) if row.field == field), None)
@@ -62,8 +66,11 @@ class _Store:
             for field, (head, _) in self.current(VEHICLE_ID).items()
         }
 
-    def record(self, new: NewCorrection) -> tuple[StoredCorrection, bool]:
+    def record(
+        self, new: NewCorrection, *, checked_on: str | None = None
+    ) -> tuple[StoredCorrection, bool]:
         self.record_calls += 1
+        self.checked_on.append(checked_on)
         head = self.head(new.field)
         if (head.correction_id if head else None) != new.supersedes_correction_id:
             raise CorrectionChangedError("changed")
@@ -81,6 +88,8 @@ class _World:
         #: Set to stop the car before matching, the way a record needing review is.
         self.stop_reasons: list[str] = []
         self.lookups: list[VehicleMatchLookup] = []
+        #: Anything a test wants the lookup to say instead (a resolved car, its hash).
+        self.overrides: dict[str, Any] = {}
         self.service = CorrectionService(self.store, self.lookup_vehicle, "abc1234")
 
     def _evaluate(self) -> VehicleMatchLookup:
@@ -95,7 +104,7 @@ class _World:
             }
         return lookup(
             self.car, SOURCES, heads, self.store.current(VEHICLE_ID),
-            stop_reasons=list(self.stop_reasons), **stopped,
+            stop_reasons=list(self.stop_reasons), **{**self.overrides, **stopped},
         )
 
     def lookup_vehicle(self, vehicle_id: str) -> VehicleMatchLookup:
@@ -296,7 +305,9 @@ def test_an_operation_id_cannot_carry_different_content(
 def test_a_replay_that_lands_inside_the_transaction_is_answered_too(world: _World) -> None:
     request = world.request()
 
-    def raced(new: NewCorrection) -> tuple[StoredCorrection, bool]:
+    def raced(
+        new: NewCorrection, *, checked_on: str | None = None
+    ) -> tuple[StoredCorrection, bool]:
         row = stored(new)
         world.store.rows.append(row)
         return row, False
@@ -697,3 +708,135 @@ def test_a_replay_is_judged_on_the_request_not_on_the_evidence(world: _World) ->
     assert row.same_request(**same)
     assert replace(row, evidence={}, previous_value="x", previous_source="y").same_request(**same)
     assert not row.same_request(**{**same, "field": "model_family"})
+
+
+# ------------------------------------------------------ a resolved car is never harmed silently
+
+
+class _WhatIf:
+    """Stands in for `VehicleMatchingService.what_if`: where the matcher would end."""
+
+    def __init__(self, after: MatchOutcome) -> None:
+        self.after = after
+        self.asked: list[tuple[str, Hypothetical]] = []
+
+    def __call__(self, vehicle_id: str, hypothetical: Hypothetical) -> MatchOutcome:
+        self.asked.append((vehicle_id, hypothetical))
+        return self.after
+
+
+def _resolved(world: _World, after: MatchOutcome) -> _WhatIf:
+    """The car resolves to KType A today; with a correction it would end at `after`."""
+
+    what_if = _WhatIf(after)
+    world.overrides = {"terminal": "resolved", "bucket": "one", "top_ktype": "A"}
+    world.service = CorrectionService(world.store, world.lookup_vehicle, "abc1234", what_if=what_if)
+    return what_if
+
+
+@pytest.mark.parametrize(
+    ("after", "sentence"),
+    [
+        (MatchOutcome("review_required", None), "no longer resolve"),
+        (MatchOutcome("hard_conflict", None), "no longer resolve"),
+        (MatchOutcome("resolved", "B"), "another KType"),
+    ],
+)
+def test_a_correction_that_would_harm_a_resolved_car_needs_confirmation(
+    world: _World, after: MatchOutcome, sentence: str
+) -> None:
+    what_if = _resolved(world, after)
+    request = world.request(value="DFGA")
+
+    with pytest.raises(ConfirmationRequiredError) as refused:
+        world.service.record(VEHICLE_ID, request)
+
+    assert (refused.value.before, refused.value.after) == (MatchOutcome("resolved", "A"), after)
+    assert sentence in str(refused.value)
+    assert what_if.asked == [(VEHICLE_ID, Hypothetical("engine_code", "set", "DFGA"))]
+    assert (world.store.rows, world.store.record_calls) == ([], 0)
+
+    # The person saw it and sends the same request, confirmed: it is recorded.
+    _, created = world.service.record(
+        VEHICLE_ID, request.model_copy(update={"confirm_change": True})
+    )
+    assert created and [row.correction_id for row in world.store.rows] == [request.operation_id]
+
+
+def test_an_ignore_is_asked_about_too_and_carries_no_value(world: _World) -> None:
+    what_if = _resolved(world, MatchOutcome("review_required", None))
+
+    with pytest.raises(ConfirmationRequiredError):
+        world.service.record(VEHICLE_ID, world.request("ignore"))
+
+    assert what_if.asked == [(VEHICLE_ID, Hypothetical("engine_code", "ignore", None))]
+
+
+def test_a_correction_that_keeps_a_resolved_cars_ktype_needs_no_confirmation(
+    world: _World,
+) -> None:
+    what_if = _resolved(world, MatchOutcome("resolved", "A"))
+
+    _, created = world.service.record(VEHICLE_ID, world.request(value="DFGA"))
+
+    assert created and len(what_if.asked) == 1
+
+
+def test_only_a_value_correction_of_a_resolved_car_is_asked_about(world: _World) -> None:
+    # A car that does not resolve today has no KType to lose.
+    unresolved = _WhatIf(MatchOutcome("hard_conflict", None))
+    world.service = CorrectionService(
+        world.store, world.lookup_vehicle, "abc1234", what_if=unresolved
+    )
+    world.service.record(VEHICLE_ID, world.request(value="DFGA"))
+    assert unresolved.asked == []
+
+    # A withdrawal is no new claim about the car: it is not gated, resolved or not.
+    what_if = _resolved(world, MatchOutcome("review_required", None))
+    _, created = world.service.record(VEHICLE_ID, world.request("withdraw"))
+    assert created and what_if.asked == []
+
+
+def test_releasing_a_stopped_car_is_not_gated(world: _World) -> None:
+    what_if = _WhatIf(MatchOutcome("review_required", None))
+    world.service = CorrectionService(world.store, world.lookup_vehicle, "abc1234", what_if=what_if)
+    world.stop_reasons = ["tyre_size_unrecognized"]
+
+    _, created = world.service.record(
+        VEHICLE_ID, world.request("ignore", STOP, reason="the tyres are fine")
+    )
+
+    assert created and what_if.asked == []
+
+
+def test_a_service_without_the_what_if_cannot_correct_a_resolved_car(world: _World) -> None:
+    world.overrides = {"terminal": "resolved", "bucket": "one", "top_ktype": "A"}
+
+    with pytest.raises(RuntimeError):
+        world.service.record(VEHICLE_ID, world.request(value="DFGA"))
+    assert world.store.rows == []
+
+
+def test_the_write_is_decided_on_the_lookups_matcher_input(world: _World) -> None:
+    """The store checks it again under the vehicle's lock; here it must be handed over."""
+
+    world.overrides = {"matcher_input_hash": "b" * 64}
+
+    world.service.record(VEHICLE_ID, world.request(value="DFGA"))
+
+    assert world.store.checked_on == ["b" * 64]
+
+
+def test_a_many_cars_check_validates_a_value_exactly_as_one_car_does() -> None:
+    assert service.value_of("power_kw", "set", " 0150 ") == "150"
+    assert service.value_of("power_kw", "ignore", None) is None
+    with pytest.raises(InvalidValueError):
+        service.value_of("power_kw", "set", "many")
+    with pytest.raises(FieldNotCorrectableError):
+        service.value_of(STOP, "ignore", None)
+    shown = lookup()
+    assert service.replaced_value(shown, "engine_code", "set", "DFGA") == ("DPCA", "review")
+    with pytest.raises(ValueUnchangedError):
+        service.replaced_value(shown, "engine_code", "set", "DPCA")
+    with pytest.raises(NothingToIgnoreError):
+        service.replaced_value(shown, "drive_type", "ignore", None)

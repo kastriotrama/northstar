@@ -5,7 +5,9 @@ about one field of one car: a value to use (`set`), "the car's present value is
 wrong and the right one is not known" (`ignore`), or the withdrawal of an
 earlier correction. The row id is the client's operation UUID, so a retried
 request cannot record twice, and rows copy verbatim between databases (see
-docs/vehicle-fact-corrections.md).
+docs/vehicle-fact-corrections.md). A row a decision about many cars wrote names
+that decision's event in `group_id`, so the decisions table
+(`vehicle_correction_decision_migrations`) must exist first.
 
 Every chain rule is declarative -- keys, a foreign key and CHECKs -- so a
 single-statement bulk load passes in any row order. A chain belongs to one field
@@ -28,6 +30,10 @@ only insists on a field name, so a later phase can add fields without a schema
 change. Append-only is enforced by triggers, not convention. Statement names are
 a stable contract; every statement is idempotent, and the verifier compares
 definitions rather than names so a same-named but weaker object is caught.
+
+A CHECK that reads a JSON key is written NULL-safe: a missing key makes the
+comparison NULL, which a CHECK lets through, so it is wrapped in
+`coalesce(..., false)`.
 """
 
 from __future__ import annotations
@@ -36,6 +42,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 from psycopg import Connection
+
+from ingestion.vehicle_correction_decision_migrations import VEHICLE_CORRECTION_DECISIONS_TABLE
 
 CORE_SCHEMA_NAME = "core"
 _TABLE_NAME = "vehicle_fact_corrections"
@@ -48,6 +56,8 @@ POSITION_KEY = "vehicle_fact_corrections_position_key"
 #: A row links only to the same vehicle's and field's row one position below it.
 SUPERSEDES_FOREIGN_KEY = "vehicle_fact_corrections_supersedes_previous_fkey"
 VEHICLE_FOREIGN_KEY = "vehicle_fact_corrections_vehicle_fkey"
+#: A row written by a decision about many cars names the event that wrote it.
+GROUP_FOREIGN_KEY = "vehicle_fact_corrections_group_fkey"
 GROUP_INDEX = "vehicle_fact_corrections_group_idx"
 
 _SUPERSEDES_POSITION = "supersedes_position"
@@ -105,6 +115,10 @@ _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
             ),
         ),
     ),
+    GROUP_FOREIGN_KEY: (
+        "f",
+        ("FOREIGN KEY (group_id)", f"REFERENCES {VEHICLE_CORRECTION_DECISIONS_TABLE}(event_id)"),
+    ),
     "vehicle_fact_corrections_position_nonnegative": ("c", ("chain_position >= 0",)),
     "vehicle_fact_corrections_root_supersedes_nothing": (
         "c",
@@ -140,16 +154,19 @@ _REQUIRED_CONSTRAINTS: dict[str, tuple[str, tuple[str, ...]]] = {
         "c",
         ("evidence_fingerprint ~ '^[0-9a-f]{64}$'",),
     ),
+    # One COALESCE around the whole test: a row without the key fails, not passes as NULL.
     "vehicle_fact_corrections_evidence_shape": (
         "c",
         (
+            "CHECK (COALESCE((",
             "jsonb_typeof(evidence) = 'object'",
             "evidence ? 'schema'",
-            "jsonb_typeof((evidence -> 'automatic'",
+            "jsonb_typeof((evidence -> 'automatic'::text)) = 'object'",
+            "), false))",
         ),
     ),
 }
-# Reserved for a decision that covers many cars: its rows share a group id.
+# The rows a decision that covers many cars wrote share its event's id.
 _REQUIRED_INDEX_FRAGMENTS: dict[str, tuple[str, ...]] = {
     GROUP_INDEX: ("(group_id)", "WHERE (group_id IS NOT NULL)"),
 }
@@ -212,6 +229,8 @@ CREATE TABLE IF NOT EXISTS {VEHICLE_FACT_CORRECTIONS_TABLE} (
     FOREIGN KEY (supersedes_correction_id, vehicle_id, field, {_SUPERSEDES_POSITION})
     REFERENCES {VEHICLE_FACT_CORRECTIONS_TABLE}
       (correction_id, vehicle_id, field, chain_position),
+  CONSTRAINT {GROUP_FOREIGN_KEY} FOREIGN KEY (group_id)
+    REFERENCES {VEHICLE_CORRECTION_DECISIONS_TABLE} (event_id),
   CONSTRAINT vehicle_fact_corrections_position_nonnegative CHECK (chain_position >= 0),
   CONSTRAINT vehicle_fact_corrections_root_supersedes_nothing
     CHECK ((supersedes_correction_id IS NULL) = (chain_position = 0)),
@@ -233,8 +252,8 @@ CREATE TABLE IF NOT EXISTS {VEHICLE_FACT_CORRECTIONS_TABLE} (
   CONSTRAINT vehicle_fact_corrections_fingerprint_format
     CHECK (evidence_fingerprint ~ '^[0-9a-f]{{64}}$'),
   CONSTRAINT vehicle_fact_corrections_evidence_shape
-    CHECK (jsonb_typeof(evidence) = 'object' AND evidence ? 'schema'
-           AND jsonb_typeof(evidence -> 'automatic') = 'object')
+    CHECK (coalesce(jsonb_typeof(evidence) = 'object' AND evidence ? 'schema'
+           AND jsonb_typeof(evidence -> 'automatic') = 'object', false))
 )
 """
 
@@ -286,7 +305,8 @@ VEHICLE_FACT_CORRECTION_MIGRATION_STATEMENTS: tuple[
 def run_vehicle_fact_correction_migrations(connection: Connection) -> tuple[str, ...]:
     """Apply the corrections schema atomically and idempotently, then verify it.
 
-    Needs `core.vehicles` (the vehicle-core migrations) to exist.
+    Needs `core.vehicles` (the vehicle-core migrations) and the decisions table
+    (`run_vehicle_correction_decision_migrations`) to exist.
     """
 
     try:

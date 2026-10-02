@@ -56,6 +56,9 @@ from ingestion.vehicle_core_rules import learn_rules as learn_vehicle_rules
 from ingestion.vehicle_core_rules import store_rules as store_vehicle_rules
 from ingestion.vehicle_core_ts import DEFAULT_PAGE_SIZE as CORE_PAGE_SIZE
 from ingestion.vehicle_core_ts import backfill_vehicle_core
+from ingestion.vehicle_correction_decision_migrations import (
+    run_vehicle_correction_decision_migrations,
+)
 from ingestion.vehicle_fact_correction_migrations import run_vehicle_fact_correction_migrations
 from ingestion.vehicle_facts import (
     DEFAULT_PAGE_SIZE,
@@ -825,7 +828,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 applied = run_vehicle_core_migrations(connection)
                 # People's KType choices reference core.vehicles, so they follow it.
                 applied += run_vehicle_ktype_choice_migrations(connection)
-                # So do their corrections of a car's own data.
+                # So do their corrections of a car's own data. A correction a
+                # decision about many cars wrote names that decision, so the
+                # decisions table comes first.
+                applied += run_vehicle_correction_decision_migrations(connection)
                 applied += run_vehicle_fact_correction_migrations(connection)
         except Exception as error:  # noqa: BLE001
             logger.error(
