@@ -20,6 +20,7 @@ Model names are the `model_family` values the vehicles carry.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -83,7 +84,7 @@ _ONE_LAYOUT: dict[str, dict[Layout, tuple[str, ...]]] = {
         "rwd": ("ID.3", "ID.4", "ID.5", "ID.7", "ID.7 Tourer", "ID. Buzz", "Karmann Ghia"),
     },
     "Mercedes-Benz": {
-        "fwd": ("A-Class", "B-Class", "GLA", "GLB", "EQA", "EQB", "T-Class", "Citan"),
+        "fwd": ("A-Class", "B-Class", "GLA", "EQA", "EQB", "T-Class", "Citan"),
         "rwd": ("C-Class", "E-Class", "SLK", "SL", "CLK", "S-Class", "CLS", "CLC", "AMG GT",
                 "SLC", "EQE", "EQS", "CLE", "Viano"),
     },
@@ -189,7 +190,7 @@ _ONE_LAYOUT: dict[str, dict[Layout, tuple[str, ...]]] = {
     "MINI": {"fwd": ("MINI", "Mini", "Mini Clubman")},
     "MG": {
         "fwd": ("Zs", "MG5", "EHS", "Hs", "MG3"),
-        "rwd": ("MG4", "Marvel R", "Mgb", "Mga", "Tf", "Mgf", "Midget", "Mgb Gt", "Td"),
+        "rwd": ("Marvel R", "Mgb", "Mga", "Tf", "Mgf", "Midget", "Mgb Gt", "Td"),
     },
     "Chrysler": {
         "fwd": ("Grand Voyager", "Pt Cruiser", "Voyager", "Sebring", "Stratus",
@@ -268,7 +269,8 @@ _BY_ERA: dict[tuple[str, str], tuple[Era, ...]] = {
     ("Volvo", "S90"): (_until(1998, "rwd"), _since(2016, "fwd")),
     ("Volvo", "V90"): (_until(1998, "rwd"), _since(2016, "fwd")),
     # The 440 family is the 1988 hatchback; older cars under the name are PV 444s.
-    ("Volvo", "440"): (_since(1987, "fwd"),),
+    # Before the 440 of 1988 the name is the registry's for the PV 444 and its estate.
+    ("Volvo", "440"): (_until(1970, "rwd"), _since(1987, "fwd")),
     # Combustion XC40s drive the front wheels throughout. The electric one moved
     # from front- to rear-wheel drive with model year 2024, built from mid-2023.
     ("Volvo", "XC40"): (
@@ -318,6 +320,12 @@ _BY_ERA: dict[tuple[str, str], tuple[Era, ...]] = {
     ("Opel", "Kadett"): (_until(1978, "rwd"), _since(1980, "fwd")),
     ("Opel", "Ascona"): (_until(1980, "rwd"), _since(1982, "fwd")),
     ("Opel", "Movano"): (_until(2009, "fwd"),),
+    # The second Master drove the front wheels only; its successor came with either axle.
+    ("Renault", "Master"): (_until(2009, "fwd"),),
+    # The electric GLB of 2026 drives the rear axle, like the electric CLA.
+    ("Mercedes-Benz", "GLB"): (Era("fwd", electric=False), Era("rwd", 2025, None, electric=True)),
+    # The MG4 Urban of 2026 drives the front wheels; it is told apart by its power.
+    ("MG", "MG4"): (_until(2025, "rwd"),),
     # The 1960s Octavia was rear-wheel drive; the name returned in 1996.
     ("Škoda", "Octavia"): (_until(1971, "rwd"), _since(1996, "fwd")),
     # The 4CV was rear-engined; the Renault 4 that followed drove the front wheels.
@@ -423,8 +431,25 @@ _MAKE_WITHOUT_MODEL: dict[str, tuple[Era, ...]] = {
     "MINI": (Era("fwd"),),
     # The 204 of 1965 was the first front-driven Peugeot. Combustion only from 1990:
     # the electric iOn and C-Zero drive the rear wheels.
-    "Peugeot": (_until(1964, "rwd"), Era("fwd", 1990, None, electric=False)),
-    "Citroën": (Era("fwd", 1990, None, electric=False),),
+    "Peugeot": (
+        _until(1964, "rwd"),
+        Era("fwd", 1990, None, electric=False),
+        Era("fwd", 2021, None, electric=True),
+    ),
+    # Every Citroën since the war drives the front wheels, the C-Zero apart.
+    "Citroën": (Era("fwd", 1946, None, electric=False), Era("fwd", 2021, None, electric=True)),
+    # After the SD1 every Rover drove the front wheels.
+    "Rover": (_until(1983, "rwd"), _since(1987, "fwd")),
+    # Until the Favorit of 1988 and the Samara of 1984.
+    "Škoda": (_until(1987, "rwd"),),
+    "VAZ": (_until(1983, "rwd"),),
+    "Mini": (Era("fwd"),),
+    "Daewoo": (Era("fwd"),),
+    "Lancia": (_until(1959, "rwd"), _between(1985, 2010, "fwd")),
+    "Iveco": (Era("rwd"),),
+    "Scania": (Era("rwd"),),
+    # Until the Acadia of 2007.
+    "GMC": (_until(2005, "rwd"),),
     # After the 126 and before the 124 Spider of 2016; the 500e is front-driven too.
     "Fiat": (_between(1993, 2015, "fwd"), _since(2020, "fwd")),
     # Every Volkswagen had its engine in the back until the K70 of 1970.
@@ -445,7 +470,6 @@ _MAKE_WITHOUT_MODEL: dict[str, tuple[Era, ...]] = {
     # Until the Mini of 1959, and the front-driven 200 of 1984.
     "Austin": (_until(1958, "rwd"),),
     "Morris": (_until(1958, "rwd"),),
-    "Rover": (_until(1983, "rwd"),),
     # Until the front-driven Elan of 1989.
     "Lotus": (_until(1988, "rwd"),),
     # American makes, until the year before their first front-driven car went into
@@ -530,3 +554,360 @@ def drive_layout(
         if era.covers(year, fuel):
             return era.layout
     return None
+
+
+# --- variants: what the model alone does not settle ------------------------------------
+#
+# The table above answers "front or rear?" for a car the registry marks as not
+# four-wheel drive. Two kinds of car are left: one whose model was sold with either
+# axle driven, and one the registry makes no four-wheel-drive statement about at all
+# (cars known from the inspection register only). For those the variant decides, and
+# a variant is told apart by what the car itself carries: its power, its fuel, its
+# body, or the registry's own text.
+
+Drive = Literal["fwd", "rwd", "awd"]
+
+
+@dataclass(frozen=True)
+class Variant:
+    """One variant of a model. Every condition that is given must hold."""
+
+    drive: Drive
+    #: Power in kW, both ends included.
+    kw: tuple[int, int] | None = None
+    year_from: int | None = None
+    year_to: int | None = None
+    #: The main fuel.
+    fuel: str | None = None
+    #: True: petrol or diesel with a plug (a second fuel of electricity).
+    plug_in: bool | None = None
+    bodies: tuple[str, ...] = ()
+    #: A pattern the registry's model text must contain.
+    text: str | None = None
+    #: True: holds only for a car the registry marks as not four-wheel drive (the
+    #: model also came with four driven wheels, which these conditions do not rule out).
+    two_wheel: bool = False
+
+    def covers(
+        self,
+        year: int | None,
+        fuel: str | None,
+        second_fuel: str | None,
+        power_kw: int | None,
+        body: str | None,
+        text: str | None,
+    ) -> bool:
+        if self.kw is not None and (power_kw is None or not self.kw[0] <= power_kw <= self.kw[1]):
+            return False
+        if (self.year_from is not None or self.year_to is not None) and (
+            year is None
+            or (self.year_from is not None and year < self.year_from)
+            or (self.year_to is not None and year > self.year_to)
+        ):
+            return False
+        if self.fuel is not None and fuel != self.fuel:
+            return False
+        if self.plug_in is not None and (second_fuel == ELECTRIC_FUEL) != self.plug_in:
+            return False
+        if self.bodies and body not in self.bodies:
+            return False
+        return self.text is None or bool(text and re.search(self.text, text))
+
+
+def _electric(drive: Drive, low: int, high: int) -> Variant:
+    return Variant(drive, kw=(low, high), fuel=ELECTRIC_FUEL)
+
+
+_PETROL = "petrol"
+_ANY_POWER = 9999
+
+#: (make, model family) -> its variants, first match wins. Electric cars are told
+#: apart by power: one motor drives one axle, a second motor adds the other.
+_VARIANTS: dict[tuple[str, str], tuple[Variant, ...]] = {
+    # The 2026 plug-in hybrid (its 132 kW engine is in no other XC60, and the cars
+    # weigh what only the plug-in does): the rear axle is driven electrically.
+    # The B6 (220 kW) came with four-wheel drive only.
+    ("Volvo", "XC60"): (
+        Variant("awd", kw=(130, 134), fuel=_PETROL, plug_in=True, year_from=2025),
+        Variant("awd", kw=(218, 222), fuel=_PETROL, year_from=2020),
+    ),
+    ("Volvo", "V60"): (
+        Variant("awd", kw=(130, 134), fuel=_PETROL, plug_in=True, year_from=2025),
+    ),
+    ("Volvo", "EX30"): (_electric("rwd", 100, 210), _electric("awd", 300, _ANY_POWER)),
+    ("Volvo", "EX30 Cross Country"): (
+        _electric("rwd", 100, 210), _electric("awd", 300, _ANY_POWER),
+    ),
+    ("Volvo", "EX90"): (_electric("rwd", 180, 260), _electric("awd", 290, _ANY_POWER)),
+    ("Volvo", "EX60"): (_electric("awd", 350, _ANY_POWER),),
+    # 2023 was the year the single-motor cars moved from the front axle to the rear.
+    ("Volvo", "XC40"): (_electric("fwd", 165, 172), _electric("rwd", 173, 190)),
+    ("Volvo", "C40"): (_electric("fwd", 165, 172), _electric("rwd", 173, 190)),
+    ("Volvo", "EX40"): (_electric("rwd", 170, 190), _electric("awd", 290, _ANY_POWER)),
+    ("Volvo", "EC40"): (_electric("rwd", 170, 190), _electric("awd", 290, _ANY_POWER)),
+    ("Polestar", "2"): (
+        _electric("fwd", 160, 175), _electric("rwd", 195, 225), _electric("awd", 290, _ANY_POWER),
+    ),
+    ("Polestar", "3"): (_electric("rwd", 200, 230), _electric("awd", 350, _ANY_POWER)),
+    ("Polestar", "4"): (_electric("rwd", 190, 210), _electric("awd", 390, _ANY_POWER)),
+    ("Kia", "EV2"): (Variant("fwd"),),
+    ("BMW", "iX3"): (_electric("rwd", 200, 220), _electric("awd", 300, _ANY_POWER)),
+    ("BMW", "iX1"): (_electric("fwd", 140, 160), _electric("awd", 200, _ANY_POWER)),
+    ("BMW", "iX2"): (_electric("fwd", 140, 160), _electric("awd", 200, _ANY_POWER)),
+    # The M135 is four-wheel drive only.
+    ("BMW", "1 Series"): (Variant("awd", kw=(215, 235), fuel=_PETROL, year_from=2019),),
+    # Tourers and the four-door Gran Coupe sit on the front-driven platform; the
+    # two-door coupe and convertible drive the rear wheels.
+    # (The tourers also came as four-wheel-drive plug-in hybrids.)
+    # From 2020 the registry calls the Gran Coupe a coupe too, so a coupe decides
+    # only until 2019; an M2 is always the two-door.
+    ("BMW", "2 Series"): (
+        Variant("rwd", text=r"^M2\b", two_wheel=True),
+        Variant("fwd", text=r"TOURER|GRAN COUP", two_wheel=True),
+        Variant("fwd", bodies=("multi_purpose_vehicle", "sedan", "estate", "hatchback"),
+                two_wheel=True),
+        Variant("rwd", bodies=("coupe", "convertible", "open_body"), year_to=2019,
+                two_wheel=True),
+    ),
+    ("Cupra", "Tavascan"): (_electric("rwd", 200, 215), _electric("awd", 240, _ANY_POWER)),
+    ("Cupra", "Raval"): (Variant("fwd"),),
+    # The plug-in hybrids (a 130 kW petrol engine) drive the front wheels.
+    ("Cupra", "Leon"): (Variant("fwd", kw=(128, 132), fuel=_PETROL),),
+    ("Cupra", "Formentor"): (Variant("fwd", kw=(128, 132), fuel=_PETROL),),
+    # Every combustion GLC since the 2023 model is 4MATIC, and so is the electric one.
+    ("Mercedes-Benz", "GLC"): (
+        _electric("awd", 300, _ANY_POWER),
+        Variant("awd", kw=(260, 280), fuel="diesel", year_from=2023),
+    ),
+    ("Mercedes-Benz", "GLB"): (_electric("rwd", 190, 210), _electric("awd", 250, _ANY_POWER)),
+    ("Mercedes-Benz", "CLA"): (_electric("rwd", 160, 210), _electric("awd", 250, _ANY_POWER)),
+    # The eVito and the small diesels drive the front wheels, the large ones the rear.
+    ("Mercedes-Benz", "Vito"): (
+        Variant("fwd", fuel=ELECTRIC_FUEL, year_from=2014),
+        Variant("fwd", kw=(60, 90), fuel="diesel", year_from=2014, two_wheel=True),
+        Variant("rwd", kw=(118, 180), fuel="diesel", year_from=2014, two_wheel=True),
+    ),
+    ("XPENG", "G6"): (_electric("rwd", 180, 260), _electric("awd", 300, _ANY_POWER)),
+    ("XPENG", "G9"): (_electric("rwd", 220, 270), _electric("awd", 390, _ANY_POWER)),
+    ("Zeekr", "X"): (_electric("rwd", 190, 210), _electric("awd", 300, _ANY_POWER)),
+    ("Zeekr", "001"): (_electric("rwd", 190, 210), _electric("awd", 390, _ANY_POWER)),
+    ("Zeekr", "7X"): (_electric("rwd", 300, 320), _electric("awd", 450, _ANY_POWER)),
+    ("Zeekr", "7GT"): (_electric("rwd", 300, 320), _electric("awd", 450, _ANY_POWER)),
+    ("Audi", "Q6"): (_electric("rwd", 180, 250), _electric("awd", 280, _ANY_POWER)),
+    ("Tesla", "Model 3"): (_electric("rwd", 150, 260), _electric("awd", 300, _ANY_POWER)),
+    ("Tesla", "Model Y"): (_electric("rwd", 150, 260), _electric("awd", 300, _ANY_POWER)),
+    # The registry adds the two motors of the four-wheel-drive cars together.
+    ("Toyota", "bZ4X"): (
+        _electric("fwd", 120, 126), _electric("fwd", 148, 152), _electric("awd", 158, 162),
+        _electric("fwd", 164, 168), _electric("awd", 250, _ANY_POWER),
+    ),
+    ("Toyota", "C-hr"): (_electric("fwd", 120, 170), _electric("awd", 250, _ANY_POWER)),
+    ("Subaru", "Solterra"): (_electric("awd", 158, _ANY_POWER),),
+    ("Subaru", "Uncharted"): (_electric("fwd", 120, 170), _electric("awd", 250, _ANY_POWER)),
+    ("Lexus", "RZ"): (
+        _electric("fwd", 148, 152), _electric("fwd", 164, 168), _electric("awd", 225, _ANY_POWER),
+    ),
+    ("MINI", "Mini Countryman"): (
+        _electric("fwd", 140, 160), _electric("awd", 220, _ANY_POWER),
+        Variant("fwd", kw=(110, 120), fuel=_PETROL, year_from=2024),
+        Variant("awd", kw=(145, 165), fuel=_PETROL, year_from=2024),
+    ),
+    # The MG4 Urban has less power than any rear-driven MG4.
+    ("MG", "MG4"): (
+        _electric("fwd", 100, 120), _electric("rwd", 122, 190), _electric("awd", 300, _ANY_POWER),
+    ),
+    ("Opel", "Grandland"): (Variant("fwd", kw=(90, 110), fuel=_PETROL, year_from=2024),),
+    ("Opel", "Frontera"): (Variant("fwd", year_from=2024),),
+    # The plug-in Seal U with the turbocharged engine has a second motor at the rear.
+    ("BYD", "Seal U"): (
+        Variant("awd", kw=(94, 98), fuel=_PETROL), Variant("fwd", kw=(70, 74), fuel=_PETROL),
+        _electric("fwd", 150, 170),
+    ),
+    ("BYD", "Seal"): (_electric("rwd", 150, 240), _electric("awd", 380, _ANY_POWER)),
+    ("Jeep", "Avenger"): (
+        Variant("fwd", kw=(70, 80), fuel=_PETROL), Variant("awd", kw=(98, 102), fuel=_PETROL),
+        Variant("fwd", fuel=ELECTRIC_FUEL),
+    ),
+    # The rear-driven Corolla estate ran on beside the front-driven saloon until 1987.
+    ("Toyota", "Corolla"): (
+        Variant("rwd", year_from=1983, year_to=1987, bodies=("estate",), two_wheel=True),
+        Variant("fwd", year_from=1984, year_to=1987, bodies=("sedan",), two_wheel=True),
+    ),
+    ("Ford", "Transit"): (Variant("fwd", text=r"CUSTOM|\bFWD\b", two_wheel=True),),
+    # The electric hatchback; the name also covers the four-wheel-drive Countryman.
+    ("MINI", "MINI"): (_electric("fwd", 100, 200),),
+}
+
+#: Models never sold with four driven wheels: for these the table's layout holds even
+#: when the registry makes no four-wheel-drive statement.
+_ROAD_CAR_KW = 180
+_NEVER_FOUR_WHEEL: frozenset[tuple[str, str]] = frozenset({
+    ("Nissan", "Micra"), ("Nissan", "Leaf"),
+    ("Toyota", "Aygo X"), ("Toyota", "Aygo"), ("Kia", "K4"), ("Kia", "Picanto"),
+    ("Kia", "Rio"), ("Kia", "Ceed"), ("Kia", "Stonic"), ("BYD", "Seal 6"), ("BYD", "Dolphin"),
+    ("BYD", "Atto 2"), ("Renault", "Clio"), ("Renault", "5"), ("Dacia", "Sandero"),
+    ("Dacia", "Logan"), ("Dacia", "Jogger"), ("Volkswagen", "Polo"), ("Volkswagen", "Up!"),
+    ("Volkswagen", "T-cross"), ("Volkswagen", "Taigo"), ("Škoda", "Fabia"), ("Škoda", "Kamiq"),
+    ("Škoda", "Scala"), ("SEAT", "Ibiza"), ("SEAT", "Arona"), ("Hyundai", "i10"),
+    ("Hyundai", "i20"), ("Hyundai", "i30"), ("Hyundai", "Inster"), ("Hyundai", "Bayon"),
+    ("Cupra", "Born"), ("Smart", "Fortwo"), ("Honda", "Jazz"), ("Honda", "e"),
+    ("Peugeot", "208"), ("Peugeot", "2008"), ("Peugeot", "308"), ("Citroën", "C3"),
+    ("Opel", "Corsa"), ("Ford", "Fiesta"), ("Mazda", "2"), ("Mazda", "MX-5"),
+})
+#: Of those, the models the table above does not name.
+_NEVER_FOUR_WHEEL_ADDED: dict[tuple[str, str], Layout] = {
+    ("Kia", "K4"): "fwd", ("BYD", "Seal 6"): "fwd", ("BYD", "Dolphin"): "fwd",
+    ("BYD", "Atto 2"): "fwd", ("Hyundai", "i30"): "fwd",
+}
+
+#: Registry text of cars that carry no model, by make: (pattern, layout, first year,
+#: last year). The text names the model the model families did not read. Asked only
+#: for a car the registry marks as not four-wheel drive; first match wins.
+_BY_TEXT: dict[str, tuple[tuple[str, Layout, int | None, int | None], ...]] = {
+    "Volkswagen": (
+        # The Beetle and the Type 3, by their engine sizes; the buses up to the T3.
+        (r"\b(1200|1300|1302|1303|1500)\b|KARMANN", "rwd", None, 1985),
+        (r"\b1600\b", "rwd", None, 1975),
+        (r"KLEINBUS", "rwd", None, 1990),
+    ),
+    "Ford": (
+        ((r"MUSTANG|GALAXIE|ANGLIA|FAIRLANE|CORSAIR|PINTO|CORTINA|ZEPHYR|ZODIAC|CONSUL|CAPRI"
+         r"|THUNDERBIRD|GRANADA|SIERRA|SCORPIO|\b(17|20|26) ?M\b"), "rwd", None, None),
+        (r"FOCUS|C-MAX|FIESTA|MONDEO|TAURUS|TOURNEO CONN|\b(12|15) ?M\b", "fwd", None, None),
+    ),
+    "Renault": (
+        (r"DAUPHINE|FLORIDE|CARAVELLE|GORDINI|4 ?CV|\bR ?(8|10)\b|ONDINE", "rwd", None, 1976),
+        # After the rear-engined cars every Renault car drove the front wheels; the
+        # vans and the Alpines, which did not, are named in the text.
+        (r"^RENAULT (?!.*(ALPINE|TURBO 2|MASTER|TRAFIC|MASCOTT|MESSENGER|SPIDER|GTA|A ?[36]10))\S",
+         "fwd", 1977, 2013),
+    ),
+    "Peugeot": (
+        (r"\b(202|203|302|402|403|404|504|505|604)\b", "rwd", None, None),
+        (r"\b(104|204|304|305|205|309|405|605|106|306|406)\b", "fwd", None, None),
+    ),
+    "BMC": (
+        (r"\b(850|1000|COOPER|MINI|ELF|HORNET|MOKE)\b|MG 1[13]00", "fwd", None, None),
+        (r"A-? ?40|\b1600\b|MIDGET|MGC|MGB|6/110|TOURER", "rwd", None, None),
+    ),
+    "Austin": (
+        (r"HEA?LE?Y|HAELEY|SPRITE|\bA ?(35|40|55|60|152)\b|FX4|TAXI|METROPOLITAN", "rwd", None, None),
+        (r"MINI|\b850\b|MONTEGO|METRO|MAESTRO|ALLEGRO", "fwd", None, None),
+    ),
+    "Chevrolet": (
+        (r"BERETTA|BETETTA|LUMINA|CITATION|EVANDA|CORSICA|CAVALIER", "fwd", None, None),
+        ((r"CAPRIC|CORVETT|\bVAN\b|\bG ?(10|15|20|25|30|1500|2500|3500)\b|\bCG ?\d|\bCM ?1"
+         r"|ASTRO|CAMARO|\b1BN|\b1 BN|\b1AW"), "rwd", None, None),
+    ),
+    "Alfa Romeo": (
+        (r"ALFASUD|\b33\b|\b14[567]\b|\b15[569]\b|\b16[46]\b|\b939\b", "fwd", None, None),
+        ((r"GT JUNIOR|\b(1300|1600|1750|2000) ?(GT|BERLINA|SPIDER|VELOCE)|MONTREAL|ALFA 90"
+         r"|\b90 \d|GIULIA|ALFETTA|SPIDERVELOCE|\b75\b"), "rwd", None, None),
+    ),
+    "Datsun": (
+        (r"CHERRY|\b1[02]0 ?A\b|STANZA", "fwd", None, None),
+        ((r"\b(240|260|280) ?Z|\b(120|140) ?Y|\b180 ?B|\b160 ?J|\b(220|240|260) ?C\b|BLUE ?BIRD"
+         r"|LAUREL|\b1200\b|\b1600\b"), "rwd", None, 1983),
+    ),
+    "Pontiac": (
+        ((r"TRANS ?SPORT|TRANSPORT|TRANSSPORTER|MONTANA|GRAND PRIX|BONN?EVILLE|\bBON\b|SUNBIRD"
+         r"|SUNFIRE|GRAND AM|TORRENT|\b2WP|\b2WJ|\b2HZ"), "fwd", 1987, None),
+        (r"TRANS[- ]?A[MK]|\bT/A\b|TANS\b|FIREB|FORMULA|FIE?RE?RO|\bGTO\b", "rwd", None, None),
+    ),
+    "Oldsmobile": (
+        (r"TORONADO|TORNADO|SILHOUETTE|AURORA", "fwd", None, None),
+        ((r"F[- ]?85|CUTT?LASS?|VISTA CRUISER|JETSTAR|DYNAMIC|4-4-2|\b442\b|HOLIDAY|NINETY"
+         r"|NINTEY|DELTA"), "rwd", None, 1981),
+        (r"CUSTOM CRUISE", "rwd", None, 1992),
+    ),
+    "Fiat": (
+        ((r"\b12[78]\b|RITMO|\bUNO\b|PANDA|TIPO|DUCATO|\b280\b|\b238\b|DETHLEFFS|KNAUS|B[UÜ]RSTNER"
+         r"|\bLMC\b|TABBERT|ADRIATIK|HYMER"), "fwd", None, None),
+        ((r"\b500 ?[FLDR]?\b|\b600\b|\b850\b|SPIDER|\b12[45]\b|\b13[012]\b|\b(1100|1400|1500|1800"
+         r"|2100|2300)\b|DINO|X ?1/?9|\b8 ?V\b"), "rwd", None, 1985),
+    ),
+    "Triumph": (
+        (r"\b1300\b", "fwd", 1965, 1970),
+        ((r"\bTR ?\d|SPITF|SPRITF|HER[AO]LD|\bGT\b|\b2000|2,5 ?PI|STAG|ROADSTER|MAYFLOWER|VITESSE"
+         r"|DOLOMITE"), "rwd", None, None),
+    ),
+    "Mazda": (
+        (r"\b929\b|COSMO|\bRX-? ?\d|MX-? ?5|E2000", "rwd", None, None),
+        (r"\b3 (KOMBISEDAN|SEDAN)|\b121\b|MX-? ?[36]|\b323|XEDOS|PROTEGE|\b626\b", "fwd", None, None),
+        (r"\bMPV\b", "fwd", 1999, None),
+    ),
+    "Nissan": (
+        (r"\b(180|200|240) ?[SZ]X|\b300 ?(ZX|XZ)|LAUREL|SILVIA|VANETTE", "rwd", None, None),
+        (r"BLUEBIRD|CHERRY|STANZA|\b100 ?NX|ALTIMA|QUEST", "fwd", 1983, None),
+    ),
+    "Toyota": (
+        (r"^TOYOTA ZN\b|^(GT ?)?86$|FR-S|MODELL? F\b|CRESSIDA|SOARER|SUPRA|MR ?(II|2)\b|CROWN",
+         "rwd", None, None),
+        (r"CORO?L+A+|PASEO|TERCEL|SCION XB|CAMRY", "fwd", 1988, None),
+    ),
+    "Volvo": (
+        # The 400 series by its type codes (KX, LX, EX and 483-...); the 300 series by its numbers.
+        (r"\b[KLE]X ?\d{3}|\b483-|\b4[468]0\b|\bV70|\bS70|\b850\b", "fwd", 1986, None),
+        (r"\b3[46]\d\b|\b[279][46][0-5]\b", "rwd", None, 1998),
+    ),
+    "Mercedes-Benz": (
+        (r"\b11[0-4] ?(CDI|D\b|KOMBI)|VITO", "fwd", 1996, 2003),
+        ((r"\bE ?(50|55|63|200|220|230|240|280|300|320|430)|\bSLK? ?\d{3}|\bCLK ?\d|\bC ?36\b"
+         r"|\b300 ?DT?\b|\b4(12|16) ?(CDI|D)\b"), "rwd", None, None),
+    ),
+}
+
+
+def _text_layout(manufacturer: str, year: int | None, text: str | None) -> Layout | None:
+    if not text:
+        return None
+    for pattern, layout, first, last in _BY_TEXT.get(manufacturer, ()):
+        if (first is not None or last is not None) and (
+            year is None
+            or (first is not None and year < first)
+            or (last is not None and year > last)
+        ):
+            continue
+        if re.search(pattern, text):
+            return layout
+    return None
+
+
+def drive_variant(
+    manufacturer: str | None,
+    model_family: str | None,
+    year: int | None,
+    fuel: str | None,
+    second_fuel: str | None,
+    power_kw: int | None,
+    body: str | None,
+    text: str | None,
+    four_wheel: bool | None,
+) -> Drive | None:
+    """The drive type of a car the table and the cars alike have left open.
+
+    `four_wheel` is the registry's statement: False for "not four-wheel drive", None
+    when it says nothing. A variant that would contradict the statement states
+    nothing, and so does everything that is not certain.
+    """
+
+    if not manufacturer or four_wheel:
+        return None
+    if model_family:
+        for variant in _VARIANTS.get((manufacturer, model_family), ()):
+            if variant.two_wheel and four_wheel is not False:
+                continue
+            if variant.covers(year, fuel, second_fuel, power_kw, body, text):
+                return None if variant.drive == "awd" and four_wheel is False else variant.drive
+        # (A rally car built on one of these models is four-wheel drive; its power gives it away.)
+        if (
+            four_wheel is None
+            and (manufacturer, model_family) in _NEVER_FOUR_WHEEL
+            and (power_kw is None or power_kw <= _ROAD_CAR_KW)
+        ):
+            return _NEVER_FOUR_WHEEL_ADDED.get((manufacturer, model_family)) or drive_layout(
+                manufacturer, model_family, year, fuel
+            )
+        return None
+    # No model: the registry's text may still name it, for a two-wheel-drive car.
+    return _text_layout(manufacturer, year, text) if four_wheel is False else None

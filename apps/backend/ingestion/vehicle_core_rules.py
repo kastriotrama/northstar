@@ -51,7 +51,7 @@ from ingestion.vehicle_core_store import (
     record_ledger_rows,
     save_vehicles,
 )
-from ingestion.vehicle_drive_layouts import drive_layout
+from ingestion.vehicle_drive_layouts import drive_layout, drive_variant
 from ingestion.vehicle_model_patterns import (
     MISREAD_STATED_FAMILIES,
     REVIEWED_MODEL_NAMES,
@@ -71,6 +71,23 @@ MAKE_WORD_FAMILY = "MFR-BW"
 
 #: The family that states a two-wheel-drive car's driven axle from the reviewed table.
 DRIVE_LAYOUT_FAMILY = "DRV-MY"
+#: The family that states the drive type of a variant: a car the table and the cars
+#: alike have left open, told apart by its power, fuel, body or registry text.
+DRIVE_VARIANT_FAMILY = "DRV-CAR"
+
+#: What the drive evidence families learn from: cars with a real drive type.
+DRIVE_EVIDENCE = "cars-with-a-drive-type"
+#: A fill never contradicts the registry's own four-wheel-drive statement: no
+#: four-wheel drive on a car it marks as not four-wheel drive, and the reverse.
+_DRIVE_GUARD = (
+    "(v.registry_all_wheel_drive IS NULL OR v.registry_all_wheel_drive = (r.value = 'awd'))"
+)
+#: The evidence: a drive type that names the driven wheels, from any source except
+#: these families' own fills, which would otherwise confirm themselves.
+_DRIVE_EVIDENCE_FILTER = (
+    "drive_type::text IN ('fwd', 'rwd', 'awd') "
+    "AND left(coalesce(field_sources ->> 'drive_type', ''), 10) <> 'rule:DRV-E'"
+)
 
 DEFAULT_MIN_SUPPORT = 5
 DEFAULT_MIN_AGREEMENT = 0.95
@@ -90,10 +107,14 @@ class RuleFamily:
     #: "statistics": learned from agreeing vehicles. "patterns": proposed by the
     #: reviewed patterns in `vehicle_model_patterns`, then checked against them.
     #: "reviewed": stated by a reviewed table (`vehicle_drive_layouts`), key by key.
-    learner: Literal["statistics", "patterns", "reviewed"] = "statistics"
+    #: "drive_evidence": learned from the cars alike that carry a real drive type,
+    #: whatever source gave it.
+    learner: Literal["statistics", "patterns", "reviewed", "drive_evidence"] = "statistics"
     #: Values of the target that count as empty for this family: a generic value
     #: the family's own, more specific one replaces.
     replaces: tuple[str, ...] = ()
+    #: A condition a fill must also meet, in SQL over the vehicle `v` and the rule `r`.
+    guard: str = ""
 
 
 #: Keys computed from a vehicle's columns rather than read from one. A VIN's first
@@ -140,6 +161,20 @@ KEY_EXPRESSIONS: dict[str, str] = {
     "drive_year": "coalesce({alias}production_year::text, '-')",
     "drive_fuel": "coalesce({alias}fuel, '-')",
     "two_wheel_drive": "CASE WHEN {alias}registry_all_wheel_drive IS FALSE THEN 'yes' END",
+    # The variant's key: everything a variant can be told apart by. The registry's
+    # statement is part of it -- "no" (not four-wheel drive) or "unknown" -- and a
+    # car it marks as four-wheel drive has no key.
+    "drive_second_fuel": "coalesce({alias}fuel_secondary, '-')",
+    "drive_power": "coalesce({alias}power_kw::text, '-')",
+    "drive_body": "coalesce({alias}bodywork_form, '-')",
+    "drive_text": (
+        "coalesce(nullif(upper(btrim(coalesce(nullif(btrim({alias}registry_model_text), ''), "
+        "{alias}registry_brand_text))), ''), '-')"
+    ),
+    "drive_statement": (
+        "CASE WHEN {alias}registry_all_wheel_drive IS FALSE THEN 'no' "
+        "WHEN {alias}registry_all_wheel_drive IS NULL THEN 'unknown' END"
+    ),
 }
 
 
@@ -222,6 +257,44 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                "Drive type by make, model, build year and fuel, for cars the registry marks "
                "as not four-wheel drive",
                min_support=1, min_agreement=1.0, learner="reviewed", replaces=("2wd",)),
+    # Next, the variant: a car the table leaves open, or one the registry makes no
+    # four-wheel-drive statement about, named by what the car itself carries.
+    RuleFamily(DRIVE_VARIANT_FAMILY, "drive_type",
+               ("manufacturer", "drive_model", "drive_year", "drive_fuel", "drive_second_fuel",
+                "drive_power", "drive_body", "drive_text", "drive_statement"),
+               "reviewed-drive-variants", "enrichment",
+               "Drive type of a variant, by power, fuel, body or registry text",
+               min_support=1, min_agreement=1.0, learner="reviewed",
+               replaces=("2wd",), guard=_DRIVE_GUARD),
+    # Last, what is still open takes the drive type of the cars alike: the same
+    # descriptor section of the VIN and the same power is the same variant. Most
+    # specific key first; a key whose cars disagree states nothing and the next one
+    # is asked. Reviewed knowledge goes first because the cars alike can share one
+    # wrong registry statement.
+    RuleFamily("DRV-EVP", "drive_type", ("manufacturer", "vin_descriptor", "power_kw"),
+               DRIVE_EVIDENCE, "enrichment",
+               "Drive type by manufacturer, VIN characters 1-8 and power",
+               min_support=5, min_agreement=0.98, learner="drive_evidence",
+               replaces=("2wd",), guard=_DRIVE_GUARD),
+    RuleFamily("DRV-EME", "drive_type",
+               ("manufacturer", "model_family", "fuel", "power_kw", "engine_code"),
+               DRIVE_EVIDENCE, "enrichment",
+               "Drive type by make, model, fuel, power and engine code",
+               min_support=5, min_agreement=0.98, learner="drive_evidence",
+               replaces=("2wd",), guard=_DRIVE_GUARD),
+    # With the build year: a later generation reuses a model name and a power figure
+    # for another drivetrain (a 132 kW V60 was a front-driven T4, then a plug-in hybrid).
+    RuleFamily("DRV-EMP", "drive_type",
+               ("manufacturer", "model_family", "fuel", "power_kw", "production_year"),
+               DRIVE_EVIDENCE, "enrichment",
+               "Drive type by make, model, fuel, power and build year",
+               min_support=8, min_agreement=0.98, learner="drive_evidence",
+               replaces=("2wd",), guard=_DRIVE_GUARD),
+    RuleFamily("DRV-EV", "drive_type", ("manufacturer", "vin_descriptor"),
+               DRIVE_EVIDENCE, "enrichment",
+               "Drive type by manufacturer and VIN characters 1-8",
+               min_support=8, min_agreement=0.98, learner="drive_evidence",
+               replaces=("2wd",), guard=_DRIVE_GUARD),
     RuleFamily("TSC-EU", "eu_category", ("registry_make_code", "group_code"),
                SOURCE_TS, "completion", "EU category by make and group code"),
     RuleFamily("TSC-BRAND", "registry_brand_text", ("registry_make_code", "group_code"),
@@ -275,11 +348,14 @@ def learn_statement(family: RuleFamily) -> str:
         f"{key_sql(field)} IS NOT NULL" for field in (*family.key_fields, family.target_field)
     )
     source = _SOURCE_OF.format(field=family.target_field)
+    # The drive evidence families take a value from whoever gave it; the others
+    # learn from one source (the statement's first parameter).
+    evidence = _DRIVE_EVIDENCE_FILTER if family.learner == "drive_evidence" else f"{source} = %s"
     return f"""
         WITH training AS (
             SELECT {keys}, {family.target_field}::text AS value
             FROM {VEHICLES_TABLE}
-            WHERE {not_null} AND {source} = %s
+            WHERE {not_null} AND {evidence}
         ),
         grouped AS (
             SELECT {key_names}, value, count(*) AS n FROM training GROUP BY {key_names}, value
@@ -313,9 +389,16 @@ def learn_rules(
     if family.learner == "patterns":
         return pattern_rules(connection, family, min_support=support, min_agreement=agreement)
     if family.learner == "reviewed":
+        if family.family == DRIVE_VARIANT_FAMILY:
+            return drive_variant_rules(connection, family)
         return drive_layout_rules(connection, family)
+    parameters: tuple[object, ...] = (
+        (support, agreement)
+        if family.learner == "drive_evidence"
+        else (family.learned_from, support, agreement)
+    )
     with connection.cursor() as cursor:
-        cursor.execute(learn_statement(family), (family.learned_from, support, agreement))
+        cursor.execute(learn_statement(family), parameters)
         rows = cursor.fetchall()
     return [
         LearnedRule(
@@ -363,6 +446,49 @@ def drive_layout_rules(connection: Connection, family: RuleFamily) -> list[Learn
                 key_fields=family.key_fields,
                 key_values=values,
                 value=layout,
+                support=int(cars),
+                agreement=1.0,
+            )
+        )
+    return rules
+
+
+def drive_variant_rules(connection: Connection, family: RuleFamily) -> list[LearnedRule]:
+    """One rule per variant the reviewed knowledge states a drive type for.
+
+    The keys are those of the cars still without a real drive type, and of the cars
+    this family filled before, so its rules stay the same from run to run.
+    """
+
+    keys = ", ".join(f"{key_sql(field)}::text" for field in family.key_fields)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT manufacturer, model_family, production_year, fuel, fuel_secondary, power_kw, "
+            f"bodywork_form, {key_sql('drive_text')}, registry_all_wheel_drive, ARRAY[{keys}], "
+            f"count(*) FROM {VEHICLES_TABLE} "
+            "WHERE registry_all_wheel_drive IS NOT TRUE AND manufacturer IS NOT NULL "
+            "AND (drive_type IS NULL OR drive_type::text = ANY(%s) "
+            "     OR left(coalesce(field_sources ->> 'drive_type', ''), %s) = %s) "
+            "GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10",
+            (list(family.replaces), len(f"rule:{family.family}-"), f"rule:{family.family}-"),
+        )
+        rows = cursor.fetchall()
+    rules = []
+    for make, model, year, fuel, second, power, body, text, four_wheel, key_values, cars in rows:
+        drive = drive_variant(
+            make, model, year, fuel, second, power, body, None if text == "-" else text, four_wheel
+        )
+        if drive is None:
+            continue
+        values = tuple(str(value) for value in key_values)
+        rules.append(
+            LearnedRule(
+                rule_id=rule_id_for(family.family, values, drive),
+                family=family.family,
+                target_field=family.target_field,
+                key_fields=family.key_fields,
+                key_values=values,
+                value=drive,
                 support=int(cars),
                 agreement=1.0,
             )
@@ -746,14 +872,20 @@ def apply_rules(
             raise ValueError(f"{family.family} fills models: pass a guard (the catalog batch)")
         return _apply_guarded(connection, family, guard, source_batch_id)
     target = family.target_field
-    # A reviewed statement that was corrected must not stay on the cars it filled.
-    retracted = retract_retired_fills(connection, family) if family.learner == "reviewed" else 0
+    # A reviewed statement that was corrected, or evidence that no longer holds, must
+    # not stay on the cars it filled.
+    retracted = (
+        retract_retired_fills(connection, family)
+        if family.learner in ("reviewed", "drive_evidence")
+        else 0
+    )
     sql_type = FIELDS_BY_NAME[target].sql_type
     cast = {"integer": "::integer", "smallint": "::smallint", "boolean": "::boolean"}.get(sql_type, "")
     key_match = " AND ".join(
         f"{key_sql(field, 'v')}::text = r.key_values[{index + 1}]"
         for index, field in enumerate(family.key_fields)
     )
+    condition = f" AND {family.guard}" if family.guard else ""
     with connection.cursor() as cursor:
         # Fresh statistics first. Learning adds tens of thousands of rules at once;
         # planned against the old statistics the join looked like a handful of rules
@@ -771,7 +903,7 @@ def apply_rules(
                 FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
                 WHERE r.rule_family = %s AND r.status = 'active'
                   AND (v.{target} IS NULL OR v.{target}::text = ANY(%s))
-                  AND {key_match}
+                  AND {key_match}{condition}
                 RETURNING v.vehicle_id, r.rule_id, r.value, r.agreement
             )
             SELECT vehicle_id, rule_id, value, agreement FROM filled

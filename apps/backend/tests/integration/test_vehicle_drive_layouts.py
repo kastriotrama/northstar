@@ -116,3 +116,99 @@ def test_a_corrected_statement_takes_its_fills_back(
 
     assert (again.retracted, again.filled) == (0, 2)
     assert _drive(db, "FWD001") == ("rwd", "rule:DRV")
+
+
+# --- what the table leaves open: the cars alike, then the variant -----------------------
+
+
+@pytest.fixture()
+def alike() -> Iterator[Connection]:
+    """Eight cars of one variant (same VIN descriptor, same power); none has a drive type."""
+
+    with throwaway_database("vehicle_drive_evidence") as connection:
+        prepare_schema(connection)
+        for number in range(1, 9):
+            insert_ts_record(
+                connection, volvo(vin=f"YV1BW84S1F100000{number}", plate=f"CAR00{number}")
+            )
+        connection.commit()
+        project(connection)
+        backfill_vehicle_core(connection, min_free_bytes=None)
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE core.vehicles SET drive_type = NULL")
+        connection.commit()
+        yield connection
+
+
+def _set(connection: Connection, plates: list[str], assignments: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(f"UPDATE core.vehicles SET {assignments} WHERE plate = ANY(%s)", (plates,))
+    connection.commit()
+
+
+def _learn_and_apply(connection: Connection, name: str) -> int:
+    family = FAMILIES_BY_ID[name]
+    store_rules(connection, family, learn_rules(connection, family), learned_from=family.learned_from)
+    filled = apply_rules(connection, family).filled
+    connection.commit()
+    return filled
+
+
+def test_a_car_without_a_statement_takes_the_drive_type_of_the_cars_alike(alike: Connection) -> None:
+    known = [f"CAR00{number}" for number in range(1, 6)]
+    _set(alike, known, "drive_type = 'fwd', field_sources = field_sources || "
+                       "jsonb_build_object('drive_type', 'review:r1')")
+    _set(alike, ["CAR006"], "registry_all_wheel_drive = NULL")  # the registry says nothing
+
+    assert _learn_and_apply(alike, "DRV-EVP") == 3
+    assert _drive(alike, "CAR006") == ("fwd", "rule:DRV")
+    assert _drive(alike, "CAR007") == ("fwd", "rule:DRV")
+    assert _drive(alike, "CAR001") == ("fwd", "review:r1")
+
+    # Its own fills are no evidence: with the reviewed cars gone, nothing is learned.
+    _set(alike, known, "drive_type = NULL, field_sources = field_sources - 'drive_type'")
+    assert learn_rules(alike, FAMILIES_BY_ID["DRV-EVP"]) == []
+
+
+def test_cars_alike_never_contradict_the_registrys_statement(alike: Connection) -> None:
+    known = [f"CAR00{number}" for number in range(1, 6)]
+    _set(alike, known, "drive_type = 'awd', registry_all_wheel_drive = TRUE")
+    _set(alike, ["CAR006"], "registry_all_wheel_drive = NULL")
+    # CAR007 and CAR008 are marked as not four-wheel drive.
+
+    assert _learn_and_apply(alike, "DRV-EVP") == 1
+    assert _drive(alike, "CAR006")[0] == "awd"
+    assert _drive(alike, "CAR007")[0] is None
+    assert _drive(alike, "CAR008")[0] is None
+
+
+def test_cars_alike_that_disagree_state_nothing(alike: Connection) -> None:
+    _set(alike, ["CAR001", "CAR002", "CAR003"], "drive_type = 'fwd'")
+    _set(alike, ["CAR004", "CAR005"], "drive_type = 'awd', registry_all_wheel_drive = TRUE")
+    _set(alike, ["CAR006"], "registry_all_wheel_drive = NULL")
+
+    assert _learn_and_apply(alike, "DRV-EVP") == 0
+    assert _drive(alike, "CAR006")[0] is None
+
+
+def test_the_variant_is_named_by_what_the_car_carries(alike: Connection) -> None:
+    tesla = "manufacturer = 'Tesla', model_family = 'Model Y', fuel = 'electricity'"
+    _set(alike, ["CAR001"], f"{tesla}, power_kw = 220, registry_all_wheel_drive = NULL")
+    _set(alike, ["CAR002"], f"{tesla}, power_kw = 378, registry_all_wheel_drive = NULL")
+    _set(alike, ["CAR003"], f"{tesla}, power_kw = 378")  # marked as not four-wheel drive
+    _set(alike, ["CAR004"], f"{tesla}, power_kw = 280, registry_all_wheel_drive = NULL")
+    _set(alike, ["CAR005"], "manufacturer = 'Volkswagen', model_family = NULL, "
+                            "production_year = 1973, registry_model_text = NULL, "
+                            "registry_brand_text = 'VOLKSWAGEN 1303 S'")
+
+    assert _learn_and_apply(alike, "DRV-CAR") == 3
+    assert _drive(alike, "CAR001") == ("rwd", "rule:DRV")
+    assert _drive(alike, "CAR002") == ("awd", "rule:DRV")
+    assert _drive(alike, "CAR003")[0] is None  # a second motor contradicts the registry
+    assert _drive(alike, "CAR004")[0] is None  # between two variants
+    assert _drive(alike, "CAR005") == ("rwd", "rule:DRV")  # a Beetle, by the registry's text
+    # A second run keeps the rules and fills nothing.
+    again = learn_rules(alike, FAMILIES_BY_ID["DRV-CAR"])
+    stored = store_rules(alike, FAMILIES_BY_ID["DRV-CAR"], again, learned_from="x")
+    assert (stored.added, stored.retired, apply_rules(alike, FAMILIES_BY_ID["DRV-CAR"]).filled) == (
+        0, 0, 0)

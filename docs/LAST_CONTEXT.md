@@ -2,6 +2,34 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
+
+- 23,233 of the 500k cars had no real drive type after `DRV-MY`: 15,076 with no four-wheel-drive statement
+  (inspection-register-only cars, mostly 2023-2026) and 8,157 marked "not four-wheel drive" whose model did
+  not settle the axle. Two steps added, run in this order after `DRV-MY`:
+  1. `DRV-CAR` (reviewed, `drive_variant` in `vehicle_drive_layouts.py`): the variant by power (electric: one
+     motor or two), fuel, body (BMW 2 Series), registry text for cars without a model ("VOLKSWAGEN 1303 S"),
+     and models never sold with four driven wheels.
+  2. `DRV-EVP/-EME/-EMP/-EV` (learned, `learner="drive_evidence"`): the drive type of the cars alike (same
+     VIN 1-8 + power; model + fuel + power + engine; model + fuel + power + year; VIN 1-8), >= 5 or 8 cars
+     and 98 % agreement, never their own fills as evidence.
+  `RuleFamily.guard` keeps every fill consistent with the registry's statement; evidence and reviewed
+  families take back the fills of a retired rule on the next apply. Table tightened on the way (MG4 until
+  2025, electric GLB rear, Master until 2009 front, more whole-make eras).
+- Validation: unit 3,039 and integration 486 passed, ruff clean, mypy clean on api + ingestion. Knowledge
+  against cars whose drive type other sources already gave: 40,725 agree, 183 disagree (167 of them
+  reviewer rules that say front for the rear-driven XC40 185 kW and the electric CLA 250+). Local copy:
+  17,446 of the 23,233 filled (knowledge 12,025, cars alike 4,943, table 478), 5,787 left open (Transit,
+  Master from 2010, Yaris Cross and RAV4 hybrids, cars with no make or model). 494,213 of 500,000 cars now
+  carry a real drive type. Pilot 20k against the state before: resolved 14,110 -> 14,132; 23 gained,
+  1 lost (a 2025 Tucson plug-in whose cars alike are four-wheel drive, matched to a front-drive KType
+  before), 0 moved; all 165 newly filled resolved cars agree with their KType's drive.
+- Risk / next: local only, not pushed. Two mistakes were caught by the measurement and fixed (a 2020+ BMW
+  "coupe" can be the front-driven Gran Coupe; evidence by model and power needs the build year). Kia EV3/EV5
+  195 kW and a few others are left open because I am not sure of the variant. The 132 kW XC60/V60 of 2026
+  are taken as the plug-in hybrid (four-wheel drive) from their weight and VIN series. On live: deploy,
+  then learn + apply `DRV-MY`, `DRV-CAR`, the four `DRV-E*`; each write needs the user's yes.
+
 ## 2026-10-03 — Drive type chosen per make and model for cars the registry marks as not four-wheel drive (branch feature/vehicle-corrections)
 
 - `ingestion/vehicle_drive_layouts.py`: a reviewed table of which axle a model drives (726 make + model
@@ -196,28 +224,3 @@ Keep the latest 10 task entries only.
 - Boundary tolerance on the changed cars (both samples): 0 months +686/-72/27 moved; 1 month
   +563/-52/17; 2 months +444/-37/16; 3 months +341/-21/14. Decision pending; the API still pins prod-v2.
 - The report refuses to compare runs on different catalog batches; compared car by car with a scratch script.
-
-## 2026-10-01 — Ford Mustang, BYD Atto 3, and model numbers in family comparisons (local, uncommitted)
-
-- FORD MUSTANG: blocked by six TS cars filed "Gt" (Mustang GTs whose model text "GT 500" TS read as the
-  Ford GT), not by the Mach-E, which has its own text. Reviewed exception (`MISREAD_STATED_FAMILIES`) plus
-  a fuel check in the guard (`REVIEWED_ELECTRIC_FAMILIES`): 5,356 cars -> Mustang, the one electric car
-  (VIN 3FMTK, a Mach-E) refused. A general "count only brand-text-only siblings" fix was tried and
-  reverted: "BMW X3" is also the brand text of 498 X4s.
-- BYD: TecDoc has no ATTO 3; its "YUAN PLUS" (2022-, EV, 150 kW, FWD) is the Atto 3 -> reviewed export
-  name. All Atto 3s now get YUAN PLUS as top candidate but stop on body: registry MPV vs TecDoc SUV (a
-  body ruling for the data owner).
-- Model numbers now count: the matcher's model-word reading no longer binds "ATTO 3" to ATTO 2, and the
-  guard's family comparison separates ID.4/ID.5, Ioniq 5/6, Model 3/Y. It caught 4,028 wrong fills
-  (3,682 "ID.4" that are ID.5s, 346 "DS 7 Crossback" that are DS4/DS3), retracted and refilled.
-- MINI: a family named like the make answers only when no other family's word follows (7 Countryman/
-  Clubman rules retired, 88 fills).
-- FORD USA: TecDoc files every Mustang, the Mach-E, and the US Explorer/Edge/Probe under "FORD USA"; the
-  matcher now looks there (`REVIEWED_SISTER_MAKERS`) only when the car's model is no family under "FORD".
-  30k: 64.0% -> 64.2% (+47 / 0 lost / 0 moved; all 47 agree on year and power). The guard keeps reading
-  under the make ("CUSTOM" on a Transit Custom would name a 1950s Ford).
-- Local DB: no model family 224,888 -> 221,279; check 0 contradictions. Tests 1,808 pass.
-- Independent 20k sample (new seed `northstar-random-20k-2026-10-01`, ~90 cars shared with the 30k): 64.1%
-  resolved, agreeing with the 30k's 64.2%. Hard conflicts 1,115: power 487, engine code 356, displacement
-  208 (197 within 10 cc -- exact-equality comparison), year 142. Engine codes: 35 are the same engine in
-  another format ("H5H-470, H5H-480"), BMW "M57-TU2D30" vs "M57 D30" ~70. Body conflicts 288 (MPV vs SUV 65).

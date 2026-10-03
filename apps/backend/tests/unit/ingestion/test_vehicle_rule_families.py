@@ -178,9 +178,11 @@ def test_the_vin_key_families_are_the_ones_keyed_on_the_descriptor() -> None:
     from ingestion.vehicle_core_rules import VIN_KEY_FAMILIES
 
     assert all("vin_descriptor" in FAMILIES_BY_ID[name].key_fields for name in VIN_KEY_FAMILIES)
-    assert {family.family for family in RULE_FAMILIES if "vin_descriptor" in family.key_fields} == set(
-        VIN_KEY_FAMILIES
-    )
+    assert {
+        family.family
+        for family in RULE_FAMILIES
+        if "vin_descriptor" in family.key_fields and family.target_field == "model_family"
+    } == set(VIN_KEY_FAMILIES)
 
 
 def test_the_vocabulary_is_ts_spelling_plus_reviewed_names_without_non_families() -> None:

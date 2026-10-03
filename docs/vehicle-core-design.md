@@ -134,6 +134,33 @@ version, which does not scale to ~368k rules.
   corrected, running the two commands again takes back what the withdrawn
   statement filled and fills what the new one covers. Because the rules come from
   the table and not from statistics, this family is safe to run on a slice.
+- **Drive type of the cars the table leaves open** (two more steps, run after
+  `DRV-MY`). They cover a model sold with either axle driven, and cars the
+  registry makes no four-wheel-drive statement about (cars known from the
+  inspection register only).
+  1. *The variant* (`DRV-CAR`, reviewed): `drive_variant` in
+     `ingestion/vehicle_drive_layouts.py` names the variant by what the car
+     carries: power for electric cars (one motor or two), fuel, body (BMW 2 Series
+     tourer or coupe), and for a car without a model the registry's own text
+     ("VOLKSWAGEN 1303 S" is a Beetle). Models never sold with four driven wheels
+     take the table's layout without a statement.
+  2. *The cars alike* (`DRV-EVP`, `DRV-EME`, `DRV-EMP`, `DRV-EV`, learned): what
+     is still open takes the drive type of the cars with the same VIN characters
+     1-8 and power, then the same model, fuel, power and engine code, then model,
+     fuel, power and build year, then VIN characters 1-8 alone. At least 5 (8 for
+     the two broad keys) cars and 98 % agreement; a key whose cars disagree states
+     nothing. The evidence is every real drive type (front, rear, four-wheel) from
+     any source except these families' own fills. Evidence that no longer holds
+     takes its fills back on the next apply.
+
+  Knowledge goes first because the cars alike can share one wrong registry
+  statement (the four-wheel-drive-only XC60 B6 is marked "not four-wheel drive"
+  on a batch of 2023 cars). No fill contradicts the registry: never four-wheel
+  drive on a car it marks as not four-wheel drive. Run in this order, naming the
+  families: `learn-vehicle-rules --family DRV-MY --activate`, `apply-vehicle-rules
+  --family DRV-MY`, the same pair for `DRV-CAR` (its rules are built from the cars
+  still open, so it is learned after `DRV-MY` was applied), then for the four
+  `DRV-E*` families.
 - **Model family** (learned from TS, fill the 2.37M registered passenger cars
   whose registry text names only the make or a manufacturer code). A higher bar:
   at least 10 vehicles and 98 % agreement. Tried in this order, most specific

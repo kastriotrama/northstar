@@ -4,8 +4,21 @@ from __future__ import annotations
 
 import pytest
 
-from ingestion.vehicle_core_rules import DRIVE_LAYOUT_FAMILY, FAMILIES_BY_ID, key_sql
-from ingestion.vehicle_drive_layouts import REVIEWED_DRIVE_LAYOUTS, Era, drive_layout
+from ingestion.vehicle_core_rules import (
+    DRIVE_LAYOUT_FAMILY,
+    DRIVE_VARIANT_FAMILY,
+    FAMILIES_BY_ID,
+    key_sql,
+    learn_statement,
+)
+from ingestion.vehicle_drive_layouts import (
+    _BY_TEXT,
+    _VARIANTS,
+    REVIEWED_DRIVE_LAYOUTS,
+    Era,
+    drive_layout,
+    drive_variant,
+)
 
 
 @pytest.mark.parametrize(
@@ -133,3 +146,166 @@ def test_a_name_reused_on_another_layout_is_decided_by_year() -> None:
     assert drive_layout("Jeep", "Cherokee", 2016, "diesel") == "fwd"
     assert drive_layout("Dodge", "Dart", 1970, "petrol") == "rwd"
     assert drive_layout("Dodge", "Dart", 2014, "petrol") == "fwd"
+
+
+# --- variants: what the model alone does not settle ------------------------------------
+
+ELECTRIC = "electricity"
+
+
+def _variant(
+    make: str,
+    model: str | None,
+    year: int,
+    fuel: str,
+    power: int | None,
+    *,
+    body: str | None = None,
+    text: str | None = None,
+    four_wheel: bool | None = None,
+) -> str | None:
+    return drive_variant(make, model, year, fuel, None, power, body, text, four_wheel)
+
+
+@pytest.mark.parametrize(
+    ("make", "model", "year", "power", "drive"),
+    [
+        ("Tesla", "Model Y", 2024, 220, "rwd"),
+        ("Tesla", "Model Y", 2024, 378, "awd"),
+        ("Polestar", "2", 2023, 170, "fwd"),  # the single motor moved to the rear axle that year
+        ("Polestar", "2", 2023, 220, "rwd"),
+        ("Polestar", "2", 2024, 310, "awd"),
+        ("Volvo", "EX30", 2026, 200, "rwd"),
+        ("Volvo", "EX30", 2026, 315, "awd"),
+        ("BMW", "iX1", 2026, 150, "fwd"),
+        ("BMW", "iX1", 2026, 225, "awd"),
+        ("Toyota", "bZ4X", 2023, 150, "fwd"),
+        ("Toyota", "bZ4X", 2023, 160, "awd"),  # two 80 kW motors
+        ("MG", "MG4", 2026, 110, "fwd"),  # the MG4 Urban
+        ("MG", "MG4", 2023, 150, "rwd"),
+        ("Kia", "EV2", 2026, 107, "fwd"),
+    ],
+)
+def test_an_electric_cars_power_names_its_variant(
+    make: str, model: str, year: int, power: int, drive: str
+) -> None:
+    assert _variant(make, model, year, ELECTRIC, power) == drive
+
+
+def test_power_between_two_variants_or_missing_states_nothing() -> None:
+    assert _variant("Tesla", "Model Y", 2024, ELECTRIC, 280) is None
+    assert _variant("Tesla", "Model Y", 2024, ELECTRIC, None) is None
+    assert _variant("Tesla", "Model Y", 2024, "petrol", 220) is None
+    assert _variant("Toyota", "Yaris Cross", 2026, "petrol", 68) is None  # same power, either drive
+    # A variant sold with four-wheel drive only: named without a statement, and silent
+    # when the registry says the car is not four-wheel drive.
+    assert _variant("Volvo", "XC60", 2023, "petrol", 220) == "awd"
+    assert _variant("Volvo", "XC60", 2023, "petrol", 220, four_wheel=False) is None
+
+
+def test_a_variant_never_contradicts_the_registrys_statement() -> None:
+    # Marked as not four-wheel drive: a four-wheel-drive variant states nothing.
+    assert _variant("Tesla", "Model Y", 2024, ELECTRIC, 378, four_wheel=False) is None
+    assert _variant("Tesla", "Model Y", 2024, ELECTRIC, 220, four_wheel=False) == "rwd"
+    # Marked as four-wheel drive: never ours.
+    assert _variant("Tesla", "Model Y", 2024, ELECTRIC, 220, four_wheel=True) is None
+
+
+def test_body_and_text_decide_only_for_a_car_marked_as_two_wheel_drive() -> None:
+    tourer = {"body": "multi_purpose_vehicle", "text": "218D GRAN TOURER"}
+    assert _variant("BMW", "2 Series", 2018, "diesel", 110, four_wheel=False, **tourer) == "fwd"
+    assert _variant("BMW", "2 Series", 2018, "petrol", 272, four_wheel=False, body="coupe") == "rwd"
+    # From 2020 a "coupe" may be the front-driven Gran Coupe; an M2 never is.
+    assert _variant("BMW", "2 Series", 2021, "petrol", 100, four_wheel=False, body="coupe") is None
+    assert _variant("BMW", "2 Series", 2021, "petrol", 302, four_wheel=False, body="coupe",
+                    text="M2 COMPETITION") == "rwd"
+    # Without the statement it could be the four-wheel-drive plug-in tourer.
+    assert _variant("BMW", "2 Series", 2018, "petrol", 100, **tourer) is None
+    assert _variant("Ford", "Transit", 2019, "diesel", 96, four_wheel=False,
+                    text="TRANSIT CUSTOM") == "fwd"
+    assert _variant("Ford", "Transit", 2019, "diesel", 96, four_wheel=False, text="TRANSIT") is None
+
+
+def test_a_model_never_sold_with_four_driven_wheels_needs_no_statement() -> None:
+    assert _variant("Nissan", "Micra", 2025, ELECTRIC, 110) == "fwd"
+    assert _variant("Cupra", "Born", 2024, ELECTRIC, 170) == "rwd"
+    assert _variant("Volkswagen", "Polo", 2019, "petrol", 70) == "fwd"
+    # A rally car built on one is four-wheel drive; its power gives it away.
+    assert _variant("Volkswagen", "Polo", 2019, "petrol", 235) is None
+    # A Golf came with four-wheel drive: without a statement nothing is said.
+    assert _variant("Volkswagen", "Golf", 2019, "petrol", 110) is None
+
+
+@pytest.mark.parametrize(
+    ("make", "year", "text", "drive"),
+    [
+        ("Volkswagen", 1973, "VOLKSWAGEN 1303 S 135031", "rwd"),
+        ("Volkswagen", 1976, "VOLKSWAGEN KLEINBUS 221", "rwd"),
+        ("Volkswagen", 1995, "VOLKSWAGEN KOMBI 2,5", None),
+        ("Ford", 2005, "FORD DM2 FOCUS C-MAX", "fwd"),
+        ("Ford", 1966, "FORD 65 A MUSTANG", "rwd"),
+        ("Ford", 1968, "FORD 17 M 1700", "rwd"),
+        ("Renault", 1961, "RENAULT R 1090 DAUPHINE", "rwd"),
+        ("Renault", 1994, "RENAULT B57B05 RT", "fwd"),
+        ("Renault", 1994, "RENAULT MASTER", None),
+        ("Renault", 1994, "RENAULT", None),
+        ("Peugeot", 1970, "PEUGEOT 404", "rwd"),
+        ("Peugeot", 1978, "PEUGEOT 104 SL 543705", "fwd"),
+        ("Pontiac", 1992, "PONTIAC TRANS AM", "rwd"),
+        ("Pontiac", 1992, "PONTIAC TRANS SPORT", "fwd"),
+        ("BMC", 1965, "BMC 850 SALOON", "fwd"),
+        ("Austin", 1962, "AUSTIN HEALEY SPRITE", "rwd"),
+        ("Toyota", 2013, "86", "rwd"),
+        ("Volvo", 1989, "VOLVO KX183E", "fwd"),
+        ("Volvo", 1988, "VOLVO 360 GL", "rwd"),
+    ],
+)
+def test_registry_text_names_the_model_of_a_car_without_one(
+    make: str, year: int, text: str, drive: str | None
+) -> None:
+    assert _variant(make, None, year, "petrol", 50, text=text, four_wheel=False) == drive
+    # Only for a car the registry marks as not four-wheel drive.
+    assert _variant(make, None, year, "petrol", 50, text=text) is None
+
+
+def test_the_variant_tables_are_well_formed() -> None:
+    import re
+
+    for (make, model), variants in _VARIANTS.items():
+        assert make and model and variants
+        for variant in variants:
+            assert variant.kw is None or variant.kw[0] <= variant.kw[1], (make, model)
+            if variant.text:
+                re.compile(variant.text)
+    for patterns in _BY_TEXT.values():
+        for pattern, layout, first, last in patterns:
+            re.compile(pattern)
+            assert layout in ("fwd", "rwd")
+            assert first is None or last is None or first <= last
+
+
+def test_the_evidence_families_learn_from_real_drive_types_and_guard_their_fills() -> None:
+    evidence = [FAMILIES_BY_ID[name] for name in ("DRV-EVP", "DRV-EME", "DRV-EMP", "DRV-EV")]
+    order = [family.family for family in FAMILIES_BY_ID.values()]
+    # The table first, then the variants, then the cars alike from the most specific key down.
+    assert order.index(DRIVE_LAYOUT_FAMILY) < order.index(DRIVE_VARIANT_FAMILY)
+    assert order.index(DRIVE_VARIANT_FAMILY) < order.index("DRV-EVP") < order.index("DRV-EME")
+    assert order.index("DRV-EME") < order.index("DRV-EMP") < order.index("DRV-EV")
+    for family in evidence:
+        assert (family.target_field, family.learner, family.replaces) == (
+            "drive_type", "drive_evidence", ("2wd",))
+        assert family.min_agreement == 0.98
+        # A model name and a power figure are reused across generations: the key that
+        # names only those also names the build year (or the engine, or the VIN).
+        assert {"vin_descriptor", "engine_code", "production_year"} & set(family.key_fields)
+        statement = learn_statement(family)
+        # The generic value is no evidence, and neither are these families' own fills.
+        assert "drive_type::text IN ('fwd', 'rwd', 'awd')" in statement
+        assert "<> 'rule:DRV-E'" in statement
+        assert statement.count("%s") == 2  # support and agreement, no source
+        # A fill never contradicts the registry's four-wheel-drive statement.
+        assert "v.registry_all_wheel_drive = (r.value = 'awd')" in family.guard
+    variant = FAMILIES_BY_ID[DRIVE_VARIANT_FAMILY]
+    assert (variant.learner, variant.key_fields[-1], bool(variant.guard)) == (
+        "reviewed", "drive_statement", True)
+    assert "IS FALSE THEN 'no'" in key_sql("drive_statement", "v")
