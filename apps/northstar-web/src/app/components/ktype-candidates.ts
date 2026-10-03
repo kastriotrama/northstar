@@ -267,7 +267,13 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
         </ng-template>
 
         @if (canChoose()) {
-          <ns-fact-corrections [lookup]="result" [reviewer]="reviewer()" [(reason)]="reason" (corrected)="onCorrected($event)" />
+          <ns-fact-corrections
+            [lookup]="result"
+            [reviewer]="reviewer()"
+            (reviewerChange)="onReviewer($event)"
+            [(reason)]="reason"
+            (corrected)="onCorrected($event)"
+          />
           <ns-ktype-choice
             [lookup]="result"
             [pending]="pending()"

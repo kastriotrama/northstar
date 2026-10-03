@@ -434,9 +434,27 @@ let instances = 0;
         For this car only, unless you choose other cars under “Apply to”. The car is matched again
         after each change.
       </p>
-      @if (!named()) {
-        <p class="muted small" [id]="hintId">Enter your name to correct this car's data.</p>
-      }
+      <!-- First thing in the panel: nothing below can be used until it is filled in. -->
+      <div class="who" [class.who--needed]="!named()">
+        <label>
+          Your name
+          <input
+            type="text"
+            required
+            maxlength="120"
+            autocomplete="name"
+            [value]="reviewer()"
+            [attr.aria-describedby]="named() ? null : hintId"
+            (input)="onName($event)"
+          />
+        </label>
+        @if (!named()) {
+          <p class="who__hint" [id]="hintId">Enter your name to correct this car's data.</p>
+          <p class="who__why small">
+            It is saved with every change you make and remembered for next time.
+          </p>
+        }
+      </div>
 
       <!-- What became of the last action, under the row (or the stop) it was on. -->
       <ng-template #said>
@@ -486,6 +504,7 @@ let instances = 0;
               #stopButton
               type="button"
               [disabled]="blocked()"
+              [attr.title]="named() ? null : needName"
               [attr.aria-describedby]="named() ? null : hintId"
               (click)="undoRelease()"
             >
@@ -591,6 +610,7 @@ let instances = 0;
                   [attr.data-field]="row.field"
                   [attr.aria-label]="'Correct ' + row.label"
                   [attr.aria-expanded]="editing() === row.field"
+                  [attr.title]="named() ? null : needName"
                   [attr.aria-describedby]="named() ? null : hintId"
                   (click)="toggle(row, opener)"
                 >
@@ -601,6 +621,7 @@ let instances = 0;
                     type="button"
                     [disabled]="blocked()"
                     [attr.aria-label]="(made.decision ? 'Undo for this car: ' : 'Undo correction of ') + row.label"
+                    [attr.title]="named() ? null : needName"
                     [attr.aria-describedby]="named() ? null : hintId"
                     (click)="act(row, 'withdraw')"
                   >
@@ -913,6 +934,19 @@ let instances = 0;
     button:disabled { cursor: not-allowed; }
     button[aria-pressed='true'] { font-weight: 600; }
     summary { cursor: pointer; font-weight: 600; }
+    .who { display: flex; flex-wrap: wrap; align-items: end; gap: 0.2rem 0.8rem; margin: 0.4rem 0; }
+    .who p { margin: 0; flex-basis: 100%; }
+    .who input { min-width: 14rem; }
+    .who--needed {
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #b7791f;
+      border-left-width: 4px;
+      border-radius: 4px;
+      background: #fff8e6;
+      color: #3d2c00;
+    }
+    .who--needed input { border: 1px solid #b7791f; }
+    .who__hint { font-weight: 600; }
     .small { font-size: 0.72rem; }
     .muted { color: var(--p-text-muted-color); }
     .error { color: #8a2020; }
@@ -928,7 +962,8 @@ export class FactCorrections {
   /** The car's lookup: what may be corrected, what is corrected, and the evidence shown. */
   readonly lookup = input.required<VehicleMatchLookup>();
   /** The name typed in the choice panel's field. */
-  readonly reviewer = input('');
+  /** Who is correcting; typed at the top of the panel and shared with the rest of the dialog. */
+  readonly reviewer = model('');
   /**
    * The reason typed there. It belongs to one action: it is emptied once that action is
    * recorded, as the choice does, and kept when the action was refused.
@@ -946,6 +981,7 @@ export class FactCorrections {
   protected readonly stopField = STOP_FIELD;
   private readonly uid = `fact-corrections-${instances++}`;
   protected readonly hintId = `${this.uid}-name-hint`;
+  protected readonly needName = 'Enter your name first, at the top of this panel';
   protected readonly reasonHintId = `${this.uid}-reason-hint`;
   protected readonly askId = `${this.uid}-ask`;
   protected readonly undoHintId = `${this.uid}-undo-hint`;
@@ -1216,6 +1252,10 @@ export class FactCorrections {
   protected mark(): void {
     this.marking.update((on) => !on);
     this.offer();
+  }
+
+  protected onName(event: Event): void {
+    this.reviewer.set((event.target as HTMLInputElement).value);
   }
 
   protected onReason(event: Event): void {

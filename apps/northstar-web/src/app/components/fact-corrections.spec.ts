@@ -890,6 +890,35 @@ describe('FactCorrections', () => {
     expect(buttons.every((item) => !item.disabled && !item.hasAttribute('aria-describedby'))).toBe(true);
   });
 
+  it('asks for the name first, at the top of the panel, and opens up once it is typed', async () => {
+    const page = render({ reviewer: '' });
+    const names: string[] = [];
+    page.fixture.componentInstance.reviewer.subscribe((name) => names.push(name));
+
+    const who = page.host.querySelector('.who') as HTMLElement;
+    const field = who.querySelector('input') as HTMLInputElement;
+    // It comes before the first thing that can be corrected, and stands out while it is empty.
+    const first = page.host.querySelector('ul button') as HTMLButtonElement;
+    expect(who.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(who.classList.contains('who--needed')).toBe(true);
+    expect(squash(who.querySelector('label'))).toBe('Your name');
+    expect(field.getAttribute('aria-describedby')).toBe(who.querySelector('p[id]')?.id);
+    expect(squash(who)).toContain('It is saved with every change you make and remembered for next time.');
+    // A disabled button says why on hover.
+    expect(first.disabled).toBe(true);
+    expect(first.title).toBe('Enter your name first, at the top of this panel');
+
+    field.value = 'Bea';
+    field.dispatchEvent(new Event('input'));
+    await page.settle();
+
+    expect(names).toEqual(['Bea']);
+    expect(who.classList.contains('who--needed')).toBe(false);
+    expect(who.querySelector('p')).toBeNull();
+    expect(first.disabled).toBe(false);
+    expect(first.hasAttribute('title')).toBe(false);
+  });
+
   it('retries a failed save with the same operation id and body; a new action mints a new id', async () => {
     const page = render({ reason: 'Registration papers' });
     await page.correct('Power (kW)', '110');
