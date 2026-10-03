@@ -19,10 +19,17 @@ Keep the latest 10 task entries only.
   Lost: a Volvo XC90 T6 and a Nissan Sunny estate that sat on four-wheel-drive KTypes although the registry
   says not four-wheel drive (now review). Moved: two Suzuki Swift from the 4x4 KType to the two-wheel one.
   After the fill every resolved filled car agrees with its KType's drive (5,339 of 5,339).
-- Risk / next: local only, not pushed. On live it is the two commands after deploy; each write needs the
-  user's yes. Seen on the way, not changed: earlier reviewer rules put rear-wheel drive on 559 Mercedes
-  A-Class/CLA/GLA; about 920 single-motor EX30 carry the family name "EX30 Cross Country"; 15,076 cars
-  have no four-wheel-drive statement at all and stay open.
+- Mercedes A-Class/CLA/GLA: four earlier reviewer rules (is_4wd 0 + brand MERCEDES-BENZ + a list of model
+  texts) set rear-wheel drive for A 200, CLA 180, CLA 200, CLA 200 D, CLA 220 D, CLA 250 E and GLA 250 E
+  together with C- and E-Class. Corrected on the local copy with one override reviewer rule (same
+  conditions, those seven texts, drive type fwd) through `/v1/match-review` (rule-preview, resolution-rules,
+  apply): 559 cars rewritten, C/E untouched. Pilot 20k: 17 of the 18 corrected sample cars went from review
+  to resolved, 0 lost, 0 moved, no other car changed (resolved 14,110, 70.6 %). All 559 on their own: 507
+  resolve, each to a front-wheel-drive KType.
+- Risk / next: local only, not pushed. On live it is the two commands after deploy, and the Mercedes rule
+  has to be created there again (it is data, not code; the rules-bundle loader does not carry `override`).
+  Each write needs the user's yes. Seen on the way, not changed: about 920 single-motor EX30 carry the
+  family name "EX30 Cross Country"; 15,076 cars have no four-wheel-drive statement at all and stay open.
 
 ## 2026-10-03 — Tyre sizes re-read alone for records stopped for them (branch feature/vehicle-corrections)
 
