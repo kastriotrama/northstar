@@ -53,6 +53,8 @@ const REASONS: Record<string, string> = {
   candidate_only_engine_confirmed:
     "A candidate-only KType, confirmed by the car's own engine code.",
   model_inferred_by_rule: "The model came from a learned rule, not the car's own text.",
+  model_asserted_by_person:
+    "The model is the one a person set for this car; the registry's text was not used for it.",
   automatic_candidate_threshold_met: 'The best KType cleared the automatic threshold.',
   resolved_threshold_met: 'Confidence meets the resolved threshold.',
 };

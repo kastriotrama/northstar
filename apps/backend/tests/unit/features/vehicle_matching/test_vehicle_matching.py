@@ -591,10 +591,9 @@ def test_the_real_matcher_is_handed_the_corrected_values() -> None:
     assert len(keys) == 6  # every correction is a different evaluation
 
 
-def test_a_model_family_correction_is_evidence_the_matcher_weighs() -> None:
-    """It fills a model the car lacks and replaces a rule's guess. It does not overrule a
-    registry model text the catalog recognizes: the matcher reads that text first, and
-    registry text is not correctable."""
+def test_a_model_family_correction_is_the_cars_model() -> None:
+    """It fills a model the car lacks, replaces a rule's guess, and stands over a registry
+    model text that names another catalog model: a person looked at this car."""
 
     evaluator = TecDocDryRunEvaluator(
         (VehicleCandidate("1", "Volvo", "V70"), VehicleCandidate("2", "Volvo", "XC70"))
@@ -615,9 +614,44 @@ def test_a_model_family_correction_is_evidence_the_matcher_weighs() -> None:
     assert models(nameless, *guessed, {}) == ("V70",)
     assert models(nameless, *guessed, {"model_family": _set("XC70")}) == ("XC70",)
     assert models(nameless, *guessed, {"model_family": _ignore()}) is None
-    # The registry names a model the catalog knows: the matcher keeps reading that.
+    # The registry names a model the catalog knows. Uncorrected, the matcher reads that text ...
     named = {"brand": "VOLVO", "model": "V70"}
-    assert models(named, {}, {}, {"model_family": _set("XC70")}) == ("V70", "V70")
+    assert models(named, {}, {}, {}) == ("V70", "V70")
+    # ... a person's model stands over it, and is not weighed against the brand text either.
+    assert models(named, {}, {}, {"model_family": _set("XC70")}) == ("XC70",)
+    both = {"brand": "VOLVO V70", "model": "V70"}
+    assert models(both, {}, {}, {"model_family": _set("XC70")}) == ("XC70",)
+    # Marking the model as wrong asserts nothing: the registry text is read again.
+    assert models(named, {"model_family": "V70"}, {}, {"model_family": _ignore()}) == ("V70", "V70")
+    # An undone correction leaves no trace at the matcher.
+    assert models(named, {}, {}, {"model_family": _withdrawn()}) == ("V70", "V70")
+
+
+def test_only_a_corrected_car_tells_the_matcher_what_a_person_asserted() -> None:
+    evaluator = TecDocDryRunEvaluator(
+        (VehicleCandidate("1", "Volvo", "V70"), VehicleCandidate("2", "Volvo", "XC70"))
+    )
+    derived = {"manufacturer": "Volvo", "model_family": "V70", "power_kw": 120}
+    row = _vehicle_row(dict(derived), normalized=derived, raw={"brand": "VOLVO", "model": "V70"})
+
+    plain = _vehicle_car_record(row)
+    assert "asserted_fields" not in plain.record.payload
+    assert evaluator.resolved_query(plain.record).recovery_reason == "model_recovered_from_model"
+
+    corrected = _vehicle_car_record(row, {"model_family": _set("XC70"), "power_kw": _set("125")})
+    # Only the model is named: any other corrected value is weighed like the one it replaced.
+    assert corrected.record.payload["asserted_fields"] == ["model_family"]
+    assert evaluator.resolved_query(corrected.record).recovery_reason == "model_asserted_by_person"
+    assert "asserted_fields" not in _vehicle_car_record(row, {"power_kw": _set("125")}).record.payload
+    # A model a person only marked as wrong is not something they asserted.
+    ignored = _vehicle_car_record(row, {"model_family": _ignore()})
+    assert "asserted_fields" not in ignored.record.payload
+
+    # A correction not saved yet is weighed the same way, so a check shows the true effect.
+    what_if = lay_hypothetical(plain, Hypothetical("model_family", "set", "XC70"))
+    assert what_if.record.payload["asserted_fields"] == ["model_family"]
+    assert evaluator.resolved_query(what_if.record).model_values == ("XC70",)
+    assert "asserted_fields" not in plain.record.payload  # the car read earlier is untouched
 
 
 def test_a_month_without_a_year_gives_the_matcher_no_build_month() -> None:

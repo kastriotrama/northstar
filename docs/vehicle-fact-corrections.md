@@ -38,8 +38,12 @@ matcher reads it from and the vehicle columns that carry the copy.
 - A corrected year or month silences the normalization's own date
   (`production_date`): the build month is then the year and the month the matcher is
   handed, and an ignored one leaves no build month.
-- Registry text (brand, model, variant) is not correctable. The matcher still reads a
-  model from it, and prefers a model text the catalog recognizes over `model_family`.
+- Registry text (brand, model, variant) is not correctable, but a model a person **set**
+  stands over it: the read seam names it in `asserted_fields`, and the matcher then
+  queries that model instead of the one the registry's text names, without weighing the
+  two against each other (reason code `model_asserted_by_person`). A model only marked as
+  wrong asserts nothing, so the registry text is read again. An uncorrected car is handed
+  no `asserted_fields` and is matched exactly as before.
 
 ### Releasing a stopped car
 

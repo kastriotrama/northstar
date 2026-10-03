@@ -289,6 +289,37 @@ def _inferred(overlaid: Mapping[str, str]) -> list[str]:
     return sorted(name for name, source in overlaid.items() if source == SOURCE_RULE)
 
 
+#: Fields the matcher reads differently when a person set them. Only the model:
+#: every other corrected value is weighed exactly like the value it replaced, so
+#: naming it here would make an unchanged value look like a different car.
+_ASSERTABLE_FIELDS: tuple[str, ...] = ("model_family",)
+
+
+def _asserted(overlaid: Mapping[str, str], normalized: Mapping[str, Any]) -> list[str]:
+    """The model a person set for this car (not one a person only marked as wrong).
+
+    The matcher treats it as the car's own model, even where the registry's
+    text names another one.
+    """
+
+    return sorted(
+        name
+        for name in _ASSERTABLE_FIELDS
+        if overlaid.get(name) == "correction" and normalized.get(name) not in (None, "", [])
+    )
+
+
+def _with_asserted(payload: dict[str, Any], overlaid: Mapping[str, str]) -> dict[str, Any]:
+    """The payload with `asserted_fields`, present only for a car a person corrected."""
+
+    normalized = payload.get("normalized")
+    asserted = _asserted(overlaid, normalized if isinstance(normalized, dict) else {})
+    payload.pop("asserted_fields", None)
+    if asserted:
+        payload["asserted_fields"] = asserted
+    return payload
+
+
 def _rule_filled(overlaid: Mapping[str, str]) -> tuple[str, ...]:
     return tuple(sorted(name for name, source in overlaid.items() if source in {"review", "rule"}))
 
@@ -313,6 +344,7 @@ def lay_hypothetical(car: CarRecord, hypothetical: Hypothetical) -> CarRecord:
     )
     payload["normalized"] = normalized
     payload["inferred_fields"] = _inferred(overlaid)
+    payload = _with_asserted(payload, overlaid)
     return replace(
         car,
         manufacturer=normalized.get("manufacturer"),
@@ -576,16 +608,19 @@ def _vehicle_car_record(
     record_id = int(ts_record_id) if ts_record_id else surrogate_record_id(str(vehicle_id))
     record = MatchSourceRecord(
         record_id,
-        {
-            "normalization_status": record_status,
-            "normalized": normalized,
-            "candidates": dict(payload.get("candidates") or {}),
-            "review_reasons": reasons,
-            "source_evidence": {
-                field: raw.get(field) or registry.get(field) for field in SOURCE_EVIDENCE_FIELDS
+        _with_asserted(
+            {
+                "normalization_status": record_status,
+                "normalized": normalized,
+                "candidates": dict(payload.get("candidates") or {}),
+                "review_reasons": reasons,
+                "source_evidence": {
+                    field: raw.get(field) or registry.get(field) for field in SOURCE_EVIDENCE_FIELDS
+                },
+                "inferred_fields": _inferred(overlaid),
             },
-            "inferred_fields": _inferred(overlaid),
-        },
+            overlaid,
+        ),
     )
     return CarRecord(
         source_record_id=int(ts_record_id) if ts_record_id else None,

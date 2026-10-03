@@ -716,15 +716,28 @@ class TecDocDryRunEvaluator:
             if isinstance(inferred_fields, list | tuple) and "model_family" in inferred_fields
             else ""
         )
-        model_values = tuple(
-            dict.fromkeys(
-                str(value).strip()
-                for value in (
-                    None if inferred_model else normalized.get("model_family"),
-                    candidates.get("model_family"),
-                    source_evidence.get("model"),
+        # A model a person set for this car is the car's model: the registry's own
+        # text does not overrule it, and it is not weighed against that text. Only
+        # the read seam sets this, and only for a car a person corrected.
+        asserted_fields = payload.get("asserted_fields")
+        asserted_model = (
+            str(normalized.get("model_family") or "").strip()
+            if isinstance(asserted_fields, list | tuple) and "model_family" in asserted_fields
+            else ""
+        )
+        model_values = (
+            (asserted_model,)
+            if asserted_model
+            else tuple(
+                dict.fromkeys(
+                    str(value).strip()
+                    for value in (
+                        None if inferred_model else normalized.get("model_family"),
+                        candidates.get("model_family"),
+                        source_evidence.get("model"),
+                    )
+                    if str(value or "").strip()
                 )
-                if str(value or "").strip()
             )
         )
         model_evidence = {
@@ -752,7 +765,16 @@ class TecDocDryRunEvaluator:
             inferred_model,
         )
         explicit_model = source_evidence.get("model")
-        if explicit_model:
+        if asserted_model:
+            # Read the way a registry model text is: when it names a catalog model,
+            # that model is queried, with the person's own wording beside it.
+            named = self._alias_index.recover_model_from_evidence(
+                scope_manufacturer, {"model": asserted_model}
+            )
+            if named is not None:
+                model_values = tuple(dict.fromkeys((named[0], asserted_model)))
+            recovery_reason = "model_asserted_by_person"
+        elif explicit_model:
             explicit = self._alias_index.recover_model_from_evidence(
                 scope_manufacturer, {"model": str(explicit_model)}
             )
@@ -811,9 +833,9 @@ class TecDocDryRunEvaluator:
             source_model=str(explicit_model or "") if scope_decision.status == "resolved" else "",
             source_evidence=source_evidence,
         )
-        if source_model_resolution.conflict:
+        if source_model_resolution.conflict and not asserted_model:
             return MatchEvaluation("review_required", ("source_model_rules_conflict",))
-        if source_model_resolution.target_model is not None:
+        if source_model_resolution.target_model is not None and not asserted_model:
             # A reviewed source assertion supplies the family query, not a
             # candidate ID. Every catalog KType still competes through the
             # unchanged matcher; never fall back to a broader source model.
