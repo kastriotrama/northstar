@@ -93,8 +93,27 @@ list. Percentages are of the cars that have a stored result. The earlier "run
 the matcher on a sample" view sits below it, folded, for checking a matcher
 change before a refresh.
 
+## Kept current when a person saves
+
+A saved correction or KType choice refreshes that car's row before the answer
+goes back (`MatchResultSync`, called by the choice and correction services
+after their own transaction). A decision about many cars refreshes the cars
+its corrections name: up to five at once, more on a background thread. A
+refresh that fails is logged and never fails the save; the normal run picks
+the car up, because the vehicle is then newer than its row. Each such save
+writes a run of mode `vehicles`; the overview's "last run" leaves those out.
+
+## In the Vehicles list
+
+`match_result` is a filter field of the Vehicles list, its count and its
+facets (`equals` / `not_equals`; values: the five matcher states plus `chosen`,
+`chosen_none`, `not_evaluated`). It is not a column of `core.vehicles`: it is
+compiled into probes of the stored results by the vehicle's key. Each list row
+also carries `match_result` and `automatic_ktype`, so the KType column shows a
+person's choice, else the accepted KType, else the stored state.
+
 ## Not done yet
 
-- Refreshing a car's row at the moment a correction or a choice is saved; until
-  then the normal run picks such cars up.
-- Match state as a filter in the main Vehicles list.
+- Overview query time has only been measured with a partly filled table.
+- Rows are not refreshed when rules are applied in bulk or records are
+  re-normalized; run the normal refresh after those.

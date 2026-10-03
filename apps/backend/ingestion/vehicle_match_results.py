@@ -141,8 +141,15 @@ def finish_run(
 
 
 def latest_run(connection: Connection[Any]) -> StoredRun | None:
+    """The latest fill, refresh or sample run.
+
+    Runs for named cars are left out: every saved correction or choice makes
+    one for its car, and they would hide the run that says how current the
+    table as a whole is.
+    """
+
     row = connection.execute(
-        f"SELECT {_RUN_COLUMNS} FROM {VEHICLE_MATCH_RUNS_TABLE} "
+        f"SELECT {_RUN_COLUMNS} FROM {VEHICLE_MATCH_RUNS_TABLE} WHERE mode <> 'vehicles' "
         "ORDER BY started_at DESC, run_id DESC LIMIT 1"
     ).fetchone()
     return StoredRun(*row) if row else None

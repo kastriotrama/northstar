@@ -236,6 +236,7 @@ class CorrectionService:
         lookup_vehicle: Callable[[str], VehicleMatchLookup],
         code_version: str,
         what_if: Callable[[str, Hypothetical], MatchOutcome] | None = None,
+        on_saved: Callable[[str], None] | None = None,
     ) -> None:
         self._repository = repository
         self._lookup_vehicle = lookup_vehicle
@@ -244,6 +245,9 @@ class CorrectionService:
         #: top (`VehicleMatchingService.what_if`). Asked only for a car that
         #: resolves today; a service built without it cannot correct such a car.
         self._what_if = what_if
+        #: Told the vehicle once a correction is stored, so what is kept about
+        #: the car elsewhere (its stored match result) can follow. Must not raise.
+        self._on_saved = on_saved
 
     def record(
         self, vehicle_id: str, request: CorrectionRequest
@@ -311,6 +315,8 @@ class CorrectionService:
             ),
             checked_on=lookup.matcher_input_hash,
         )
+        if created and self._on_saved is not None:
+            self._on_saved(vehicle_id)
         # 8. The car is matched again on what is stored now -- also when the same
         #    operation landed between step 1 and the transaction.
         return self._lookup_vehicle(vehicle_id), created

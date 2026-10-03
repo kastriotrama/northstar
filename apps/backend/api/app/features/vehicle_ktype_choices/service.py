@@ -81,10 +81,14 @@ class KTypeChoiceService:
         repository: ChoiceStore,
         lookup_vehicle: Callable[[str], VehicleMatchLookup],
         code_version: str,
+        on_saved: Callable[[str], None] | None = None,
     ) -> None:
         self._repository = repository
         self._lookup_vehicle = lookup_vehicle
         self._code_version = code_version.strip() or "unknown"
+        #: Told the vehicle once a choice is stored, so what is kept about the
+        #: car elsewhere (its stored match result) can follow. Must not raise.
+        self._on_saved = on_saved
 
     def record(
         self, vehicle_id: str, request: KTypeChoiceRequest
@@ -143,6 +147,8 @@ class KTypeChoiceService:
         if not created:
             # The same operation landed between step 1 and the transaction.
             return self._lookup_vehicle(vehicle_id), False
+        if self._on_saved is not None:
+            self._on_saved(vehicle_id)
         # 6. No second evaluation: the row was built from this very lookup.
         state = evidence.assess(row, lookup, True, history_count)
         ktype, source = evidence.effective(state, lookup)

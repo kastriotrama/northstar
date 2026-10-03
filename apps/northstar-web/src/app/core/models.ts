@@ -783,6 +783,10 @@ export interface NorVehicleRow {
   ktype: string | null;
   /** `manual` when a person chose the KType, `manual_none` for "none of these". */
   match_state?: string | null;
+  /** The matcher's stored state for the car; null when it has no stored result. */
+  match_result?: string | null;
+  /** The KType the matcher accepted, from the stored result. */
+  automatic_ktype?: string | null;
   /** Fields whose value a reviewer's rule asserted. */
   review_fields: string[];
   /** Fields a learned enrichment rule filled because no source stated them. */

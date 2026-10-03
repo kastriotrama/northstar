@@ -11,8 +11,10 @@ import { Api } from '../../core/api';
 import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
 import { MatchResults } from '../../components/match-results';
+import { MATCH_RESULT_STATES, matchResultStateLabel } from '../../core/match-result-states';
 import { MatchingSummary } from '../../components/matching-summary';
 import type {
+  MatchResultState,
   NorVehicleRecord,
   NorVehicleRow,
   VehicleCondition,
@@ -144,6 +146,9 @@ export class CarSearchPage implements OnInit {
   protected readonly ktypeChoiceFilters = KTYPE_CHOICE_FILTERS;
   /** Narrow the list to cars whose KType a person decided. */
   protected readonly ktypeChoice = signal<KTypeChoiceFilter>('any');
+  /** Where the car stands with matching, from its stored result; '' is any. */
+  protected readonly matchResultStates = MATCH_RESULT_STATES;
+  protected readonly matchResult = signal<MatchResultState | ''>('');
   /** Passenger cars first: the default view, still just a filter anyone can change. */
   protected readonly vehicleType = signal<VehicleType>('passenger');
   /** Deregistered cars stay visible by default: a plate lookup must still find them. */
@@ -207,6 +212,7 @@ export class CarSearchPage implements OnInit {
       this.vehicleType() !== 'passenger' ||
       this.registryStatus() !== 'any' ||
       this.ktypeChoice() !== 'any' ||
+      this.matchResult() !== '' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -306,6 +312,18 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
+  protected onMatchResult(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const known = MATCH_RESULT_STATES.find((option) => option.key === value);
+    this.matchResult.set(known ? known.key : '');
+    this.search$.next();
+  }
+
+  /** The stored matching state as the list shows it, for a car without a KType. */
+  protected matchResultLabel(state: string): string {
+    return matchResultStateLabel(state);
+  }
+
   protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
@@ -314,6 +332,7 @@ export class CarSearchPage implements OnInit {
     this.vehicleType.set('passenger');
     this.registryStatus.set('any');
     this.ktypeChoice.set('any');
+    this.matchResult.set('');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -435,6 +454,9 @@ export class CarSearchPage implements OnInit {
     const decided = KTYPE_CHOICE_FILTERS.find((option) => option.value === this.ktypeChoice());
     if (decided && decided.states.length) {
       conditions.push({ field: 'match_state', operator: 'equals', values: [...decided.states] });
+    }
+    if (this.matchResult()) {
+      conditions.push({ field: 'match_result', operator: 'equals', values: [this.matchResult()] });
     }
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];

@@ -251,6 +251,7 @@ class DecisionService:
         max_cars: int = 500,
         max_seconds: float = 240,
         run_in_background: bool = True,
+        on_changed: Callable[[UUID], None] | None = None,
     ) -> None:
         self._repository = repository
         self._lookup_vehicle = lookup_vehicle
@@ -260,6 +261,9 @@ class DecisionService:
         self._max_cars = max_cars
         self._max_seconds = max_seconds
         self._run_in_background = run_in_background
+        #: Told the decision once it was applied to, or taken back from, its
+        #: cars, so their stored match results can follow. Must not raise.
+        self._on_changed = on_changed
 
     # ------------------------------------------------------------------------ scopes
 
@@ -444,6 +448,8 @@ class DecisionService:
             stored, created = self._repository.apply(
                 event, [self._member(event, car) for car in members]
             )
+            if created and self._on_changed is not None:
+                self._on_changed(stored.decision_id)
         return _result(stored, plan.scope_label), created
 
     @staticmethod
@@ -518,6 +524,8 @@ class DecisionService:
             reason=request.reason,
             code_version=self._code_version,
         )
+        if created and self._on_changed is not None:
+            self._on_changed(decision_id)
         record = self._repository.decision(decision_id)
         label = str(record.root.scope_label) if record is not None else ""
         return _withdrawal(stored, label), created

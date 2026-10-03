@@ -65,6 +65,22 @@
           }
         </select>
       </label>
+      <label class="field">
+        <span class="field__label">Matching result</span>
+        <select
+          class="field__select"
+          aria-label="Matching result"
+          [value]="matchResult()"
+          (change)="onMatchResult($event)"
+        >
+          <option value="" [selected]="matchResult() === ''">Any</option>
+          @for (option of matchResultStates; track option.key) {
+            <option [value]="option.key" [selected]="matchResult() === option.key" [title]="option.hint">
+              {{ option.label }}
+            </option>
+          }
+        </select>
+      </label>
       @for (facet of facets; track facet.key) {
         <label class="field">
           <span class="field__label">{{ facet.label }}</span>
@@ -234,6 +250,10 @@
                 <span class="badge badge--gap" title="A person decided that no candidate KType is this car">none of these</span>
               } @else if (row.ktype) {
                 <span [class.review]="row.match_state === 'manual'" [title]="row.match_state === 'manual' ? 'Chosen by a person' : ''">{{ row.ktype }}</span>
+              } @else if (row.automatic_ktype) {
+                <span title="Accepted by the matcher (stored result)">{{ row.automatic_ktype }}</span>
+              } @else if (row.match_result) {
+                <span class="badge badge--gap" title="The matcher's stored result for this car">{{ matchResultLabel(row.match_result) }}</span>
               } @else {
                 —
               }

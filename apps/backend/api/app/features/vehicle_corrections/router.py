@@ -63,6 +63,7 @@ from api.app.features.vehicle_corrections.service import (
     ValueUnchangedError,
     VehicleBusyError,
 )
+from api.app.features.vehicle_match_results.router import match_result_sync
 from api.app.features.vehicle_matching.router import (
     ServiceDependency as MatchingServiceDependency,
 )
@@ -97,6 +98,7 @@ def get_correction_service(matching: MatchingServiceDependency) -> CorrectionSer
         matching.lookup_vehicle,
         get_settings().build_version,
         what_if=matching.what_if,
+        on_saved=match_result_sync().vehicle_changed,
     )
 
 
@@ -110,6 +112,7 @@ def get_decision_service(matching: MatchingServiceDependency) -> DecisionService
         settings.build_version,
         max_cars=settings.correction_preview_max_cars,
         max_seconds=settings.correction_preview_max_seconds,
+        on_changed=match_result_sync().decision_changed,
     )
 
 

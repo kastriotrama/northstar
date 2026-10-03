@@ -363,3 +363,27 @@ def test_a_replay_is_judged_on_the_request_not_on_the_evidence(world: _World) ->
     assert replace(row, evidence={}).same_request(
         vehicle_id=VEHICLE_ID, action="choose", ktype="A", reviewer="Ada", reason=None,
         supersedes_choice_id=None)
+
+
+def test_a_stored_choice_is_announced_once_and_a_replay_is_not() -> None:
+    world = _World()
+    saved: list[str] = []
+    service_ = KTypeChoiceService(world.store, world.lookup_vehicle, "abc1234", on_saved=saved.append)
+    request = world.request()
+
+    service_.record(VEHICLE_ID, request)
+    _, created = service_.record(VEHICLE_ID, request)
+
+    assert not created
+    assert saved == [VEHICLE_ID]
+
+
+def test_a_refused_choice_is_not_announced() -> None:
+    world = _World()
+    saved: list[str] = []
+    service_ = KTypeChoiceService(world.store, world.lookup_vehicle, "abc1234", on_saved=saved.append)
+
+    with pytest.raises(KTypeNotACandidateError):
+        service_.record(VEHICLE_ID, world.request(ktype="Z"))
+
+    assert saved == []

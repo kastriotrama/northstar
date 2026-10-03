@@ -78,6 +78,12 @@ class VehicleRow(BaseModel):
     ktype: str | None
     #: `manual` when a person chose the KType, `manual_none` for "none of these".
     match_state: str | None = None
+    #: The matcher's stored state for the car (`resolved`, `several`,
+    #: `one_unconfirmed`, `none`, `not_matchable`); None when it has no stored result.
+    match_result: str | None = None
+    #: The KType the matcher accepted, from the stored result. `ktype` above is
+    #: a person's choice only.
+    automatic_ktype: str | None = None
     #: Fields whose value a person asserted: a reviewer's rule, or a correction
     #: of this one car.
     review_fields: list[str]

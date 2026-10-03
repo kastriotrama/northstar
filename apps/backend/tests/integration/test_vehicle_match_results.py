@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -20,8 +21,11 @@ from api.app.features.vehicle_match_results.refresh import MatchResultRefresher
 from api.app.features.vehicle_match_results.repository import MatchResultRepository
 from api.app.features.vehicle_match_results.schemas import MatchResultCarsRequest
 from api.app.features.vehicle_match_results.service import MatchResultService
+from api.app.features.vehicle_match_results.sync import MatchResultSync
 from api.app.features.vehicle_matching.service import Matcher
+from api.app.features.vehicles.repository import VehicleRepository
 from api.app.features.vehicles.schemas import VehicleCondition, VehicleFilter
+from api.app.features.vehicles.service import VehicleService
 from ingestion.fuzzy_matching import VehicleCandidate
 from ingestion.match_run_service import MatchSourceRecord
 from ingestion.tecdoc.match_run_adapters import MatchEvaluation, ResolvedMatchQuery
@@ -162,6 +166,8 @@ class _World:
         }
         self.refresher = MatchResultRefresher(factory, self._matcher, "build-1", page_size=2)
         self.service = MatchResultService(MatchResultRepository(factory))
+        self.vehicles = VehicleService(VehicleRepository(factory))
+        self.sync = MatchResultSync(lambda: self.refresher, factory, run_in_background=False)
 
     def _matcher(self) -> Matcher:
         return Matcher(self.batch, self.evaluator, self.catalog, "rules-1")  # type: ignore[arg-type]
@@ -467,3 +473,93 @@ def test_a_car_without_a_result_is_listed_as_not_evaluated(db: Connection, world
     assert page.total == 2
     assert all(car.automatic_state is None and car.evaluated_at is None for car in page.cars)
     assert golf not in {car.vehicle_id for car in page.cars}
+
+
+# ------------------------------------------------------------ kept current on a save
+
+
+def test_a_saved_change_refreshes_that_cars_row_at_once(db: Connection, world: _World) -> None:
+    world.refresher.refresh_scope()
+    volvo_id = _vehicle(db)
+    # A value no earlier test left on the car: vehicles keep their changes in this module.
+    db.execute("UPDATE core.vehicles SET power_kw = 155, updated_at = clock_timestamp() "
+               "WHERE vehicle_id = %s", (volvo_id,))
+    db.commit()
+    world.evaluator.script["Volvo"] = MatchEvaluation(
+        "resolved", ("match:automatic",), top_candidate_reference="B",
+        candidate_matches=(_candidate("B"),), confidence=0.95,
+    )
+    assert world.service.overview(VehicleFilter()).changed_since_matched == 1
+
+    world.sync.vehicle_changed(volvo_id)
+
+    overview = world.service.overview(VehicleFilter())
+    assert overview.changed_since_matched == 0
+    assert world.states() == {"resolved": 2, "none": 1}
+    # The run a save makes for its car does not hide the last run over the table.
+    assert overview.latest_run is not None and overview.latest_run.mode == "stale"
+
+
+def test_a_decision_without_cars_reads_the_corrections_table_and_refreshes_nothing(
+    db: Connection, world: _World
+) -> None:
+    calls = world.evaluator.calls
+    world.sync.decision_changed(uuid4())
+    db.commit()
+    assert world.evaluator.calls == calls
+    assert db.execute(f"SELECT count(*) FROM {RUNS}").fetchone() == (0,)
+    db.commit()
+
+
+# ----------------------------------------------------- the main Vehicles list's filter
+
+
+def _listed(world: _World, *states: str, operator: str = "equals") -> list[tuple[str | None, str | None, str | None]]:
+    page = world.vehicles.search(
+        [VehicleCondition(field="match_result", values=list(states), operator=operator)],  # type: ignore[arg-type]
+        "", cursor=None, limit=50,
+    )
+    assert page.matched_rows == len(page.items)
+    return sorted((item.plate, item.match_result, item.automatic_ktype) for item in page.items)
+
+
+def test_the_vehicles_list_filters_on_the_stored_state(db: Connection, world: _World) -> None:
+    assert len(_listed(world, "not_evaluated")) == 3
+    world.refresher.refresh_scope()
+    assert _listed(world, "resolved") == [("GLF001", "resolved", "G")]
+    assert _listed(world, "several") == [("ABC123", "several", None)]
+    assert _listed(world, "several", "none") == [
+        ("ABC123", "several", None), ("AUD001", "none", None),
+    ]
+    assert _listed(world, "not_evaluated") == []
+    assert _listed(world, "resolved", operator="not_equals") == [
+        ("ABC123", "several", None), ("AUD001", "none", None),
+    ]
+
+
+def test_the_vehicles_list_counts_a_decided_car_as_chosen(db: Connection, world: _World) -> None:
+    world.refresher.refresh_scope()
+    db.execute("UPDATE core.vehicles SET match_state = 'manual', ktype = 'B' WHERE vehicle_id = %s",
+               (_vehicle(db),))
+    db.commit()
+    assert _listed(world, "several") == []
+    assert _listed(world, "chosen") == [("ABC123", "several", None)]
+
+
+def test_the_vehicles_list_combines_the_state_with_its_other_filters(
+    db: Connection, world: _World
+) -> None:
+    world.refresher.refresh_scope()
+    page = world.vehicles.search(
+        [
+            VehicleCondition(field="match_result", values=["several", "resolved"]),
+            VehicleCondition(field="manufacturer", values=["Volvo"]),
+        ],
+        "", cursor=None, limit=50,
+    )
+    assert [item.plate for item in page.items] == ["ABC123"]
+    facet = world.vehicles.facet(
+        [VehicleCondition(field="match_result", values=["resolved"])], "",
+        field="manufacturer", limit=10,
+    )
+    assert [(value.value, value.count) for value in facet.values] == [("Volkswagen", 1)]

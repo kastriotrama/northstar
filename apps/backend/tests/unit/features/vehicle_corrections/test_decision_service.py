@@ -605,3 +605,24 @@ def test_a_malformed_check_request_is_refused_by_the_contract(body: dict[str, An
     }
     with pytest.raises(ValidationError):
         PreviewRequest(**values)
+
+
+def test_an_applied_and_a_withdrawn_decision_are_announced_but_a_proposal_is_not() -> None:
+    world = _World()
+    changed: list[Any] = []
+    service_ = DecisionService(
+        world.store, world.lookup_vehicle, lambda: world.matcher, world.jobs, "abc1234",
+        max_cars=500, max_seconds=60, run_in_background=False, on_changed=changed.append,
+    )
+    world.service = service_
+
+    proposed, _ = world.decide(world.check().preview_id, event="propose")
+    assert changed == []
+
+    applied, _ = world.decide(world.check().preview_id)
+    assert changed == [applied.decision_id]
+
+    service_.withdraw(applied.decision_id, DecisionWithdrawRequest(
+        operation_id=uuid4(), reviewer="Bo", reason="wrong group"))
+    assert changed == [applied.decision_id, applied.decision_id]
+    assert proposed.decision_id not in changed

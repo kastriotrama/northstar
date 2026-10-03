@@ -27,6 +27,7 @@ from api.app.features.vehicle_ktype_choices.service import (
     OperationReusedError,
     VehicleBusyError,
 )
+from api.app.features.vehicle_match_results.router import match_result_sync
 from api.app.features.vehicle_matching.router import (
     ServiceDependency as MatchingServiceDependency,
 )
@@ -44,7 +45,10 @@ def _repository() -> KTypeChoiceRepository:
 
 def get_choice_service(matching: MatchingServiceDependency) -> KTypeChoiceService:
     return KTypeChoiceService(
-        _repository(), matching.lookup_vehicle, get_settings().build_version
+        _repository(),
+        matching.lookup_vehicle,
+        get_settings().build_version,
+        on_saved=match_result_sync().vehicle_changed,
     )
 
 

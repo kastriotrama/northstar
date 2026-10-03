@@ -448,4 +448,30 @@ describe('CarSearchPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('NorthStar vehicles appear once');
   });
+
+  it('filters to cars in one stored matching state, and shows the stored KType or state', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    const select = host.querySelector('select[aria-label="Matching result"]') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent?.trim())).toEqual([
+      'Any', 'Resolved', 'Several KTypes', 'One, not confirmed', 'No KType', 'Not matchable',
+      'Chosen by a person', 'None of these', 'Not evaluated yet',
+    ]);
+
+    select.value = 'several';
+    select.dispatchEvent(new Event('change'));
+    const [request] = await settle(fixture);
+    expect(
+      (request.request.body.conditions as { field: string }[]).filter(
+        (condition) => condition.field === 'match_result',
+      ),
+    ).toEqual([{ field: 'match_result', operator: 'equals', values: ['several'] }]);
+
+    const clear = host.querySelector('.search__filters p-button button') as HTMLButtonElement;
+    clear.click();
+    const [cleared] = await settle(fixture);
+    expect(JSON.stringify(cleared.request.body.conditions)).not.toContain('match_result');
+    expect(select.value).toBe('');
+  });
 });

@@ -23,6 +23,7 @@ from ingestion.vehicle_core_query import (
     filterable_column,
     resolve_search,
 )
+from ingestion.vehicle_match_result_migrations import VEHICLE_MATCH_RESULTS_TABLE
 
 
 class ConnectionFactory(Protocol):
@@ -71,6 +72,13 @@ _ASSERTED_FIELDS = (
 # correction of one car `correction:`: all of them are a person's word.
 _PERSON_SOURCES = ["review%", "correction%"]
 _RULE_SOURCES = ["rule%"]
+#: The car's stored match result, read by the vehicle's key: its state and the
+#: KType the matcher accepted. Two index probes a row; no join, so the list's
+#: order and paging stay those of `core.vehicles`.
+_STORED_RESULT = (
+    "(SELECT stored_result.{column} FROM " + VEHICLE_MATCH_RESULTS_TABLE + " AS stored_result "
+    "WHERE stored_result.vehicle_id = {alias}.vehicle_id)"
+)
 LINK_LIMIT = 100
 
 
@@ -107,14 +115,17 @@ class VehicleRepository:
             parameters.append(limit)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted} "
+                    f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted}, "
+                    f"{_STORED_RESULT.format(column='state', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='ktype', alias=ALIAS)} "
                     f"FROM {VEHICLES_TABLE} AS {ALIAS} "
                     f"WHERE {predicate.sql}{cursor_sql} "
                     f"ORDER BY {ALIAS}.vehicle_id LIMIT %s",
                     parameters,
                 )
                 rows = cursor.fetchall()
-        names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields")
+        names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields",
+                 "match_result", "automatic_ktype")
         return [dict(zip(names, row, strict=True)) for row in rows]
 
     def count(self, terms: Sequence[VehicleTerm], text: str) -> int:

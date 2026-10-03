@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Any
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
+from psycopg import Connection
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
+from api.app.features.vehicle_match_results.refresh import MatchResultRefresher
 from api.app.features.vehicle_match_results.repository import MatchResultRepository
 from api.app.features.vehicle_match_results.schemas import (
     MatchResultCarPage,
@@ -17,6 +20,8 @@ from api.app.features.vehicle_match_results.schemas import (
     MatchResultOverview,
 )
 from api.app.features.vehicle_match_results.service import MatchResultService
+from api.app.features.vehicle_match_results.sync import MatchResultSync
+from api.app.features.vehicle_matching.router import _matcher_cache
 from api.app.features.vehicles.schemas import VehicleFilter
 from ingestion.vehicle_facts_query import UnknownFieldError
 
@@ -27,6 +32,19 @@ router = APIRouter(prefix="/v1/vehicles/match-results", tags=["vehicle-match-res
 def _repository() -> MatchResultRepository:
     settings = get_settings()
     return MatchResultRepository(lambda: get_postgres_connection(settings))
+
+
+@lru_cache(maxsize=1)
+def match_result_sync() -> MatchResultSync:
+    """What a saved correction or choice calls so the car's stored result follows."""
+
+    settings = get_settings()
+
+    def connect() -> AbstractContextManager[Connection[Any]]:
+        return get_postgres_connection(settings)
+
+    refresher = MatchResultRefresher(connect, _matcher_cache().get, settings.build_version)
+    return MatchResultSync(lambda: refresher, connect)
 
 
 def get_service() -> MatchResultService:

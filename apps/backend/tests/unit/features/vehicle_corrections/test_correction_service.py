@@ -840,3 +840,17 @@ def test_a_many_cars_check_validates_a_value_exactly_as_one_car_does() -> None:
         service.replaced_value(shown, "engine_code", "set", "DPCA")
     with pytest.raises(NothingToIgnoreError):
         service.replaced_value(shown, "drive_type", "ignore", None)
+
+
+def test_a_stored_correction_is_announced_once_and_a_replay_is_not(world: _World) -> None:
+    saved: list[str] = []
+    service_ = CorrectionService(
+        world.store, world.lookup_vehicle, "abc1234", on_saved=saved.append
+    )
+    request = world.request()
+
+    service_.record(VEHICLE_ID, request)
+    _, created = service_.record(VEHICLE_ID, request)
+
+    assert not created
+    assert saved == [VEHICLE_ID]

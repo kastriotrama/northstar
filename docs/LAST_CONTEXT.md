@@ -22,8 +22,12 @@ Keep the latest 10 task entries only.
 - Web: Vehicles > Matching now shows the stored overview (`ns-match-results`) with the cars behind every
   number (`ns-match-result-cars-dialog`); the live sample run is folded below it. 243 web tests pass and the
   build is clean; one live-API test (`Rules lists the rule catalog`) timed out while the fill held the CPU.
-- Next: refreshing a car's row when a correction or choice is saved, match state as a filter in the
-  Vehicles list, overview query time once all 500k rows exist. Details: `docs/vehicle-match-results.md`.
+- Saves keep the row current: the choice, correction and decision services call `MatchResultSync` after
+  their transaction (never fails the save; more than five cars refresh on a thread). The Vehicles list
+  filters on `match_result` (probes of the stored results, no join) and shows the accepted KType or the
+  stored state per row. Unit 3,066 and integration 517 passed; web 244 passed, build clean.
+- Next: overview query time once all 500k rows exist; refresh after bulk rule application or
+  re-normalization is still the normal run. Details: `docs/vehicle-match-results.md`.
 
 ## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
 
