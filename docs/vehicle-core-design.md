@@ -117,6 +117,23 @@ version, which does not scale to ~368k rules.
 - **Completion** (learned from TS, keyed by make + group code, complete the cars
   AIS adds): EU category, registry brand/model/type text, variant, displacement,
   4WD flag (`TSC-*`).
+- **Drive layout** (`DRV-MY`, reviewed, not learned): which axle a car drives when
+  the registry says it is not four-wheel drive. The registry only says "four-wheel
+  drive: yes/no"; front or rear follows from the model. The table in
+  `ingestion/vehicle_drive_layouts.py` states it per make and model, with build
+  years where a model changed layout (BMW 1 Series, Opel Kadett, Volvo S90) and
+  fuel where the electric version differs (Volvo XC40, Audi A6). A model sold with
+  either axle (Ford Transit, BMW 2 Series) and a changeover year are left out, so
+  those cars stay open. `learn-vehicle-rules --family DRV-MY --activate` turns the
+  table into one rule per make + model + year + fuel present among the cars;
+  `apply-vehicle-rules --family DRV-MY` fills an empty drive type and replaces the
+  generic "two-wheel" value. A drive type a reviewer, AIS or a correction set is
+  never touched, and a four-wheel-drive car is never in scope. A make without a
+  model is stated only for the years in which every car of that make drove the
+  same axle (Volkswagen until 1969, Volvo until 1985). When the table is
+  corrected, running the two commands again takes back what the withdrawn
+  statement filled and fills what the new one covers. Because the rules come from
+  the table and not from statistics, this family is safe to run on a slice.
 - **Model family** (learned from TS, fill the 2.37M registered passenger cars
   whose registry text names only the make or a manufacturer code). A higher bar:
   at least 10 vehicles and 98 % agreement. Tried in this order, most specific

@@ -975,6 +975,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             datastores = DatastoreClients.from_settings(settings)
             filled: dict[str, int] = {}
             refused: dict[str, dict[str, int]] = {}
+            retracted: dict[str, int] = {}
             with datastores.postgres.connect() as connection:
                 run_vehicle_core_migrations(connection)
                 guard = build_model_guard(connection, args.catalog_batch) if needs_guard else None
@@ -983,6 +984,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     filled[family.family] = fill.filled
                     if fill.refused:
                         refused[family.family] = fill.refused
+                    if fill.retracted:
+                        retracted[family.family] = fill.retracted
                     connection.commit()
         except Exception as error:  # noqa: BLE001
             logger.error(
@@ -990,7 +993,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 extra={"error_code": type(error).__name__},
             )
             return 1
-        print(json.dumps({"filled": filled, "refused": refused}, sort_keys=True))
+        print(json.dumps({"filled": filled, "refused": refused, "retracted": retracted},
+                         sort_keys=True))
         return 0
 
     if args.command == "check-model-fills":

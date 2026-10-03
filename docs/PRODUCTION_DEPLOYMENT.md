@@ -318,6 +318,10 @@ Follow-up on the pilot, in this order:
 Never run `learn-vehicle-rules` on a slice: it learns from the cars it sees, so
 on 500,000 cars it would lose support for, and with `--activate` retire, rules
 the full build supports. Rules are learned on the full build and shipped.
+The one exception is the reviewed drive layout family, whose rules come from a
+table in the code and not from the cars: `learn-vehicle-rules --family DRV-MY
+--activate`, then `apply-vehicle-rules --family DRV-MY`. Always name the family;
+the bare command learns every family.
 
 Also not for the pilot, because they assume the full build:
 `build-match-chunks` (a newer build hides every reviewer rule),

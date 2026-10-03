@@ -2,6 +2,28 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — Drive type chosen per make and model for cars the registry marks as not four-wheel drive (branch feature/vehicle-corrections)
+
+- `ingestion/vehicle_drive_layouts.py`: a reviewed table of which axle a model drives (726 make + model
+  entries, year ranges where a model changed layout or was four-wheel drive only, fuel where the electric
+  version differs, and a make without a model only for years in which the whole make agreed). Uncertain
+  cases have no entry: Ford Transit, BMW 2 Series, Renault Master, changeover years.
+- New rule family `DRV-MY` (`learner="reviewed"`): `learn-vehicle-rules --family DRV-MY --activate` turns the
+  table into rules for the make/model/year/fuel keys present; `apply-vehicle-rules --family DRV-MY` fills an
+  empty drive type and replaces the generic two-wheel value, only for cars with
+  `registry_all_wheel_drive IS FALSE`. A drive type from a reviewer, AIS or a correction is not touched.
+  A corrected table statement takes its fills back on the next apply (`retract_retired_fills`).
+- Validation: unit 3,000 and integration 482 passed, ruff clean, mypy clean on api + ingestion. On a copy
+  of the 500k pilot: 194,116 of 202,273 cars filled (fwd/rwd), 8,157 left open, apply 18 s. Pilot 20k
+  against the state before: resolved 13,624 -> 14,093 (68.1 % -> 70.5 %); 471 gained, 2 lost, 2 moved.
+  Lost: a Volvo XC90 T6 and a Nissan Sunny estate that sat on four-wheel-drive KTypes although the registry
+  says not four-wheel drive (now review). Moved: two Suzuki Swift from the 4x4 KType to the two-wheel one.
+  After the fill every resolved filled car agrees with its KType's drive (5,339 of 5,339).
+- Risk / next: local only, not pushed. On live it is the two commands after deploy; each write needs the
+  user's yes. Seen on the way, not changed: earlier reviewer rules put rear-wheel drive on 559 Mercedes
+  A-Class/CLA/GLA; about 920 single-motor EX30 carry the family name "EX30 Cross Country"; 15,076 cars
+  have no four-wheel-drive statement at all and stay open.
+
 ## 2026-10-03 — Tyre sizes re-read alone for records stopped for them (branch feature/vehicle-corrections)
 
 - `northstar-ingest reparse-tyre-sizes [--write]` (`ingestion/tyre_reparse.py`): for records whose latest
@@ -192,19 +214,3 @@ Keep the latest 10 task entries only.
   resolved, agreeing with the 30k's 64.2%. Hard conflicts 1,115: power 487, engine code 356, displacement
   208 (197 within 10 cc -- exact-equality comparison), year 142. Engine codes: 35 are the same engine in
   another format ("H5H-470, H5H-480"), BMW "M57-TU2D30" vs "M57 D30" ~70. Body conflicts 288 (MPV vs SUV 65).
-
-## 2026-10-01 — More model family gaps: chassis codes, VIN model year, classics (local, uncommitted)
-
-- Guard reads "GR" as Grand when the spelled-out text names the filled family (Grand Voyager/Vitara).
-- New family MOD-VINY (VIN descriptor + model-year character; holdout 99.98%, 99.5% where the VIN
-  alone is ambiguous). Reviewed chassis codes checked against TecDoc's codes (Honda RD/EU/CG..., Renault
-  BA/JA/KA/KC, Ford P3TS/GNR), aliases (Trans Am -> Firebird, MCC -> City-coupe, M3 -> 3 Series),
-  Stellantis "e-" versions, Volvo P120/111xx (Amazon, PV 544), classic names (Cortina, Spitfire,
-  Valiant, Fiat 124/128, Austin/BMC Mini...). An alias never competes with a TS name ("allroad").
-- Caught: BMW "2002"/"1602"/"2000" are TecDoc versions, not families -- a filled "2002" lost a 2002
-  Turbo on the 30k; names removed, 109 rules retired, 2,004 fills taken back.
-- Local DB: registered passenger cars without model family 256,738 -> 224,888 (279,453 at the start of
-  this pass); check-model-fills 0 contradictions. 30k 64.0% -> 64.1%.
-- Validation: 1,787 tests pass; ruff/mypy clean; Golf Variant test still awaits a decision.
-- Needs decisions: classic Mercedes numbers (~40k, TS has no names before ~1990), classic VW Type 1
-  (~20k) and 1500/1600 (~6k), FORD MUSTANG text shared with Mach-E (~5k), campers/ambulances (~10k).

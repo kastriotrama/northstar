@@ -51,6 +51,7 @@ from ingestion.vehicle_core_store import (
     record_ledger_rows,
     save_vehicles,
 )
+from ingestion.vehicle_drive_layouts import drive_layout
 from ingestion.vehicle_model_patterns import (
     MISREAD_STATED_FAMILIES,
     REVIEWED_MODEL_NAMES,
@@ -67,6 +68,9 @@ PATTERN_SOURCE = "reviewed-pattern"
 STATISTICS_FAMILY_OF_PATTERNS = "MOD-BT"
 #: The family that learns which brand-text words name which make.
 MAKE_WORD_FAMILY = "MFR-BW"
+
+#: The family that states a two-wheel-drive car's driven axle from the reviewed table.
+DRIVE_LAYOUT_FAMILY = "DRV-MY"
 
 DEFAULT_MIN_SUPPORT = 5
 DEFAULT_MIN_AGREEMENT = 0.95
@@ -85,7 +89,11 @@ class RuleFamily:
     min_agreement: float = DEFAULT_MIN_AGREEMENT
     #: "statistics": learned from agreeing vehicles. "patterns": proposed by the
     #: reviewed patterns in `vehicle_model_patterns`, then checked against them.
-    learner: Literal["statistics", "patterns"] = "statistics"
+    #: "reviewed": stated by a reviewed table (`vehicle_drive_layouts`), key by key.
+    learner: Literal["statistics", "patterns", "reviewed"] = "statistics"
+    #: Values of the target that count as empty for this family: a generic value
+    #: the family's own, more specific one replaces.
+    replaces: tuple[str, ...] = ()
 
 
 #: Keys computed from a vehicle's columns rather than read from one. A VIN's first
@@ -125,6 +133,13 @@ KEY_EXPRESSIONS: dict[str, str] = {
         "CASE WHEN btrim({alias}registry_model_text) <> '' "
         "THEN upper(btrim({alias}registry_model_text)) END"
     ),
+    # The drive layout's key. A missing model, year or fuel is a value of its own
+    # ("-"), so a rule can state "this make, whatever the model". The key exists
+    # only for a car the registry marks as not four-wheel drive.
+    "drive_model": "coalesce({alias}model_family, '-')",
+    "drive_year": "coalesce({alias}production_year::text, '-')",
+    "drive_fuel": "coalesce({alias}fuel, '-')",
+    "two_wheel_drive": "CASE WHEN {alias}registry_all_wheel_drive IS FALSE THEN 'yes' END",
 }
 
 
@@ -199,6 +214,14 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
     RuleFamily("MOD-PAT", "model_family", ("registry_make_code", "brand_token"),
                PATTERN_SOURCE, "enrichment", "Model family read from the brand text by reviewed patterns",
                min_support=1, min_agreement=0.98, learner="patterns"),
+    # Which axle a two-wheel-drive car drives is a property of its model. Stated by
+    # the reviewed table, never learned; it also replaces the generic "2wd".
+    RuleFamily(DRIVE_LAYOUT_FAMILY, "drive_type",
+               ("manufacturer", "drive_model", "drive_year", "drive_fuel", "two_wheel_drive"),
+               "reviewed-drive-layouts", "enrichment",
+               "Drive type by make, model, build year and fuel, for cars the registry marks "
+               "as not four-wheel drive",
+               min_support=1, min_agreement=1.0, learner="reviewed", replaces=("2wd",)),
     RuleFamily("TSC-EU", "eu_category", ("registry_make_code", "group_code"),
                SOURCE_TS, "completion", "EU category by make and group code"),
     RuleFamily("TSC-BRAND", "registry_brand_text", ("registry_make_code", "group_code"),
@@ -289,6 +312,8 @@ def learn_rules(
     agreement = family.min_agreement if min_agreement is None else min_agreement
     if family.learner == "patterns":
         return pattern_rules(connection, family, min_support=support, min_agreement=agreement)
+    if family.learner == "reviewed":
+        return drive_layout_rules(connection, family)
     with connection.cursor() as cursor:
         cursor.execute(learn_statement(family), (family.learned_from, support, agreement))
         rows = cursor.fetchall()
@@ -305,6 +330,44 @@ def learn_rules(
         )
         for keys, value, n, total in rows
     ]
+
+
+def drive_layout_rules(connection: Connection, family: RuleFamily) -> list[LearnedRule]:
+    """One rule per make, model, build year and fuel the reviewed table states a layout for.
+
+    The keys are those present among the cars the registry marks as not
+    four-wheel drive, whether or not they have a drive type yet, so the family's
+    rules stay the same from run to run. Support is the number of such cars.
+    """
+
+    keys = ", ".join(f"{key_sql(field)}::text" for field in family.key_fields)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT manufacturer, model_family, production_year, fuel, ARRAY[{keys}], count(*) "
+            f"FROM {VEHICLES_TABLE} "
+            "WHERE registry_all_wheel_drive IS FALSE AND manufacturer IS NOT NULL "
+            "GROUP BY 1, 2, 3, 4, 5"
+        )
+        rows = cursor.fetchall()
+    rules = []
+    for manufacturer, model, year, fuel, key_values, cars in rows:
+        layout = drive_layout(manufacturer, model, year, fuel)
+        if layout is None:
+            continue
+        values = tuple(str(value) for value in key_values)
+        rules.append(
+            LearnedRule(
+                rule_id=rule_id_for(family.family, values, layout),
+                family=family.family,
+                target_field=family.target_field,
+                key_fields=family.key_fields,
+                key_values=values,
+                value=layout,
+                support=int(cars),
+                agreement=1.0,
+            )
+        )
+    return rules
 
 
 #: A make's model families as TS spells them: what a pattern may answer with. A
@@ -635,6 +698,8 @@ class ApplySummary:
     filled: int = 0
     #: Fills the model guard refused, by reason.
     refused: dict[str, int] = field(default_factory=dict)
+    #: Fills taken back because the reviewed statement behind them was withdrawn.
+    retracted: int = 0
 
 
 class ModelChecker(Protocol):
@@ -681,6 +746,8 @@ def apply_rules(
             raise ValueError(f"{family.family} fills models: pass a guard (the catalog batch)")
         return _apply_guarded(connection, family, guard, source_batch_id)
     target = family.target_field
+    # A reviewed statement that was corrected must not stay on the cars it filled.
+    retracted = retract_retired_fills(connection, family) if family.learner == "reviewed" else 0
     sql_type = FIELDS_BY_NAME[target].sql_type
     cast = {"integer": "::integer", "smallint": "::smallint", "boolean": "::boolean"}.get(sql_type, "")
     key_match = " AND ".join(
@@ -703,13 +770,13 @@ def apply_rules(
                     updated_at = now()
                 FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
                 WHERE r.rule_family = %s AND r.status = 'active'
-                  AND v.{target} IS NULL
+                  AND (v.{target} IS NULL OR v.{target}::text = ANY(%s))
                   AND {key_match}
                 RETURNING v.vehicle_id, r.rule_id, r.value, r.agreement
             )
             SELECT vehicle_id, rule_id, value, agreement FROM filled
             """,
-            (family.family,),
+            (family.family, list(family.replaces)),
         )
         rows = cursor.fetchall()
     record_ledger_rows(
@@ -727,7 +794,36 @@ def apply_rules(
             for vehicle_id, rule_id, value, agreement in rows
         ],
     )
-    return ApplySummary(family.family, filled=len(rows))
+    return ApplySummary(family.family, filled=len(rows), retracted=retracted)
+
+
+def retract_retired_fills(connection: Connection, family: RuleFamily) -> int:
+    """Take back what the family's retired rules filled; a rule still active keeps its fills.
+
+    For a reviewed family: when a statement in the table is corrected, its rule is
+    retired by `store_rules`, and the value it put on cars goes with it. A car the
+    corrected table still covers is filled again by the apply that follows.
+    """
+
+    target = family.target_field
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT v.vehicle_id, r.rule_id
+            FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
+            JOIN {VEHICLES_TABLE} AS v ON v.field_sources ->> %s = 'rule:' || r.rule_id
+            WHERE r.rule_family = %s AND r.status = 'retired'
+            """,
+            (target, family.family),
+        )
+        fills = [(str(vehicle_id), str(rule_id)) for vehicle_id, rule_id in cursor.fetchall()]
+    for start in range(0, len(fills), _RETRACT_PAGE):
+        page = dict(fills[start : start + _RETRACT_PAGE])
+        states = load_vehicles(connection, list(page))
+        for vehicle_id, state in states.items():
+            retract(state, target, SOURCE_RULE, page[vehicle_id])
+        save_vehicles(connection, states.values())
+    return len(fills)
 
 
 #: Years either side of a number rule's learned era it still fills.
