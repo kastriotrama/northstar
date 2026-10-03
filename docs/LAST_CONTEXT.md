@@ -2,6 +2,23 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — Tyre sizes re-read alone for records stopped for them (branch feature/vehicle-corrections)
+
+- `northstar-ingest reparse-tyre-sizes [--write]` (`ingestion/tyre_reparse.py`): for records whose latest
+  normalization carries `tyre_size_unrecognized`, today's tyre step runs on the raw tyre texts only; where
+  they read, a new result is appended with the tyre keys replaced, the reason removed and the status that
+  follows (label `<old pipeline>+tyres-v12`). Every other value, candidate and reason is carried over; a
+  typo leaves the record as it is. Vehicles are refreshed through `refresh_vehicle_core_records`, and
+  `vehicle_facts.norm_status` follows. Dry run by default; a second run writes nothing.
+- Validation: unit 2,968 and integration 479 passed, ruff and mypy clean. On a copy of the 500k pilot:
+  7,189 stopped records, 4,653 readable now (4,044 resolved, 583 provisional, 26 still in review),
+  2,536 still unread, 4,273 vehicles refreshed, 11 s. Pilot 20k against its baseline: 177 cars left the
+  normalization stop (40 resolved, 9 provisional, 96 review, 32 hard conflict); 0 lost, 0 moved, no other
+  car changed.
+- Risk / next: local only. On live it is one command after the code is deployed, and a write that needs
+  the user's yes. The other normalization stops (type-approval format, AIS-only cars without reasons)
+  are untouched.
+
 ## 2026-10-03 — A person corrects a car's data, for one car or the cars like it (branch feature/vehicle-corrections)
 
 - One car (committed earlier on the branch): append-only `core.vehicle_fact_corrections` (set / ignore /
@@ -191,22 +208,3 @@ Keep the latest 10 task entries only.
 - Validation: 1,787 tests pass; ruff/mypy clean; Golf Variant test still awaits a decision.
 - Needs decisions: classic Mercedes numbers (~40k, TS has no names before ~1990), classic VW Type 1
   (~20k) and 1500/1600 (~6k), FORD MUSTANG text shared with Mach-E (~5k), campers/ambulances (~10k).
-
-## 2026-09-30 — Model family and manufacturer gaps across the registry (local, uncommitted)
-
-- Reviewed model names (`REVIEWED_MODEL_NAMES`, ~70 makes: ID.7 Tourer, EV3, EV9, bZ4X, Tipo, Punto,
-  Atto 3...), longest-name reading of model and brand text (trims, repeated makes, make aliases like
-  "VW", "GR" = Grand, Volvo "S + V70", Lexus "IS200", one chassis code in front: "FORD DAW FOCUS"),
-  most-used spelling per name ("RAV4" not "Rav 4"), Volvo classic codes (Amazon, 140, 164, P 1800,
-  Duett, 340, 440, 460), Saab model numbers. New families MFR-BW (manufacturer from the brand text's
-  first word: AIS codes "PO"/"CU" missed Polestar/Cupra) and MOD-BRT (brand text reader).
-- Guarded by review: dropped Trans Am (TS files it under Firebird; 915 fills taken back), "SLC" after a
-  number (450 SLC is TecDoc's SL Coupe), "E-" prefixes, codes that start a family name ("ID. POLO").
-  Changed/retired rules retired with retire_rule before re-applying. check-model-fills: 0 contradictions.
-- Local DB: registered passenger cars without model family 648,695 -> 279,453; without manufacturer
-  39,824 -> 3,939. 30k: 63.5% -> 63.9% (+137 over five runs, 0 lost, 0 moved).
-- Validation: 1,767 tests pass; ruff/mypy clean; `test_source_model_rules` still awaits the Golf Variant
-  decision.
-- Open: classic VW Beetle naming (Beetle vs TecDoc KAEFER, ~20k), FORD MUSTANG text shared with Mach-E,
-  guard reading ignores "GR" (Grand Voyager/Vitara refused, ~3.7k), 173k pre-1990 classics, 13.8k with
-  only the make, camper/ambulance conversions left unfilled on purpose.
