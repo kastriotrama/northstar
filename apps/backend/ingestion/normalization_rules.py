@@ -994,15 +994,7 @@ def normalize_ts_record(
             and reason not in {"generic_custom_identity_unverified"}
         ]
 
-    if reasons:
-        status: NormalizationStatus = "review_required"
-        confidence = 0.55
-    elif candidates or normalized.get("model_family_candidate"):
-        status = "provisional"
-        confidence = 0.8
-    else:
-        status = "resolved"
-        confidence = 0.95
+    status, confidence = outcome_status(reasons, candidates, normalized)
 
     return NormalizationOutcome(
         status=status,
@@ -2275,6 +2267,37 @@ def _apply_emission_class(context: NormalizationContext) -> None:
     normalized[rule.canonical_field] = rule.canonical_value
     context.applied_rule_ids.append(rule.rule_id)
     _record_dictionary_match(context, rule, source_field="emission_class", source_term=text)
+
+
+TYRE_REVIEW_REASON = "tyre_size_unrecognized"
+
+
+def outcome_status(
+    reasons: Sequence[str], candidates: Mapping[str, Any], normalized: Mapping[str, Any]
+) -> tuple[NormalizationStatus, float]:
+    """A result's status and confidence from what is left open in it."""
+
+    if reasons:
+        return "review_required", 0.55
+    if candidates or normalized.get("model_family_candidate"):
+        return "provisional", 0.8
+    return "resolved", 0.95
+
+
+def read_tyres(
+    raw_record: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], tuple[str, ...]]:
+    """The tyre step alone on one registry record: normalized keys, candidates, reasons.
+
+    For re-reading the tyre sizes of records an older parser rejected without
+    normalizing the records again.
+    """
+
+    context = NormalizationContext(
+        {name: raw_record.get(name) for name in ("tyre_front", "tyre_rear")}
+    )
+    _apply_tyres(context)
+    return context.normalized, context.candidates, tuple(dict.fromkeys(context.review_reasons))
 
 
 def _apply_tyres(context: NormalizationContext) -> None:

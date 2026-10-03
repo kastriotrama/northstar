@@ -44,6 +44,7 @@ from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
+from ingestion.tyre_reparse import reparse_tyre_sizes
 from ingestion.vehicle_core_ais import import_ais_extract
 from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
 from ingestion.vehicle_core_rules import (
@@ -339,6 +340,15 @@ def build_parser() -> argparse.ArgumentParser:
     check_fills_parser.add_argument("--catalog-batch", required=True)
     check_fills_parser.add_argument("--retract", action="store_true",
                                     help="Take back the contradicted fills.")
+
+    tyre_parser = subparsers.add_parser(
+        "reparse-tyre-sizes",
+        help=("Read the tyre sizes of records stopped for them again with today's parser, "
+              "leaving every other normalized value as it is. Without --write nothing is "
+              "written: the counts are a dry run."),
+    )
+    tyre_parser.add_argument("--write", action="store_true",
+                             help="Append the re-read results and refresh their vehicles.")
 
     chunk_parser = subparsers.add_parser(
         "build-match-chunks",
@@ -1001,6 +1011,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             "checked": checked.checked, "contradicted": checked.contradicted,
             "retracted": checked.retracted, "examples": checked.examples,
         }, sort_keys=True, default=str, ensure_ascii=False))
+        return 0
+
+    if args.command == "reparse-tyre-sizes":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                reparsed = reparse_tyre_sizes(connection, dry_run=not args.write)
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Re-reading tyre sizes stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"written": args.write, **reparsed.to_json()}, sort_keys=True))
         return 0
 
     if args.command == "build-match-chunks":
