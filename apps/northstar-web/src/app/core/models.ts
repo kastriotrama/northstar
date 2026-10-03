@@ -1429,3 +1429,101 @@ export interface MatchSummaryJob {
   /** Partial while running, final once done. */
   summary: MatchSummary;
 }
+
+/**
+ * Where a car stands with matching, read from stored results. A person's choice
+ * outranks the matcher (`chosen`, `chosen_none`); `not_evaluated` is a car with
+ * no stored result yet.
+ */
+export type MatchResultState =
+  | 'resolved'
+  | 'several'
+  | 'one_unconfirmed'
+  | 'none'
+  | 'not_matchable'
+  | 'chosen'
+  | 'chosen_none'
+  | 'not_evaluated';
+
+export interface MatchResultRun {
+  run_id: string;
+  mode: string;
+  status: string;
+  catalog_batch: string;
+  matcher_version: string;
+  target: number;
+  evaluated: number;
+  unchanged: number;
+  started_at: string;
+  finished_at: string | null;
+}
+
+/** Matching statistics of a Vehicles filter, from stored results -- the matcher is not run. */
+export interface MatchResultOverview {
+  total: number;
+  states: Array<{ state: MatchResultState; cars: number }>;
+  terminals: Array<{ value: string; cars: number }>;
+  several_candidate_counts: Record<string, number>;
+  candidate_limit: number;
+  several_separating_fields: Array<{ field: string; cars: number }>;
+  several_missing_fields: Array<{ field: string; cars: number }>;
+  none_conflicting_fields: Array<{ field: string; cars: number }>;
+  none_without_candidates: number;
+  not_matchable_reasons: Array<{ reason: string; cars: number }>;
+  /** Cars whose vehicle changed after it was matched: the stored result may be out of date. */
+  changed_since_matched: number;
+  catalog_batches: Array<{ value: string; cars: number }>;
+  matcher_versions: Array<{ value: string; cars: number }>;
+  latest_run: MatchResultRun | null;
+}
+
+/** What narrows a state's car list to one cause. */
+export interface MatchResultNarrowing {
+  missing_field?: string;
+  separating_field?: string;
+  conflicting_field?: string;
+  reason?: string;
+  ktype?: string;
+  candidate_count?: number;
+}
+
+export interface MatchResultCarsRequest extends MatchResultNarrowing {
+  conditions: VehicleCondition[];
+  text: string;
+  state: MatchResultState;
+  after?: string | null;
+  limit?: number;
+}
+
+export interface MatchResultCar {
+  vehicle_id: string;
+  plate: string | null;
+  vin: string | null;
+  manufacturer: string | null;
+  model_family: string | null;
+  production_year: number | null;
+  state: MatchResultState;
+  automatic_state: string | null;
+  terminal: string | null;
+  /** The KType in force: a person's choice, else the one the matcher accepted. */
+  ktype: string | null;
+  automatic_ktype: string | null;
+  best_candidate_ktype: string | null;
+  confidence: number | null;
+  /** The possible KTypes, best first, with the matcher's confidence in each. */
+  candidate_ktypes: string[];
+  candidate_confidences: number[];
+  separating_fields: string[];
+  missing_fields: string[];
+  conflicting_fields: string[];
+  reason_codes: string[];
+  evaluated_at: string | null;
+  changed_since_matched: boolean;
+}
+
+export interface MatchResultCarPage {
+  state: MatchResultState;
+  total: number;
+  cars: MatchResultCar[];
+  next_after: string | null;
+}

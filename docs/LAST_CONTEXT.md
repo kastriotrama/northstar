@@ -2,7 +2,7 @@
 
 Keep the latest 10 task entries only.
 
-## 2026-10-03 — Stored match results: statistics and car lists read from a table (branch feature/vehicle-match-results, uncommitted)
+## 2026-10-03 — Stored match results: statistics and car lists read from a table (branch feature/vehicle-match-results)
 
 - New `core.vehicle_match_results` (one row per NOR ID, foreign key to `core.vehicles`) and
   `core.vehicle_match_runs`. A row holds the state (`resolved`, `several`, `one_unconfirmed`, `none`,
@@ -19,8 +19,11 @@ Keep the latest 10 task entries only.
 - Local copy `northstar_pilot_corr`: 10k sample in 445 s with 4 workers (22.5 cars/s): resolved 7,016,
   several 1,646, one unconfirmed 397, none 573, not matchable 368. A second run of the same sample: 0 matched,
   10,000 unchanged in 10 s. Overview of all 500k: 1.1 s; a state's car page: 0.02 s. Full fill started.
-- Next: the web screen, refreshing a car's row when a correction or choice is saved, match state as a filter
-  in the Vehicles list, overview query time once all 500k rows exist. Details: `docs/vehicle-match-results.md`.
+- Web: Vehicles > Matching now shows the stored overview (`ns-match-results`) with the cars behind every
+  number (`ns-match-result-cars-dialog`); the live sample run is folded below it. 243 web tests pass and the
+  build is clean; one live-API test (`Rules lists the rule catalog`) timed out while the fill held the CPU.
+- Next: refreshing a car's row when a correction or choice is saved, match state as a filter in the
+  Vehicles list, overview query time once all 500k rows exist. Details: `docs/vehicle-match-results.md`.
 
 ## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
 

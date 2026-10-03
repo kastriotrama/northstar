@@ -164,11 +164,23 @@
       </div>
 
       @if (view() === 'matching') {
-        <ns-matching-summary
+        <ns-match-results
           [conditions]="currentConditions()"
           [text]="currentText()"
           (pick)="openExample($event)"
         />
+        <details class="live-run">
+          <summary>Run the matcher live on a sample of this filter</summary>
+          <p class="live-run__note">
+            For checking a matcher or data change before the stored results are refreshed. It does
+            not change the stored results above.
+          </p>
+          <ns-matching-summary
+            [conditions]="currentConditions()"
+            [text]="currentText()"
+            (pick)="openExample($event)"
+          />
+        </details>
       } @else if (view() === 'decisions') {
         <ns-correction-decisions (changed)="onDecisionUndone()" />
       } @else {

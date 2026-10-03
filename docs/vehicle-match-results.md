@@ -84,9 +84,17 @@ rows until a `--rebuild`. The overview lists the matcher versions present.
 Each page of cars is committed on its own. The tables are created by
 `migrate-vehicle-core` (every deploy) and are carried by the pilot builder.
 
+## On screen
+
+Vehicles, Matching tab (`ns-match-results`): the overview of the current filter
+as tiles and breakdowns; every number opens the cars behind it
+(`ns-match-result-cars-dialog`), and the picked car is matched live beside the
+list. Percentages are of the cars that have a stored result. The earlier "run
+the matcher on a sample" view sits below it, folded, for checking a matcher
+change before a refresh.
+
 ## Not done yet
 
-- The web screen for the overview and the car lists.
 - Refreshing a car's row at the moment a correction or a choice is saved; until
   then the normal run picks such cars up.
 - Match state as a filter in the main Vehicles list.

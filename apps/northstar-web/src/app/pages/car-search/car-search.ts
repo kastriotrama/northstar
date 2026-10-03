@@ -10,6 +10,7 @@ import { TagModule } from '@openng/optimus-ui/tag';
 import { Api } from '../../core/api';
 import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
+import { MatchResults } from '../../components/match-results';
 import { MatchingSummary } from '../../components/matching-summary';
 import type {
   NorVehicleRecord,
@@ -127,6 +128,7 @@ const PAGE_SIZE = 50;
     TagModule,
     CorrectionDecisions,
     KTypeCandidates,
+    MatchResults,
     MatchingSummary,
   ],
   templateUrl: './car-search.html',
@@ -174,7 +176,7 @@ export class CarSearchPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Cars list, or the matching summary over the same filter. */
+  /** Cars list, or the stored matching results of the same filter. */
   protected readonly view = signal<'cars' | 'matching' | 'decisions'>('cars');
   /** The filter exactly as the car list is queried with it, for the matching view. */
   protected readonly currentConditions = computed(() => this.request().conditions);

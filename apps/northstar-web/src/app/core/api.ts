@@ -56,9 +56,13 @@ import type {
   UnresolvedSummary,
   MatchBucket,
   MatchCarPage,
+  MatchResultCarPage,
+  MatchResultCarsRequest,
+  MatchResultOverview,
   MatchSummaryJob,
   MatchSummaryRequest,
   VehicleMatchLookup,
+  VehicleCondition,
   VehicleCount,
   VehicleDetail,
   VehicleFacet,
@@ -759,6 +763,25 @@ export class Api {
   cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {
     return this.http.delete<MatchSummaryJob>(
       `${this.base}/v1/vehicles/matching/summary/${jobId}`,
+    );
+  }
+
+  /** Matching statistics of a Vehicles filter, read from stored results (no matcher run). */
+  matchResultOverview(filter: {
+    conditions: VehicleCondition[];
+    text: string;
+  }): Observable<MatchResultOverview> {
+    return this.http.post<MatchResultOverview>(
+      `${this.base}/v1/vehicles/match-results/overview`,
+      filter,
+    );
+  }
+
+  /** The cars behind one state of the overview, a page at a time. */
+  matchResultCars(request: MatchResultCarsRequest): Observable<MatchResultCarPage> {
+    return this.http.post<MatchResultCarPage>(
+      `${this.base}/v1/vehicles/match-results/cars`,
+      request,
     );
   }
 
