@@ -13,12 +13,18 @@ import { MatchingSummary } from '../../components/matching-summary';
 import type {
   NorVehicleRecord,
   NorVehicleRow,
-  ValueSource,
   VehicleCondition,
-  VehicleFieldValue,
   VehicleMatchLookup,
   VehicleSearchRequest,
 } from '../../core/models';
+import {
+  fieldGroups,
+  fieldSourceLabel,
+  showFieldValue,
+  showValue,
+  sourceDetail,
+  sourceLabel,
+} from '../../core/vehicle-record';
 import {
   VEHICLE_TYPES,
   type VehicleType,
@@ -74,24 +80,6 @@ export const KTYPE_CHOICE_FILTERS: ReadonlyArray<{
   { value: 'none', label: '“None of these”', states: ['manual_none'] },
 ];
 
-/** What the stored match state means, in the words the matching panel uses. */
-const MATCH_STATE_LABELS: Record<string, string> = {
-  manual: 'KType chosen by a person',
-  manual_none: '“None of these”, decided by a person',
-};
-
-/** The two fields a person's KType choice writes; their "review" source is that choice. */
-const CHOICE_FIELDS: readonly string[] = ['ktype', 'match_state'];
-
-const SOURCE_LABELS: Record<string, string> = {
-  transportstyrelsen: 'TS',
-  ais: 'AIS',
-  review: 'Review',
-  rule: 'Learned rule',
-  derived: 'Derived',
-  correction: "A person's correction",
-};
-
 /** The list's columns a person may correct, by how the row holds them. */
 const ROW_TEXT = ['manufacturer', 'model_family', 'engine_code', 'drive_type', 'bodywork_form'] as const;
 const ROW_NUMBERS = ['production_year', 'power_kw', 'displacement_cc'] as const;
@@ -113,16 +101,6 @@ function correctedValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
   }
   return values;
 }
-
-const GROUP_LABELS: Record<string, string> = {
-  identity: 'Identity and status',
-  make: 'Make and model',
-  technical: 'Technical',
-  dates: 'Dates',
-  physical: 'Physical',
-  match: 'TecDoc match',
-  normalization: 'Normalization',
-};
 
 const PAGE_SIZE = 50;
 
@@ -206,28 +184,7 @@ export class CarSearchPage implements OnInit {
   protected readonly recordError = signal<string | null>(null);
 
   /** The open vehicle's fields in their groups, empty ones folded away. */
-  protected readonly groups = computed(() => {
-    const current = this.record();
-    if (!current) return [];
-    const order: string[] = [];
-    const byGroup = new Map<string, VehicleFieldValue[]>();
-    for (const field of current.fields) {
-      if (!byGroup.has(field.group)) {
-        byGroup.set(field.group, []);
-        order.push(field.group);
-      }
-      byGroup.get(field.group)?.push(field);
-    }
-    return order.map((group) => {
-      const fields = byGroup.get(group) ?? [];
-      return {
-        group,
-        label: GROUP_LABELS[group] ?? group,
-        filled: fields.filter((field) => !this.isEmpty(field.value)),
-        empty: fields.filter((field) => this.isEmpty(field.value)).length,
-      };
-    });
-  });
+  protected readonly groups = computed(() => fieldGroups(this.record()));
   /** The open vehicle's current plate: from its record once loaded, else from its row. */
   protected readonly openPlate = computed(() => {
     const current = this.plates().find((plate) => plate.current);
@@ -441,51 +398,12 @@ export class CarSearchPage implements OnInit {
     return null;
   }
 
-  protected sourceLabel(source: ValueSource): string {
-    return SOURCE_LABELS[source.source] ?? source.source;
-  }
-
-  /** A field's source badge: a person's KType choice is not a reviewer's rule. */
-  protected fieldSourceLabel(field: VehicleFieldValue): string {
-    if (!field.source) return '';
-    if (field.source.source === 'review' && CHOICE_FIELDS.includes(field.field)) {
-      return "A person's choice";
-    }
-    return this.sourceLabel(field.source);
-  }
-
-  /** A field's value in words where the stored code would not be understood. */
-  protected showField(field: VehicleFieldValue): string {
-    if (field.field === 'match_state' && typeof field.value === 'string') {
-      return MATCH_STATE_LABELS[field.value] ?? field.value;
-    }
-    return this.show(field.value);
-  }
-
-  /** The source's own reference when it says something a reader can use. */
-  protected sourceDetail(source: ValueSource): string {
-    const parts: string[] = [];
-    if (source.source === 'rule' && source.ref) parts.push(source.ref);
-    if (source.observed_on) parts.push(source.observed_on);
-    return parts.join(' · ');
-  }
-
-  protected isEmpty(value: unknown): boolean {
-    return (
-      value === null ||
-      value === undefined ||
-      value === '' ||
-      (Array.isArray(value) && value.length === 0)
-    );
-  }
-
-  /** Values are arbitrary JSON; show them as plain text. */
-  protected show(value: unknown): string {
-    if (this.isEmpty(value)) return '—';
-    if (Array.isArray(value)) return value.map((item) => this.show(item)).join(', ');
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  }
+  // The record's wording is shared with the Matched cars dialog (`core/vehicle-record`).
+  protected readonly sourceLabel = sourceLabel;
+  protected readonly fieldSourceLabel = fieldSourceLabel;
+  protected readonly showField = showFieldValue;
+  protected readonly sourceDetail = sourceDetail;
+  protected readonly show = showValue;
 
   private request(): VehicleSearchRequest {
     return { conditions: this.conditions(), text: this.text().trim() };

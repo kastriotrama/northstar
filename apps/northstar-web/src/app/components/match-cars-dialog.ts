@@ -12,15 +12,25 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { Subscription, catchError, map, of, startWith, switchMap } from 'rxjs';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { DialogModule } from '@openng/optimus-ui/dialog';
 
 import { Api } from '../core/api';
 import { describeReason, fieldName } from '../core/match-reasons';
-import type { MatchBucket, MatchCarRow, MatchSummaryJob } from '../core/models';
+import type { MatchBucket, MatchCarRow, MatchSummaryJob, NorVehicleRecord } from '../core/models';
 import { KTypeCandidates } from './ktype-candidates';
+import { VehicleFacts } from './vehicle-facts';
+
+/** The picked car's own record: what the car is, beside what it could be matched to. */
+interface RecordState {
+  loading: boolean;
+  error: string | null;
+  record: NorVehicleRecord | null;
+}
+
+const NO_RECORD: RecordState = { loading: false, error: null, record: null };
 
 const PAGE = 100;
 
@@ -33,14 +43,15 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string }> = [
 
 /**
  * The cars behind a Matching run's counts, one bucket at a time, beside the car
- * picked from the list: which KTypes it could be, and how each one lost.
+ * picked from the list: the car's own information, which KTypes it could be, and
+ * how each one lost.
  *
  * Buckets switch in place, so one, several and none read on the same screen.
  */
 @Component({
   selector: 'ns-match-cars-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, ButtonModule, DialogModule, KTypeCandidates],
+  imports: [DecimalPipe, ButtonModule, DialogModule, KTypeCandidates, VehicleFacts],
   template: `
     <p-dialog
       header="Matched cars"
@@ -133,12 +144,22 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string }> = [
               }
             </div>
             @if (car.vehicle_id) {
-              <ns-ktype-candidates [vehicleId]="car.vehicle_id" />
+              <details class="info" open>
+                <summary>Car information</summary>
+                @if (record().record; as found) {
+                  <ns-vehicle-facts [record]="found" />
+                } @else if (record().error; as text) {
+                  <p class="error" role="alert">{{ text }}</p>
+                } @else if (record().loading) {
+                  <p class="muted">Loading…</p>
+                }
+              </details>
+              <ns-ktype-candidates [vehicleId]="car.vehicle_id" (choiceChanged)="refreshRecord()" />
             } @else {
               <p class="muted">This car has no NorthStar vehicle to match on its own.</p>
             }
           } @else {
-            <p class="muted">Pick a car to see its KTypes, what each is missing and how it lost.</p>
+            <p class="muted">Pick a car to see its information, its KTypes, what each is missing and how it lost.</p>
           }
         </section>
       </div>
@@ -169,6 +190,8 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string }> = [
     }
     @media (max-width: 900px) { .detail { border-left: 0; padding-left: 0; } }
     .detail__head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem; font-weight: 600; }
+    .info { margin-bottom: 0.7rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--p-surface-200); }
+    .info > summary { cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .c-plate { width: 5.5rem; }
     .c-car { width: 22%; }
@@ -205,6 +228,14 @@ export class MatchCarsDialog {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly selected = signal<MatchCarRow | null>(null);
+  /** The picked car's record, so its information reads here without opening the car. */
+  protected readonly record = signal<RecordState>(NO_RECORD);
+  /** Bumped when the picked car was corrected or decided here: its record is read again. */
+  private readonly recordTurn = signal(0);
+  private readonly recordAsk = computed(() => ({
+    id: this.selected()?.vehicle_id ?? null,
+    turn: this.recordTurn(),
+  }));
   private request: Subscription | null = null;
   /** The job object is replaced on every poll; only a different run should reload. */
   private readonly jobId = computed(() => this.job().job_id);
@@ -225,6 +256,28 @@ export class MatchCarsDialog {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.request?.unsubscribe());
+    toObservable(this.recordAsk)
+      .pipe(
+        switchMap(({ id }) => {
+          if (id === null) return of(NO_RECORD);
+          const read = this.api.vehicleRecord(id).pipe(
+            map((record): RecordState => ({ loading: false, error: null, record })),
+            catchError(() =>
+              of<RecordState>({
+                loading: false,
+                error: "Could not load this car's information.",
+                record: null,
+              }),
+            ),
+          );
+          // Reading the same car again keeps what is shown until the new record arrives.
+          return this.record().record?.vehicle_id === id
+            ? read
+            : read.pipe(startWith<RecordState>({ loading: true, error: null, record: null }));
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((state) => this.record.set(state));
     // Opening, switching bucket or switching run starts the list over.
     effect(() => {
       const open = this.visible();
@@ -289,5 +342,10 @@ export class MatchCarsDialog {
 
   protected openCar(car: MatchCarRow): void {
     if (car.vehicle_id) this.pick.emit(car.vehicle_id);
+  }
+
+  /** A choice or a correction was saved for the picked car: its values may have changed. */
+  protected refreshRecord(): void {
+    this.recordTurn.update((turn) => turn + 1);
   }
 }
