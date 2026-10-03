@@ -30,6 +30,10 @@ Keep the latest 10 task entries only.
   ruff and mypy clean; web 218 tests passed, build OK. End to end on a copy of the 500k pilot through the
   API: a 255-car check was refused (fixes 76, harms 160), a 5-car decision applied, replayed and undone.
   Not done: an independent review of the corrections code, and clicking the many-car screens by hand.
+- A model a person set stands over the registry's model text (`asserted_fields` from the read seam,
+  reason `model_asserted_by_person`); measured on the pilot 20k against its baseline: 0 gained, 0 lost,
+  0 moved, no car different. A "Decisions" tab on the Vehicles page lists the many-car decisions and
+  undoes one as a whole.
 - Risk / next: live's corrections and decisions are not carried into a pilot rebuild (no export/import);
   checks live in one API process's memory; measuring a proposal on all cars is not built.
 
