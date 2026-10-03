@@ -81,7 +81,7 @@ def test_only_these_slice_tables_carry_a_predicate_besides_their_key() -> None:
         "staging.transportstyrelsen_raw", "core.normalization_results", "core.vehicle_facts",
         "core.review_queue", "core.vehicles", "core.vehicle_identifiers",
         "core.vehicle_source_links", "core.enrichment_ledger", "core.vehicle_ktype_choices",
-        "core.vehicle_fact_corrections",
+        "core.vehicle_fact_corrections", "core.vehicle_match_results",
     }
 
 
@@ -150,10 +150,10 @@ def test_only_the_recounted_counters_are_left_out_of_the_content_check() -> None
     }
 
 
-def test_the_schema_comes_from_all_seventeen_migration_sets() -> None:
+def test_the_schema_comes_from_all_eighteen_migration_sets() -> None:
     names = [name for name, _ in PILOT_MIGRATIONS]
-    assert len(names) == 17
-    assert len(set(names)) == 17
+    assert len(names) == 18
+    assert len(set(names)) == 18
     # People's KType choices reference core.vehicles: the API's lookups read the
     # table, so a pilot without it answers 503.
     assert names.index("vehicle core") < names.index("vehicle ktype choices")

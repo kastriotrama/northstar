@@ -77,6 +77,11 @@ from ingestion.vehicle_ktype_choice_migrations import (
     VEHICLE_KTYPE_CHOICES_TABLE,
     run_vehicle_ktype_choice_migrations,
 )
+from ingestion.vehicle_match_result_migrations import (
+    VEHICLE_MATCH_RESULTS_TABLE,
+    VEHICLE_MATCH_RUNS_TABLE,
+    run_vehicle_match_result_migrations,
+)
 
 PILOT_SCHEMAS: tuple[str, ...] = ("core", "staging")
 # The match impact report's seed, imported rather than repeated: with it the
@@ -122,10 +127,11 @@ class PilotBuildError(RuntimeError):
     """The build refused to start or could not finish; the message is safe to print."""
 
 
-# The repo has no single "migrate everything" command. These are the seventeen
-# migration sets, in the order verified on an empty database. Three have a
-# foreign key into another: people's KType choices and their corrections of a
-# car's data reference core.vehicles, so those sets follow "vehicle core", and a
+# The repo has no single "migrate everything" command. These are the eighteen
+# migration sets, in the order verified on an empty database. Four have a
+# foreign key into another: people's KType choices, their corrections of a
+# car's data and the stored match results reference core.vehicles, so those
+# sets follow "vehicle core", and a
 # correction a decision about many cars wrote names that decision, so the
 # decisions come before the corrections. Without them the API's vehicle lookups
 # fail on the pilot.
@@ -141,6 +147,7 @@ PILOT_MIGRATIONS: tuple[tuple[str, Callable[[Connection[Any]], tuple[str, ...]]]
     ("vehicle ktype choices", run_vehicle_ktype_choice_migrations),
     ("vehicle correction decisions", run_vehicle_correction_decision_migrations),
     ("vehicle fact corrections", run_vehicle_fact_correction_migrations),
+    ("vehicle match results", run_vehicle_match_result_migrations),
     ("normalization", run_normalization_migrations),
     ("rule definitions", run_rule_definition_migrations),
     ("match chunks", run_match_chunk_migrations),
@@ -266,6 +273,12 @@ PILOT_TABLES: tuple[TableSpec, ...] = (
     # refuses a cut that would leave a corrected car behind.
     _slice(VEHICLE_FACT_CORRECTIONS_TABLE, "vehicle_id", "vehicles",
            "people's corrections of a car's data, by vehicle"),
+    # The stored outcome of matching: the runs whole (few rows, and every result
+    # names its run), then the slice's own results. Recomputable, but carrying
+    # them spares the pilot a rebuild of several hours.
+    _whole(VEHICLE_MATCH_RUNS_TABLE, "fills and refreshes of the stored match results"),
+    _slice(VEHICLE_MATCH_RESULTS_TABLE, "vehicle_id", "vehicles",
+           "the stored outcome of matching, by vehicle"),
     # -- bookkeeping the app reads
     _whole("core.ingest_job_runs", "batch pickers, rule application runs, the AIS claim"),
     _whole("core.match_runs", "only runs a reviewer decision belongs to",

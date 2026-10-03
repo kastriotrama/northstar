@@ -31,6 +31,7 @@ from ingestion.vehicle_facts import STAGING_TABLE, refresh_vehicle_facts
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
 from ingestion.vehicle_ktype_choice_migrations import run_vehicle_ktype_choice_migrations
+from ingestion.vehicle_match_result_migrations import run_vehicle_match_result_migrations
 
 
 def prepare_schema(connection: Connection) -> None:
@@ -45,6 +46,7 @@ def prepare_schema(connection: Connection) -> None:
     # A correction a decision wrote names that decision: its table comes first.
     run_vehicle_correction_decision_migrations(connection)
     run_vehicle_fact_correction_migrations(connection)
+    run_vehicle_match_result_migrations(connection)
     connection.commit()
 
 

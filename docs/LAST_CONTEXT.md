@@ -2,6 +2,26 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — Stored match results: statistics and car lists read from a table (branch feature/vehicle-match-results, uncommitted)
+
+- New `core.vehicle_match_results` (one row per NOR ID, foreign key to `core.vehicles`) and
+  `core.vehicle_match_runs`. A row holds the state (`resolved`, `several`, `one_unconfirmed`, `none`,
+  `not_matchable`), the accepted KType (only when resolved), the possible KTypes with confidences, the
+  separating / missing / conflicting fields, reason codes, catalog batch, matcher version and the hash of
+  what the matcher was handed. A cache: overwritten on re-match; a person's choice stays in its own table.
+- Read side, never the matcher: `POST /v1/vehicles/match-results/overview` and `.../cars` take the Vehicles
+  filter; a person's choice counts as `chosen` / `chosen_none`, a car without a row as `not_evaluated`.
+- Writer `scripts/refresh_vehicle_match_results.py`: new and changed cars by default (timestamps select, the
+  input hash decides), `--sample N`, `--rebuild`, `--vehicle`; each page of 1,000 commits on its own.
+  Created by `migrate-vehicle-core`; the pilot builder carries both tables (18 migration sets).
+- Validation: unit 3,049 and integration 512 passed (run separately: two files named `test_tyre_reparse.py`
+  collide when collected together), ruff clean, mypy clean on api + ingestion + northstar.
+- Local copy `northstar_pilot_corr`: 10k sample in 445 s with 4 workers (22.5 cars/s): resolved 7,016,
+  several 1,646, one unconfirmed 397, none 573, not matchable 368. A second run of the same sample: 0 matched,
+  10,000 unchanged in 10 s. Overview of all 500k: 1.1 s; a state's car page: 0.02 s. Full fill started.
+- Next: the web screen, refreshing a car's row when a correction or choice is saved, match state as a filter
+  in the Vehicles list, overview query time once all 500k rows exist. Details: `docs/vehicle-match-results.md`.
+
 ## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
 
 - 23,233 of the 500k cars had no real drive type after `DRV-MY`: 15,076 with no four-wheel-drive statement
@@ -209,18 +229,3 @@ Keep the latest 10 task entries only.
   Qashqai +2, C4 Cactus). Every lost/moved car checked; local API points at prod-v4.
 - Next: non-tie diagnosis workflow (candidate-only, power, model missing/text, normalization, engine,
   body, other conflicts, rule-filled models) -> plan; ties stay for manual choice.
-
-## 2026-10-01 — prod-v4 (v2 + TecDoc months) and build-month matching (local, uncommitted)
-
-- Composed `tecdoc-0326-canonical-full-prod-v4-20261001`: every row of prod-v2 (incl. the 829 transmission
-  entities and gearbox attributes from Table 547) + `month_from`/`month_to` from prod-v3. Verified: equal
-  counts, 0 rows differing from v2 beyond the month keys, 0 month values differing from v3, 0 links
-  differing. The Mac mini's 0326 delivery lacks Tables 547-549 (why v3 had no transmissions).
-- Ported the parked month code (`wip/build-month-matching` 2ac626d) onto the working tree.
-- 30k 64.2% -> 65.4% (+410 / -42 lost / 16 moved); independent 20k 64.1% -> 65.4% (+279 / -30 / 11).
-  Lost go to review, mostly builds 1-3 months before TecDoc's start month; some were wrong before (i20
-  built 04/2014 had resolved to the i20 II starting 11/2014). Moves mostly right (Legacy V, XC60 I);
-  4 doubtful (Pajero -> Pajero Sport, Ibiza -> Ibiza SC).
-- Boundary tolerance on the changed cars (both samples): 0 months +686/-72/27 moved; 1 month
-  +563/-52/17; 2 months +444/-37/16; 3 months +341/-21/14. Decision pending; the API still pins prod-v2.
-- The report refuses to compare runs on different catalog batches; compared car by car with a scratch script.

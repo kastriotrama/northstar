@@ -352,10 +352,11 @@ def test_a_missing_ais_export_fails_without_touching_the_database(
     assert main(["import-ais-vin-export", "--file", str(tmp_path / "missing.xml")]) == 1
 
 
-def test_vehicle_core_migration_also_creates_the_choice_and_correction_tables(
+def test_vehicle_core_migration_also_creates_the_choice_correction_and_result_tables(
     monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
 ) -> None:
-    """The deploy's schema step is `migrate-vehicle-core`: choices and corrections ride on it."""
+    """The deploy's schema step is `migrate-vehicle-core`: choices, corrections and the
+    stored match results ride on it."""
 
     from contextlib import nullcontext
     from types import SimpleNamespace
@@ -381,16 +382,17 @@ def test_vehicle_core_migration_also_creates_the_choice_and_correction_tables(
         cli, "run_vehicle_correction_decision_migrations", step("correction decisions")
     )
     monkeypatch.setattr(cli, "run_vehicle_fact_correction_migrations", step("fact corrections"))
+    monkeypatch.setattr(cli, "run_vehicle_match_result_migrations", step("match results"))
 
     assert main(["migrate-vehicle-core"]) == 0
     # A correction a decision wrote references that decision: its table comes first.
     assert order == [
         "ledger", "jobs", "vehicle core", "ktype choices", "correction decisions",
-        "fact corrections",
+        "fact corrections", "match results",
     ]
     assert (
         '"applied": ["vehicle core", "ktype choices", "correction decisions", '
-        '"fact corrections"]'
+        '"fact corrections", "match results"]'
     ) in (
         capsys.readouterr().out
     )
