@@ -21,8 +21,15 @@ Keep the latest 10 task entries only.
   tables, copies slice corrections and all decisions, refuses a cut that leaves a corrected car behind;
   the runbook counts corrections and decisions on live before a switch. Details:
   `docs/vehicle-fact-corrections.md`.
+- Web: `ns-fact-corrections` (one car, release of a stopped car) and `ns-correction-preview` ("Apply to",
+  the check, apply, propose, both undo paths) in the Candidate KTypes panel. The Matched cars dialog shows
+  the picked car's own information (`ns-vehicle-facts`: id, status, VIN, values in groups with their
+  sources) above its KTypes; the record's wording is shared with the Vehicles panel in
+  `core/vehicle-record.ts`.
 - Validation: backend unit 2,962 passed (1 expected xfail), integration 474 passed (throwaway databases),
-  ruff and mypy clean. Web half and its gates are a separate change.
+  ruff and mypy clean; web 218 tests passed, build OK. End to end on a copy of the 500k pilot through the
+  API: a 255-car check was refused (fixes 76, harms 160), a 5-car decision applied, replayed and undone.
+  Not done: an independent review of the corrections code, and clicking the many-car screens by hand.
 - Risk / next: live's corrections and decisions are not carried into a pilot rebuild (no export/import);
   checks live in one API process's memory; measuring a proposal on all cars is not built.
 
