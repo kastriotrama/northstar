@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api-config';
 import type {
+  CorrectionDecisionList,
   CorrectionDecisionRequest,
   CorrectionDecisionResult,
   CorrectionOutcome,
@@ -708,6 +709,13 @@ export class Api {
       `${this.base}/v1/vehicle-corrections/decisions`,
       body,
     );
+  }
+
+  /** The decisions made for several cars at once, newest first. */
+  correctionDecisions(limit = 100): Observable<CorrectionDecisionList> {
+    return this.http.get<CorrectionDecisionList>(`${this.base}/v1/vehicle-corrections/decisions`, {
+      params: params({ limit }),
+    });
   }
 
   /** Undo a decision on every car it still stands on; cars a person changed since are left. */

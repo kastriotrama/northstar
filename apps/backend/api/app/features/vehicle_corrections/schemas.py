@@ -540,6 +540,8 @@ class DecisionSummary(BaseModel):
     decision_id: UUID
     status: DecisionStatus
     field: str
+    #: The field in words ("Engine code"); the field's own name when it is unknown here.
+    field_label: str = ""
     action: ManyCarsAction
     value: str | None
     scope_label: str

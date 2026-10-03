@@ -1307,6 +1307,42 @@ export interface CorrectionWithdrawal {
   scope_label?: string;
 }
 
+/** One step in a many-car decision's life: proposed, applied, undone. */
+export interface CorrectionDecisionEvent {
+  event_id: string;
+  event: 'propose' | 'apply' | 'withdraw';
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+}
+
+/** One decision for several cars, as the Decisions overview lists it. */
+export interface CorrectionDecisionSummary {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  field: string;
+  /** The field in words ("Engine code"). */
+  field_label?: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  /** Which cars, in the sentence the person saw when deciding. */
+  scope_label: string;
+  manufacturer: string;
+  model_family: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  /** Cars the decision wrote; 0 for a proposal. */
+  member_count: number;
+  /** The check the decision rests on: `affected`, `checked`, `gained`, `lost`, `moved`, `worse`. */
+  measurement: Record<string, unknown>;
+  events: CorrectionDecisionEvent[];
+}
+
+export interface CorrectionDecisionList {
+  decisions: CorrectionDecisionSummary[];
+}
+
 /** The decision for several cars a car's correction came from. */
 export interface CorrectionDecisionRef {
   decision_id: string;

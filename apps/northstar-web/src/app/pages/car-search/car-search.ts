@@ -8,6 +8,7 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
+import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
 import { MatchingSummary } from '../../components/matching-summary';
 import type {
@@ -124,6 +125,7 @@ const PAGE_SIZE = 50;
     InputTextModule,
     TableModule,
     TagModule,
+    CorrectionDecisions,
     KTypeCandidates,
     MatchingSummary,
   ],
@@ -173,7 +175,7 @@ export class CarSearchPage implements OnInit {
   protected readonly error = signal<string | null>(null);
 
   /** Cars list, or the matching summary over the same filter. */
-  protected readonly view = signal<'cars' | 'matching'>('cars');
+  protected readonly view = signal<'cars' | 'matching' | 'decisions'>('cars');
   /** The filter exactly as the car list is queried with it, for the matching view. */
   protected readonly currentConditions = computed(() => this.request().conditions);
   protected readonly currentText = computed(() => this.request().text);
@@ -390,6 +392,12 @@ export class CarSearchPage implements OnInit {
   protected close(): void {
     this.openId.set(null);
     this.record.set(null);
+  }
+
+  /** A decision for several cars was undone: the open car may be one of them, so read it again. */
+  protected onDecisionUndone(): void {
+    const open = this.openId();
+    if (open) this.open$.next(open);
   }
 
   protected isAsserted(row: NorVehicleRow, field: string): 'review' | 'rule' | null {

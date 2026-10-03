@@ -551,6 +551,7 @@ def test_decisions_are_listed_with_what_who_why_and_where_they_stand(world: _Wor
 
     assert listed == one
     assert (one.status, one.field, one.action, one.value) == ("withdrawn", "drive_type", "set", "fwd")
+    assert one.field_label == "Drive type"  # the overview names the field in words
     assert (one.reviewer, one.reason, one.member_count) == ("Ada", "checked the papers", 3)
     assert (one.manufacturer, one.model_family, one.scope["kind"]) == ("VOLVO", "V70", "like_this")
     assert [(event.event, event.reviewer) for event in one.events] == [

@@ -151,6 +151,16 @@
         >
           Matching
         </button>
+        <button
+          type="button"
+          role="tab"
+          class="views__tab"
+          [class.views__tab--active]="view() === 'decisions'"
+          [attr.aria-selected]="view() === 'decisions'"
+          (click)="view.set('decisions')"
+        >
+          Decisions
+        </button>
       </div>
 
       @if (view() === 'matching') {
@@ -159,6 +169,8 @@
           [text]="currentText()"
           (pick)="openExample($event)"
         />
+      } @else if (view() === 'decisions') {
+        <ns-correction-decisions (changed)="onDecisionUndone()" />
       } @else {
       <p-table [value]="rows()" [scrollable]="true" scrollHeight="62vh" styleClass="p-datatable-sm">
         <ng-template pTemplate="header">

@@ -21,6 +21,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 from uuid import UUID
 
+from api.app.features.vehicle_corrections import fields as correction_fields
 from api.app.features.vehicle_corrections import scope
 from api.app.features.vehicle_corrections.decision_repository import (
     DecisionRejectedError,
@@ -202,12 +203,18 @@ def _withdrawal(event: StoredDecisionEvent, scope_label: str) -> DecisionWithdra
     )
 
 
+def _field_label(field: str) -> str:
+    spec = correction_fields.SPECS.get(field)
+    return spec.label if spec is not None else field
+
+
 def _summary(record: DecisionRecord) -> DecisionSummary:
     root = record.root
     return DecisionSummary(
         decision_id=root.decision_id,
         status=record.status,
         field=str(root.field),
+        field_label=_field_label(str(root.field)),
         action=root.action or "set",
         value=root.value,
         scope_label=str(root.scope_label),

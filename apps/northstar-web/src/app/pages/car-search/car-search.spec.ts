@@ -354,6 +354,29 @@ describe('CarSearchPage', () => {
     expect(select.value).toBe('any');
   });
 
+  it('lists the decisions made for several cars on their own tab', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const tab = [...host.querySelectorAll<HTMLButtonElement>('button[role="tab"]')].find(
+      (item) => item.textContent?.trim() === 'Decisions',
+    );
+    tab?.click();
+    fixture.detectChanges();
+
+    expect(tab?.getAttribute('aria-selected')).toBe('true');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url.endsWith('/v1/vehicle-corrections/decisions'))
+      .flush({ decisions: [] });
+    fixture.detectChanges();
+    expect(host.querySelector('ns-correction-decisions')?.textContent).toContain(
+      'No correction has been applied to several cars yet.',
+    );
+    // The car list gives way to the overview, as it does for the Matching view.
+    expect(host.querySelector('tbody tr')).toBeNull();
+  });
+
   it('filters by registry status', async () => {
     const fixture = render();
     await settle(fixture);
