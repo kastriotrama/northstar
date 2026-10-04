@@ -240,3 +240,26 @@ def test_ts_record_endpoints_moved_off_the_vehicles_prefix(client: TestClient) -
     assert "/v1/ts-records/{source_record_id}/full" in paths
     assert "/v1/vehicles/{vehicle_id}" in paths
     assert "/v1/vehicles/count" not in paths
+
+
+def test_a_list_row_carries_the_match_state_of_a_persons_choice() -> None:
+    from api.app.features.vehicles.repository import LIST_COLUMNS
+    from api.app.features.vehicles.schemas import VehicleRow
+
+    assert "match_state" in LIST_COLUMNS and "ktype" in LIST_COLUMNS
+    assert VehicleRow.model_fields["match_state"].default is None
+    assert "match_state" in FILTERABLE_FIELDS
+
+
+def test_a_persons_ktype_choice_reads_as_a_review_source_naming_the_choice() -> None:
+    choice = "5b1f0f6e-3a0e-4b5e-9a57-0c1d2e3f4a5b"
+    vehicle = _vehicle(ktype="12345", match_state="manual")
+    vehicle["field_sources"] = {
+        **dict(vehicle.get("field_sources") or {}),
+        "ktype": f"review:{choice}@2026-10-02",
+    }
+
+    source = next(item for item in field_values(vehicle) if item.field == "ktype").source
+
+    assert source is not None
+    assert (source.source, source.ref, source.observed_on) == ("review", choice, date(2026, 10, 2))

@@ -44,6 +44,7 @@ from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.tecdoc.promotion_job import run_full_canonical_promotion
 from ingestion.tecdoc.remote_match_run import run_local_raw_dry_match_audit
 from ingestion.tecdoc.resolution_migrations import run_tecdoc_resolution_migrations
+from ingestion.tyre_reparse import reparse_tyre_sizes
 from ingestion.vehicle_core_ais import import_ais_extract
 from ingestion.vehicle_core_migrations import run_vehicle_core_migrations
 from ingestion.vehicle_core_rules import (
@@ -56,6 +57,10 @@ from ingestion.vehicle_core_rules import learn_rules as learn_vehicle_rules
 from ingestion.vehicle_core_rules import store_rules as store_vehicle_rules
 from ingestion.vehicle_core_ts import DEFAULT_PAGE_SIZE as CORE_PAGE_SIZE
 from ingestion.vehicle_core_ts import backfill_vehicle_core
+from ingestion.vehicle_correction_decision_migrations import (
+    run_vehicle_correction_decision_migrations,
+)
+from ingestion.vehicle_fact_correction_migrations import run_vehicle_fact_correction_migrations
 from ingestion.vehicle_facts import (
     DEFAULT_PAGE_SIZE,
     backfill_canonical_columns,
@@ -64,6 +69,8 @@ from ingestion.vehicle_facts import (
 )
 from ingestion.vehicle_facts_dedupe import dedupe_vehicle_facts
 from ingestion.vehicle_facts_migrations import run_vehicle_facts_migrations
+from ingestion.vehicle_ktype_choice_migrations import run_vehicle_ktype_choice_migrations
+from ingestion.vehicle_match_result_migrations import run_vehicle_match_result_migrations
 from ingestion.vehicle_model_guard import build_model_guard
 from ingestion.vocabulary_alignment import (
     fetch_approved_alignments,
@@ -334,6 +341,15 @@ def build_parser() -> argparse.ArgumentParser:
     check_fills_parser.add_argument("--catalog-batch", required=True)
     check_fills_parser.add_argument("--retract", action="store_true",
                                     help="Take back the contradicted fills.")
+
+    tyre_parser = subparsers.add_parser(
+        "reparse-tyre-sizes",
+        help=("Read the tyre sizes of records stopped for them again with today's parser, "
+              "leaving every other normalized value as it is. Without --write nothing is "
+              "written: the counts are a dry run."),
+    )
+    tyre_parser.add_argument("--write", action="store_true",
+                             help="Append the re-read results and refresh their vehicles.")
 
     chunk_parser = subparsers.add_parser(
         "build-match-chunks",
@@ -821,6 +837,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_ledger_migrations(connection)
                 run_job_bookkeeping_migrations(connection)
                 applied = run_vehicle_core_migrations(connection)
+                # People's KType choices reference core.vehicles, so they follow it.
+                applied += run_vehicle_ktype_choice_migrations(connection)
+                # So do their corrections of a car's own data. A correction a
+                # decision about many cars wrote names that decision, so the
+                # decisions table comes first.
+                applied += run_vehicle_correction_decision_migrations(connection)
+                applied += run_vehicle_fact_correction_migrations(connection)
+                # The stored outcome of matching per car references core.vehicles too.
+                applied += run_vehicle_match_result_migrations(connection)
         except Exception as error:  # noqa: BLE001
             logger.error(
                 "Vehicle core migration stopped safely",
@@ -953,6 +978,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             datastores = DatastoreClients.from_settings(settings)
             filled: dict[str, int] = {}
             refused: dict[str, dict[str, int]] = {}
+            retracted: dict[str, int] = {}
             with datastores.postgres.connect() as connection:
                 run_vehicle_core_migrations(connection)
                 guard = build_model_guard(connection, args.catalog_batch) if needs_guard else None
@@ -961,6 +987,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     filled[family.family] = fill.filled
                     if fill.refused:
                         refused[family.family] = fill.refused
+                    if fill.retracted:
+                        retracted[family.family] = fill.retracted
                     connection.commit()
         except Exception as error:  # noqa: BLE001
             logger.error(
@@ -968,7 +996,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 extra={"error_code": type(error).__name__},
             )
             return 1
-        print(json.dumps({"filled": filled, "refused": refused}, sort_keys=True))
+        print(json.dumps({"filled": filled, "refused": refused, "retracted": retracted},
+                         sort_keys=True))
         return 0
 
     if args.command == "check-model-fills":
@@ -989,6 +1018,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             "checked": checked.checked, "contradicted": checked.contradicted,
             "retracted": checked.retracted, "examples": checked.examples,
         }, sort_keys=True, default=str, ensure_ascii=False))
+        return 0
+
+    if args.command == "reparse-tyre-sizes":
+        try:
+            datastores = DatastoreClients.from_settings(settings)
+            with datastores.postgres.connect() as connection:
+                reparsed = reparse_tyre_sizes(connection, dry_run=not args.write)
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "Re-reading tyre sizes stopped safely",
+                extra={"error_code": type(error).__name__},
+            )
+            return 1
+        print(json.dumps({"written": args.write, **reparsed.to_json()}, sort_keys=True))
         return 0
 
     if args.command == "build-match-chunks":

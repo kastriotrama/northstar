@@ -8,16 +8,27 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { TagModule } from '@openng/optimus-ui/tag';
 
 import { Api } from '../../core/api';
+import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
-import { MatchingSummary } from '../../components/matching-summary';
+import { MatchResults } from '../../components/match-results';
+import { MATCH_RESULT_STATES, matchResultStateLabel } from '../../core/match-result-states';
 import type {
+  MatchResultCause,
+  MatchResultState,
   NorVehicleRecord,
   NorVehicleRow,
-  ValueSource,
   VehicleCondition,
-  VehicleFieldValue,
+  VehicleMatchLookup,
   VehicleSearchRequest,
 } from '../../core/models';
+import {
+  fieldGroups,
+  fieldSourceLabel,
+  showFieldValue,
+  showValue,
+  sourceDetail,
+  sourceLabel,
+} from '../../core/vehicle-record';
 import {
   VEHICLE_TYPES,
   type VehicleType,
@@ -59,23 +70,41 @@ export const REGISTRY_STATUSES: ReadonlyArray<{ value: RegistryStatus; label: st
   { value: 'deregistered', label: 'Deregistered' },
 ];
 
-const SOURCE_LABELS: Record<string, string> = {
-  transportstyrelsen: 'TS',
-  ais: 'AIS',
-  review: 'Review',
-  rule: 'Learned rule',
-  derived: 'Derived',
-};
+/** Cars a person decided the KType for: `core.vehicles.match_state`, kept by the choice. */
+export type KTypeChoiceFilter = 'any' | 'decided' | 'chosen' | 'none';
 
-const GROUP_LABELS: Record<string, string> = {
-  identity: 'Identity and status',
-  make: 'Make and model',
-  technical: 'Technical',
-  dates: 'Dates',
-  physical: 'Physical',
-  match: 'TecDoc match',
-  normalization: 'Normalization',
-};
+export const KTYPE_CHOICE_FILTERS: ReadonlyArray<{
+  value: KTypeChoiceFilter;
+  label: string;
+  states: readonly string[];
+}> = [
+  { value: 'any', label: 'Any', states: [] },
+  { value: 'decided', label: 'Decided by a person', states: ['manual', 'manual_none'] },
+  { value: 'chosen', label: 'KType chosen', states: ['manual'] },
+  { value: 'none', label: '“None of these”', states: ['manual_none'] },
+];
+
+/** The list's columns a person may correct, by how the row holds them. */
+const ROW_TEXT = ['manufacturer', 'model_family', 'engine_code', 'drive_type', 'bodywork_form'] as const;
+const ROW_NUMBERS = ['production_year', 'power_kw', 'displacement_cc'] as const;
+
+/** A row's values a correction touched: what the matcher uses for each field after it. */
+function correctedValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
+  const values: Partial<NorVehicleRow> = {};
+  // Only fields a person's correction stands on, or stood on: the rest is the row's own.
+  const touched = new Set((lookup?.corrections ?? []).map((head) => head.field));
+  for (const field of lookup?.correctable_fields ?? []) {
+    if (!touched.has(field.field)) continue;
+    const text = ROW_TEXT.find((name) => name === field.field);
+    const number = ROW_NUMBERS.find((name) => name === field.field);
+    if (text) values[text] = field.current_value;
+    if (number) {
+      const parsed = field.current_value === null ? null : Number(field.current_value);
+      values[number] = parsed === null || Number.isFinite(parsed) ? parsed : null;
+    }
+  }
+  return values;
+}
 
 const PAGE_SIZE = 50;
 
@@ -99,8 +128,9 @@ const PAGE_SIZE = 50;
     InputTextModule,
     TableModule,
     TagModule,
+    CorrectionDecisions,
     KTypeCandidates,
-    MatchingSummary,
+    MatchResults,
   ],
   templateUrl: './car-search.html',
   styleUrl: './car-search.scss',
@@ -112,6 +142,18 @@ export class CarSearchPage implements OnInit {
   protected readonly ranges = RANGES;
   protected readonly vehicleTypes = VEHICLE_TYPES;
   protected readonly registryStatuses = REGISTRY_STATUSES;
+  protected readonly ktypeChoiceFilters = KTYPE_CHOICE_FILTERS;
+  /** Narrow the list to cars whose KType a person decided. */
+  protected readonly ktypeChoice = signal<KTypeChoiceFilter>('any');
+  /** Where the car stands with matching, from its stored result; '' is any. */
+  protected readonly matchResultStates = MATCH_RESULT_STATES;
+  protected readonly matchResult = signal<MatchResultState | ''>('');
+  /** One cause within the state, picked from the breakdown above the list. */
+  protected readonly matchCause = signal<MatchResultCause | null>(null);
+  /** Cars whose accepted, chosen or possible KTypes include this one. */
+  protected readonly matchKtype = signal('');
+  /** Bumped when a car was decided or corrected here, so the counts are read again. */
+  protected readonly resultsTurn = signal(0);
   /** Passenger cars first: the default view, still just a filter anyone can change. */
   protected readonly vehicleType = signal<VehicleType>('passenger');
   /** Deregistered cars stay visible by default: a plate lookup must still find them. */
@@ -144,11 +186,15 @@ export class CarSearchPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Cars list, or the matching summary over the same filter. */
-  protected readonly view = signal<'cars' | 'matching'>('cars');
-  /** The filter exactly as the car list is queried with it, for the matching view. */
-  protected readonly currentConditions = computed(() => this.request().conditions);
-  protected readonly currentText = computed(() => this.request().text);
+  /** Cars list, or the decisions made for several cars. */
+  protected readonly view = signal<'cars' | 'decisions'>('cars');
+  /**
+   * The filter without its matching clauses, for the counts above the list: they
+   * show every state of the cars the rest of the filter matches, so picking one
+   * state never hides the others.
+   */
+  protected readonly baseConditions = computed(() => this.conditions(false));
+  protected readonly currentText = computed(() => this.text().trim());
 
   protected readonly openId = signal<string | null>(null);
   protected readonly record = signal<NorVehicleRecord | null>(null);
@@ -156,28 +202,7 @@ export class CarSearchPage implements OnInit {
   protected readonly recordError = signal<string | null>(null);
 
   /** The open vehicle's fields in their groups, empty ones folded away. */
-  protected readonly groups = computed(() => {
-    const current = this.record();
-    if (!current) return [];
-    const order: string[] = [];
-    const byGroup = new Map<string, VehicleFieldValue[]>();
-    for (const field of current.fields) {
-      if (!byGroup.has(field.group)) {
-        byGroup.set(field.group, []);
-        order.push(field.group);
-      }
-      byGroup.get(field.group)?.push(field);
-    }
-    return order.map((group) => {
-      const fields = byGroup.get(group) ?? [];
-      return {
-        group,
-        label: GROUP_LABELS[group] ?? group,
-        filled: fields.filter((field) => !this.isEmpty(field.value)),
-        empty: fields.filter((field) => this.isEmpty(field.value)).length,
-      };
-    });
-  });
+  protected readonly groups = computed(() => fieldGroups(this.record()));
   /** The open vehicle's current plate: from its record once loaded, else from its row. */
   protected readonly openPlate = computed(() => {
     const current = this.plates().find((plate) => plate.current);
@@ -195,6 +220,10 @@ export class CarSearchPage implements OnInit {
     () =>
       this.vehicleType() !== 'passenger' ||
       this.registryStatus() !== 'any' ||
+      this.ktypeChoice() !== 'any' ||
+      this.matchResult() !== '' ||
+      this.matchCause() !== null ||
+      this.matchKtype().trim() !== '' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -287,6 +316,66 @@ export class CarSearchPage implements OnInit {
     this.search$.next();
   }
 
+  protected onKtypeChoice(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const known = KTYPE_CHOICE_FILTERS.find((option) => option.value === value);
+    this.ktypeChoice.set(known ? known.value : 'any');
+    this.search$.next();
+  }
+
+  protected onMatchResult(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const known = MATCH_RESULT_STATES.find((option) => option.key === value);
+    this.onMatchState(known ? known.key : '');
+  }
+
+  /** A state picked from the dropdown or from the counts above the list. */
+  protected onMatchState(state: MatchResultState | ''): void {
+    // A cause belongs to the state it was picked for.
+    if (state !== this.matchResult()) this.matchCause.set(null);
+    this.matchResult.set(state);
+    this.search$.next();
+  }
+
+  /** A count of the breakdown: the list shows exactly those cars. */
+  protected onMatchCause(cause: MatchResultCause): void {
+    this.matchResult.set(cause.state);
+    this.matchCause.set(cause);
+    this.search$.next();
+  }
+
+  protected clearMatchCause(): void {
+    this.matchCause.set(null);
+    this.search$.next();
+  }
+
+  protected onMatchKtype(value: string): void {
+    this.matchKtype.set(value);
+    this.search$.next();
+  }
+
+  /** The KTypes a row shows when none is accepted or chosen: the possible ones, best first. */
+  protected possibleKtypes(row: NorVehicleRow): string[] {
+    return row.candidate_ktypes ?? [];
+  }
+
+  /** Every possible KType of a row with the matcher's confidence, for the cell's tooltip. */
+  protected possibleKtypesTitle(row: NorVehicleRow): string {
+    const confidences = row.candidate_confidences ?? [];
+    return this.possibleKtypes(row)
+      .map((ktype, index) =>
+        confidences[index] === undefined
+          ? ktype
+          : `${ktype} (${Math.round(confidences[index] * 100)}%)`,
+      )
+      .join(', ');
+  }
+
+  /** The stored matching state as the list shows it, for a car without a KType. */
+  protected matchResultLabel(state: string): string {
+    return matchResultStateLabel(state);
+  }
+
   protected scopeLabel(option: (typeof VEHICLE_TYPES)[number]): string {
     return vehicleTypeLabel(option, this.scopeCounts());
   }
@@ -294,6 +383,10 @@ export class CarSearchPage implements OnInit {
   protected reset(): void {
     this.vehicleType.set('passenger');
     this.registryStatus.set('any');
+    this.ktypeChoice.set('any');
+    this.matchResult.set('');
+    this.matchCause.set(null);
+    this.matchKtype.set('');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -327,17 +420,52 @@ export class CarSearchPage implements OnInit {
     this.open$.next(vehicleId);
   }
 
-  /** An example from the matching view: show that vehicle in the list and open it. */
-  protected openExample(vehicleId: string): void {
-    if (!vehicleId) return;
-    this.view.set('cars');
-    this.onText(vehicleId);
-    this.open(vehicleId);
+  /**
+   * A person's KType choice changed: show it on the car's row at once, and reload the
+   * record so its KType and source show it. The record is not cleared first, so the
+   * candidates panel stays mounted with its notice.
+   */
+  protected onChoiceChanged(vehicleId: string, lookup: VehicleMatchLookup): void {
+    this.resultsTurn.update((turn) => turn + 1);
+    const choice = lookup?.choice ?? null;
+    const ktype = choice?.status === 'chosen' ? choice.ktype : null;
+    const state =
+      choice?.status === 'chosen' ? 'manual' : choice?.status === 'none' ? 'manual_none' : null;
+    // A correction was saved or undone: the row shows the corrected values at once too.
+    const values = correctedValues(lookup);
+    this.rows.update((rows) =>
+      rows.map((row) =>
+        row.vehicle_id === vehicleId
+          ? {
+              ...row,
+              ...values,
+              // Without a choice, now or before, the KType on the row is not a person's to change.
+              ...(choice
+                ? {
+                    ktype,
+                    match_state: state,
+                    review_fields: [
+                      ...row.review_fields.filter((field) => field !== 'ktype'),
+                      ...(ktype ? ['ktype'] : []),
+                    ],
+                  }
+                : {}),
+            }
+          : row,
+      ),
+    );
+    if (this.openId() === vehicleId) this.open$.next(vehicleId);
   }
 
   protected close(): void {
     this.openId.set(null);
     this.record.set(null);
+  }
+
+  /** A decision for several cars was undone: the open car may be one of them, so read it again. */
+  protected onDecisionUndone(): void {
+    const open = this.openId();
+    if (open) this.open$.next(open);
   }
 
   protected isAsserted(row: NorVehicleRow, field: string): 'review' | 'rule' | null {
@@ -346,40 +474,19 @@ export class CarSearchPage implements OnInit {
     return null;
   }
 
-  protected sourceLabel(source: ValueSource): string {
-    return SOURCE_LABELS[source.source] ?? source.source;
-  }
-
-  /** The source's own reference when it says something a reader can use. */
-  protected sourceDetail(source: ValueSource): string {
-    const parts: string[] = [];
-    if (source.source === 'rule' && source.ref) parts.push(source.ref);
-    if (source.observed_on) parts.push(source.observed_on);
-    return parts.join(' · ');
-  }
-
-  protected isEmpty(value: unknown): boolean {
-    return (
-      value === null ||
-      value === undefined ||
-      value === '' ||
-      (Array.isArray(value) && value.length === 0)
-    );
-  }
-
-  /** Values are arbitrary JSON; show them as plain text. */
-  protected show(value: unknown): string {
-    if (this.isEmpty(value)) return '—';
-    if (Array.isArray(value)) return value.map((item) => this.show(item)).join(', ');
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  }
+  // The record's wording is shared with the Matched cars dialog (`core/vehicle-record`).
+  protected readonly sourceLabel = sourceLabel;
+  protected readonly fieldSourceLabel = fieldSourceLabel;
+  protected readonly showField = showFieldValue;
+  protected readonly sourceDetail = sourceDetail;
+  protected readonly show = showValue;
 
   private request(): VehicleSearchRequest {
     return { conditions: this.conditions(), text: this.text().trim() };
   }
 
-  private conditions(): VehicleCondition[] {
+  /** The filter's clauses; `matching` leaves out or keeps the ones about the stored result. */
+  private conditions(matching = true): VehicleCondition[] {
     const conditions: VehicleCondition[] = [];
     const scope = vehicleScopeCondition(this.vehicleType());
     if (scope) {
@@ -391,6 +498,19 @@ export class CarSearchPage implements OnInit {
         operator: 'equals',
         values: [this.registryStatus()],
       });
+    }
+    const decided = KTYPE_CHOICE_FILTERS.find((option) => option.value === this.ktypeChoice());
+    if (decided && decided.states.length) {
+      conditions.push({ field: 'match_state', operator: 'equals', values: [...decided.states] });
+    }
+    if (matching) {
+      if (this.matchResult()) {
+        conditions.push({ field: 'match_result', operator: 'equals', values: [this.matchResult()] });
+      }
+      const cause = this.matchCause();
+      if (cause) conditions.push({ field: cause.field, operator: 'equals', values: [cause.value] });
+      const ktype = this.matchKtype().trim();
+      if (ktype) conditions.push({ field: 'match_ktype', operator: 'equals', values: [ktype] });
     }
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];

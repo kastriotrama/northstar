@@ -2,7 +2,8 @@
 
 A NorthStar vehicle is matched on its merged values (`core.vehicles`): an engine
 code AIS supplied or a reviewer's correction reaches the matcher, not only what
-the TS record that created the car derived.
+the TS record that created the car derived. A person's corrections of that one
+car are laid over them last, so a correction counts at once.
 
 Nothing here reimplements matching. Every outcome comes from
 `TecDocDryRunEvaluator` -- the evaluator the audit CLI runs -- built from the
@@ -17,13 +18,19 @@ import threading
 import time
 import uuid
 from collections import Counter, OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple, Protocol
+from uuid import UUID
 
+from api.app.features.vehicle_corrections import fields as correction_fields
+from api.app.features.vehicle_ktype_choices import evidence as choice_evidence
 from api.app.features.vehicle_matching.repository import (
     CarRecord,
+    Hypothetical,
     VehicleMatchingRepository,
+    lay_hypothetical,
+    matcher_input_hash,
 )
 from api.app.features.vehicle_matching.schemas import (
     FieldCount,
@@ -48,6 +55,9 @@ from ingestion.tecdoc.match_run_adapters import (
 )
 from ingestion.tecdoc.model_aliases import ReviewedModelAliasIndex
 from ingestion.vehicle_core_query import VehicleTerm
+from ingestion.vehicle_correction_decisions import DecisionRef
+from ingestion.vehicle_fact_corrections import StoredCorrection
+from ingestion.vehicle_ktype_choices import StoredChoice
 
 #: The matcher's own cap on returned candidates. A car showing this many
 #: compatible KTypes may have more.
@@ -70,16 +80,42 @@ class Matcher:
     batch_id: str
     evaluator: TecDocDryRunEvaluator
     catalog: dict[str, VehicleCandidate]
+    #: The active translation rule set the matcher was built from.
+    rule_set_version: str | None = None
     # The evaluator memoizes into a plain dict and was written for one caller. A
     # lookup and a running summary job share it, so each evaluation holds the lock
     # -- per car, not per job, so a lookup waits at most one evaluation.
     lock: threading.Lock = field(default_factory=threading.Lock, compare=False, repr=False)
 
     def evaluate(
-        self, record: MatchSourceRecord
+        self, record: MatchSourceRecord, *, remember: bool = True
     ) -> tuple[MatchEvaluation, ResolvedMatchQuery | None]:
+        """Evaluate one car. `remember=False` leaves the evaluator's memo as it is:
+        a what-if check over many cars must not grow it. The result is the same."""
+
         with self.lock:
-            return self.evaluator.evaluate(record), self.evaluator.resolved_query(record)
+            evaluation = (
+                self.evaluator.evaluate(record)
+                if remember
+                else self.evaluator.evaluate(record, remember=False)
+            )
+            return evaluation, self.evaluator.resolved_query(record)
+
+    def query(self, record: MatchSourceRecord) -> ResolvedMatchQuery | None:
+        """What the matcher would key on for this car, without scoring it."""
+
+        with self.lock:
+            return self.evaluator.resolved_query(record)
+
+    def key(self, record: MatchSourceRecord) -> tuple[object, ...] | None:
+        """The key two cars must share to be guaranteed the same evaluation.
+
+        None for a car the matcher stops before keying. A check over many cars
+        evaluates each distinct key once.
+        """
+
+        with self.lock:
+            return self.evaluator.evaluation_key(record)
 
 
 def build_matcher(repository: VehicleMatchingRepository, batch_id: str | None) -> Matcher:
@@ -101,6 +137,7 @@ def build_matcher(repository: VehicleMatchingRepository, batch_id: str | None) -
         batch_id=resolved_batch,
         evaluator=evaluator,
         catalog={candidate.candidate_reference: candidate for candidate in sources.catalog},
+        rule_set_version=getattr(sources.rule_set, "version", None),
     )
 
 
@@ -153,6 +190,21 @@ def verdict_of(evaluation: MatchEvaluation) -> str | None:
         if entry.get("signal") == "routing_gate" and entry.get("explanation"):
             return str(entry["explanation"])
     return None
+
+
+class MatchOutcome(NamedTuple):
+    """Where the matcher ends for a car, reduced to what a before/after comparison needs."""
+
+    terminal: str
+    #: The KType the car resolves to; None unless `terminal` is `resolved`.
+    ktype: str | None
+
+
+def outcome_of(evaluation: MatchEvaluation) -> MatchOutcome:
+    resolved = evaluation.terminal == "resolved"
+    return MatchOutcome(
+        evaluation.terminal, evaluation.top_candidate_reference if resolved else None
+    )
 
 
 def bucket_for(evaluation: MatchEvaluation) -> MatchBucket:
@@ -224,7 +276,9 @@ def missing_on_car(fields: Sequence[str], query: ResolvedMatchQuery | None) -> l
     return [field for field in fields if not present.get(field, True)]
 
 
-def _inputs(query: ResolvedMatchQuery | None) -> MatcherInputs | None:
+def matcher_inputs(query: ResolvedMatchQuery | None) -> MatcherInputs | None:
+    """What the matcher keyed on, as the lookup shows it; None for a car it never keyed on."""
+
     if query is None:
         return None
     return MatcherInputs(
@@ -238,6 +292,8 @@ def _inputs(query: ResolvedMatchQuery | None) -> MatcherInputs | None:
         drive_type=query.drive_type,
         bodywork_form=query.bodywork,
         model_recovered_from=query.recovery_reason,
+        build_month=query.build_month,
+        electrification=query.electrification,
     )
 
 
@@ -277,16 +333,35 @@ class SummaryJobNotFoundError(LookupError):
     """No summary job with that id on this process."""
 
 
+class ChoiceReader(Protocol):
+    """Reads a vehicle's current KType choice: the chain head and the chain's length."""
+
+    def current(self, vehicle_id: str) -> tuple[StoredChoice, int] | None: ...
+
+
+class CorrectionReader(Protocol):
+    """Reads a vehicle's corrections: each corrected field's head and its chain's length,
+    and the decisions behind the rows a decision about many cars wrote."""
+
+    def current(self, vehicle_id: str) -> dict[str, tuple[StoredCorrection, int]]: ...
+
+    def decisions(self, group_ids: Sequence[UUID]) -> Mapping[UUID, DecisionRef]: ...
+
+
 class VehicleMatchingService:
     def __init__(
         self,
         repository: VehicleMatchingRepository,
         matcher: Callable[[], Matcher],
         jobs: SummaryJobs,
+        choices: ChoiceReader | None = None,
+        corrections: CorrectionReader | None = None,
     ) -> None:
         self._repository = repository
         self._matcher = matcher
         self._jobs = jobs
+        self._choices = choices
+        self._corrections = corrections
 
     def lookup(self, identifier: str) -> VehicleMatchLookup:
         """The vehicle holding this plate or VIN now, or failing that the latest to hold it."""
@@ -308,6 +383,26 @@ class VehicleMatchingService:
             raise VehicleNotFoundError(f"No vehicle {vehicle_id!r}.")
         return self._explain(records[0])
 
+    def what_if(self, vehicle_id: str, hypothetical: Hypothetical) -> MatchOutcome:
+        """Where the matcher would end for this vehicle with one more correction laid on top.
+
+        The car is read as it is, the correction is laid over it as a stored one
+        would be, and the real matcher runs on that. Nothing is written and the
+        evaluator remembers nothing of it.
+        """
+
+        records = self._repository.vehicle_car_records([vehicle_id.strip().upper()])
+        if not records:
+            raise VehicleNotFoundError(f"No vehicle {vehicle_id!r}.")
+        car = lay_hypothetical(records[0], hypothetical)
+        evaluation, _ = self._matcher().evaluate(car.record, remember=False)
+        return outcome_of(evaluation)
+
+    def matcher(self) -> Matcher:
+        """The process's matcher, for a job that evaluates cars itself."""
+
+        return self._matcher()
+
     def lookup_record(self, source_record_id: int) -> VehicleMatchLookup:
         """One exact record -- what a screen that already has the row asks for.
 
@@ -326,7 +421,7 @@ class VehicleMatchingService:
         matcher = self._matcher()
         evaluation, query = matcher.evaluate(car.record)
         separating = separating_fields(evaluation, matcher.catalog)
-        return VehicleMatchLookup(
+        lookup = VehicleMatchLookup(
             vehicle_id=car.vehicle_id,
             source_record_id=car.source_record_id,
             plate=car.plate,
@@ -340,7 +435,7 @@ class VehicleMatchingService:
             verdict=verdict_of(evaluation),
             rule_filled=list(car.rule_filled),
             overlaid_fields=dict(sorted(car.overlaid.items())),
-            inputs=_inputs(query),
+            inputs=matcher_inputs(query),
             candidates=[
                 _candidate(candidate, matcher.catalog)
                 for candidate in evaluation.candidate_matches
@@ -350,7 +445,52 @@ class VehicleMatchingService:
             missing_separating_fields=missing_on_car(separating, query),
             decision_trace=[dict(entry) for entry in evaluation.decision_trace],
             other_vehicle_ids=list(other_vehicle_ids),
+            stop_reasons=list(car.stop_reasons),
+            copy_drift=list(car.copy_drift),
+            rule_set_version=matcher.rule_set_version,
         )
+        lookup.evidence_fingerprint = choice_evidence.fingerprint(lookup)
+        lookup.matcher_input_hash = matcher_input_hash(car.record)
+        # The car's own read already says whether anyone decided it, so a car
+        # without a choice costs no second connection. Summary jobs never come
+        # through here. A failing read fails the lookup: a choice is never
+        # silently hidden.
+        if car.vehicle_id is not None and car.has_choices and self._choices is not None:
+            found = self._choices.current(car.vehicle_id)
+            if found is not None:
+                choice, history_count = found
+                # `assess` asks about the catalog only when the chosen KType is no
+                # longer offered: gone from this batch, or merely no longer a candidate.
+                in_catalog = choice.ktype is not None and choice.ktype in matcher.catalog
+                lookup.choice = choice_evidence.assess(choice, lookup, in_catalog, history_count)
+        lookup.effective_ktype, lookup.effective_source = choice_evidence.effective(
+            lookup.choice, lookup
+        )
+        # The matcher already ran on the corrected values (the repository laid them
+        # over the car, and said whether the car has any). The details -- who, when,
+        # how many -- are read only for a car that has corrections, so any other
+        # car costs no second connection. Like the choice's, a failing read fails
+        # the lookup: a correction is never silently hidden.
+        if car.vehicle_id is not None and self._corrections is not None:
+            if car.has_corrections:
+                heads = self._corrections.current(car.vehicle_id)
+                # A row a decision about many cars wrote names it; only such a
+                # car costs the read that says which decision that was.
+                groups = sorted(
+                    {head.group_id for head, _ in heads.values() if head.group_id is not None},
+                    key=str,
+                )
+                lookup.corrections = correction_fields.states(
+                    heads, self._corrections.decisions(groups) if groups else {}
+                )
+            normalized = car.record.payload.get("normalized")
+            lookup.correctable_fields = correction_fields.describe(
+                normalized if isinstance(normalized, dict) else {},
+                car.overlaid,
+                lookup.inputs,
+                lookup.candidates,
+            )
+        return lookup
 
     def start_summary(
         self,

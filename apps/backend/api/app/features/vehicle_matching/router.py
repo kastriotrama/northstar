@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
+from api.app.features.vehicle_corrections.repository import CorrectionRepository
+from api.app.features.vehicle_ktype_choices.repository import KTypeChoiceRepository
 from api.app.features.vehicle_matching.repository import VehicleMatchingRepository
 from api.app.features.vehicle_matching.schemas import (
     MatchBucket,
@@ -52,8 +54,26 @@ def _jobs() -> SummaryJobs:
     return SummaryJobs()
 
 
+@lru_cache(maxsize=1)
+def _choices() -> KTypeChoiceRepository:
+    settings = get_settings()
+    return KTypeChoiceRepository(lambda: get_postgres_connection(settings))
+
+
+@lru_cache(maxsize=1)
+def _corrections() -> CorrectionRepository:
+    settings = get_settings()
+    return CorrectionRepository(lambda: get_postgres_connection(settings))
+
+
 def get_service() -> VehicleMatchingService:
-    return VehicleMatchingService(_repository(), _matcher_cache().get, _jobs())
+    return VehicleMatchingService(
+        _repository(),
+        _matcher_cache().get,
+        _jobs(),
+        choices=_choices(),
+        corrections=_corrections(),
+    )
 
 
 ServiceDependency = Annotated[VehicleMatchingService, Depends(get_service)]

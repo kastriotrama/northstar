@@ -68,6 +68,10 @@ services:
       context: .
       dockerfile: Dockerfile
       target: api
+      args:
+        # deploy.sh sets the commit; the image carries it from then on, so starting
+        # the container later without deploy.sh does not lose it.
+        BUILD_VERSION: ${NORTHSTAR_BUILD_VERSION:-unknown}
     environment:
       ENVIRONMENT: production
       LOG_LEVEL: ${NORTHSTAR_LOG_LEVEL:-INFO}

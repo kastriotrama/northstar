@@ -2,6 +2,166 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-03 — Stored match results: statistics and car lists read from a table (branch feature/vehicle-match-results)
+
+- New `core.vehicle_match_results` (one row per NOR ID, foreign key to `core.vehicles`) and
+  `core.vehicle_match_runs`. A row holds the state (`resolved`, `several`, `one_unconfirmed`, `none`,
+  `not_matchable`), the accepted KType (only when resolved), the possible KTypes with confidences, the
+  separating / missing / conflicting fields, reason codes, catalog batch, matcher version and the hash of
+  what the matcher was handed. A cache: overwritten on re-match; a person's choice stays in its own table.
+- Read side, never the matcher: `POST /v1/vehicles/match-results/overview` and `.../cars` take the Vehicles
+  filter; a person's choice counts as `chosen` / `chosen_none`, a car without a row as `not_evaluated`.
+- Writer `scripts/refresh_vehicle_match_results.py`: new and changed cars by default (timestamps select, the
+  input hash decides), `--sample N`, `--rebuild`, `--vehicle`; each page of 1,000 commits on its own.
+  Created by `migrate-vehicle-core`; the pilot builder carries both tables (18 migration sets).
+- Validation: unit 3,049 and integration 512 passed (run separately: two files named `test_tyre_reparse.py`
+  collide when collected together), ruff clean, mypy clean on api + ingestion + northstar.
+- Local copy `northstar_pilot_corr`: 10k sample in 445 s with 4 workers (22.5 cars/s): resolved 7,016,
+  several 1,646, one unconfirmed 397, none 573, not matchable 368. A second run of the same sample: 0 matched,
+  10,000 unchanged in 10 s. Overview of all 500k: 1.1 s; a state's car page: 0.02 s. Full fill started.
+- Web: Vehicles > Matching now shows the stored overview (`ns-match-results`) with the cars behind every
+  number (`ns-match-result-cars-dialog`); the live sample run is folded below it. 243 web tests pass and the
+  build is clean; one live-API test (`Rules lists the rule catalog`) timed out while the fill held the CPU.
+- Saves keep the row current: the choice, correction and decision services call `MatchResultSync` after
+  their transaction (never fails the save; more than five cars refresh on a thread). The Vehicles list
+  filters on `match_result` (probes of the stored results, no join) and shows the accepted KType or the
+  stored state per row. Unit 3,066 and integration 517 passed; web 244 passed, build clean.
+- 2026-10-04: full fill of `northstar_pilot_corr` done (490,000 matched in 3 h 25 min, 4 workers): resolved
+  351,693 (70.3 %), several 80,590, none 30,496, one unconfirmed 19,043, not matchable 18,178; table 389 MB.
+- 2026-10-04: the Matching tab is gone; Vehicles > Cars holds it all: counts per state above the list
+  (`/counts`, 0.3 s for 500k), the breakdown on demand (`/overview`, one pass, ~2 s for all cars), cause
+  filters (`match_missing_field`, `match_conflicting_field`, `match_candidate_count`, `match_ktype`, ...) and
+  the possible KTypes in the KType column. The on-screen sample run was removed (its API stays).
+  Unit 3,066 and integration 522 passed; web 220 passed, build clean.
+- Next: refresh after bulk rule application or re-normalization is still the normal run; the unused
+  summary-job API and `/cars` endpoint could be removed. Details: `docs/vehicle-match-results.md`.
+
+## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
+
+- 23,233 of the 500k cars had no real drive type after `DRV-MY`: 15,076 with no four-wheel-drive statement
+  (inspection-register-only cars, mostly 2023-2026) and 8,157 marked "not four-wheel drive" whose model did
+  not settle the axle. Two steps added, run in this order after `DRV-MY`:
+  1. `DRV-CAR` (reviewed, `drive_variant` in `vehicle_drive_layouts.py`): the variant by power (electric: one
+     motor or two), fuel, body (BMW 2 Series), registry text for cars without a model ("VOLKSWAGEN 1303 S"),
+     and models never sold with four driven wheels.
+  2. `DRV-EVP/-EME/-EMP/-EV` (learned, `learner="drive_evidence"`): the drive type of the cars alike (same
+     VIN 1-8 + power; model + fuel + power + engine; model + fuel + power + year; VIN 1-8), >= 5 or 8 cars
+     and 98 % agreement, never their own fills as evidence.
+  `RuleFamily.guard` keeps every fill consistent with the registry's statement; evidence and reviewed
+  families take back the fills of a retired rule on the next apply. Table tightened on the way (MG4 until
+  2025, electric GLB rear, Master until 2009 front, more whole-make eras).
+- Validation: unit 3,039 and integration 486 passed, ruff clean, mypy clean on api + ingestion. Knowledge
+  against cars whose drive type other sources already gave: 40,725 agree, 183 disagree (167 of them
+  reviewer rules that say front for the rear-driven XC40 185 kW and the electric CLA 250+). Local copy:
+  17,446 of the 23,233 filled (knowledge 12,025, cars alike 4,943, table 478), 5,787 left open (Transit,
+  Master from 2010, Yaris Cross and RAV4 hybrids, cars with no make or model). 494,213 of 500,000 cars now
+  carry a real drive type. Pilot 20k against the state before: resolved 14,110 -> 14,132; 23 gained,
+  1 lost (a 2025 Tucson plug-in whose cars alike are four-wheel drive, matched to a front-drive KType
+  before), 0 moved; all 165 newly filled resolved cars agree with their KType's drive.
+- Risk / next: local only, not pushed. Two mistakes were caught by the measurement and fixed (a 2020+ BMW
+  "coupe" can be the front-driven Gran Coupe; evidence by model and power needs the build year). Kia EV3/EV5
+  195 kW and a few others are left open because I am not sure of the variant. The 132 kW XC60/V60 of 2026
+  are taken as the plug-in hybrid (four-wheel drive) from their weight and VIN series. On live: deploy,
+  then learn + apply `DRV-MY`, `DRV-CAR`, the four `DRV-E*`; each write needs the user's yes.
+
+## 2026-10-03 — Drive type chosen per make and model for cars the registry marks as not four-wheel drive (branch feature/vehicle-corrections)
+
+- `ingestion/vehicle_drive_layouts.py`: a reviewed table of which axle a model drives (726 make + model
+  entries, year ranges where a model changed layout or was four-wheel drive only, fuel where the electric
+  version differs, and a make without a model only for years in which the whole make agreed). Uncertain
+  cases have no entry: Ford Transit, BMW 2 Series, Renault Master, changeover years.
+- New rule family `DRV-MY` (`learner="reviewed"`): `learn-vehicle-rules --family DRV-MY --activate` turns the
+  table into rules for the make/model/year/fuel keys present; `apply-vehicle-rules --family DRV-MY` fills an
+  empty drive type and replaces the generic two-wheel value, only for cars with
+  `registry_all_wheel_drive IS FALSE`. A drive type from a reviewer, AIS or a correction is not touched.
+  A corrected table statement takes its fills back on the next apply (`retract_retired_fills`).
+- Validation: unit 3,000 and integration 482 passed, ruff clean, mypy clean on api + ingestion. On a copy
+  of the 500k pilot: 194,116 of 202,273 cars filled (fwd/rwd), 8,157 left open, apply 18 s. Pilot 20k
+  against the state before: resolved 13,624 -> 14,093 (68.1 % -> 70.5 %); 471 gained, 2 lost, 2 moved.
+  Lost: a Volvo XC90 T6 and a Nissan Sunny estate that sat on four-wheel-drive KTypes although the registry
+  says not four-wheel drive (now review). Moved: two Suzuki Swift from the 4x4 KType to the two-wheel one.
+  After the fill every resolved filled car agrees with its KType's drive (5,339 of 5,339).
+- Mercedes A-Class/CLA/GLA: four earlier reviewer rules (is_4wd 0 + brand MERCEDES-BENZ + a list of model
+  texts) set rear-wheel drive for A 200, CLA 180, CLA 200, CLA 200 D, CLA 220 D, CLA 250 E and GLA 250 E
+  together with C- and E-Class. Corrected on the local copy with one override reviewer rule (same
+  conditions, those seven texts, drive type fwd) through `/v1/match-review` (rule-preview, resolution-rules,
+  apply): 559 cars rewritten, C/E untouched. Pilot 20k: 17 of the 18 corrected sample cars went from review
+  to resolved, 0 lost, 0 moved, no other car changed (resolved 14,110, 70.6 %). All 559 on their own: 507
+  resolve, each to a front-wheel-drive KType.
+- Risk / next: local only, not pushed. On live it is the two commands after deploy, and the Mercedes rule
+  has to be created there again (it is data, not code; the rules-bundle loader does not carry `override`).
+  Each write needs the user's yes. Seen on the way, not changed: about 920 single-motor EX30 carry the
+  family name "EX30 Cross Country"; 15,076 cars have no four-wheel-drive statement at all and stay open.
+
+## 2026-10-03 — Tyre sizes re-read alone for records stopped for them (branch feature/vehicle-corrections)
+
+- `northstar-ingest reparse-tyre-sizes [--write]` (`ingestion/tyre_reparse.py`): for records whose latest
+  normalization carries `tyre_size_unrecognized`, today's tyre step runs on the raw tyre texts only; where
+  they read, a new result is appended with the tyre keys replaced, the reason removed and the status that
+  follows (label `<old pipeline>+tyres-v12`). Every other value, candidate and reason is carried over; a
+  typo leaves the record as it is. Vehicles are refreshed through `refresh_vehicle_core_records`, and
+  `vehicle_facts.norm_status` follows. Dry run by default; a second run writes nothing.
+- Validation: unit 2,968 and integration 479 passed, ruff and mypy clean. On a copy of the 500k pilot:
+  7,189 stopped records, 4,653 readable now (4,044 resolved, 583 provisional, 26 still in review),
+  2,536 still unread, 4,273 vehicles refreshed, 11 s. Pilot 20k against its baseline: 177 cars left the
+  normalization stop (40 resolved, 9 provisional, 96 review, 32 hard conflict); 0 lost, 0 moved, no other
+  car changed.
+- Risk / next: local only. On live it is one command after the code is deployed, and a write that needs
+  the user's yes. The other normalization stops (type-approval format, AIS-only cars without reasons)
+  are untouched.
+
+## 2026-10-03 — A person corrects a car's data, for one car or the cars like it (branch feature/vehicle-corrections)
+
+- One car (committed earlier on the branch): append-only `core.vehicle_fact_corrections` (set / ignore /
+  withdraw per field, release of a stopped car), laid over the car at the matcher's read seam, copied onto
+  `core.vehicles`. Added now: a `set`/`ignore` that would take a resolved car's KType away or move it
+  answers 409 `confirmation_required` (`before`/`after`) until resent with `confirm_change: true`; the car
+  is re-read under its row lock and refused (`evidence_changed`) when its matcher input hash changed; a
+  vehicle copy no standing `set` is behind is skipped and reported as `copy_drift`; the merge keeps another
+  source's equal value behind a correction so a withdrawal falls back to it; the build month lists 1-12.
+- Many cars: scopes (same data, or a ladder of "all cars like this" per field, make first, `is_empty` for
+  absent values), a bounded in-process check (one at a time, 500 cars / 240 s, stoppable, each distinct
+  matcher input evaluated once with `remember=False`, outcomes gained/lost/moved/worse/same/...), and
+  append-only `core.vehicle_correction_decisions` (propose / apply / withdraw; NULL-safe JSON CHECKs;
+  nothing applied on a partial check). Apply writes only checked cars, skips cars changed or corrected
+  since, leaves harmed cars out unless included, refuses a check that harms as many as it fixes; withdraw
+  undoes the whole decision. The lookup names the decision behind a correction. Pilot builder creates both
+  tables, copies slice corrections and all decisions, refuses a cut that leaves a corrected car behind;
+  the runbook counts corrections and decisions on live before a switch. Details:
+  `docs/vehicle-fact-corrections.md`.
+- Web: `ns-fact-corrections` (one car, release of a stopped car) and `ns-correction-preview` ("Apply to",
+  the check, apply, propose, both undo paths) in the Candidate KTypes panel. The Matched cars dialog shows
+  the picked car's own information (`ns-vehicle-facts`: id, status, VIN, values in groups with their
+  sources) above its KTypes; the record's wording is shared with the Vehicles panel in
+  `core/vehicle-record.ts`.
+- Validation: backend unit 2,962 passed (1 expected xfail), integration 474 passed (throwaway databases),
+  ruff and mypy clean; web 218 tests passed, build OK. End to end on a copy of the 500k pilot through the
+  API: a 255-car check was refused (fixes 76, harms 160), a 5-car decision applied, replayed and undone.
+  Not done: an independent review of the corrections code, and clicking the many-car screens by hand.
+- A model a person set stands over the registry's model text (`asserted_fields` from the read seam,
+  reason `model_asserted_by_person`); measured on the pilot 20k against its baseline: 0 gained, 0 lost,
+  0 moved, no car different. A "Decisions" tab on the Vehicles page lists the many-car decisions and
+  undoes one as a whole.
+- Risk / next: live's corrections and decisions are not carried into a pilot rebuild (no export/import);
+  checks live in one API process's memory; measuring a proposal on all cars is not built.
+
+## 2026-10-02 — A person can choose a car's KType on the Vehicles tab (branch feature/manual-ktype-choice)
+
+- New append-only `core.vehicle_ktype_choices` (one linear chain per vehicle by `chain_position`; keys, a
+  position-carrying foreign key, CHECKs and append-only triggers; created and verified by
+  `migrate-vehicle-core`, which the deploy script already runs). API: `POST` / `GET
+  /v1/vehicles/{id}/ktype-choices` (choose, "none of these", withdraw; idempotent by operation id); the
+  matching lookup returns the choice, the effective KType and the stale flags. Web: choice controls in the
+  matching panel, a "KType choice" filter and a KType column on the Vehicles list. PostgreSQL only: no
+  graph, alias, canonical id or ledger write. Details: `docs/vehicle-ktype-choices.md`.
+- After review: chain positions (no cycle or detached chain from a multi-row statement), a race-safe repair
+  of the vehicle copy, no extra connection for cars without a choice, permanent database refusals answer 422
+  instead of "try again", the person's choice leads the panel, the build version is baked into the API image,
+  the pilot builder creates and copies the table and refuses a cut that leaves a decided car behind.
+- Validation: backend unit and integration suites, ruff, mypy, `nx build` and `nx test` (see the PR).
+- Risk / next: **live's choices are not carried into a pilot rebuild yet** (export/import/pinning are not
+  built; the runbook stops a switch when live holds any choice). Flagged choices cannot be listed.
+
 ## 2026-10-02 — Pilot database builder: a verified 500k slice of the full build (local, uncommitted)
 
 - New `scripts/build_pilot_database.py` (logic in `ingestion/pilot_database.py`): reads the full build
@@ -83,117 +243,3 @@ Keep the latest 10 task entries only.
   Qashqai +2, C4 Cactus). Every lost/moved car checked; local API points at prod-v4.
 - Next: non-tie diagnosis workflow (candidate-only, power, model missing/text, normalization, engine,
   body, other conflicts, rule-filled models) -> plan; ties stay for manual choice.
-
-## 2026-10-01 — prod-v4 (v2 + TecDoc months) and build-month matching (local, uncommitted)
-
-- Composed `tecdoc-0326-canonical-full-prod-v4-20261001`: every row of prod-v2 (incl. the 829 transmission
-  entities and gearbox attributes from Table 547) + `month_from`/`month_to` from prod-v3. Verified: equal
-  counts, 0 rows differing from v2 beyond the month keys, 0 month values differing from v3, 0 links
-  differing. The Mac mini's 0326 delivery lacks Tables 547-549 (why v3 had no transmissions).
-- Ported the parked month code (`wip/build-month-matching` 2ac626d) onto the working tree.
-- 30k 64.2% -> 65.4% (+410 / -42 lost / 16 moved); independent 20k 64.1% -> 65.4% (+279 / -30 / 11).
-  Lost go to review, mostly builds 1-3 months before TecDoc's start month; some were wrong before (i20
-  built 04/2014 had resolved to the i20 II starting 11/2014). Moves mostly right (Legacy V, XC60 I);
-  4 doubtful (Pajero -> Pajero Sport, Ibiza -> Ibiza SC).
-- Boundary tolerance on the changed cars (both samples): 0 months +686/-72/27 moved; 1 month
-  +563/-52/17; 2 months +444/-37/16; 3 months +341/-21/14. Decision pending; the API still pins prod-v2.
-- The report refuses to compare runs on different catalog batches; compared car by car with a scratch script.
-
-## 2026-10-01 — Ford Mustang, BYD Atto 3, and model numbers in family comparisons (local, uncommitted)
-
-- FORD MUSTANG: blocked by six TS cars filed "Gt" (Mustang GTs whose model text "GT 500" TS read as the
-  Ford GT), not by the Mach-E, which has its own text. Reviewed exception (`MISREAD_STATED_FAMILIES`) plus
-  a fuel check in the guard (`REVIEWED_ELECTRIC_FAMILIES`): 5,356 cars -> Mustang, the one electric car
-  (VIN 3FMTK, a Mach-E) refused. A general "count only brand-text-only siblings" fix was tried and
-  reverted: "BMW X3" is also the brand text of 498 X4s.
-- BYD: TecDoc has no ATTO 3; its "YUAN PLUS" (2022-, EV, 150 kW, FWD) is the Atto 3 -> reviewed export
-  name. All Atto 3s now get YUAN PLUS as top candidate but stop on body: registry MPV vs TecDoc SUV (a
-  body ruling for the data owner).
-- Model numbers now count: the matcher's model-word reading no longer binds "ATTO 3" to ATTO 2, and the
-  guard's family comparison separates ID.4/ID.5, Ioniq 5/6, Model 3/Y. It caught 4,028 wrong fills
-  (3,682 "ID.4" that are ID.5s, 346 "DS 7 Crossback" that are DS4/DS3), retracted and refilled.
-- MINI: a family named like the make answers only when no other family's word follows (7 Countryman/
-  Clubman rules retired, 88 fills).
-- FORD USA: TecDoc files every Mustang, the Mach-E, and the US Explorer/Edge/Probe under "FORD USA"; the
-  matcher now looks there (`REVIEWED_SISTER_MAKERS`) only when the car's model is no family under "FORD".
-  30k: 64.0% -> 64.2% (+47 / 0 lost / 0 moved; all 47 agree on year and power). The guard keeps reading
-  under the make ("CUSTOM" on a Transit Custom would name a 1950s Ford).
-- Local DB: no model family 224,888 -> 221,279; check 0 contradictions. Tests 1,808 pass.
-- Independent 20k sample (new seed `northstar-random-20k-2026-10-01`, ~90 cars shared with the 30k): 64.1%
-  resolved, agreeing with the 30k's 64.2%. Hard conflicts 1,115: power 487, engine code 356, displacement
-  208 (197 within 10 cc -- exact-equality comparison), year 142. Engine codes: 35 are the same engine in
-  another format ("H5H-470, H5H-480"), BMW "M57-TU2D30" vs "M57 D30" ~70. Body conflicts 288 (MPV vs SUV 65).
-
-## 2026-10-01 — More model family gaps: chassis codes, VIN model year, classics (local, uncommitted)
-
-- Guard reads "GR" as Grand when the spelled-out text names the filled family (Grand Voyager/Vitara).
-- New family MOD-VINY (VIN descriptor + model-year character; holdout 99.98%, 99.5% where the VIN
-  alone is ambiguous). Reviewed chassis codes checked against TecDoc's codes (Honda RD/EU/CG..., Renault
-  BA/JA/KA/KC, Ford P3TS/GNR), aliases (Trans Am -> Firebird, MCC -> City-coupe, M3 -> 3 Series),
-  Stellantis "e-" versions, Volvo P120/111xx (Amazon, PV 544), classic names (Cortina, Spitfire,
-  Valiant, Fiat 124/128, Austin/BMC Mini...). An alias never competes with a TS name ("allroad").
-- Caught: BMW "2002"/"1602"/"2000" are TecDoc versions, not families -- a filled "2002" lost a 2002
-  Turbo on the 30k; names removed, 109 rules retired, 2,004 fills taken back.
-- Local DB: registered passenger cars without model family 256,738 -> 224,888 (279,453 at the start of
-  this pass); check-model-fills 0 contradictions. 30k 64.0% -> 64.1%.
-- Validation: 1,787 tests pass; ruff/mypy clean; Golf Variant test still awaits a decision.
-- Needs decisions: classic Mercedes numbers (~40k, TS has no names before ~1990), classic VW Type 1
-  (~20k) and 1500/1600 (~6k), FORD MUSTANG text shared with Mach-E (~5k), campers/ambulances (~10k).
-
-## 2026-09-30 — Model family and manufacturer gaps across the registry (local, uncommitted)
-
-- Reviewed model names (`REVIEWED_MODEL_NAMES`, ~70 makes: ID.7 Tourer, EV3, EV9, bZ4X, Tipo, Punto,
-  Atto 3...), longest-name reading of model and brand text (trims, repeated makes, make aliases like
-  "VW", "GR" = Grand, Volvo "S + V70", Lexus "IS200", one chassis code in front: "FORD DAW FOCUS"),
-  most-used spelling per name ("RAV4" not "Rav 4"), Volvo classic codes (Amazon, 140, 164, P 1800,
-  Duett, 340, 440, 460), Saab model numbers. New families MFR-BW (manufacturer from the brand text's
-  first word: AIS codes "PO"/"CU" missed Polestar/Cupra) and MOD-BRT (brand text reader).
-- Guarded by review: dropped Trans Am (TS files it under Firebird; 915 fills taken back), "SLC" after a
-  number (450 SLC is TecDoc's SL Coupe), "E-" prefixes, codes that start a family name ("ID. POLO").
-  Changed/retired rules retired with retire_rule before re-applying. check-model-fills: 0 contradictions.
-- Local DB: registered passenger cars without model family 648,695 -> 279,453; without manufacturer
-  39,824 -> 3,939. 30k: 63.5% -> 63.9% (+137 over five runs, 0 lost, 0 moved).
-- Validation: 1,767 tests pass; ruff/mypy clean; `test_source_model_rules` still awaits the Golf Variant
-  decision.
-- Open: classic VW Beetle naming (Beetle vs TecDoc KAEFER, ~20k), FORD MUSTANG text shared with Mach-E,
-  guard reading ignores "GR" (Grand Voyager/Vitara refused, ~3.7k), 173k pre-1990 classics, 13.8k with
-  only the make, camper/ambulance conversions left unfilled on purpose.
-
-## 2026-09-30 — Model family from the registry model text; Volvo EX40/EC40 reviewed (local, uncommitted)
-
-- 136,223 registered passenger cars had model text but no model family: no normalization rule names
-  new models (EX40, EV3, ID.7...) and spellings like "MAZDA6" / "FIAT TIPO" miss the rules. The
-  matcher already reads most of them from the text, so this is a data/evidence fix, not a match gain.
-- New family MOD-MT (manufacturer + model text, reviewed-pattern learner): answers a TS family name
-  up to case/spaces/make prefix, or a reviewed new name (`REVIEWED_MODEL_NAMES`: Volvo EX40, EC40 --
-  TecDoc "EX40 (536)", "EC40 (539)"). A separator between digits counts (Saab 93 is not the 9-3).
-  The same reviewed names let MOD-PAT read "VOLVO EX40" brand texts.
-- Local DB: MOD-MT 72 rules / 25,346 filled (9 Trail Blazer refused by the guard); MOD-PAT +2 rules /
-  3,975 filled; check-model-fills 0 contradictions. Model-less registered passenger cars
-  677,741 -> 648,695. 30k: 63.5% -> 63.5% (+2 / 0 / 0).
-- Validation: 1,717 tests pass, ruff/mypy clean; `test_source_model_rules` still awaits the Golf
-  Variant decision.
-- Found: the text reading behind the guard reads BYD "ATTO 3" as "ATTO 2" (TecDoc lists the Atto 3 as
-  YUAN PLUS); matcher safely sends them to review. Next: review list of new names (ID.7 Tourer, EV3,
-  EV9, bZ4X, Atto 3 -> Yuan Plus, ...).
-
-## 2026-09-30 — Body words in TecDoc model names; Volvo/BMW patterns; VIN + length model rules (local, uncommitted)
-
-- Matcher: when a car's registered body equals a KType's body, a body word in the KType's name that
-  names that body ("OCTAVIA III Combi", "V40 Hatchback", "CADDY IV MPV") no longer counts against the
-  model text. Before, the hatchback sibling outscored the right estate KType on text and the car went
-  to review. Words that tell models apart are kept ("GLC Coupe" is an SUV in TecDoc, "XC60 I SUV",
-  "COROLLA Compact").
-- Model family: Volvo 85x codes -> 850 and multi-group codes ("244-410-2111"); BMW "323I/2"; new
-  family MOD-VINL (manufacturer + VIN descriptor + length; Peugeot 3008/5008, holdout 99.99%).
-  Fixed a MOD-PAT re-learn bug that would have retired ~1,250 rules whose cars were all filled.
-  Local DB: MOD-VINL 13,044 + MOD-PAT 35,402 filled; 66 older MOD-VIN Grand California fills
-  retracted; model-less registered passenger cars 721,810 -> 677,741. Live untouched.
-- Seeded 30k (Mac mini, prod-v2): 60.7% -> 63.0% (body words: +710 / -1 genuine 206 tie / 0 moved)
-  -> 63.5% (model fills: +145 / 0 / 0). Skoda 85%. 16 "engine differ" gains are B5252S vs TecDoc
-  "B 5252" (same engine).
-- Validation: 1,699 tests pass; ruff, mypy clean. One failure kept on purpose:
-  `test_source_model_rules` encodes the 2026-08-28 decision that body alone must not settle
-  Golf vs Golf Variant (14 VW Variant gains in the 30k) -- needs the user's decision.
-- Next: decide Variant; Volvo EX40/EC40 (~13k cars with model text but no family); Volvo 140/Amazon/340
-  codes blocked by the TS vocabulary; 50k set not on the Mac mini.

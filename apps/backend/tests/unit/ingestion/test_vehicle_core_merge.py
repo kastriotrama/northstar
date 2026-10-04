@@ -21,6 +21,7 @@ from ingestion.vehicle_core_fields import (
 from ingestion.vehicle_core_merge import (
     Observation,
     VehicleState,
+    _rank,
     derive,
     merge,
     retract,
@@ -45,6 +46,10 @@ def review(value: object, rule: str = "r1") -> Observation:
 
 def rule(value: object, rule_id: str = "ENG-VV-1") -> Observation:
     return Observation(value, SourceRef("rule", rule_id))
+
+
+def correction(value: object, correction_id: str = "c1", *, clears: bool = False) -> Observation:
+    return Observation(value, SourceRef("correction", correction_id), clears=clears)
 
 
 def ts_vehicle(**values: object) -> VehicleState:
@@ -146,6 +151,147 @@ def test_a_review_merged_with_the_record_it_corrects_keeps_the_registry_value() 
     assert state.values["bodywork_form"] == "estate"
 
 
+@pytest.mark.parametrize("policy", ["newest", "ts_first", "any_first"])
+def test_a_persons_correction_outranks_a_review_and_every_other_source(policy: str) -> None:
+    ranks = [_rank(source, policy) for source in
+             ("correction", "review", "transportstyrelsen", "ais", "derived", "rule", "other")]
+
+    assert ranks == sorted(ranks, reverse=True)
+    correction_rank, review_rank, ts_rank, ais_rank, derived_rank, rule_rank, unknown = ranks
+    assert correction_rank > review_rank > max(ts_rank, ais_rank)
+    assert min(ts_rank, ais_rank) > derived_rank > rule_rank > unknown
+    # Only the correction is new: the rest of the order is what it was.
+    assert (review_rank, derived_rank, rule_rank) == (100, 30, 20)
+    assert (ts_rank, ais_rank) == ((60, 50) if policy == "ts_first" else (50, 50))
+
+
+def test_undoing_a_correction_restores_the_reviewers_value_not_the_registrys() -> None:
+    """A review against a review is one source speaking again and keeps nothing;
+    a correction is its own source, so the rule's value waits behind it."""
+
+    state = ts_vehicle(bodywork_form="estate")
+    merge(state, {"bodywork_form": review("suv")})
+
+    result = merge(state, {"bodywork_form": correction("hatchback")})
+
+    assert result.touched
+    assert state.values["bodywork_form"] == "hatchback"
+    assert state.field_sources["bodywork_form"] == "correction:c1"
+    assert {entry["source"].split("@")[0]: entry["value"]
+            for entry in state.field_alternatives["bodywork_form"]} == {
+        "review:r1": "suv", "transportstyrelsen": "estate"}
+
+    retract(state, "bodywork_form", "correction", "c1")
+
+    assert state.values["bodywork_form"] == "suv"
+    assert state.field_sources["bodywork_form"] == "review:r1"
+    assert [entry["value"] for entry in state.field_alternatives["bodywork_form"]] == ["estate"]
+
+
+def test_a_rule_or_an_import_arriving_under_a_correction_is_kept_behind_it() -> None:
+    state = ts_vehicle(bodywork_form="estate")
+    merge(state, {"bodywork_form": correction("hatchback")})
+
+    behind = merge(state, {"bodywork_form": review("suv")})
+    merge(state, {"bodywork_form": ais("coupe")})
+
+    # Nothing visible changed, but the rule's value was kept: the writer must save it.
+    assert (behind.touched, behind.kept) == (False, ["bodywork_form"])
+    assert state.values["bodywork_form"] == "hatchback"
+    assert state.field_sources["bodywork_form"] == "correction:c1"
+    assert sorted(entry["value"] for entry in state.field_alternatives["bodywork_form"]) == [
+        "coupe", "estate", "suv"]
+
+    # A retired rule leaves from behind the correction; the correction stays.
+    retract(state, "bodywork_form", "review", "r1")
+    assert state.values["bodywork_form"] == "hatchback"
+    retract(state, "bodywork_form", "correction", "c1")
+    # The best of what is left: AIS is newer than TS for a `newest` field.
+    assert state.values["bodywork_form"] == "coupe"
+
+
+def test_a_source_confirming_a_corrected_value_is_kept_behind_the_correction() -> None:
+    """Withdrawing the correction then falls back to that source instead of emptying the field."""
+
+    state = ts_vehicle()
+    merge(state, {"engine_code": correction("D4204T14")})
+    assert "engine_code" not in state.field_alternatives  # the correction filled a gap
+
+    confirmed = merge(state, {"engine_code": ais("D4204T14")})
+
+    # Nothing visible changed, but the provider's word was kept: the writer must save it.
+    assert (confirmed.touched, confirmed.kept) == (False, ["engine_code"])
+    assert state.field_sources["engine_code"] == "correction:c1"
+    assert state.field_alternatives["engine_code"] == [
+        {"source": "ais@2026-09-19", "value": "D4204T14"}]
+    # The same source saying it again keeps one entry, not two.
+    merge(state, {"engine_code": ais("D4204T14")})
+    assert len(state.field_alternatives["engine_code"]) == 1
+
+    retract(state, "engine_code", "correction", "c1")
+
+    assert state.values["engine_code"] == "D4204T14"
+    assert state.field_sources["engine_code"] == "ais@2026-09-19"
+    assert "engine_code" not in state.field_alternatives
+
+
+def test_a_source_that_comes_to_agree_with_a_correction_replaces_what_it_said_before() -> None:
+    state = ts_vehicle(power_kw=133)
+    merge(state, {"power_kw": correction(150)})
+    assert [entry["value"] for entry in state.field_alternatives["power_kw"]] == [133]
+
+    # The registry is re-imported with the corrected figure, and a rule agrees too.
+    merge(state, {"power_kw": ts(150)})
+    merge(state, {"power_kw": review(150)})
+
+    assert {entry["source"].split("@")[0].split(":")[0]: entry["value"]
+            for entry in state.field_alternatives["power_kw"]} == {
+        "transportstyrelsen": 150, "review": 150}
+    retract(state, "power_kw", "correction", "c1")
+    assert (state.values["power_kw"], state.field_sources["power_kw"]) == (150, "review:r1")
+
+
+def test_only_a_correction_keeps_the_source_that_confirms_it() -> None:
+    """Every other source is confirmed as before: nothing is kept and nothing re-stamped."""
+
+    state = ts_vehicle(bodywork_form="estate")
+    merge(state, {"bodywork_form": review("suv")})
+
+    for confirming in (ais("suv"), rule("suv"), review("suv")):
+        result = merge(state, {"bodywork_form": confirming})
+        assert (result.touched, result.kept) == (False, [])
+    assert state.field_sources["bodywork_form"] == "review:r1"
+    assert [entry["value"] for entry in state.field_alternatives["bodywork_form"]] == ["estate"]
+    # A provider that now agrees with the rule no longer says what it said before.
+    assert not merge(state, {"bodywork_form": ts("suv")}).kept
+    assert "bodywork_form" not in state.field_alternatives
+
+    # A correction stating its own value again is one source speaking twice.
+    corrected = ts_vehicle()
+    merge(corrected, {"engine_code": correction("D4204T14")})
+    again = merge(corrected, {"engine_code": correction("D4204T14")})
+    assert (again.touched, again.kept) == (False, [])
+    assert "engine_code" not in corrected.field_alternatives
+    # And a correction that confirms the car's own value leaves no trace at all.
+    own = ts_vehicle(power_kw=133)
+    assert not merge(own, {"power_kw": correction(133)}).kept
+    assert (own.field_sources, own.field_alternatives) == ({}, {})
+
+
+def test_a_later_correction_replaces_an_earlier_one_and_keeps_what_the_first_displaced() -> None:
+    state = ts_vehicle(power_kw=133)
+    merge(state, {"power_kw": correction(150, "c1")})
+
+    merge(state, {"power_kw": correction(140, "c2")})
+
+    assert (state.values["power_kw"], state.field_sources["power_kw"]) == (140, "correction:c2")
+    assert [entry["value"] for entry in state.field_alternatives["power_kw"]] == [133]
+    # The superseded correction is gone: retracting it changes nothing.
+    assert not retract(state, "power_kw", "correction", "c1").touched
+    retract(state, "power_kw", "correction", "c2")
+    assert state.values["power_kw"] == 133 and state.field_sources == {}
+
+
 def test_a_rule_only_fills_and_never_overrides_a_source() -> None:
     state = ts_vehicle()
 
@@ -202,6 +348,7 @@ def test_unknown_fields_are_a_programming_error() -> None:
         ("transportstyrelsen:1001@2023-12-04", SourceRef("transportstyrelsen", "1001", TS_DAY)),
         ("rule:ENG-VV-1a2b", SourceRef("rule", "ENG-VV-1a2b", None)),
         ("review:4f7c", SourceRef("review", "4f7c", None)),
+        ("correction:9b1e-22", SourceRef("correction", "9b1e-22", None)),
     ],
 )
 def test_source_references_round_trip(text: str, expected: SourceRef) -> None:

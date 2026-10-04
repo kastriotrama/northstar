@@ -21,7 +21,7 @@ import re
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from api.app.features.vehicle_matching.repository import CarRecord
 from api.app.features.vehicle_matching.service import Matcher, bucket_for
@@ -224,25 +224,48 @@ class Comparison:
     shared: int
 
 
+ResolutionChange = Literal["gained", "lost", "moved"]
+
+
+def resolution_change(
+    was: str, was_ktype: str | None, now: str, now_ktype: str | None
+) -> ResolutionChange | None:
+    """How one car's automatic resolution changed between two evaluations.
+
+    `gained`: not resolved before, resolved now. `lost`: the other way round.
+    `moved`: resolved both times, to another KType. None when none of these.
+    The one definition: two runs of a sample (`compare`) and a check of what a
+    correction would do to a car both count by it.
+    """
+
+    if was != "resolved" and now == "resolved":
+        return "gained"
+    if was == "resolved" and now != "resolved":
+        return "lost"
+    if was == now == "resolved" and was_ktype != now_ktype:
+        return "moved"
+    return None
+
+
 def compare(before: ImpactReport, after: ImpactReport) -> Comparison:
     """Car-by-car change in automatic resolution between two runs of the same sample."""
 
     if before.catalog_batch != after.catalog_batch:
         raise ValueError("reports use different catalog batches; they are not comparable")
-    gained = lost = moved = shared = 0
+    counts: Counter[str] = Counter()
+    shared = 0
     for vehicle_id, (terminal, ktype) in after.cars.items():
         previous = before.cars.get(vehicle_id)
         if previous is None:
             continue
         shared += 1
         was, was_ktype = previous
-        if was != "resolved" and terminal == "resolved":
-            gained += 1
-        elif was == "resolved" and terminal != "resolved":
-            lost += 1
-        elif was == terminal == "resolved" and was_ktype != ktype:
-            moved += 1
-    return Comparison(gained=gained, lost=lost, moved=moved, shared=shared)
+        change = resolution_change(str(was), was_ktype, str(terminal), ktype)
+        if change is not None:
+            counts[change] += 1
+    return Comparison(
+        gained=counts["gained"], lost=counts["lost"], moved=counts["moved"], shared=shared
+    )
 
 
 def _pct(part: int, whole: int) -> str:

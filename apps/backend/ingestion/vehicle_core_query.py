@@ -44,9 +44,20 @@ from ingestion.vehicle_facts_query import (
     CompiledPredicate,
     UnknownFieldError,
 )
+from ingestion.vehicle_match_result_migrations import (
+    MATCH_STATES,
+    VEHICLE_MATCH_RESULTS_TABLE,
+)
 
 ALIAS = "v"
 MAX_SEARCH_TOKENS = 6
+
+#: A vehicle column that holds nothing: NULL, or for text the empty string. It
+#: takes no values. The TS screen's filter (`vehicle_facts_query`) has no such
+#: operator and is not changed.
+IS_EMPTY = "is_empty"
+VEHICLE_OPERATORS: frozenset[str] = SUPPORTED_OPERATORS | {IS_EMPTY}
+_TEXT_TYPES = frozenset({"text"})
 
 #: (field, operator, values) -- structural, so this module does not depend on
 #: the API's schemas.
@@ -94,12 +105,121 @@ def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def compile_term(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
-    """One clause. Values inside a clause are OR-ed."""
+#: Not a column of `core.vehicles`: where the car stands with matching, read
+#: from its stored match result and from a person's choice on the vehicle.
+MATCH_RESULT_FIELD = "match_result"
+_MANUAL_STATES = {"chosen": "manual", "chosen_none": "manual_none"}
+MATCH_RESULT_VALUES: tuple[str, ...] = (*MATCH_STATES, *_MANUAL_STATES, "not_evaluated")
+_UNDECIDED = (
+    f"({ALIAS}.match_state IS NULL OR {ALIAS}.match_state NOT IN ('manual', 'manual_none'))"
+)
+_STORED_RESULT = (
+    f"SELECT 1 FROM {VEHICLE_MATCH_RESULTS_TABLE} AS stored_result "
+    f"WHERE stored_result.vehicle_id = {ALIAS}.vehicle_id"
+)
 
-    if operator not in SUPPORTED_OPERATORS:
+
+def _compile_match_result(operator: str, values: Sequence[str]) -> CompiledPredicate:
+    """Cars in one of these matching states. A person's choice outranks the matcher's state.
+
+    Written as probes of the stored results by the vehicle's key, so the list,
+    its count and its facets need no join.
+    """
+
+    if operator not in {"equals", "not_equals"}:
+        raise ValueError(f"{MATCH_RESULT_FIELD} takes equals or not_equals, not {operator}")
+    wanted = [str(value) for value in values if str(value).strip()]
+    unknown = sorted(set(wanted) - set(MATCH_RESULT_VALUES))
+    if unknown or not wanted:
+        raise ValueError(f"{MATCH_RESULT_FIELD} takes {', '.join(MATCH_RESULT_VALUES)}")
+    fragments: list[str] = []
+    parameters: list[Any] = []
+    manual = [_MANUAL_STATES[value] for value in wanted if value in _MANUAL_STATES]
+    if manual:
+        fragments.append(f"{ALIAS}.match_state = ANY(%s)")
+        parameters.append(manual)
+    stored = [value for value in wanted if value in MATCH_STATES]
+    if stored:
+        fragments.append(
+            f"({_UNDECIDED} AND EXISTS ({_STORED_RESULT} AND stored_result.state = ANY(%s)))"
+        )
+        parameters.append(stored)
+    if "not_evaluated" in wanted:
+        fragments.append(f"({_UNDECIDED} AND NOT EXISTS ({_STORED_RESULT}))")
+    sql = "(" + " OR ".join(fragments) + ")"
+    return CompiledPredicate(f"NOT {sql}" if operator == "not_equals" else sql, parameters)
+
+
+#: More pseudo-fields read from the stored match result: what stands between a
+#: car and one KType. Each names the array column it looks into.
+MATCH_CAUSE_FIELDS: dict[str, str] = {
+    "match_missing_field": "missing_fields",
+    "match_separating_field": "separating_fields",
+    "match_conflicting_field": "conflicting_fields",
+    "match_reason": "reason_codes",
+}
+#: Cars whose accepted, chosen or possible KTypes include one of these.
+MATCH_KTYPE_FIELD = "match_ktype"
+#: Cars with exactly this many possible KTypes.
+MATCH_CANDIDATE_COUNT_FIELD = "match_candidate_count"
+MATCH_FIELDS: frozenset[str] = frozenset(
+    {MATCH_RESULT_FIELD, MATCH_KTYPE_FIELD, MATCH_CANDIDATE_COUNT_FIELD, *MATCH_CAUSE_FIELDS}
+)
+
+
+def _compile_match_detail(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
+    """A clause on what the stored result says about the car, by the vehicle's key."""
+
+    if operator != "equals":
+        raise ValueError(f"{field} takes equals, not {operator}")
+    wanted = [str(value).strip() for value in values if str(value).strip()]
+    if not wanted:
+        raise ValueError(f"condition on {field!r} has no values")
+    if field == MATCH_CANDIDATE_COUNT_FIELD:
+        numbers = _numbers(wanted)
+        if len(numbers) != len(wanted):
+            raise ValueError(f"{field} takes whole numbers")
+        return CompiledPredicate(
+            f"EXISTS ({_STORED_RESULT} AND stored_result.candidate_count = ANY(%s))", [numbers]
+        )
+    if field == MATCH_KTYPE_FIELD:
+        # Three index reads united by the vehicle's key -- a person's choice (the
+        # few decided cars), the accepted KType, the possible KTypes -- instead
+        # of an OR that would have every vehicle looked at.
+        return CompiledPredicate(
+            f"{ALIAS}.vehicle_id IN ("
+            f"SELECT decided.vehicle_id FROM {VEHICLES_TABLE} AS decided "
+            "WHERE decided.match_state IS NOT NULL AND decided.ktype = ANY(%s) "
+            f"UNION SELECT accepted.vehicle_id FROM {VEHICLE_MATCH_RESULTS_TABLE} AS accepted "
+            "WHERE accepted.ktype = ANY(%s) "
+            f"UNION SELECT possible.vehicle_id FROM {VEHICLE_MATCH_RESULTS_TABLE} AS possible "
+            "WHERE possible.candidate_ktypes && %s::text[])",
+            [wanted, wanted, wanted],
+        )
+    column = MATCH_CAUSE_FIELDS[field]
+    return CompiledPredicate(
+        f"EXISTS ({_STORED_RESULT} AND stored_result.{column} && %s::text[])", [wanted]
+    )
+
+
+def compile_term(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
+    """One clause. Values inside a clause are OR-ed; `is_empty` takes none."""
+
+    if operator not in VEHICLE_OPERATORS:
         raise ValueError(f"unsupported operator: {operator}")
+    if field == MATCH_RESULT_FIELD:
+        return _compile_match_result(operator, values)
+    if field in MATCH_FIELDS:
+        return _compile_match_detail(field, operator, values)
     terms = [str(value) for value in values if value is not None and str(value).strip()]
+    if operator == IS_EMPTY:
+        if terms:
+            raise ValueError(f"{IS_EMPTY} takes no values")
+        column, sql_type = _column(field)
+        # Two plain comparisons of the column itself, so its index answers both.
+        if sql_type in _TEXT_TYPES:
+            return CompiledPredicate(f"({column} IS NULL OR {column} = '')", [])
+        return CompiledPredicate(f"{column} IS NULL", [])
     if not terms:
         raise ValueError(f"condition on {field!r} has no values")
     column, sql_type = _column(field)

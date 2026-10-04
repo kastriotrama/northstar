@@ -9,6 +9,8 @@ writer merges through `vehicle_core_merge`, which reads it).
 
 Precedence, highest first:
 
+0. `correction` -- a person's correction of this one car. It outranks a
+   reviewer's rule, which speaks about many cars at once.
 1. `review`  -- a reviewer's resolution rule. An explicit human assertion.
 2. a provider (`transportstyrelsen`, `ais`), ordered by the field's policy:
    - `newest`:    registry facts that change over a vehicle's life (plate,
@@ -25,7 +27,8 @@ Precedence, highest first:
    gaps only, never overrides anything a source stated.
 
 A value that loses is not thrown away: it is kept in `field_alternatives`, so
-retiring a rule or a review restores what the next source said.
+retiring a rule or a review, or withdrawing a correction, restores what the
+next source said.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ SqlType = Literal["text", "integer", "smallint", "date", "boolean", "text[]", "r
 SOURCE_TS = "transportstyrelsen"
 SOURCE_AIS = "ais"
 SOURCE_REVIEW = "review"
+SOURCE_CORRECTION = "correction"
 SOURCE_RULE = "rule"
 SOURCE_DERIVED = "derived"
 
@@ -151,8 +155,9 @@ INTEGER_TYPES = frozenset({"integer", "smallint"})
 #
 # A value's source is written `<source>[:<ref>][@<YYYY-MM-DD>]`, e.g.
 # `ais:2026-09-19T10:28:27@2026-09-19`, `transportstyrelsen:1001962868@2026-08-07`,
-# `review:4f7c...`, `rule:ENG-VV-1a2b3c`. A field missing from `field_sources` came
-# from the vehicle's origin record, observed on `origin_observed_on`.
+# `review:4f7c...`, `correction:9b1e...` (the correction's id), `rule:ENG-VV-1a2b3c`.
+# A field missing from `field_sources` came from the vehicle's origin record,
+# observed on `origin_observed_on`.
 
 _REF_PATTERN = re.compile(r"^(?P<source>[a-z_]+)(?::(?P<ref>[^@]*))?(?:@(?P<date>\d{4}-\d{2}-\d{2}))?$")
 

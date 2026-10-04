@@ -4,6 +4,21 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api-config';
 import type {
+  CorrectionDecisionList,
+  CorrectionDecisionRequest,
+  CorrectionDecisionResult,
+  CorrectionOutcome,
+  CorrectionPreviewCars,
+  CorrectionPreviewJob,
+  CorrectionPreviewRequest,
+  CorrectionScopes,
+  CorrectionScopesRequest,
+  CorrectionWithdrawRequest,
+  CorrectionWithdrawal,
+  FactCorrectionHistory,
+  FactCorrectionRequest,
+  KTypeChoiceHistory,
+  KTypeChoiceRequest,
   CoverageBatch,
   DiscriminatorReport,
   MatchChunkBuild,
@@ -39,11 +54,10 @@ import type {
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
-  MatchBucket,
-  MatchCarPage,
-  MatchSummaryJob,
-  MatchSummaryRequest,
+  MatchResultCounts,
+  MatchResultOverview,
   VehicleMatchLookup,
+  VehicleCondition,
   VehicleCount,
   VehicleDetail,
   VehicleFacet,
@@ -592,36 +606,147 @@ export class Api {
     });
   }
 
-  /** Start matching a seeded random `limit` cars of a filter; poll the returned job. */
-  startMatchSummary(request: MatchSummaryRequest): Observable<MatchSummaryJob> {
-    return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
-  }
-
-  /** Every summary job the API holds, newest first -- including ones no screen is watching. */
-  matchSummaryJobs(): Observable<MatchSummaryJob[]> {
-    return this.http.get<MatchSummaryJob[]>(`${this.base}/v1/vehicles/matching/summary`);
-  }
-
-  matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
-    return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
-  }
-
-  /** A page of the cars a summary put in one bucket, with why each ended there. */
-  matchSummaryCars(
-    jobId: string,
-    bucket: MatchBucket,
-    offset: number,
-    limit: number,
-  ): Observable<MatchCarPage> {
-    return this.http.get<MatchCarPage>(
-      `${this.base}/v1/vehicles/matching/summary/${jobId}/cars`,
-      { params: params({ bucket, offset, limit }) },
+  /**
+   * Record a person's KType choice for one car: choose a candidate, "none of these",
+   * or withdraw. Answers with the refreshed lookup (201 recorded, 200 replay of the same
+   * operation id and content), so a retry must resend the same body.
+   */
+  recordKTypeChoice(vehicleId: string, body: KTypeChoiceRequest): Observable<VehicleMatchLookup> {
+    return this.http.post<VehicleMatchLookup>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/ktype-choices`,
+      body,
     );
   }
 
-  cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {
-    return this.http.delete<MatchSummaryJob>(
-      `${this.base}/v1/vehicles/matching/summary/${jobId}`,
+  /** A car's choices from the current one backwards; no matcher run. */
+  ktypeChoiceHistory(vehicleId: string): Observable<KTypeChoiceHistory> {
+    return this.http.get<KTypeChoiceHistory>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/ktype-choices`,
+    );
+  }
+
+  /**
+   * Record a person's correction to one field of one car: set a value, ignore the car's
+   * value, or withdraw the correction. The field `normalization_stop` is not a value: ignoring
+   * it releases a car that was stopped before matching. Answers with the lookup as matched
+   * again after the write (201 recorded, 200 replay of the same operation id and content), so
+   * a retry must resend the same body.
+   */
+  recordCorrection(vehicleId: string, body: FactCorrectionRequest): Observable<VehicleMatchLookup> {
+    return this.http.post<VehicleMatchLookup>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections`,
+      body,
+    );
+  }
+
+  /** A car's corrections per field, each from the current one backwards; no matcher run. */
+  correctionHistory(vehicleId: string): Observable<FactCorrectionHistory> {
+    return this.http.get<FactCorrectionHistory>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections`,
+    );
+  }
+
+  // --- One correction for several cars ---------------------------------------------------
+  // Nothing is saved before a check: the matcher runs on each car of the scope as it is and
+  // with the correction, and only what was checked can be applied.
+
+  /** Whom a correction of this car could also apply to, with a count each. Saves nothing. */
+  correctionScopes(vehicleId: string, body: CorrectionScopesRequest): Observable<CorrectionScopes> {
+    return this.http.post<CorrectionScopes>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections/scopes`,
+      body,
+    );
+  }
+
+  /**
+   * Start checking what a correction would change for the cars of a scope. Answers with the
+   * job (202); poll `correctionPreview` until its status settles. The server runs one check
+   * at a time: a second is refused with 429 `busy`.
+   */
+  startCorrectionPreview(
+    vehicleId: string,
+    body: CorrectionPreviewRequest,
+  ): Observable<CorrectionPreviewJob> {
+    return this.http.post<CorrectionPreviewJob>(
+      `${this.base}/v1/vehicles/${encodeURIComponent(vehicleId)}/corrections/preview`,
+      body,
+    );
+  }
+
+  correctionPreview(previewId: string): Observable<CorrectionPreviewJob> {
+    return this.http.get<CorrectionPreviewJob>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}`,
+    );
+  }
+
+  /** The checked cars of one outcome, each with where the matcher ends before and after. */
+  correctionPreviewCars(
+    previewId: string,
+    outcome: CorrectionOutcome,
+    limit: number,
+  ): Observable<CorrectionPreviewCars> {
+    return this.http.get<CorrectionPreviewCars>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}/cars`,
+      { params: params({ outcome, limit }) },
+    );
+  }
+
+  /** Stop a running check; it keeps what it found so far and frees the server for the next. */
+  stopCorrectionPreview(previewId: string): Observable<unknown> {
+    return this.http.delete<unknown>(
+      `${this.base}/v1/vehicle-corrections/previews/${encodeURIComponent(previewId)}`,
+    );
+  }
+
+  /**
+   * Apply a checked correction to its cars, or keep it as a proposal that writes no car.
+   * 201 when recorded, 200 for a replay of the same operation id, so a retry must resend
+   * the same body.
+   */
+  decideCorrection(body: CorrectionDecisionRequest): Observable<CorrectionDecisionResult> {
+    return this.http.post<CorrectionDecisionResult>(
+      `${this.base}/v1/vehicle-corrections/decisions`,
+      body,
+    );
+  }
+
+  /** The decisions made for several cars at once, newest first. */
+  correctionDecisions(limit = 100): Observable<CorrectionDecisionList> {
+    return this.http.get<CorrectionDecisionList>(`${this.base}/v1/vehicle-corrections/decisions`, {
+      params: params({ limit }),
+    });
+  }
+
+  /** Undo a decision on every car it still stands on; cars a person changed since are left. */
+  withdrawCorrectionDecision(
+    decisionId: string,
+    body: CorrectionWithdrawRequest,
+  ): Observable<CorrectionWithdrawal> {
+    return this.http.post<CorrectionWithdrawal>(
+      `${this.base}/v1/vehicle-corrections/decisions/${encodeURIComponent(decisionId)}/withdraw`,
+      body,
+    );
+  }
+
+  /** Matching statistics of a Vehicles filter, read from stored results (no matcher run). */
+  matchResultOverview(filter: {
+    conditions: VehicleCondition[];
+    text: string;
+  }): Observable<MatchResultOverview> {
+    return this.http.post<MatchResultOverview>(
+      `${this.base}/v1/vehicles/match-results/overview`,
+      filter,
+    );
+  }
+
+  /** Cars per matching state under a Vehicles filter: one grouped query, for the strip. */
+  matchResultCounts(filter: {
+    conditions: VehicleCondition[];
+    text: string;
+  }): Observable<MatchResultCounts> {
+    return this.http.post<MatchResultCounts>(
+      `${this.base}/v1/vehicles/match-results/counts`,
+      filter,
     );
   }
 

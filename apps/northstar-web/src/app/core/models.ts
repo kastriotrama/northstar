@@ -781,6 +781,15 @@ export interface NorVehicleRow {
   bodywork_form: string | null;
   colour: string | null;
   ktype: string | null;
+  /** `manual` when a person chose the KType, `manual_none` for "none of these". */
+  match_state?: string | null;
+  /** The matcher's stored state for the car; null when it has no stored result. */
+  match_result?: string | null;
+  /** The KType the matcher accepted, from the stored result. */
+  automatic_ktype?: string | null;
+  /** The possible KTypes, best first, with the matcher's confidence in each (stored result). */
+  candidate_ktypes?: string[];
+  candidate_confidences?: number[];
   /** Fields whose value a reviewer's rule asserted. */
   review_fields: string[];
   /** Fields a learned enrichment rule filled because no source stated them. */
@@ -882,6 +891,8 @@ export interface MatcherInputs {
   drive_type: string | null;
   bodywork_form: string | null;
   model_recovered_from: string | null;
+  build_month?: number | null;
+  electrification?: string | null;
 }
 
 export interface KTypeCandidate {
@@ -932,83 +943,481 @@ export interface VehicleMatchLookup {
   decision_trace: Record<string, unknown>[];
   /** Other vehicles that held this plate or VIN before, most recent first. */
   other_vehicle_ids: string[];
+  /** The active translation rule set the matcher was built from. */
+  rule_set_version?: string | null;
+  /** Identifies the evidence shown; sent back with a choice so the server stores what was seen. */
+  evidence_fingerprint?: string;
+  /** A person's stored choice for this car; null without one or for a TS-record lookup. */
+  choice?: KTypeChoiceState | null;
+  /** The car's KType: the person's choice, else the matcher's when it resolved. */
+  effective_ktype?: string | null;
+  effective_source?: 'person' | 'matcher' | null;
+  /** The head of each correction chain this car has, withdrawn ones too; by field. */
+  corrections?: FactCorrectionState[];
+  /** The fields a person may correct for this car; empty for a TS-record lookup. */
+  correctable_fields?: CorrectableField[];
+  /**
+   * Why this car's record was stopped before matching (`tyre_size_unrecognized`, ...); empty for
+   * a car that was never stopped. A person may release the car: a correction of the field
+   * `normalization_stop`, which is in `corrections` and not in `correctable_fields`.
+   */
+  stop_reasons?: string[];
+  /** Fields whose stored vehicle copy no longer agrees with what the matcher is handed. */
+  copy_drift?: string[];
 }
 
-export interface MatchSummaryRequest extends VehicleSearchRequest {
-  limit: number;
-}
+// --- A person's KType choice per car (`/v1/vehicles/{id}/ktype-choices`) --------------
 
-export interface FieldCount {
+export type KTypeChoiceAction = 'choose' | 'none' | 'withdraw';
+
+export type KTypeChoiceStaleReason =
+  | 'catalog_batch_changed'
+  | 'evidence_changed'
+  | 'ktype_not_in_catalog'
+  | 'ktype_not_a_candidate'
+  | 'new_candidates';
+
+export interface KTypeChoiceChangedInput {
   field: string;
-  cars: number;
+  then: unknown;
+  now: unknown;
 }
 
-export interface MatchExample {
-  vehicle_id: string | null;
-  source_record_id: number | null;
-  plate: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  candidates: number;
-}
-
-export interface MatchSummary {
+/** The head of a car's choice chain, with whether it still fits today's matching. */
+export interface KTypeChoiceState {
+  status: 'chosen' | 'none' | 'withdrawn';
+  choice_id: string;
+  ktype: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
   catalog_batch: string;
-  population: number;
-  evaluated: number;
-  sampled: boolean;
-  buckets: Record<MatchBucket, number>;
-  terminals: Record<string, number>;
-  several_candidate_counts: Record<string, number>;
-  candidate_limit: number;
-  none_conflicting_fields: FieldCount[];
-  none_without_candidates: number;
-  several_separating_fields: FieldCount[];
-  several_missing_separating_fields: FieldCount[];
-  not_matchable_reasons: { reason: string; cars: number }[];
-  examples: Record<MatchBucket, MatchExample[]>;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  /** The chosen KType's entry exactly as it was stored with the choice. */
+  chosen_candidate: KTypeCandidate | null;
+  needs_review: boolean;
+  stale_reasons: KTypeChoiceStaleReason[];
+  changed_inputs: KTypeChoiceChangedInput[];
+  history_count: number;
 }
 
-/** One evaluated car of a summary, as the bucket lists show it. */
-export interface MatchCarRow {
-  vehicle_id: string | null;
-  source_record_id: number | null;
-  plate: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  bucket: MatchBucket;
+export interface KTypeChoiceRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the choice id. */
+  operation_id: string;
+  action: KTypeChoiceAction;
+  ktype?: string | null;
+  reviewer: string;
+  reason?: string | null;
+  /** The choice the screen showed (also a withdrawn one), or null without one. */
+  supersedes_choice_id: string | null;
+  evidence_fingerprint?: string | null;
+}
+
+export interface KTypeChoiceHistoryEntry {
+  choice_id: string;
+  action: KTypeChoiceAction;
+  ktype: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  supersedes_choice_id: string | null;
+  catalog_batch: string;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  code_version: string;
+  evidence?: Record<string, unknown> | null;
+}
+
+/** A car's choices, from the current one backwards. */
+export interface KTypeChoiceHistory {
+  vehicle_id: string;
+  current_choice_id: string | null;
+  entries: KTypeChoiceHistoryEntry[];
+}
+
+// --- A person's corrections to one car's data (`/v1/vehicles/{id}/corrections`) -------
+
+export type FactCorrectionAction = 'set' | 'ignore' | 'withdraw';
+
+/** The head of one field's correction chain on a car. */
+export interface FactCorrectionState {
+  field: string;
+  /** `set`: `value` is in force. `ignored`: the car's value is not used. `withdrawn`: no correction. */
+  status: 'set' | 'ignored' | 'withdrawn';
+  correction_id: string;
+  value: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  /** What the matcher used for the field when the correction was made, and where it came from. */
+  previous_value: string | null;
+  previous_source: string | null;
+  group_id: string | null;
+  /** The decision for several cars that wrote the correction; null for one car's own. */
+  decision?: CorrectionDecisionRef | null;
+  history_count: number;
+}
+
+/**
+ * One field of the car a person may correct, with what the matcher uses for it today.
+ * The editor is built from `type` and `values`, so a field the server adds needs no web change.
+ */
+export interface CorrectableField {
+  field: string;
+  label: string;
+  /** `list`: several of `values` at once (a car's fuels), carried as one comma-joined string. */
+  type: 'text' | 'integer' | 'list';
+  /** The closed vocabulary; empty when any value is accepted. */
+  values: string[];
+  /**
+   * The matcher evidence keys that belong to the field, e.g. `year` for `production_year`.
+   * A candidate's key or a reason code is the field's when it equals one or starts with one + `_`.
+   */
+  evidence_keys: string[];
+  /** As text; null when the car has no value or its value is ignored. */
+  current_value: string | null;
+  /** `registry`, `ais`, `review`, `rule`, `derived` or `correction`. */
+  current_source: string | null;
+  /** Values the listed candidates carry for the field, without the current one. */
+  suggestions: string[];
+}
+
+export interface FactCorrectionRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the correction id. */
+  operation_id: string;
+  field: string;
+  action: FactCorrectionAction;
+  /** Always text (an integer as digits, a list comma-joined); null unless `action` is `set`. */
+  value: string | null;
+  reviewer: string;
+  reason?: string | null;
+  /** The field's correction the screen showed (also a withdrawn one), or null without one. */
+  supersedes_correction_id: string | null;
+  evidence_fingerprint?: string | null;
+  /**
+   * Sent with the same operation id after a 409 `confirmation_required`: the person saw that
+   * the car, resolved today, would lose or change its KType, and saves anyway.
+   */
+  confirm_change?: boolean;
+}
+
+export interface FactCorrectionHistoryEntry {
+  correction_id: string;
+  action: FactCorrectionAction;
+  value: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  supersedes_correction_id: string | null;
+  previous_value: string | null;
+  previous_source: string | null;
+  group_id: string | null;
+  catalog_batch: string;
+  automatic_terminal: string;
+  automatic_ktype: string | null;
+  code_version: string;
+}
+
+/** A car's corrections: one chain per corrected field, each from the current row backwards. */
+export interface FactCorrectionHistory {
+  vehicle_id: string;
+  fields: {
+    field: string;
+    current_correction_id: string | null;
+    entries: FactCorrectionHistoryEntry[];
+  }[];
+}
+
+// --- One correction for several cars ----------------------------------------------------
+// (`/v1/vehicles/{id}/corrections/scopes`, `.../corrections/preview`, `/v1/vehicle-corrections`)
+// Nothing is saved for more than one car before a check of what it would change, car by car.
+
+/** Where the matcher ends for one car: its terminal, and the KType when it resolves. */
+export interface CarMatch {
   terminal: string;
-  /** Compatible candidates: KTypes that conflict with the car on nothing. */
-  candidates: number;
-  top_ktype: string | null;
-  verdict: string | null;
-  /** `several`: fields that differ among the compatible candidates ... */
-  separating_fields: string[];
-  /** ... and of those, the ones the car has no value for. */
-  missing_fields: string[];
-  /** `none`: fields the car conflicts with its best candidate on. */
-  conflicting_fields: string[];
-  reason_codes: string[];
+  ktype: string | null;
 }
 
-export interface MatchCarPage {
-  job_id: string;
-  bucket: MatchBucket;
-  /** Cars of this bucket evaluated so far; grows while the job runs. */
-  total: number;
-  offset: number;
-  cars: MatchCarRow[];
+/** One clause of a scope on a vehicle column; `is_empty` (no value) takes no values. */
+export interface CorrectionScopeCondition {
+  field: string;
+  operator: VehicleOperator | 'is_empty';
+  values: string[];
 }
 
-export interface MatchSummaryJob {
-  job_id: string;
+/** A condition a person may add to a wide scope, prefilled with this car's own value. */
+export interface CorrectionNarrowable {
+  field: string;
+  label: string;
+  /** As text; null when this car has no value there. */
+  value: string | null;
+}
+
+/** Whom a correction could apply to. `this_car` carries nothing but its kind. */
+export interface CorrectionScopeOption {
+  kind: 'this_car' | 'same_data' | 'like_this';
+  /** The cars in plain words, e.g. "All Volvo V70 cars with no drive type". */
+  label?: string;
+  /** Cars the scope covers, this one included; null when counting them took too long. */
+  count?: number | null;
+  too_broad?: boolean;
+  /** `like_this` only: which of the field's groups this is, 0 the narrowest; sent back with the check. */
+  rung?: number | null;
+  conditions?: CorrectionScopeCondition[];
+  narrowable?: CorrectionNarrowable[];
+}
+
+/** A scope that reaches beyond this car: nothing is saved for it before a check. */
+export type CorrectionWideScope = CorrectionScopeOption & { kind: 'same_data' | 'like_this' };
+
+export interface CorrectionScopesRequest {
+  field: string;
+  action: 'set' | 'ignore';
+  /** As in a correction: text, and null unless `action` is `set`. */
+  value: string | null;
+}
+
+export interface CorrectionScopes {
+  scopes: CorrectionScopeOption[];
+}
+
+/** The scope a person picked beyond this car, with the conditions that narrow it. */
+export interface CorrectionScopeChoice {
+  option: CorrectionWideScope;
+  narrow: CorrectionScopeCondition[];
+}
+
+export interface CorrectionPreviewRequest {
+  field: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  /**
+   * The picked option by what the scopes call gave it -- `like_this` may come as several
+   * options, told apart by `rung` and `conditions` -- with what narrows it.
+   */
+  scope: {
+    kind: 'same_data' | 'like_this';
+    rung: number | null;
+    conditions: CorrectionScopeCondition[] | null;
+    narrow: CorrectionScopeCondition[];
+  };
+  /** The lookup's fingerprint of the car the correction was entered on. */
+  evidence_fingerprint: string;
+}
+
+/** What a correction would do to one checked car; every car has exactly one. */
+export type CorrectionOutcome =
+  | 'gained'
+  | 'lost'
+  | 'moved'
+  | 'same'
+  | 'worse'
+  | 'still_unresolved'
+  | 'no_effect'
+  | 'already_corrected'
+  | 'not_like_this';
+
+export interface CorrectionPreviewCounts extends Record<CorrectionOutcome, number> {
+  /** Checked cars whose KType a person chose; the choice stays. */
+  with_choice: number;
+  /** Of those, the cars the matcher would then resolve to another KType than the chosen one. */
+  choice_would_disagree: number;
+  /** The `still_unresolved` cars by the terminal they end on. */
+  still_unresolved_by_terminal: Record<string, number>;
+}
+
+/** The check of a correction on the cars of a scope: a job on the server, polled. */
+export interface CorrectionPreviewJob {
+  preview_id: string;
   status: 'running' | 'done' | 'failed' | 'cancelled';
+  field: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  scope: { kind: 'same_data' | 'like_this'; label: string };
+  /** Cars the scope covers; at most `cap` of them are checked. */
+  affected: number;
+  cap: number;
+  checked: number;
+  /** Every affected car was checked: no cap, no time-out, not stopped. Only then can it be applied. */
+  complete: boolean;
+  stopped_by: string | null;
+  /** Partial while running, final once it has ended. */
+  counts: CorrectionPreviewCounts;
+  /** For the `gained` cars: whether the new KType's engines include the car's engine code. */
+  engine_check: { agree: number; differ: number; unchecked: number };
+  /** Cars an apply would write when the harmed ones (`lost`, `moved`, `worse`) are left out. */
+  would_write: number;
+  can_apply: boolean;
+  /** `not_all_cars_checked`, `nothing_to_apply`, `harms_more_than_it_fixes`, `preview_expired`. */
+  blocked_by: string[];
+  /** Set when `status` is `failed`. */
+  error?: string | null;
+}
+
+/** One checked car, as the lists behind the counts show it. */
+export interface CorrectionPreviewCar {
+  vehicle_id: string;
+  plate: string | null;
+  before: CarMatch | null;
+  after: CarMatch | null;
+}
+
+export interface CorrectionPreviewCars {
+  /** Checked cars of the outcome asked for; `cars` holds at most `limit` of them. */
+  total?: number;
+  cars: CorrectionPreviewCar[];
+}
+
+export interface CorrectionDecisionRequest {
+  /** Minted once per action and resent unchanged on a retry; becomes the decision's event id. */
+  operation_id: string;
+  preview_id: string;
+  /** `apply` writes the checked cars; `propose` keeps the decision and writes no car. */
+  event: 'apply' | 'propose';
+  /** Also write the cars that would lose or change their KType or get harder to match. */
+  include_changed: boolean;
+  reviewer: string;
+  /** Required to apply. */
+  reason: string | null;
+}
+
+export interface CorrectionWithdrawRequest {
+  operation_id: string;
+  reviewer: string;
+  reason: string;
+}
+
+/** What an apply or a proposal did. */
+export interface CorrectionDecisionResult {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  /** Cars written; 0 for a proposal. */
+  written: number;
+  /** Checked cars an apply left as they are when it looked again. */
+  skipped?: { changed_since_check?: number; corrected_meanwhile?: number };
+  counts?: CorrectionPreviewCounts;
+  scope_label?: string;
+  /** The written cars by the outcome the check gave them. */
+  written_by_outcome?: Partial<Record<CorrectionOutcome, number>>;
+}
+
+/** What undoing a decision did. */
+export interface CorrectionWithdrawal {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  /** Cars whose correction was taken back. */
+  withdrawn: number;
+  /** Cars a person changed since: left as they are. */
+  left_changed: number;
+  member_count?: number;
+  scope_label?: string;
+}
+
+/** One step in a many-car decision's life: proposed, applied, undone. */
+export interface CorrectionDecisionEvent {
+  event_id: string;
+  event: 'propose' | 'apply' | 'withdraw';
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+}
+
+/** One decision for several cars, as the Decisions overview lists it. */
+export interface CorrectionDecisionSummary {
+  decision_id: string;
+  status: 'proposed' | 'applied' | 'withdrawn';
+  field: string;
+  /** The field in words ("Engine code"). */
+  field_label?: string;
+  action: 'set' | 'ignore';
+  value: string | null;
+  /** Which cars, in the sentence the person saw when deciding. */
+  scope_label: string;
+  manufacturer: string;
+  model_family: string | null;
+  reviewer: string;
+  reason: string | null;
+  created_at: string;
+  /** Cars the decision wrote; 0 for a proposal. */
+  member_count: number;
+  /** The check the decision rests on: `affected`, `checked`, `gained`, `lost`, `moved`, `worse`. */
+  measurement: Record<string, unknown>;
+  events: CorrectionDecisionEvent[];
+}
+
+export interface CorrectionDecisionList {
+  decisions: CorrectionDecisionSummary[];
+}
+
+/** The decision for several cars a car's correction came from. */
+export interface CorrectionDecisionRef {
+  decision_id: string;
+  scope_label: string;
+  member_count: number;
+  reviewer: string;
+}
+
+/**
+ * Where a car stands with matching, read from stored results. A person's choice
+ * outranks the matcher (`chosen`, `chosen_none`); `not_evaluated` is a car with
+ * no stored result yet.
+ */
+export type MatchResultState =
+  | 'resolved'
+  | 'several'
+  | 'one_unconfirmed'
+  | 'none'
+  | 'not_matchable'
+  | 'chosen'
+  | 'chosen_none'
+  | 'not_evaluated';
+
+export interface MatchResultRun {
+  run_id: string;
+  mode: string;
+  status: string;
+  catalog_batch: string;
+  matcher_version: string;
   target: number;
   evaluated: number;
-  seconds_elapsed: number;
-  error: string | null;
-  /** The Vehicles filter it ran on; null only for a job started without one. */
-  filter: VehicleSearchRequest | null;
-  /** Partial while running, final once done. */
-  summary: MatchSummary;
+  unchanged: number;
+  started_at: string;
+  finished_at: string | null;
+}
+
+/** Matching statistics of a Vehicles filter, from stored results -- the matcher is not run. */
+export interface MatchResultOverview {
+  total: number;
+  states: Array<{ state: MatchResultState; cars: number }>;
+  terminals: Array<{ value: string; cars: number }>;
+  several_candidate_counts: Record<string, number>;
+  candidate_limit: number;
+  several_separating_fields: Array<{ field: string; cars: number }>;
+  several_missing_fields: Array<{ field: string; cars: number }>;
+  none_conflicting_fields: Array<{ field: string; cars: number }>;
+  none_without_candidates: number;
+  not_matchable_reasons: Array<{ reason: string; cars: number }>;
+  /** Cars whose vehicle changed after it was matched: the stored result may be out of date. */
+  changed_since_matched: number;
+  catalog_batches: Array<{ value: string; cars: number }>;
+  matcher_versions: Array<{ value: string; cars: number }>;
+  latest_run: MatchResultRun | null;
+}
+
+/** Cars per state under a filter: the strip above the car list. */
+export interface MatchResultCounts {
+  total: number;
+  states: Array<{ state: MatchResultState; cars: number }>;
+  changed_since_matched: number;
+}
+
+/** One count of the breakdown, as a filter of the car list: a state and a clause on its cars. */
+export interface MatchResultCause {
+  state: MatchResultState;
+  /** A `match_*` filter field of the Vehicles list. */
+  field: string;
+  value: string;
+  /** How the filter reads on screen, e.g. "the car has no engine code". */
+  label: string;
 }

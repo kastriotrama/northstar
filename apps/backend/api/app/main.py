@@ -24,7 +24,13 @@ from api.app.features.rule_review.router import router as rule_review_router
 from api.app.features.source_records.router import router as source_records_router
 from api.app.features.tecdoc_connections.router import router as tecdoc_connections_router
 from api.app.features.tecdoc_review.router import router as tecdoc_review_router
+from api.app.features.vehicle_corrections.router import (
+    decisions_router as vehicle_correction_decisions_router,
+)
+from api.app.features.vehicle_corrections.router import router as vehicle_corrections_router
 from api.app.features.vehicle_filter.router import router as vehicle_filter_router
+from api.app.features.vehicle_ktype_choices.router import router as vehicle_ktype_choices_router
+from api.app.features.vehicle_match_results.router import router as vehicle_match_results_router
 from api.app.features.vehicle_matching.router import router as vehicle_matching_router
 from api.app.features.vehicles.router import router as vehicles_router
 
@@ -58,6 +64,10 @@ def create_app() -> FastAPI:
     app.include_router(source_records_router)
     app.include_router(coverage_router)
     app.include_router(vehicle_matching_router)
+    app.include_router(vehicle_match_results_router)
+    app.include_router(vehicle_ktype_choices_router)
+    app.include_router(vehicle_corrections_router)
+    app.include_router(vehicle_correction_decisions_router)
     app.include_router(vehicle_filter_router)
     app.include_router(vehicles_router)
     app.mount(

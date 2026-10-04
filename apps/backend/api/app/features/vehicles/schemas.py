@@ -76,7 +76,20 @@ class VehicleRow(BaseModel):
     bodywork_form: str | None
     colour: str | None
     ktype: str | None
-    #: Fields whose value a reviewer's rule asserted.
+    #: `manual` when a person chose the KType, `manual_none` for "none of these".
+    match_state: str | None = None
+    #: The matcher's stored state for the car (`resolved`, `several`,
+    #: `one_unconfirmed`, `none`, `not_matchable`); None when it has no stored result.
+    match_result: str | None = None
+    #: The KType the matcher accepted, from the stored result. `ktype` above is
+    #: a person's choice only.
+    automatic_ktype: str | None = None
+    #: The KTypes that conflict with the car on nothing, best first, with the
+    #: matcher's confidence in each (stored result; at most the matcher's cap).
+    candidate_ktypes: list[str] = Field(default_factory=list)
+    candidate_confidences: list[float] = Field(default_factory=list)
+    #: Fields whose value a person asserted: a reviewer's rule, or a correction
+    #: of this one car.
     review_fields: list[str]
     #: Fields a learned enrichment rule filled because no source stated them.
     rule_fields: list[str]

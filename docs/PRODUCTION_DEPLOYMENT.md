@@ -119,8 +119,8 @@ scratch database and run `--verify` there; then drop both.
 
 | Class | Tables | Rows |
 |---|---|---|
-| A, whole | reviewer rules and decisions (`match_resolution_rules`, `match_chunk_proposals`, `tecdoc_resolution_rules`, `translation_rule_versions`, rule drafts, `match_review_rule_decisions`), learned rules (`vehicle_enrichment_rules`), the TecDoc rule catalog, `match_chunk_builds`, `tecdoc_identity_registry`, `ingest_job_runs`, and the pinned catalog batch | all rows; the catalog tables only for the pinned batch |
-| B, slice | `vehicles`, `vehicle_identifiers`, `vehicle_source_links`, `enrichment_ledger`; per TS record of a slice vehicle: `staging.transportstyrelsen_raw`, `normalization_results`, `vehicle_facts`, `match_field_resolutions`, `match_chunk_members`, `review_queue`; `match_chunks` with a slice member or a proposal | rows of the slice only |
+| A, whole | reviewer rules and decisions (`match_resolution_rules`, `match_chunk_proposals`, `tecdoc_resolution_rules`, `translation_rule_versions`, rule drafts, `match_review_rule_decisions`), learned rules (`vehicle_enrichment_rules`), the TecDoc rule catalog, `match_chunk_builds`, `tecdoc_identity_registry`, `ingest_job_runs`, `vehicle_correction_decisions` (people's decisions about many cars), and the pinned catalog batch | all rows; the catalog tables only for the pinned batch |
+| B, slice | `vehicles`, `vehicle_identifiers`, `vehicle_source_links`, `enrichment_ledger`, `vehicle_ktype_choices` and `vehicle_fact_corrections` (people's KType choices and corrections, see the warning below); per TS record of a slice vehicle: `staging.transportstyrelsen_raw`, `normalization_results`, `vehicle_facts`, `match_field_resolutions`, `match_chunk_members`, `review_queue`; `match_chunks` with a slice member or a proposal | rows of the slice only |
 | C, left out | match run telemetry, routing decisions, TecDoc staging tables, other catalog batches | none |
 
 Chunk and build counters (`member_count`, `reason_profile`, `row_count`,
@@ -128,6 +128,21 @@ Chunk and build counters (`member_count`, `reason_profile`, `row_count`,
 build are copied as they are: rule `matched_rows`/`resolved_rows`, learned rule
 `support`, and the record counts of `ingest_job_runs` (the batch pickers show
 full-build counts).
+
+**People's KType choices are not carried from live yet.** A choice made on the
+Vehicles tab lives only in live's database (`core.vehicle_ktype_choices`). The
+builder copies the choices of slice cars that the *source* holds and refuses a
+cut that would leave a decided car outside the slice, but nothing brings live's
+choices into the source: the export/import commands and the pinning of decided
+cars are not built (`docs/vehicle-ktype-choices.md`). Until they are, a switch
+is allowed only when live holds no choices -- step 6 checks it.
+
+The same holds for **people's corrections of a car's data**
+(`core.vehicle_fact_corrections`) and their **decisions about many cars**
+(`core.vehicle_correction_decisions`): the builder creates both tables, copies
+the corrections of slice cars and every decision the source holds, and refuses a
+cut that would leave a corrected car outside the slice, but live's rows are not
+brought into the source (`docs/vehicle-fact-corrections.md`).
 
 ### Dump, restore, verify
 
@@ -176,17 +191,44 @@ on the server under another name: that is the way back.
 5. Compare live's rule tables with the source (next section). Anything that
    exists only on live is not in the pilot and must be carried over first.
 6. Switch by renaming, with the API stopped so no session holds either
-   database. Run from the maintenance database (`postgres`), with `<live_db>`
-   the database the API uses today:
+   database. **First count people's KType choices, their corrections of a
+   car's data and their decisions about many cars in live's current database,
+   and stop if any answer is not 0**: the pilot does not hold them, and the
+   switch would take them off the Vehicles tab and hand the matcher the
+   uncorrected cars again (they would survive only in `<live_db>_before_pilot`).
+
+   ```sql
+   SELECT count(*) FROM core.vehicle_ktype_choices;         -- must be 0 to go on
+   SELECT count(*) FROM core.vehicle_fact_corrections;      -- must be 0 to go on
+   SELECT count(*) FROM core.vehicle_correction_decisions;  -- must be 0 to go on
+   ```
+
+   (A database from before one of these tables existed answers "relation does
+   not exist" for it; that also means there is nothing to lose.) Then, from the
+   maintenance database (`postgres`), with `<live_db>` the database the API
+   uses today:
 
    ```sql
    ALTER DATABASE <live_db> RENAME TO <live_db>_before_pilot;
    ALTER DATABASE northstar_pilot RENAME TO <live_db>;
    ```
 
-   Set `NORTHSTAR_TECDOC_MATCH_CATALOG_BATCH` to the pinned batch and start the
-   API. Do not empty or reload live's tables in place: the ledger and the
-   vehicle tables refuse deletes.
+   Set `NORTHSTAR_TECDOC_MATCH_CATALOG_BATCH` to the pinned batch. Before
+   starting the API, bring the renamed database's schema up to the deployed
+   code: a pilot built by an older checkout lacks tables newer code reads, and
+   every vehicle lookup then answers 503.
+
+   ```sh
+   docker compose --env-file .env.production -f docker-compose.production.yml \
+     run --rm ingestion migrate-vehicle-facts
+   docker compose --env-file .env.production -f docker-compose.production.yml \
+     run --rm ingestion migrate-vehicle-core
+   ```
+
+   Both are idempotent and verify what they create. Then start the API with
+   `infra/production/deploy.sh` (or `docker compose ... up -d`; the image
+   carries its build version either way). Do not empty or reload live's tables
+   in place: the ledger and the vehicle tables refuse deletes.
 7. The way back is the two renames in reverse. Keep `<live_db>_before_pilot`
    until the pilot has been accepted; dropping it is a separate, explicit
    decision.
@@ -276,6 +318,12 @@ Follow-up on the pilot, in this order:
 Never run `learn-vehicle-rules` on a slice: it learns from the cars it sees, so
 on 500,000 cars it would lose support for, and with `--activate` retire, rules
 the full build supports. Rules are learned on the full build and shipped.
+The exception is the drive type families. `DRV-MY` and `DRV-CAR` come from
+reviewed tables in the code, and the four `DRV-E*` families learn only from the
+drive types the slice's own cars carry and fill only drive types, so none of
+them can retire a rule the full build supports. Run them in the order given in
+`vehicle-core-design.md` (learn and apply `DRV-MY`, then `DRV-CAR`, then the
+`DRV-E*` families). Always name the families; the bare command learns every family.
 
 Also not for the pilot, because they assume the full build:
 `build-match-chunks` (a newer build hides every reviewer rule),

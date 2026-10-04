@@ -1,9 +1,10 @@
 """Merge source observations into one vehicle, field by field.
 
 Pure: no database, no I/O. Every writer -- the TS backfill, the AIS import, a
-reviewer's rule, an enrichment rule -- turns what it knows into `Observation`s and
-calls `merge`, so the precedence in `vehicle_core_fields` is applied the same way
-everywhere and can be tested without a database.
+reviewer's rule, a person's correction of one car, an enrichment rule -- turns
+what it knows into `Observation`s and calls `merge`, so the precedence in
+`vehicle_core_fields` is applied the same way everywhere and can be tested
+without a database.
 
 Nothing a source said is lost. When an observation loses, or displaces the value
 that was there, the other value is kept in `field_alternatives`, keyed by its
@@ -22,6 +23,7 @@ from ingestion.vehicle_core_fields import (
     FIELDS_BY_NAME,
     PROVIDER_SOURCES,
     SOURCE_AIS,
+    SOURCE_CORRECTION,
     SOURCE_DERIVED,
     SOURCE_REVIEW,
     SOURCE_RULE,
@@ -92,6 +94,10 @@ class MergeResult:
 
 
 def _rank(source: str, policy: str) -> int:
+    if source == SOURCE_CORRECTION:
+        # What a person said about this one car stands over a rule about many,
+        # and the rule's value is kept behind it for when the correction goes.
+        return 110
     if source == SOURCE_REVIEW:
         return 100
     if source in PROVIDER_SOURCES:
@@ -223,6 +229,14 @@ def merge_one(state: VehicleState, name: str, observation: Observation, result: 
         return
 
     if _same(current_value, new_value):
+        if current_ref.source == SOURCE_CORRECTION and new_ref.source != SOURCE_CORRECTION:
+            # A person's correction holds the value and another source now states
+            # the same. That source's word is kept behind the correction, so
+            # withdrawing the correction falls back to it instead of emptying the
+            # field. The writer must save the vehicle, as for any value kept behind.
+            _set_alternative(state, name, new_ref, new_value)
+            result.kept.append(name)
+            return
         # A source confirming what is already there changes nothing -- not even the
         # recorded source. Re-stamping every confirmed value with the newest source
         # would put a reference on most fields of every vehicle after each import,

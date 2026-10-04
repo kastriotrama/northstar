@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from api.app.features.vehicle_corrections.schemas import CorrectableField, CorrectionState
+from api.app.features.vehicle_ktype_choices.schemas import KTypeChoiceState
 from api.app.features.vehicles.schemas import VehicleFilter
 
 #: `one`/`several`/`none` count *compatible* candidates -- KTypes the matcher
@@ -34,6 +36,10 @@ class MatcherInputs(BaseModel):
     drive_type: str | None
     bodywork_form: str | None
     model_recovered_from: str | None
+    #: The car's build month as YYYYMM, when the registry gives one.
+    build_month: int | None = None
+    #: The registry's electrification type ("hybrid", "plug_in_hybrid", ...).
+    electrification: str | None = None
 
 
 class KTypeCandidate(BaseModel):
@@ -91,6 +97,40 @@ class VehicleMatchLookup(BaseModel):
     decision_trace: list[dict[str, Any]]
     #: Other vehicles that held this plate or VIN before, most recent first.
     other_vehicle_ids: list[str] = Field(default_factory=list)
+    #: The active translation rule set the matcher was built from; stored with
+    #: a person's choice as part of its provenance.
+    rule_set_version: str | None = None
+    #: Names this evaluation (batch, inputs, outcome, candidates). A choice is
+    #: sent back with it, and refused when the matching has changed since.
+    evidence_fingerprint: str = ""
+    #: sha256 of exactly what the matcher was handed for this car. A write
+    #: decided on this lookup checks it again under the vehicle's lock.
+    matcher_input_hash: str = ""
+    #: The person's choice in force for this vehicle (a withdrawn one too, so the
+    #: next choice can supersede it). None for a `source_record_id` lookup and
+    #: for a car nobody has decided.
+    choice: KTypeChoiceState | None = None
+    #: The KType the car counts as having: a person's choice first (even one
+    #: flagged for another look), else the matcher's when it resolved.
+    effective_ktype: str | None = None
+    #: `person` (also for "none of these", where the KType is null) or `matcher`.
+    effective_source: Literal["person", "matcher"] | None = None
+    #: The head of every correction chain this vehicle has, by field -- a
+    #: withdrawn one too, so the next correction of that field can supersede it.
+    #: Empty for a `source_record_id` lookup and for a car nobody corrected.
+    corrections: list[CorrectionState] = Field(default_factory=list)
+    #: The fields a person may correct on this vehicle, each with the value the
+    #: matcher uses today. Empty for a `source_record_id` lookup.
+    correctable_fields: list[CorrectableField] = Field(default_factory=list)
+    #: Why this vehicle's record is stopped before matching (its normalization
+    #: asks for review) -- also while a person's release is in force, which
+    #: `corrections` then shows on `normalization_stop`. Empty for a car that
+    #: was never stopped.
+    stop_reasons: list[str] = Field(default_factory=list)
+    #: Correctable fields whose copy on the vehicle record no standing
+    #: correction is behind (a writer saved an older state). The matcher was
+    #: not handed that copy; the list and the record view may still show it.
+    copy_drift: list[str] = Field(default_factory=list)
 
 
 class MatchSummaryRequest(VehicleFilter):

@@ -23,6 +23,7 @@ from ingestion.vehicle_core_query import (
     filterable_column,
     resolve_search,
 )
+from ingestion.vehicle_match_result_migrations import VEHICLE_MATCH_RESULTS_TABLE
 
 
 class ConnectionFactory(Protocol):
@@ -47,6 +48,7 @@ LIST_COLUMNS: tuple[str, ...] = (
     "bodywork_form",
     "colour",
     "ktype",
+    "match_state",
 )
 
 _META_COLUMNS: tuple[str, ...] = (
@@ -60,11 +62,22 @@ _META_COLUMNS: tuple[str, ...] = (
     "updated_at",
 )
 
-# Which fields a reviewer or a learned rule supplied, read from `field_sources`
+# Which fields a person or a learned rule supplied, read from `field_sources`
 # in the query so the list never ships every row's source map to Python.
 _ASSERTED_FIELDS = (
     "ARRAY(SELECT source.key FROM jsonb_each_text({alias}.field_sources) AS source "
-    "WHERE source.value LIKE %s ORDER BY source.key)"
+    "WHERE source.value LIKE ANY(%s) ORDER BY source.key)"
+)
+# A reviewer's rule and a person's KType choice are `review:`, a person's
+# correction of one car `correction:`: all of them are a person's word.
+_PERSON_SOURCES = ["review%", "correction%"]
+_RULE_SOURCES = ["rule%"]
+#: The car's stored match result, read by the vehicle's key: its state and the
+#: KType the matcher accepted. Two index probes a row; no join, so the list's
+#: order and paging stay those of `core.vehicles`.
+_STORED_RESULT = (
+    "(SELECT stored_result.{column} FROM " + VEHICLE_MATCH_RESULTS_TABLE + " AS stored_result "
+    "WHERE stored_result.vehicle_id = {alias}.vehicle_id)"
 )
 LINK_LIMIT = 100
 
@@ -96,21 +109,32 @@ class VehicleRepository:
         cursor_sql = f" AND {ALIAS}.vehicle_id > %s" if after else ""
         with self._connection_factory() as connection:
             predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
-            parameters: list[Any] = ["review%", "rule%", *predicate.parameters]
+            parameters: list[Any] = [_PERSON_SOURCES, _RULE_SOURCES, *predicate.parameters]
             if after:
                 parameters.append(after)
             parameters.append(limit)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted} "
+                    f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted}, "
+                    f"{_STORED_RESULT.format(column='state', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='ktype', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='candidate_ktypes', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='candidate_confidences', alias=ALIAS)} "
                     f"FROM {VEHICLES_TABLE} AS {ALIAS} "
                     f"WHERE {predicate.sql}{cursor_sql} "
                     f"ORDER BY {ALIAS}.vehicle_id LIMIT %s",
                     parameters,
                 )
                 rows = cursor.fetchall()
-        names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields")
-        return [dict(zip(names, row, strict=True)) for row in rows]
+        names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields",
+                 "match_result", "automatic_ktype", "candidate_ktypes",
+                 "candidate_confidences")
+        found = [dict(zip(names, row, strict=True)) for row in rows]
+        for item in found:
+            # A car without a stored result has no row to read the arrays from.
+            item["candidate_ktypes"] = list(item["candidate_ktypes"] or [])
+            item["candidate_confidences"] = list(item["candidate_confidences"] or [])
+        return found
 
     def count(self, terms: Sequence[VehicleTerm], text: str) -> int:
         with self._connection_factory() as connection:

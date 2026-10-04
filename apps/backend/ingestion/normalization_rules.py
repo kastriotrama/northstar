@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from calendar import monthrange
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -994,15 +994,7 @@ def normalize_ts_record(
             and reason not in {"generic_custom_identity_unverified"}
         ]
 
-    if reasons:
-        status: NormalizationStatus = "review_required"
-        confidence = 0.55
-    elif candidates or normalized.get("model_family_candidate"):
-        status = "provisional"
-        confidence = 0.8
-    else:
-        status = "resolved"
-        confidence = 0.95
+    status, confidence = outcome_status(reasons, candidates, normalized)
 
     return NormalizationOutcome(
         status=status,
@@ -2277,6 +2269,37 @@ def _apply_emission_class(context: NormalizationContext) -> None:
     _record_dictionary_match(context, rule, source_field="emission_class", source_term=text)
 
 
+TYRE_REVIEW_REASON = "tyre_size_unrecognized"
+
+
+def outcome_status(
+    reasons: Sequence[str], candidates: Mapping[str, Any], normalized: Mapping[str, Any]
+) -> tuple[NormalizationStatus, float]:
+    """A result's status and confidence from what is left open in it."""
+
+    if reasons:
+        return "review_required", 0.55
+    if candidates or normalized.get("model_family_candidate"):
+        return "provisional", 0.8
+    return "resolved", 0.95
+
+
+def read_tyres(
+    raw_record: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], tuple[str, ...]]:
+    """The tyre step alone on one registry record: normalized keys, candidates, reasons.
+
+    For re-reading the tyre sizes of records an older parser rejected without
+    normalizing the records again.
+    """
+
+    context = NormalizationContext(
+        {name: raw_record.get(name) for name in ("tyre_front", "tyre_rear")}
+    )
+    _apply_tyres(context)
+    return context.normalized, context.candidates, tuple(dict.fromkeys(context.review_reasons))
+
+
 def _apply_tyres(context: NormalizationContext) -> None:
     """Decompose the per-axle tyre sizes the registry records."""
 
@@ -3159,6 +3182,30 @@ _HYBRID_COMBINATION_TOKENS: tuple[tuple[str, str], ...] = (
 )
 
 
+def fuel_match_tokens(carriers: Sequence[str]) -> list[str]:
+    """The fuel tokens a car with these energy carriers is compared on.
+
+    The carriers themselves, plus the single token TecDoc names a hybrid by
+    (hybrid_petrol, hybrid_diesel) when electricity is among them. The one
+    statement of that rule: normalization derives its tokens here, and so does a
+    person's correction of a car's fuel.
+    """
+
+    tokens = list(carriers)
+    if "electricity" in carriers:
+        for carrier, combined in _HYBRID_COMBINATION_TOKENS:
+            if carrier in carriers and combined not in tokens:
+                tokens.append(combined)
+    return tokens
+
+
+def fuel_carriers(tokens: Sequence[str]) -> list[str]:
+    """The energy carriers among comparison tokens: `fuel_match_tokens` read back."""
+
+    combined = {token for _, token in _HYBRID_COMBINATION_TOKENS}
+    return [token for token in tokens if token not in combined]
+
+
 def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
     """Publish the fuel tokens a TecDoc KType can be compared against.
 
@@ -3182,12 +3229,7 @@ def _derive_fuel_match_tokens(context: NormalizationContext) -> None:
     context.normalized.pop("fuel_match_tokens", None)
     if not isinstance(carriers, list) or not carriers:
         return
-    tokens = list(carriers)
-    if "electricity" in carriers:
-        for carrier, combined in _HYBRID_COMBINATION_TOKENS:
-            if carrier in carriers and combined not in tokens:
-                tokens.append(combined)
-    context.normalized["fuel_match_tokens"] = tokens
+    context.normalized["fuel_match_tokens"] = fuel_match_tokens(carriers)
 
 
 def _apply_fuel(context: NormalizationContext) -> None:
