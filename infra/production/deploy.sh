@@ -44,6 +44,8 @@ docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingest
 # It also creates and verifies core.vehicle_ktype_choices (people's KType choices)
 # and core.vehicle_fact_corrections (their corrections of one car's data): a
 # missing or disabled constraint or trigger stops the deploy here.
+# The same step creates core.vehicle_match_results (the stored outcome of matching
+# per car); filling it is the deliberate refresh_vehicle_match_results run.
 docker compose --env-file "$environment_file" -f "$compose_file" run --rm ingestion migrate-vehicle-core
 docker compose --env-file "$environment_file" -f "$compose_file" up -d --remove-orphans
 docker compose --env-file "$environment_file" -f "$compose_file" ps
