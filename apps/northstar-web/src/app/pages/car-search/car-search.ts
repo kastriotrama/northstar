@@ -12,8 +12,8 @@ import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
 import { MatchResults } from '../../components/match-results';
 import { MATCH_RESULT_STATES, matchResultStateLabel } from '../../core/match-result-states';
-import { MatchingSummary } from '../../components/matching-summary';
 import type {
+  MatchResultCause,
   MatchResultState,
   NorVehicleRecord,
   NorVehicleRow,
@@ -131,7 +131,6 @@ const PAGE_SIZE = 50;
     CorrectionDecisions,
     KTypeCandidates,
     MatchResults,
-    MatchingSummary,
   ],
   templateUrl: './car-search.html',
   styleUrl: './car-search.scss',
@@ -149,6 +148,12 @@ export class CarSearchPage implements OnInit {
   /** Where the car stands with matching, from its stored result; '' is any. */
   protected readonly matchResultStates = MATCH_RESULT_STATES;
   protected readonly matchResult = signal<MatchResultState | ''>('');
+  /** One cause within the state, picked from the breakdown above the list. */
+  protected readonly matchCause = signal<MatchResultCause | null>(null);
+  /** Cars whose accepted, chosen or possible KTypes include this one. */
+  protected readonly matchKtype = signal('');
+  /** Bumped when a car was decided or corrected here, so the counts are read again. */
+  protected readonly resultsTurn = signal(0);
   /** Passenger cars first: the default view, still just a filter anyone can change. */
   protected readonly vehicleType = signal<VehicleType>('passenger');
   /** Deregistered cars stay visible by default: a plate lookup must still find them. */
@@ -181,11 +186,15 @@ export class CarSearchPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Cars list, or the stored matching results of the same filter. */
-  protected readonly view = signal<'cars' | 'matching' | 'decisions'>('cars');
-  /** The filter exactly as the car list is queried with it, for the matching view. */
-  protected readonly currentConditions = computed(() => this.request().conditions);
-  protected readonly currentText = computed(() => this.request().text);
+  /** Cars list, or the decisions made for several cars. */
+  protected readonly view = signal<'cars' | 'decisions'>('cars');
+  /**
+   * The filter without its matching clauses, for the counts above the list: they
+   * show every state of the cars the rest of the filter matches, so picking one
+   * state never hides the others.
+   */
+  protected readonly baseConditions = computed(() => this.conditions(false));
+  protected readonly currentText = computed(() => this.text().trim());
 
   protected readonly openId = signal<string | null>(null);
   protected readonly record = signal<NorVehicleRecord | null>(null);
@@ -213,6 +222,8 @@ export class CarSearchPage implements OnInit {
       this.registryStatus() !== 'any' ||
       this.ktypeChoice() !== 'any' ||
       this.matchResult() !== '' ||
+      this.matchCause() !== null ||
+      this.matchKtype().trim() !== '' ||
       this.text().trim() !== '' ||
       Object.values(this.selected()).some((value) => value !== '') ||
       Object.values(this.rangeFrom()).some((value) => value.trim() !== '') ||
@@ -315,8 +326,49 @@ export class CarSearchPage implements OnInit {
   protected onMatchResult(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     const known = MATCH_RESULT_STATES.find((option) => option.key === value);
-    this.matchResult.set(known ? known.key : '');
+    this.onMatchState(known ? known.key : '');
+  }
+
+  /** A state picked from the dropdown or from the counts above the list. */
+  protected onMatchState(state: MatchResultState | ''): void {
+    // A cause belongs to the state it was picked for.
+    if (state !== this.matchResult()) this.matchCause.set(null);
+    this.matchResult.set(state);
     this.search$.next();
+  }
+
+  /** A count of the breakdown: the list shows exactly those cars. */
+  protected onMatchCause(cause: MatchResultCause): void {
+    this.matchResult.set(cause.state);
+    this.matchCause.set(cause);
+    this.search$.next();
+  }
+
+  protected clearMatchCause(): void {
+    this.matchCause.set(null);
+    this.search$.next();
+  }
+
+  protected onMatchKtype(value: string): void {
+    this.matchKtype.set(value);
+    this.search$.next();
+  }
+
+  /** The KTypes a row shows when none is accepted or chosen: the possible ones, best first. */
+  protected possibleKtypes(row: NorVehicleRow): string[] {
+    return row.candidate_ktypes ?? [];
+  }
+
+  /** Every possible KType of a row with the matcher's confidence, for the cell's tooltip. */
+  protected possibleKtypesTitle(row: NorVehicleRow): string {
+    const confidences = row.candidate_confidences ?? [];
+    return this.possibleKtypes(row)
+      .map((ktype, index) =>
+        confidences[index] === undefined
+          ? ktype
+          : `${ktype} (${Math.round(confidences[index] * 100)}%)`,
+      )
+      .join(', ');
   }
 
   /** The stored matching state as the list shows it, for a car without a KType. */
@@ -333,6 +385,8 @@ export class CarSearchPage implements OnInit {
     this.registryStatus.set('any');
     this.ktypeChoice.set('any');
     this.matchResult.set('');
+    this.matchCause.set(null);
+    this.matchKtype.set('');
     this.text.set('');
     this.selected.set(Object.fromEntries(this.facets.map((facet) => [facet.key, ''])));
     this.rangeFrom.set(Object.fromEntries(this.ranges.map((range) => [range.key, ''])));
@@ -372,6 +426,7 @@ export class CarSearchPage implements OnInit {
    * candidates panel stays mounted with its notice.
    */
   protected onChoiceChanged(vehicleId: string, lookup: VehicleMatchLookup): void {
+    this.resultsTurn.update((turn) => turn + 1);
     const choice = lookup?.choice ?? null;
     const ktype = choice?.status === 'chosen' ? choice.ktype : null;
     const state =
@@ -402,14 +457,6 @@ export class CarSearchPage implements OnInit {
     if (this.openId() === vehicleId) this.open$.next(vehicleId);
   }
 
-  /** An example from the matching view: show that vehicle in the list and open it. */
-  protected openExample(vehicleId: string): void {
-    if (!vehicleId) return;
-    this.view.set('cars');
-    this.onText(vehicleId);
-    this.open(vehicleId);
-  }
-
   protected close(): void {
     this.openId.set(null);
     this.record.set(null);
@@ -438,7 +485,8 @@ export class CarSearchPage implements OnInit {
     return { conditions: this.conditions(), text: this.text().trim() };
   }
 
-  private conditions(): VehicleCondition[] {
+  /** The filter's clauses; `matching` leaves out or keeps the ones about the stored result. */
+  private conditions(matching = true): VehicleCondition[] {
     const conditions: VehicleCondition[] = [];
     const scope = vehicleScopeCondition(this.vehicleType());
     if (scope) {
@@ -455,8 +503,14 @@ export class CarSearchPage implements OnInit {
     if (decided && decided.states.length) {
       conditions.push({ field: 'match_state', operator: 'equals', values: [...decided.states] });
     }
-    if (this.matchResult()) {
-      conditions.push({ field: 'match_result', operator: 'equals', values: [this.matchResult()] });
+    if (matching) {
+      if (this.matchResult()) {
+        conditions.push({ field: 'match_result', operator: 'equals', values: [this.matchResult()] });
+      }
+      const cause = this.matchCause();
+      if (cause) conditions.push({ field: cause.field, operator: 'equals', values: [cause.value] });
+      const ktype = this.matchKtype().trim();
+      if (ktype) conditions.push({ field: 'match_ktype', operator: 'equals', values: [ktype] });
     }
     for (const facet of this.facets) {
       const value = this.selected()[facet.key];

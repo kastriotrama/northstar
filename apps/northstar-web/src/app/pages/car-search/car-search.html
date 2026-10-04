@@ -81,6 +81,16 @@
           }
         </select>
       </label>
+      <label class="field">
+        <span class="field__label">KType</span>
+        <input
+          pInputText
+          placeholder="accepted or possible"
+          aria-label="KType"
+          [ngModel]="matchKtype()"
+          (ngModelChange)="onMatchKtype($event)"
+        />
+      </label>
       @for (facet of facets; track facet.key) {
         <label class="field">
           <span class="field__label">{{ facet.label }}</span>
@@ -161,16 +171,6 @@
           type="button"
           role="tab"
           class="views__tab"
-          [class.views__tab--active]="view() === 'matching'"
-          [attr.aria-selected]="view() === 'matching'"
-          (click)="view.set('matching')"
-        >
-          Matching
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="views__tab"
           [class.views__tab--active]="view() === 'decisions'"
           [attr.aria-selected]="view() === 'decisions'"
           (click)="view.set('decisions')"
@@ -179,27 +179,23 @@
         </button>
       </div>
 
-      @if (view() === 'matching') {
-        <ns-match-results
-          [conditions]="currentConditions()"
-          [text]="currentText()"
-          (pick)="openExample($event)"
-        />
-        <details class="live-run">
-          <summary>Run the matcher live on a sample of this filter</summary>
-          <p class="live-run__note">
-            For checking a matcher or data change before the stored results are refreshed. It does
-            not change the stored results above.
-          </p>
-          <ns-matching-summary
-            [conditions]="currentConditions()"
-            [text]="currentText()"
-            (pick)="openExample($event)"
-          />
-        </details>
-      } @else if (view() === 'decisions') {
+      @if (view() === 'decisions') {
         <ns-correction-decisions (changed)="onDecisionUndone()" />
       } @else {
+      <ns-match-results
+        [conditions]="baseConditions()"
+        [text]="currentText()"
+        [selected]="matchResult()"
+        [turn]="resultsTurn()"
+        (stateChange)="onMatchState($event)"
+        (causeChange)="onMatchCause($event)"
+      />
+      @if (matchCause(); as cause) {
+        <p class="cause" role="status">
+          Only cars where {{ cause.label }}
+          <p-button label="Show all" size="small" [text]="true" (onClick)="clearMatchCause()" />
+        </p>
+      }
       <p-table [value]="rows()" [scrollable]="true" scrollHeight="62vh" styleClass="p-datatable-sm">
         <ng-template pTemplate="header">
           <tr>
@@ -252,6 +248,16 @@
                 <span [class.review]="row.match_state === 'manual'" [title]="row.match_state === 'manual' ? 'Chosen by a person' : ''">{{ row.ktype }}</span>
               } @else if (row.automatic_ktype) {
                 <span title="Accepted by the matcher (stored result)">{{ row.automatic_ktype }}</span>
+              } @else if (possibleKtypes(row).length) {
+                <span class="ktypes" [title]="'Possible KTypes, none accepted: ' + possibleKtypesTitle(row)">
+                  @for (ktype of possibleKtypes(row).slice(0, 2); track ktype) {
+                    <span class="ktypes__one">{{ ktype }}</span>
+                  }
+                  @if (possibleKtypes(row).length > 2) {
+                    <span class="muted">+{{ possibleKtypes(row).length - 2 }}</span>
+                  }
+                  <span class="badge badge--gap">{{ possibleKtypes(row).length === 1 ? 'not confirmed' : 'several' }}</span>
+                </span>
               } @else if (row.match_result) {
                 <span class="badge badge--gap" title="The matcher's stored result for this car">{{ matchResultLabel(row.match_result) }}</span>
               } @else {

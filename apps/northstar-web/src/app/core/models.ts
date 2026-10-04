@@ -787,6 +787,9 @@ export interface NorVehicleRow {
   match_result?: string | null;
   /** The KType the matcher accepted, from the stored result. */
   automatic_ktype?: string | null;
+  /** The possible KTypes, best first, with the matcher's confidence in each (stored result). */
+  candidate_ktypes?: string[];
+  candidate_confidences?: number[];
   /** Fields whose value a reviewer's rule asserted. */
   review_fields: string[];
   /** Fields a learned enrichment rule filled because no source stated them. */
@@ -1355,85 +1358,6 @@ export interface CorrectionDecisionRef {
   reviewer: string;
 }
 
-export interface MatchSummaryRequest extends VehicleSearchRequest {
-  limit: number;
-}
-
-export interface FieldCount {
-  field: string;
-  cars: number;
-}
-
-export interface MatchExample {
-  vehicle_id: string | null;
-  source_record_id: number | null;
-  plate: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  candidates: number;
-}
-
-export interface MatchSummary {
-  catalog_batch: string;
-  population: number;
-  evaluated: number;
-  sampled: boolean;
-  buckets: Record<MatchBucket, number>;
-  terminals: Record<string, number>;
-  several_candidate_counts: Record<string, number>;
-  candidate_limit: number;
-  none_conflicting_fields: FieldCount[];
-  none_without_candidates: number;
-  several_separating_fields: FieldCount[];
-  several_missing_separating_fields: FieldCount[];
-  not_matchable_reasons: { reason: string; cars: number }[];
-  examples: Record<MatchBucket, MatchExample[]>;
-}
-
-/** One evaluated car of a summary, as the bucket lists show it. */
-export interface MatchCarRow {
-  vehicle_id: string | null;
-  source_record_id: number | null;
-  plate: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  bucket: MatchBucket;
-  terminal: string;
-  /** Compatible candidates: KTypes that conflict with the car on nothing. */
-  candidates: number;
-  top_ktype: string | null;
-  verdict: string | null;
-  /** `several`: fields that differ among the compatible candidates ... */
-  separating_fields: string[];
-  /** ... and of those, the ones the car has no value for. */
-  missing_fields: string[];
-  /** `none`: fields the car conflicts with its best candidate on. */
-  conflicting_fields: string[];
-  reason_codes: string[];
-}
-
-export interface MatchCarPage {
-  job_id: string;
-  bucket: MatchBucket;
-  /** Cars of this bucket evaluated so far; grows while the job runs. */
-  total: number;
-  offset: number;
-  cars: MatchCarRow[];
-}
-
-export interface MatchSummaryJob {
-  job_id: string;
-  status: 'running' | 'done' | 'failed' | 'cancelled';
-  target: number;
-  evaluated: number;
-  seconds_elapsed: number;
-  error: string | null;
-  /** The Vehicles filter it ran on; null only for a job started without one. */
-  filter: VehicleSearchRequest | null;
-  /** Partial while running, final once done. */
-  summary: MatchSummary;
-}
-
 /**
  * Where a car stands with matching, read from stored results. A person's choice
  * outranks the matcher (`chosen`, `chosen_none`); `not_evaluated` is a car with
@@ -1481,53 +1405,19 @@ export interface MatchResultOverview {
   latest_run: MatchResultRun | null;
 }
 
-/** What narrows a state's car list to one cause. */
-export interface MatchResultNarrowing {
-  missing_field?: string;
-  separating_field?: string;
-  conflicting_field?: string;
-  reason?: string;
-  ktype?: string;
-  candidate_count?: number;
-}
-
-export interface MatchResultCarsRequest extends MatchResultNarrowing {
-  conditions: VehicleCondition[];
-  text: string;
-  state: MatchResultState;
-  after?: string | null;
-  limit?: number;
-}
-
-export interface MatchResultCar {
-  vehicle_id: string;
-  plate: string | null;
-  vin: string | null;
-  manufacturer: string | null;
-  model_family: string | null;
-  production_year: number | null;
-  state: MatchResultState;
-  automatic_state: string | null;
-  terminal: string | null;
-  /** The KType in force: a person's choice, else the one the matcher accepted. */
-  ktype: string | null;
-  automatic_ktype: string | null;
-  best_candidate_ktype: string | null;
-  confidence: number | null;
-  /** The possible KTypes, best first, with the matcher's confidence in each. */
-  candidate_ktypes: string[];
-  candidate_confidences: number[];
-  separating_fields: string[];
-  missing_fields: string[];
-  conflicting_fields: string[];
-  reason_codes: string[];
-  evaluated_at: string | null;
-  changed_since_matched: boolean;
-}
-
-export interface MatchResultCarPage {
-  state: MatchResultState;
+/** Cars per state under a filter: the strip above the car list. */
+export interface MatchResultCounts {
   total: number;
-  cars: MatchResultCar[];
-  next_after: string | null;
+  states: Array<{ state: MatchResultState; cars: number }>;
+  changed_since_matched: number;
+}
+
+/** One count of the breakdown, as a filter of the car list: a state and a clause on its cars. */
+export interface MatchResultCause {
+  state: MatchResultState;
+  /** A `match_*` filter field of the Vehicles list. */
+  field: string;
+  value: string;
+  /** How the filter reads on screen, e.g. "the car has no engine code". */
+  label: string;
 }

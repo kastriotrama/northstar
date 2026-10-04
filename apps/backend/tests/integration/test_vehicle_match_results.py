@@ -563,3 +563,69 @@ def test_the_vehicles_list_combines_the_state_with_its_other_filters(
         field="manufacturer", limit=10,
     )
     assert [(value.value, value.count) for value in facet.values] == [("Volkswagen", 1)]
+
+
+def test_the_counts_strip_reads_the_states_alone(db: Connection, world: _World) -> None:
+    world.refresher.refresh_scope()
+    counts = world.service.counts(VehicleFilter())
+    assert counts.total == 3
+    assert {item.state: item.cars for item in counts.states if item.cars} == {
+        "resolved": 1, "several": 1, "none": 1,
+    }
+    assert len(counts.states) == 8 and counts.changed_since_matched == 0
+    only = world.service.counts(VehicleFilter(text="GLF001"))
+    assert (only.total, {i.state: i.cars for i in only.states if i.cars}) == (1, {"resolved": 1})
+
+
+def test_the_vehicles_list_shows_possible_ktypes_and_filters_on_the_cause(
+    db: Connection, world: _World
+) -> None:
+    world.refresher.refresh_scope()
+
+    def plates(*conditions: VehicleCondition) -> list[str | None]:
+        page = world.vehicles.search(list(conditions), "", cursor=None, limit=50)
+        assert page.matched_rows == len(page.items)
+        return sorted(item.plate for item in page.items)
+
+    tied = world.vehicles.search(
+        [VehicleCondition(field="match_result", values=["several"])], "", cursor=None, limit=50
+    ).items[0]
+    assert tied.candidate_ktypes == ["A", "B"]
+    assert tied.candidate_confidences == pytest.approx([0.9, 0.9])
+
+    assert plates(VehicleCondition(field="match_missing_field", values=["drive_type"])) == ["ABC123"]
+    assert plates(VehicleCondition(field="match_missing_field", values=["engine_code"])) == []
+    assert plates(VehicleCondition(field="match_separating_field", values=["drive_type"])) == ["ABC123"]
+    assert plates(VehicleCondition(field="match_conflicting_field", values=["power_kw"])) == ["AUD001"]
+    assert plates(VehicleCondition(field="match_reason", values=["match:automatic"])) == ["GLF001"]
+    assert plates(VehicleCondition(field="match_candidate_count", values=["2"])) == ["ABC123"]
+    assert plates(VehicleCondition(field="match_candidate_count", values=["1", "2"])) == [
+        "ABC123", "GLF001",
+    ]
+    # A KType finds the cars it is accepted for and the cars it is possible for ...
+    assert plates(VehicleCondition(field="match_ktype", values=["G"])) == ["GLF001"]
+    assert plates(VehicleCondition(field="match_ktype", values=["B"])) == ["ABC123"]
+    assert plates(VehicleCondition(field="match_ktype", values=["Z"])) == []
+    # ... and the cars a person chose it for.
+    db.execute("UPDATE core.vehicles SET match_state = 'manual', ktype = 'Z' WHERE vehicle_id = %s",
+               (_vehicle(db, AUDI_VIN),))
+    db.commit()
+    assert plates(VehicleCondition(field="match_ktype", values=["Z"])) == ["AUD001"]
+
+
+@pytest.mark.parametrize(
+    ("field", "operator", "values"),
+    [
+        ("match_candidate_count", "equals", ["two"]),
+        ("match_missing_field", "not_equals", ["drive_type"]),
+        ("match_ktype", "contains", ["A"]),
+    ],
+)
+def test_a_cause_filter_the_list_cannot_answer_is_refused(
+    world: _World, field: str, operator: str, values: list[str]
+) -> None:
+    with pytest.raises(ValueError, match=field):
+        world.vehicles.search(
+            [VehicleCondition(field=field, values=values, operator=operator)],  # type: ignore[arg-type]
+            "", cursor=None, limit=50,
+        )

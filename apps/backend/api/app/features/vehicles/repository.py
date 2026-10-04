@@ -117,7 +117,9 @@ class VehicleRepository:
                 cursor.execute(
                     f"SELECT {ALIAS}.vehicle_id, {columns}, {asserted}, {asserted}, "
                     f"{_STORED_RESULT.format(column='state', alias=ALIAS)}, "
-                    f"{_STORED_RESULT.format(column='ktype', alias=ALIAS)} "
+                    f"{_STORED_RESULT.format(column='ktype', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='candidate_ktypes', alias=ALIAS)}, "
+                    f"{_STORED_RESULT.format(column='candidate_confidences', alias=ALIAS)} "
                     f"FROM {VEHICLES_TABLE} AS {ALIAS} "
                     f"WHERE {predicate.sql}{cursor_sql} "
                     f"ORDER BY {ALIAS}.vehicle_id LIMIT %s",
@@ -125,8 +127,14 @@ class VehicleRepository:
                 )
                 rows = cursor.fetchall()
         names = ("vehicle_id", *LIST_COLUMNS, "review_fields", "rule_fields",
-                 "match_result", "automatic_ktype")
-        return [dict(zip(names, row, strict=True)) for row in rows]
+                 "match_result", "automatic_ktype", "candidate_ktypes",
+                 "candidate_confidences")
+        found = [dict(zip(names, row, strict=True)) for row in rows]
+        for item in found:
+            # A car without a stored result has no row to read the arrays from.
+            item["candidate_ktypes"] = list(item["candidate_ktypes"] or [])
+            item["candidate_confidences"] = list(item["candidate_confidences"] or [])
+        return found
 
     def count(self, terms: Sequence[VehicleTerm], text: str) -> int:
         with self._connection_factory() as connection:

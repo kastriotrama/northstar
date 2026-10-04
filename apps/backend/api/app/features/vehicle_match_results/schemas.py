@@ -64,6 +64,15 @@ class MatchRunInfo(BaseModel):
     finished_at: datetime | None
 
 
+class MatchResultCounts(BaseModel):
+    """Cars per state under a filter: the strip above the car list."""
+
+    total: int
+    states: list[StateCount]
+    #: Cars whose vehicle changed after it was matched (see the overview).
+    changed_since_matched: int
+
+
 class MatchResultOverview(BaseModel):
     """Where every car of the filter stands, from stored results."""
 

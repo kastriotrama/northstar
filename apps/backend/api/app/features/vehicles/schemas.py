@@ -84,6 +84,10 @@ class VehicleRow(BaseModel):
     #: The KType the matcher accepted, from the stored result. `ktype` above is
     #: a person's choice only.
     automatic_ktype: str | None = None
+    #: The KTypes that conflict with the car on nothing, best first, with the
+    #: matcher's confidence in each (stored result; at most the matcher's cap).
+    candidate_ktypes: list[str] = Field(default_factory=list)
+    candidate_confidences: list[float] = Field(default_factory=list)
     #: Fields whose value a person asserted: a reviewer's rule, or a correction
     #: of this one car.
     review_fields: list[str]

@@ -329,21 +329,12 @@
   border-bottom-color: var(--p-primary-color, #3b82f6);
 }
 
-.live-run {
-  margin-top: 1rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--p-surface-200);
+.cause {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: #7a5300;
+}
 
-  > summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.84rem;
-    margin-bottom: 0.5rem;
-  }
-
-  &__note {
-    margin: 0 0 0.6rem;
-    font-size: 0.78rem;
-    color: var(--p-text-muted-color);
-  }
+.ktypes > * {
+  margin-right: 0.35rem;
 }

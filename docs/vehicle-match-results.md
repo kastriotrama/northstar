@@ -42,18 +42,18 @@ status).
 
 ## Reading
 
-Both endpoints take the Vehicles filter (`conditions`, `text`) and never run the
+The endpoints take the Vehicles filter (`conditions`, `text`) and never run the
 matcher.
 
-- `POST /v1/vehicles/match-results/overview`: total cars, cars per state
-  (including `chosen`, `chosen_none` and `not_evaluated`), terminals, the number
-  of possible KTypes of tied cars, separating / missing / conflicting field
-  counts, why cars are not matchable, how many stored rows may be out of date,
-  and the latest run.
+- `POST /v1/vehicles/match-results/counts`: cars per state (including `chosen`,
+  `chosen_none` and `not_evaluated`) and how many stored rows may be out of
+  date. One grouped query (0.3 s for 500k cars).
+- `POST /v1/vehicles/match-results/overview`: the counts plus terminals, the
+  number of possible KTypes of tied cars, separating / missing / conflicting
+  field counts, why cars are not matchable, and the latest run. One pass over
+  the filtered cars (about 2 s for all 500k, 0.4 s for one make).
 - `POST /v1/vehicles/match-results/cars`: the cars behind one state, paged by
-  NOR ID (`after`, `limit`), each with its accepted or possible KTypes and the
-  stored reasons. Optional narrowing: `missing_field`, `separating_field`,
-  `conflicting_field`, `reason`, `ktype`, `candidate_count`.
+  NOR ID. The web no longer uses it: the Vehicles list does this job.
 
 For one car in full (every candidate's values, the decision trace) use
 `GET /v1/vehicles/matching/lookup?vehicle_id=...`, which evaluates that car live.
@@ -86,12 +86,23 @@ Each page of cars is committed on its own. The tables are created by
 
 ## On screen
 
-Vehicles, Matching tab (`ns-match-results`): the overview of the current filter
-as tiles and breakdowns; every number opens the cars behind it
-(`ns-match-result-cars-dialog`), and the picked car is matched live beside the
-list. Percentages are of the cars that have a stored result. The earlier "run
-the matcher on a sample" view sits below it, folded, for checking a matcher
-change before a refresh.
+Everything is in Vehicles, Cars: there is no Matching tab.
+
+- Above the list, `ns-match-results` shows the cars of the filter per state.
+  A state is a button that narrows the list to its cars. The counts leave out
+  the list's own matching clauses, so picking a state never hides the others.
+- "What stands between the open cars and one KType" opens the breakdown (read
+  only then). Each of its counts narrows the list to exactly those cars.
+- The KType column shows a person's choice, else the accepted KType, else the
+  first two possible KTypes with "+N" (all of them, with confidence, in the
+  tooltip), else the state.
+- Filters: "Matching result" and "KType" (cars the KType is accepted, chosen or
+  possible for).
+- Clicking a row opens the car with its candidate KTypes, matched live.
+
+The on-screen "run the matcher on a sample" tool is gone; its API
+(`/v1/vehicles/matching/summary`) is still there. Use
+`scripts/match_impact_report.py` to measure a matcher change.
 
 ## Kept current when a person saves
 
@@ -105,12 +116,22 @@ writes a run of mode `vehicles`; the overview's "last run" leaves those out.
 
 ## In the Vehicles list
 
-`match_result` is a filter field of the Vehicles list, its count and its
-facets (`equals` / `not_equals`; values: the five matcher states plus `chosen`,
-`chosen_none`, `not_evaluated`). It is not a column of `core.vehicles`: it is
-compiled into probes of the stored results by the vehicle's key. Each list row
-also carries `match_result` and `automatic_ktype`, so the KType column shows a
-person's choice, else the accepted KType, else the stored state.
+These are filter fields of the Vehicles list, its count and its facets. None is
+a column of `core.vehicles`: each is compiled into probes of the stored results
+by the vehicle's key.
+
+| Field | Meaning |
+|---|---|
+| `match_result` | state (`equals` / `not_equals`): the five matcher states, `chosen`, `chosen_none`, `not_evaluated` |
+| `match_missing_field` | tied cars lacking this separating field |
+| `match_separating_field` | tied cars whose possible KTypes differ on this field |
+| `match_conflicting_field` | cars conflicting with their best candidate on this field |
+| `match_reason` | cars carrying this reason code |
+| `match_candidate_count` | cars with exactly this many possible KTypes |
+| `match_ktype` | cars this KType is accepted, chosen or possible for |
+
+Each list row carries `match_result`, `automatic_ktype`, `candidate_ktypes` and
+`candidate_confidences`.
 
 ## Not done yet
 

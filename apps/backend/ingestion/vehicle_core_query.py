@@ -150,6 +150,58 @@ def _compile_match_result(operator: str, values: Sequence[str]) -> CompiledPredi
     return CompiledPredicate(f"NOT {sql}" if operator == "not_equals" else sql, parameters)
 
 
+#: More pseudo-fields read from the stored match result: what stands between a
+#: car and one KType. Each names the array column it looks into.
+MATCH_CAUSE_FIELDS: dict[str, str] = {
+    "match_missing_field": "missing_fields",
+    "match_separating_field": "separating_fields",
+    "match_conflicting_field": "conflicting_fields",
+    "match_reason": "reason_codes",
+}
+#: Cars whose accepted, chosen or possible KTypes include one of these.
+MATCH_KTYPE_FIELD = "match_ktype"
+#: Cars with exactly this many possible KTypes.
+MATCH_CANDIDATE_COUNT_FIELD = "match_candidate_count"
+MATCH_FIELDS: frozenset[str] = frozenset(
+    {MATCH_RESULT_FIELD, MATCH_KTYPE_FIELD, MATCH_CANDIDATE_COUNT_FIELD, *MATCH_CAUSE_FIELDS}
+)
+
+
+def _compile_match_detail(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
+    """A clause on what the stored result says about the car, by the vehicle's key."""
+
+    if operator != "equals":
+        raise ValueError(f"{field} takes equals, not {operator}")
+    wanted = [str(value).strip() for value in values if str(value).strip()]
+    if not wanted:
+        raise ValueError(f"condition on {field!r} has no values")
+    if field == MATCH_CANDIDATE_COUNT_FIELD:
+        numbers = _numbers(wanted)
+        if len(numbers) != len(wanted):
+            raise ValueError(f"{field} takes whole numbers")
+        return CompiledPredicate(
+            f"EXISTS ({_STORED_RESULT} AND stored_result.candidate_count = ANY(%s))", [numbers]
+        )
+    if field == MATCH_KTYPE_FIELD:
+        # Three index reads united by the vehicle's key -- a person's choice (the
+        # few decided cars), the accepted KType, the possible KTypes -- instead
+        # of an OR that would have every vehicle looked at.
+        return CompiledPredicate(
+            f"{ALIAS}.vehicle_id IN ("
+            f"SELECT decided.vehicle_id FROM {VEHICLES_TABLE} AS decided "
+            "WHERE decided.match_state IS NOT NULL AND decided.ktype = ANY(%s) "
+            f"UNION SELECT accepted.vehicle_id FROM {VEHICLE_MATCH_RESULTS_TABLE} AS accepted "
+            "WHERE accepted.ktype = ANY(%s) "
+            f"UNION SELECT possible.vehicle_id FROM {VEHICLE_MATCH_RESULTS_TABLE} AS possible "
+            "WHERE possible.candidate_ktypes && %s::text[])",
+            [wanted, wanted, wanted],
+        )
+    column = MATCH_CAUSE_FIELDS[field]
+    return CompiledPredicate(
+        f"EXISTS ({_STORED_RESULT} AND stored_result.{column} && %s::text[])", [wanted]
+    )
+
+
 def compile_term(field: str, operator: str, values: Sequence[str]) -> CompiledPredicate:
     """One clause. Values inside a clause are OR-ed; `is_empty` takes none."""
 
@@ -157,6 +209,8 @@ def compile_term(field: str, operator: str, values: Sequence[str]) -> CompiledPr
         raise ValueError(f"unsupported operator: {operator}")
     if field == MATCH_RESULT_FIELD:
         return _compile_match_result(operator, values)
+    if field in MATCH_FIELDS:
+        return _compile_match_detail(field, operator, values)
     terms = [str(value) for value in values if value is not None and str(value).strip()]
     if operator == IS_EMPTY:
         if terms:

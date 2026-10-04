@@ -99,51 +99,105 @@ class MatchResultRepository:
         self._connection_factory = connection_factory
 
     def overview(self, terms: Sequence[VehicleTerm], text: str) -> dict[str, Any]:
-        """Every count of the overview under one filter, on one connection."""
+        """Every count of the overview under one filter, in one pass over the cars.
+
+        The filtered cars are read once, each with its overview state, and every
+        count is taken from that set: a dozen separate scans made the overview
+        of all cars take seconds.
+        """
 
         with self._connection_factory() as connection:
             predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
-            where, parameters = predicate.sql, predicate.parameters
+            rows = connection.execute(
+                f"""
+                WITH cars AS MATERIALIZED (
+                    SELECT {STATE_SQL} AS state, m.terminal, m.candidate_count,
+                           m.separating_fields, m.missing_fields, m.conflicting_fields,
+                           m.reason_codes, m.catalog_batch, m.matcher_version,
+                           m.best_candidate_ktype, {_CHANGED} AS changed
+                    {_JOIN} WHERE {predicate.sql}
+                )
+                SELECT 'states', state, count(*) FROM cars GROUP BY 2
+                UNION ALL
+                SELECT 'terminals', terminal, count(*) FROM cars
+                WHERE terminal IS NOT NULL GROUP BY 2
+                UNION ALL
+                SELECT 'catalog_batches', catalog_batch, count(*) FROM cars
+                WHERE catalog_batch IS NOT NULL GROUP BY 2
+                UNION ALL
+                SELECT 'matcher_versions', matcher_version, count(*) FROM cars
+                WHERE matcher_version IS NOT NULL GROUP BY 2
+                UNION ALL
+                SELECT 'several_candidate_counts', candidate_count::text, count(*) FROM cars
+                WHERE state = 'several' GROUP BY 2
+                UNION ALL
+                SELECT 'several_separating_fields', item, count(*)
+                FROM cars CROSS JOIN LATERAL unnest(separating_fields) AS item
+                WHERE state = 'several' GROUP BY 2
+                UNION ALL
+                SELECT 'several_missing_fields', item, count(*)
+                FROM cars CROSS JOIN LATERAL unnest(missing_fields) AS item
+                WHERE state = 'several' GROUP BY 2
+                UNION ALL
+                SELECT 'none_conflicting_fields', item, count(*)
+                FROM cars CROSS JOIN LATERAL unnest(conflicting_fields) AS item
+                WHERE state = 'none' GROUP BY 2
+                UNION ALL
+                SELECT 'not_matchable_reasons', item, count(*)
+                FROM cars CROSS JOIN LATERAL unnest(reason_codes) AS item
+                WHERE state = 'not_matchable' GROUP BY 2
+                UNION ALL
+                SELECT 'changed_since_matched', '', count(*) FROM cars WHERE changed
+                UNION ALL
+                SELECT 'none_without_candidates', '', count(*) FROM cars
+                WHERE state = 'none' AND best_candidate_ktype IS NULL
+                """,
+                predicate.parameters,
+            ).fetchall()
+            run = latest_run(connection)
+        grouped: dict[str, list[tuple[str, int]]] = {}
+        for kind, value, count in rows:
+            grouped.setdefault(str(kind), []).append((str(value), int(count)))
 
-            def grouped(expression: str, extra: str = "true") -> list[tuple[str, int]]:
-                rows = connection.execute(
-                    f"SELECT {expression}, count(*) {_JOIN} WHERE {where} AND {extra} "
-                    "GROUP BY 1 ORDER BY 2 DESC, 1",
-                    parameters,
-                ).fetchall()
-                return [(str(value), int(count)) for value, count in rows if value is not None]
+        def ranked(kind: str) -> list[tuple[str, int]]:
+            return sorted(grouped.get(kind, []), key=lambda item: (-item[1], item[0]))
 
-            def unnested(column: str, state: str) -> list[tuple[str, int]]:
-                rows = connection.execute(
-                    f"SELECT item, count(*) {_JOIN} CROSS JOIN LATERAL unnest(m.{column}) AS item "
-                    f"WHERE {where} AND {state_predicate(state)} GROUP BY 1 ORDER BY 2 DESC, 1",
-                    parameters,
-                ).fetchall()
-                return [(str(value), int(count)) for value, count in rows]
+        def single(kind: str) -> int:
+            return sum(count for _, count in grouped.get(kind, []))
 
-            states = grouped(STATE_SQL)
-            row = connection.execute(
-                f"SELECT count(*) FILTER (WHERE {_CHANGED}), "
-                f"count(*) FILTER (WHERE {state_predicate('none')} "
-                f"AND m.best_candidate_ktype IS NULL) {_JOIN} WHERE {where}",
-                parameters,
-            ).fetchone()
-            return {
-                "states": states,
-                "terminals": grouped("m.terminal"),
-                "several_candidate_counts": grouped(
-                    "m.candidate_count::text", state_predicate("several")
-                ),
-                "several_separating_fields": unnested("separating_fields", "several"),
-                "several_missing_fields": unnested("missing_fields", "several"),
-                "none_conflicting_fields": unnested("conflicting_fields", "none"),
-                "not_matchable_reasons": unnested("reason_codes", "not_matchable"),
-                "changed_since_matched": int(row[0]) if row else 0,
-                "none_without_candidates": int(row[1]) if row else 0,
-                "catalog_batches": grouped("m.catalog_batch"),
-                "matcher_versions": grouped("m.matcher_version"),
-                "latest_run": latest_run(connection),
-            }
+        return {
+            "states": ranked("states"),
+            "terminals": ranked("terminals"),
+            "several_candidate_counts": ranked("several_candidate_counts"),
+            "several_separating_fields": ranked("several_separating_fields"),
+            "several_missing_fields": ranked("several_missing_fields"),
+            "none_conflicting_fields": ranked("none_conflicting_fields"),
+            "not_matchable_reasons": ranked("not_matchable_reasons"),
+            "changed_since_matched": single("changed_since_matched"),
+            "none_without_candidates": single("none_without_candidates"),
+            "catalog_batches": ranked("catalog_batches"),
+            "matcher_versions": ranked("matcher_versions"),
+            "latest_run": run,
+        }
+
+    def counts(self, terms: Sequence[VehicleTerm], text: str) -> dict[str, Any]:
+        """Cars per overview state under the filter, and how many may be out of date.
+
+        One grouped query: what the strip above the car list needs, without the
+        breakdowns the full overview also computes.
+        """
+
+        with self._connection_factory() as connection:
+            predicate = compile_vehicle_filter(terms, resolve_search(connection, text))
+            rows = connection.execute(
+                f"SELECT {STATE_SQL}, count(*), count(*) FILTER (WHERE {_CHANGED}) "
+                f"{_JOIN} WHERE {predicate.sql} GROUP BY 1",
+                predicate.parameters,
+            ).fetchall()
+        return {
+            "states": [(str(state), int(cars)) for state, cars, _ in rows],
+            "changed_since_matched": sum(int(changed) for _, _, changed in rows),
+        }
 
     def cars(
         self,

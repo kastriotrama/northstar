@@ -26,8 +26,15 @@ Keep the latest 10 task entries only.
   their transaction (never fails the save; more than five cars refresh on a thread). The Vehicles list
   filters on `match_result` (probes of the stored results, no join) and shows the accepted KType or the
   stored state per row. Unit 3,066 and integration 517 passed; web 244 passed, build clean.
-- Next: overview query time once all 500k rows exist; refresh after bulk rule application or
-  re-normalization is still the normal run. Details: `docs/vehicle-match-results.md`.
+- 2026-10-04: full fill of `northstar_pilot_corr` done (490,000 matched in 3 h 25 min, 4 workers): resolved
+  351,693 (70.3 %), several 80,590, none 30,496, one unconfirmed 19,043, not matchable 18,178; table 389 MB.
+- 2026-10-04: the Matching tab is gone; Vehicles > Cars holds it all: counts per state above the list
+  (`/counts`, 0.3 s for 500k), the breakdown on demand (`/overview`, one pass, ~2 s for all cars), cause
+  filters (`match_missing_field`, `match_conflicting_field`, `match_candidate_count`, `match_ktype`, ...) and
+  the possible KTypes in the KType column. The on-screen sample run was removed (its API stays).
+  Unit 3,066 and integration 522 passed; web 220 passed, build clean.
+- Next: refresh after bulk rule application or re-normalization is still the normal run; the unused
+  summary-job API and `/cars` endpoint could be removed. Details: `docs/vehicle-match-results.md`.
 
 ## 2026-10-03 — Drive type for the cars the model table left open (branch feature/vehicle-corrections)
 

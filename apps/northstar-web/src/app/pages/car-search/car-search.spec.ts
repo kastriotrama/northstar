@@ -474,4 +474,81 @@ describe('CarSearchPage', () => {
     expect(JSON.stringify(cleared.request.body.conditions)).not.toContain('match_result');
     expect(select.value).toBe('');
   });
+
+  it('counts the states of the filter above the list, and a state narrows the list', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const http = TestBed.inject(HttpTestingController);
+    const host = fixture.nativeElement as HTMLElement;
+    const [counted] = http.match((request) => request.url.endsWith('/v1/vehicles/match-results/counts'));
+    // The counts are of every state: the list's own matching clauses are left out.
+    expect(JSON.stringify(counted.request.body.conditions)).not.toContain('match_');
+    counted.flush({
+      total: 10,
+      changed_since_matched: 0,
+      states: [
+        { state: 'resolved', cars: 7 },
+        { state: 'several', cars: 3 },
+      ],
+    });
+    fixture.detectChanges();
+    expect(host.textContent).not.toContain('Run matching');
+    expect([...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim())).toEqual([
+      'Cars', 'Decisions',
+    ]);
+
+    const several = [...host.querySelectorAll<HTMLButtonElement>('ns-match-results .state')].find(
+      (button) => button.textContent?.includes('Several KTypes'),
+    ) as HTMLButtonElement;
+    several.click();
+    const [request] = await settle(fixture);
+    expect(request.request.body.conditions).toContainEqual({
+      field: 'match_result', operator: 'equals', values: ['several'],
+    });
+    const select = host.querySelector('select[aria-label="Matching result"]') as HTMLSelectElement;
+    expect(select.value).toBe('several');
+    // Narrowing the list does not change what the counts are of.
+    expect(http.match((req) => req.url.endsWith('/v1/vehicles/match-results/counts'))).toEqual([]);
+  });
+
+  it('finds cars by a KType that is accepted or possible for them', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const input = (fixture.nativeElement as HTMLElement).querySelector(
+      'input[aria-label="KType"]',
+    ) as HTMLInputElement;
+    input.value = ' 000010064 ';
+    input.dispatchEvent(new Event('input'));
+    const [request] = await settle(fixture);
+    expect(request.request.body.conditions).toContainEqual({
+      field: 'match_ktype', operator: 'equals', values: ['000010064'],
+    });
+  });
+
+  it('shows the possible KTypes of a car the matcher could not decide', async () => {
+    const fixture = render();
+    PAGE.items[0] = {
+      ...PAGE.items[0],
+      match_result: 'several',
+      candidate_ktypes: ['000010064', '000010065', '000010066'],
+      candidate_confidences: [0.91, 0.9, 0.7],
+    };
+    try {
+      await settle(fixture);
+      const cell = (fixture.nativeElement as HTMLElement).querySelector('tbody tr td:last-child');
+      const words = (cell?.textContent ?? '').replace(/\s+/g, ' ');
+      expect(words).toContain('000010064');
+      expect(words).toContain('000010065');
+      expect(words).not.toContain('000010066');
+      expect(words).toContain('+1');
+      expect(words).toContain('several');
+      expect(cell?.querySelector('.ktypes')?.getAttribute('title')).toBe(
+        'Possible KTypes, none accepted: 000010064 (91%), 000010065 (90%), 000010066 (70%)',
+      );
+    } finally {
+      const { match_result: _state, candidate_ktypes: _k, candidate_confidences: _c, ...rest } =
+        PAGE.items[0];
+      PAGE.items[0] = rest;
+    }
+  });
 });

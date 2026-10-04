@@ -54,13 +54,8 @@ import type {
   TsCoverageReport,
   UnresolvedOverview,
   UnresolvedSummary,
-  MatchBucket,
-  MatchCarPage,
-  MatchResultCarPage,
-  MatchResultCarsRequest,
+  MatchResultCounts,
   MatchResultOverview,
-  MatchSummaryJob,
-  MatchSummaryRequest,
   VehicleMatchLookup,
   VehicleCondition,
   VehicleCount,
@@ -733,39 +728,6 @@ export class Api {
     );
   }
 
-  /** Start matching a seeded random `limit` cars of a filter; poll the returned job. */
-  startMatchSummary(request: MatchSummaryRequest): Observable<MatchSummaryJob> {
-    return this.http.post<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary`, request);
-  }
-
-  /** Every summary job the API holds, newest first -- including ones no screen is watching. */
-  matchSummaryJobs(): Observable<MatchSummaryJob[]> {
-    return this.http.get<MatchSummaryJob[]>(`${this.base}/v1/vehicles/matching/summary`);
-  }
-
-  matchSummaryJob(jobId: string): Observable<MatchSummaryJob> {
-    return this.http.get<MatchSummaryJob>(`${this.base}/v1/vehicles/matching/summary/${jobId}`);
-  }
-
-  /** A page of the cars a summary put in one bucket, with why each ended there. */
-  matchSummaryCars(
-    jobId: string,
-    bucket: MatchBucket,
-    offset: number,
-    limit: number,
-  ): Observable<MatchCarPage> {
-    return this.http.get<MatchCarPage>(
-      `${this.base}/v1/vehicles/matching/summary/${jobId}/cars`,
-      { params: params({ bucket, offset, limit }) },
-    );
-  }
-
-  cancelMatchSummary(jobId: string): Observable<MatchSummaryJob> {
-    return this.http.delete<MatchSummaryJob>(
-      `${this.base}/v1/vehicles/matching/summary/${jobId}`,
-    );
-  }
-
   /** Matching statistics of a Vehicles filter, read from stored results (no matcher run). */
   matchResultOverview(filter: {
     conditions: VehicleCondition[];
@@ -777,11 +739,14 @@ export class Api {
     );
   }
 
-  /** The cars behind one state of the overview, a page at a time. */
-  matchResultCars(request: MatchResultCarsRequest): Observable<MatchResultCarPage> {
-    return this.http.post<MatchResultCarPage>(
-      `${this.base}/v1/vehicles/match-results/cars`,
-      request,
+  /** Cars per matching state under a Vehicles filter: one grouped query, for the strip. */
+  matchResultCounts(filter: {
+    conditions: VehicleCondition[];
+    text: string;
+  }): Observable<MatchResultCounts> {
+    return this.http.post<MatchResultCounts>(
+      `${this.base}/v1/vehicles/match-results/counts`,
+      filter,
     );
   }
 

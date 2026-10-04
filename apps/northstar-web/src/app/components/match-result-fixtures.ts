@@ -1,11 +1,6 @@
 /** Fixtures shared by the stored match result specs. Test-only. */
 
-import type {
-  MatchResultCar,
-  MatchResultCarPage,
-  MatchResultOverview,
-  MatchResultState,
-} from '../core/models';
+import type { MatchResultCounts, MatchResultOverview } from '../core/models';
 
 export function overviewFixture(overrides: Partial<MatchResultOverview> = {}): MatchResultOverview {
   return {
@@ -53,38 +48,6 @@ export function overviewFixture(overrides: Partial<MatchResultOverview> = {}): M
   };
 }
 
-export function carFixture(plate: string, overrides: Partial<MatchResultCar> = {}): MatchResultCar {
-  return {
-    vehicle_id: `NOR-${plate}`,
-    plate,
-    vin: null,
-    manufacturer: 'Volvo',
-    model_family: 'V70',
-    production_year: 2015,
-    state: 'several',
-    automatic_state: 'several',
-    terminal: 'review_required',
-    ktype: null,
-    automatic_ktype: null,
-    best_candidate_ktype: '000010064',
-    confidence: 0.91,
-    candidate_ktypes: ['000010064', '000010065'],
-    candidate_confidences: [0.91, 0.9],
-    separating_fields: ['engine_code', 'power_kw'],
-    missing_fields: ['engine_code'],
-    conflicting_fields: [],
-    reason_codes: ['route:candidate_margin_below_gate'],
-    evaluated_at: '2026-10-03T14:05:00Z',
-    changed_since_matched: false,
-    ...overrides,
-  };
-}
-
-export function carPageFixture(
-  state: MatchResultState,
-  total: number,
-  cars: MatchResultCar[],
-  nextAfter: string | null = null,
-): MatchResultCarPage {
-  return { state, total, cars, next_after: nextAfter };
+export function countsFixture(overrides: Partial<MatchResultCounts> = {}): MatchResultCounts {
+  return { total: 10000, states: overviewFixture().states, changed_since_matched: 0, ...overrides };
 }

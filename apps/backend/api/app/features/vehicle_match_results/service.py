@@ -21,6 +21,7 @@ from api.app.features.vehicle_match_results.schemas import (
     MatchResultCar,
     MatchResultCarPage,
     MatchResultCarsRequest,
+    MatchResultCounts,
     MatchResultOverview,
     MatchRunInfo,
     ReasonCount,
@@ -98,6 +99,18 @@ def _car(row: dict[str, Any]) -> MatchResultCar:
 class MatchResultService:
     def __init__(self, repository: MatchResultRepository) -> None:
         self._repository = repository
+
+    def counts(self, vehicle_filter: VehicleFilter) -> MatchResultCounts:
+        counts = self._repository.counts(terms(vehicle_filter.conditions), vehicle_filter.text)
+        by_state = dict(counts["states"])
+        return MatchResultCounts(
+            total=sum(by_state.values()),
+            states=[
+                StateCount(state=state, cars=by_state.get(state, 0))  # type: ignore[arg-type]
+                for state in OVERVIEW_STATES
+            ],
+            changed_since_matched=counts["changed_since_matched"],
+        )
 
     def overview(self, vehicle_filter: VehicleFilter) -> MatchResultOverview:
         counts = self._repository.overview(terms(vehicle_filter.conditions), vehicle_filter.text)

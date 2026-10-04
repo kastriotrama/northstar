@@ -17,6 +17,7 @@ from api.app.features.vehicle_match_results.repository import MatchResultReposit
 from api.app.features.vehicle_match_results.schemas import (
     MatchResultCarPage,
     MatchResultCarsRequest,
+    MatchResultCounts,
     MatchResultOverview,
 )
 from api.app.features.vehicle_match_results.service import MatchResultService
@@ -56,6 +57,18 @@ ServiceDependency = Annotated[MatchResultService, Depends(get_service)]
 
 def _unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="Match results are temporarily unavailable.")
+
+
+@router.post("/counts", response_model=MatchResultCounts)
+def counts(vehicle_filter: VehicleFilter, service: ServiceDependency) -> MatchResultCounts:
+    """Cars per matching state under the Vehicles filter: one grouped query, no matcher."""
+
+    try:
+        return service.counts(vehicle_filter)
+    except (UnknownFieldError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
 
 
 @router.post("/overview", response_model=MatchResultOverview)
