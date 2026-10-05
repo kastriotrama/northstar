@@ -303,6 +303,7 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
             (reviewerChange)="onReviewer($event)"
             [(reason)]="reason"
             (corrected)="onCorrected($event)"
+            (groupChanged)="groupChanged.emit()"
           />
           <ns-ktype-choice
             [lookup]="result"
@@ -459,6 +460,8 @@ export class KTypeCandidates {
 
   /** A person's choice was recorded, changed or withdrawn; carries the refreshed lookup. */
   readonly choiceChanged = output<VehicleMatchLookup>();
+  /** A correction was applied to, or undone for, several cars: other cars changed too. */
+  readonly groupChanged = output<void>();
 
   protected readonly hintId = NAME_HINT_ID;
   protected readonly reviewer = signal(this.storedReviewer());

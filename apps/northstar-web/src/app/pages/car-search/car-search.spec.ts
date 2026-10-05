@@ -551,4 +551,28 @@ describe('CarSearchPage', () => {
       PAGE.items[0] = rest;
     }
   });
+
+  it('reads the rows on screen again when a correction changed several cars', async () => {
+    const fixture = render();
+    await settle(fixture);
+    const http = TestBed.inject(HttpTestingController);
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('tbody tr')?.textContent).toContain('120');
+
+    (fixture.componentInstance as unknown as { refreshRows(): void }).refreshRows();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const [again] = http.match((request) => request.url.endsWith('/v1/vehicles/search'));
+    // As many rows as are loaded, from the start: the list stays where it was.
+    expect(again.request.params.get('limit')).toBe('1');
+    expect(again.request.params.has('cursor')).toBe(false);
+    again.flush({ ...PAGE, items: [{ ...PAGE.items[0], power_kw: 133, match_result: 'resolved', automatic_ktype: '000010064' }] });
+    fixture.detectChanges();
+
+    const row = host.querySelector('tbody tr')?.textContent ?? '';
+    expect(row).toContain('133');
+    expect(row).toContain('000010064');
+    // The counts above the list are read again too.
+    expect(http.match((request) => request.url.endsWith('/match-results/counts')).length).toBeGreaterThan(0);
+    fixture.destroy();
+  });
 });

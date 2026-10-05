@@ -342,6 +342,7 @@
             <ns-ktype-candidates
               [vehicleId]="vehicleId"
               (choiceChanged)="onChoiceChanged(vehicleId, $event)"
+              (groupChanged)="refreshRows()"
             />
           </details>
 
