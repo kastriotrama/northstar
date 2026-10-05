@@ -976,6 +976,8 @@ export class FactCorrections {
    * a refusal that means the screen was out of date, the lookup as it is now.
    */
   readonly corrected = output<VehicleMatchLookup>();
+  /** A correction was applied to, or undone for, several cars: other cars changed too. */
+  readonly groupChanged = output<void>();
 
   protected readonly hints = HINTS;
   protected readonly listMax = LIST_MAX;
@@ -1704,7 +1706,10 @@ export class FactCorrections {
         this.storeReviewer(reviewer);
         this.reason.set('');
         this.notice.set(done);
-        if (writes) this.reread(vehicleId, done);
+        if (writes) {
+          this.reread(vehicleId, done);
+          this.groupChanged.emit();
+        }
         this.refocus(field);
       },
       error: (err: ApiError) => {

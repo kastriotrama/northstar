@@ -1,7 +1,21 @@
 import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  EMPTY,
+  type Observable,
+  Subject,
+  catchError,
+  debounceTime,
+  expand,
+  last,
+  map,
+  merge,
+  of,
+  switchMap,
+  timer,
+} from 'rxjs';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { TableModule } from '@openng/optimus-ui/table';
@@ -126,6 +140,10 @@ function matchingValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
 }
 
 const PAGE_SIZE = 50;
+/** The most rows the search answers in one request. */
+const ROWS_PAGE_MAX = 200;
+/** When the rows are read again after a group change: at once, then twice more. */
+const ROWS_LOOKS_MS = [0, 6000, 30000] as const;
 
 /**
  * Vehicles: NorthStar vehicles (`core.vehicles`), one per physical car, keyed by NOR ID.
@@ -250,6 +268,8 @@ export class CarSearchPage implements OnInit {
   );
 
   private readonly search$ = new Subject<void>();
+  /** Several cars changed at once: read the rows on screen again, this many of them. */
+  private readonly rows$ = new Subject<number>();
   private readonly open$ = new Subject<string>();
 
   constructor() {
@@ -274,6 +294,37 @@ export class CarSearchPage implements OnInit {
         this.rows.set(page.items);
         this.matched.set(page.matched_rows);
         this.nextCursor.set(page.next_cursor);
+      });
+
+    // The rows are read again at once and twice more a little later: the cars of a
+    // large group are matched again in the background after the save returns.
+    this.rows$
+      .pipe(
+        switchMap((wanted) =>
+          merge(...ROWS_LOOKS_MS.map((wait) => timer(wait))).pipe(
+            switchMap(() => this.readRows(wanted).pipe(catchError(() => EMPTY))),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(({ items, cursor }) => {
+        // The open car's row already shows what the matcher said right after the
+        // save; its stored result may still be on its way, so that part is kept.
+        const open = this.rows().find((row) => row.vehicle_id === this.openId());
+        this.rows.set(
+          items.map((row) =>
+            open && row.vehicle_id === open.vehicle_id
+              ? {
+                  ...row,
+                  match_result: open.match_result,
+                  automatic_ktype: open.automatic_ktype,
+                  candidate_ktypes: open.candidate_ktypes,
+                  candidate_confidences: open.candidate_confidences,
+                }
+              : row,
+          ),
+        );
+        this.nextCursor.set(cursor);
       });
 
     this.open$
@@ -483,8 +534,42 @@ export class CarSearchPage implements OnInit {
     this.record.set(null);
   }
 
+  /**
+   * A correction was applied to, or undone for, several cars. Any of them may be in
+   * the list, so the rows on screen are read again, as many as are loaded, in place:
+   * the filter, the open car and how far the list was loaded all stay.
+   */
+  protected refreshRows(): void {
+    this.resultsTurn.update((turn) => turn + 1);
+    if (this.rows().length) this.rows$.next(this.rows().length);
+  }
+
+  /** The first `wanted` rows of the current filter, read a page at a time. */
+  private readRows(
+    wanted: number,
+  ): Observable<{ items: NorVehicleRow[]; cursor: string | null }> {
+    const request = this.request();
+    const page = (cursor: string | null, left: number) =>
+      this.api.searchVehicles(request, { cursor, limit: Math.min(left, ROWS_PAGE_MAX) });
+    return page(null, wanted).pipe(
+      map((first) => ({ items: first.items, cursor: first.next_cursor })),
+      expand((read) =>
+        read.cursor !== null && read.items.length < wanted
+          ? page(read.cursor, wanted - read.items.length).pipe(
+              map((next) => ({
+                items: [...read.items, ...next.items],
+                cursor: next.next_cursor,
+              })),
+            )
+          : EMPTY,
+      ),
+      last(),
+    );
+  }
+
   /** A decision for several cars was undone: the open car may be one of them, so read it again. */
   protected onDecisionUndone(): void {
+    this.refreshRows();
     const open = this.openId();
     if (open) this.open$.next(open);
   }
