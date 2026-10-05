@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from api.app.features.vehicle_match_results.service import conditions_in_words
 from api.app.features.vehicle_match_results.sync import MatchResultSync
 from ingestion.vehicle_core_query import MATCH_RESULT_FIELD, compile_term
 
@@ -16,9 +17,20 @@ class _Refresher:
     def __init__(self, error: Exception | None = None) -> None:
         self.calls: list[list[str]] = []
         self.error = error
+        #: Called once while a refresh of every changed car is running.
+        self.during: Any = None
 
     def refresh_vehicles(self, vehicle_ids: Any) -> object:
         self.calls.append(list(vehicle_ids))
+        if self.error is not None:
+            raise self.error
+        return None
+
+    def refresh_scope(self) -> object:
+        self.calls.append(["<every changed car>"])
+        if self.during is not None:
+            during, self.during = self.during, None
+            during()
         if self.error is not None:
             raise self.error
         return None
@@ -84,6 +96,56 @@ def test_a_decision_whose_cars_cannot_be_read_is_left_to_the_next_run(
     _sync(refresher, _Connection([], RuntimeError("database down"))).decision_changed(uuid4())
     assert refresher.calls == []
     assert "Could not read the cars of a decision" in caplog.text
+
+
+def test_a_change_to_many_cars_refreshes_every_changed_car() -> None:
+    refresher = _Refresher()
+    sync = _sync(refresher, _Connection([]))
+    assert sync.population_changed() is True
+    assert refresher.calls == [["<every changed car>"]]
+    assert sync.refreshing is False
+
+
+def test_a_change_that_arrives_during_a_refresh_makes_it_run_once_more() -> None:
+    refresher = _Refresher()
+    sync = _sync(refresher, _Connection([]))
+    answers: list[bool] = []
+    # Two more rules finish while the first refresh is still running.
+    refresher.during = lambda: answers.extend(
+        [sync.refreshing, sync.population_changed(), sync.population_changed()]
+    )
+
+    assert sync.population_changed() is True
+
+    assert answers == [True, False, False]
+    assert refresher.calls == [["<every changed car>"], ["<every changed car>"]]
+    assert sync.refreshing is False
+
+
+def test_a_failing_refresh_of_many_cars_is_logged_and_does_not_stay_running(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    refresher = _Refresher(RuntimeError("matcher down"))
+    sync = _sync(refresher, _Connection([]))
+    sync.population_changed()
+    assert "were not refreshed after a change to many cars" in caplog.text
+    assert sync.refreshing is False
+    # The next change starts a refresh again.
+    assert sync.population_changed() is True
+
+
+def test_a_rules_conditions_read_as_one_line() -> None:
+    assert conditions_in_words([
+        {"field": "brand", "layer": "source", "value": None, "values": ["KIA"], "operator": "contains"},
+        {"field": "is_4wd", "layer": "source", "value": None, "values": ["0"], "operator": "equals"},
+        {"field": "vehicle_year", "values": ["1980"], "operator": "lte"},
+        {"field": "model", "value": "GOLF", "values": None},
+        {"field": "variant", "values": ["A", "B"], "operator": "equals"},
+    ]) == (
+        "brand contains KIA and is_4wd = 0 and vehicle_year is at most 1980 and model = GOLF "
+        "and variant = A or B"
+    )
+    assert conditions_in_words(None) == ""
 
 
 # ----------------------------------------------------------- the Vehicles list's filter

@@ -25,6 +25,7 @@ import { Api } from '../../core/api';
 import { CorrectionDecisions } from '../../components/correction-decisions';
 import { KTypeCandidates } from '../../components/ktype-candidates';
 import { MatchResults } from '../../components/match-results';
+import { ReviewerRules } from '../../components/reviewer-rules';
 import { MATCH_RESULT_STATES, matchResultStateLabel } from '../../core/match-result-states';
 import type {
   MatchResultCause,
@@ -168,6 +169,7 @@ const ROWS_LOOKS_MS = [0, 6000, 30000] as const;
     CorrectionDecisions,
     KTypeCandidates,
     MatchResults,
+    ReviewerRules,
   ],
   templateUrl: './car-search.html',
   styleUrl: './car-search.scss',

@@ -71,6 +71,8 @@ class MatchResultCounts(BaseModel):
     states: list[StateCount]
     #: Cars whose vehicle changed after it was matched (see the overview).
     changed_since_matched: int
+    #: Those cars are being matched again right now.
+    refreshing: bool = False
 
 
 class MatchResultOverview(BaseModel):
@@ -163,3 +165,48 @@ class MatchResultCarPage(BaseModel):
     cars: list[MatchResultCar]
     #: Pass as `after` for the next page; None when this is the last.
     next_after: str | None
+
+
+class MatchResultRefresh(BaseModel):
+    """The answer to "match the changed cars again"."""
+
+    #: False when a refresh was already running; it runs once more when it ends.
+    started: bool
+    refreshing: bool
+
+
+class ReviewerRuleChange(BaseModel):
+    """One reviewer rule from the TS data screen, as a change to many cars.
+
+    Such a rule sets a value on every car its conditions cover. It is listed
+    beside the corrections applied to several cars because it does the same
+    thing by another road, and until now was visible only where it was made.
+    """
+
+    rule_id: str
+    #: `saved` (never run), `applied` or `retired`.
+    status: str
+    author: str
+    applied_by: str | None
+    retired_by: str | None
+    created_at: datetime
+    applied_at: datetime | None
+    retired_at: datetime | None
+    #: The rule's conditions in words, e.g. "brand contains KIA and is_4wd = 0".
+    conditions: str
+    target_field: str
+    target_value: str
+    #: Rewrites cars that already carry another value, instead of only filling gaps.
+    override: bool
+    note: str | None
+    #: Registry records the rule wrote.
+    records_written: int
+    #: Vehicles those records belong to.
+    vehicles: int
+    #: Of those, vehicles changed after their match result was stored.
+    out_of_date: int
+
+
+class ReviewerRuleChanges(BaseModel):
+    rules: list[ReviewerRuleChange]
+

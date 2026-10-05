@@ -28,6 +28,7 @@ import type {
   PopulationAttributes,
   RefineResult,
   ResolutionRule,
+  ReviewerRuleChange,
   ResolutionRuleApplication,
   RuleAdvice,
   RuleCatalogResponse,
@@ -736,6 +737,22 @@ export class Api {
     return this.http.post<MatchResultOverview>(
       `${this.base}/v1/vehicles/match-results/overview`,
       filter,
+    );
+  }
+
+  /** Match again every car that changed since its result was stored; runs on the server. */
+  refreshMatchResults(): Observable<{ started: boolean; refreshing: boolean }> {
+    return this.http.post<{ started: boolean; refreshing: boolean }>(
+      `${this.base}/v1/vehicles/match-results/refresh`,
+      null,
+    );
+  }
+
+  /** The latest reviewer rules from the TS data screen, as changes to many cars. */
+  reviewerRuleChanges(limit = 50): Observable<{ rules: ReviewerRuleChange[] }> {
+    return this.http.get<{ rules: ReviewerRuleChange[] }>(
+      `${this.base}/v1/vehicles/match-results/reviewer-rules`,
+      { params: params({ limit }) },
     );
   }
 

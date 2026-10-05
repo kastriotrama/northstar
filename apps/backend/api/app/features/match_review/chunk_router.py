@@ -68,6 +68,7 @@ from api.app.features.match_review.rule_application import (
     RuleAlreadyRunningError,
     RuleApplicationRunner,
 )
+from api.app.features.vehicle_match_results.router import match_result_sync
 
 api_router = APIRouter(prefix="/v1/match-review", tags=["match-review"])
 
@@ -404,6 +405,19 @@ def list_resolution_rules(
         raise _unavailable() from error
 
 
+def _rule_applied(
+    service: MatchReviewService, rule_id: UUID, rows_written: int, applied_by: str
+) -> None:
+    """Close the rule out, then have the cars it changed matched again.
+
+    A rule changes the cars it covers, not their stored match results; without
+    this they stay as they were until someone runs a refresh.
+    """
+
+    service.record_rule_applied(rule_id, rows_written=rows_written, applied_by=applied_by)
+    match_result_sync().population_changed()
+
+
 @api_router.post(
     "/resolution-rules/{rule_id}/apply",
     response_model=ResolutionRuleApplication,
@@ -449,9 +463,7 @@ def apply_resolution_rule(
         target_value=plan.target_value,
         applied_by=request.reviewer.strip(),
         override=plan.override,
-        on_finish=lambda rows: service.record_rule_applied(
-            rule_id, rows_written=rows, applied_by=request.reviewer.strip()
-        ),
+        on_finish=lambda rows: _rule_applied(service, rule_id, rows, request.reviewer.strip()),
     )
     return ResolutionRuleApplication(**vars(application))
 
@@ -483,7 +495,10 @@ def retire_resolution_rule(
     """Undo a run: the rows it resolved reopen, the record of it stays."""
 
     try:
-        return service.retire_resolution_rule(rule_id, reviewer=request.reviewer)
+        retired = service.retire_resolution_rule(rule_id, reviewer=request.reviewer)
+        # The cars the rule had written changed back: their stored match results follow.
+        match_result_sync().population_changed()
+        return retired
     except MatchReviewNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except MatchReviewConflictError as error:

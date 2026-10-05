@@ -133,8 +133,25 @@ by the vehicle's key.
 Each list row carries `match_result`, `automatic_ktype`, `candidate_ktypes` and
 `candidate_confidences`.
 
+## Kept current when a reviewer rule changes cars
+
+A reviewer rule from the TS data screen changes the cars it covers, not their
+stored match results. When a rule finishes running, or is retired, the API
+matches every changed car again in the background
+(`MatchResultSync.population_changed`): one such refresh at a time, and a
+change that arrives while one runs makes it run once more. The same refresh
+can be asked for by hand: `POST /v1/vehicles/match-results/refresh`, the
+"Match them again now" button beside the "cars changed after they were
+matched" line. The counts answer `refreshing` while it works.
+
+`GET /v1/vehicles/match-results/reviewer-rules` lists the latest reviewer
+rules as changes to many cars (who, when, conditions, what it sets, vehicles
+reached, vehicles whose match result is older than the change). Vehicles >
+Decisions shows it under the corrections applied to several cars.
+
 ## Not done yet
 
 - Overview query time has only been measured with a partly filled table.
-- Rows are not refreshed when rules are applied in bulk or records are
-  re-normalized; run the normal refresh after those.
+- Rows are not refreshed when learned rules are applied from the command line
+  or records are re-normalized; run the normal refresh after those, or press
+  "Match them again now".

@@ -25,6 +25,8 @@ from api.app.features.vehicle_match_results.schemas import (
     MatchResultOverview,
     MatchRunInfo,
     ReasonCount,
+    ReviewerRuleChange,
+    ReviewerRuleChanges,
     StateCount,
     ValueCount,
 )
@@ -32,6 +34,34 @@ from api.app.features.vehicle_matching.service import CANDIDATE_LIMIT
 from api.app.features.vehicles.schemas import VehicleFilter
 from api.app.features.vehicles.service import terms
 from ingestion.vehicle_match_results import StoredRun
+
+_OPERATOR_WORDS = {
+    "equals": "=",
+    "not_equals": "is not",
+    "contains": "contains",
+    "starts_with": "starts with",
+    "gte": "is at least",
+    "lte": "is at most",
+    "is_empty": "is empty",
+}
+
+
+def conditions_in_words(conditions: object) -> str:
+    """A rule's stored conditions as one line: `brand contains KIA and is_4wd = 0`."""
+
+    if not isinstance(conditions, list):
+        return ""
+    parts: list[str] = []
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            continue
+        values = condition.get("values")
+        if not values and condition.get("value") not in (None, ""):
+            values = [condition["value"]]
+        operator = _OPERATOR_WORDS.get(str(condition.get("operator") or "equals"), "=")
+        said = " or ".join(str(value) for value in values or [])
+        parts.append(" ".join(part for part in (str(condition.get("field")), operator, said) if part))
+    return " and ".join(parts)
 
 
 def _fields(counts: Sequence[tuple[str, int]]) -> list[FieldCount]:
@@ -137,6 +167,31 @@ class MatchResultService:
             catalog_batches=_values(counts["catalog_batches"]),
             matcher_versions=_values(counts["matcher_versions"]),
             latest_run=_run(counts["latest_run"]),
+        )
+
+    def reviewer_rules(self, limit: int) -> ReviewerRuleChanges:
+        return ReviewerRuleChanges(
+            rules=[
+                ReviewerRuleChange(
+                    rule_id=row["rule_id"],
+                    status=row["status"],
+                    author=row["author"],
+                    applied_by=row["applied_by"],
+                    retired_by=row["retired_by"],
+                    created_at=row["created_at"],
+                    applied_at=row["applied_at"],
+                    retired_at=row["retired_at"],
+                    conditions=conditions_in_words(row["conditions"]),
+                    target_field=row["target_field"],
+                    target_value=row["target_value"],
+                    override=bool(row["override"]),
+                    note=row["note"],
+                    records_written=int(row["records_written"] or 0),
+                    vehicles=int(row["vehicles"] or 0),
+                    out_of_date=int(row["out_of_date"] or 0),
+                )
+                for row in self._repository.reviewer_rules(limit)
+            ]
         )
 
     def cars(self, request: MatchResultCarsRequest) -> MatchResultCarPage:

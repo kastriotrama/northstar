@@ -47,6 +47,7 @@ from api.app.features.tecdoc_review.schemas import (
     TecDocVehicleFilter,
 )
 from api.app.features.tecdoc_review.service import TecDocReviewService
+from api.app.features.vehicle_match_results.router import match_result_sync
 
 router = APIRouter(prefix="/v1/normalization-review/tecdoc", tags=["tecdoc-review"])
 
@@ -408,6 +409,8 @@ def _queue_ts_rule_applications(
         def on_finish(rows: int, rid: UUID = rule_id) -> None:
             # Bound per iteration: the default freezes this loop's rule_id.
             service.record_rule_applied(rid, rows_written=rows, applied_by="rules-bundle-import")
+            # The cars the rule changed are matched again, as for a rule run by hand.
+            match_result_sync().population_changed()
 
         background.add_task(
             runner.run,

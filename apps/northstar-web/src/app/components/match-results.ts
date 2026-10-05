@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   inject,
   input,
@@ -9,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, timer } from 'rxjs';
 
 import { Api } from '../core/api';
 import { describeReason, fieldName } from '../core/match-reasons';
@@ -21,6 +22,9 @@ import type {
   MatchResultState,
   VehicleCondition,
 } from '../core/models';
+
+/** How often the counts are read again while the server matches the changed cars. */
+const REFRESH_POLL_MS = 4000;
 
 interface Loaded<T> {
   loading: boolean;
@@ -77,9 +81,17 @@ interface Loaded<T> {
           }
           @if (c.changed_since_matched) {
             {{ c.changed_since_matched | number }} cars changed after they were matched; their
-            stored result may be out of date until the next refresh run.
+            stored result may be out of date.
+            @if (c.refreshing || asked()) {
+              <span class="working">Matching them again… this number falls as it goes.</span>
+            } @else {
+              <button type="button" class="again" (click)="matchAgain()">Match them again now</button>
+            }
           }
         </p>
+        @if (refreshError(); as text) {
+          <p class="error" role="alert">{{ text }}</p>
+        }
       }
 
       <details class="why" (toggle)="onToggle($event)">
@@ -252,6 +264,8 @@ interface Loaded<T> {
     .state--several, .state--one_unconfirmed { border-left-color: #d99a00; }
     .state--none, .state--chosen_none { border-left-color: #c0392b; }
     .fresh { margin: 0; font-size: 0.78rem; color: #7a5300; }
+    .again { margin-left: 0.3rem; font: inherit; cursor: pointer; }
+    .working { margin-left: 0.3rem; font-style: italic; }
     .why > summary { cursor: pointer; font-weight: 600; font-size: 0.8rem; }
     .gaps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.5rem; }
     @media (max-width: 900px) { .gaps { grid-template-columns: 1fr; } }
@@ -280,6 +294,9 @@ interface Loaded<T> {
 })
 export class MatchResults {
   private readonly api = inject(Api);
+  private readonly destroyRef = inject(DestroyRef);
+  private looking = false;
+  private wasWorking = false;
 
   /** The Vehicles filter without its matching clauses: the counts are of all states. */
   readonly conditions = input.required<VehicleCondition[]>();
@@ -290,11 +307,18 @@ export class MatchResults {
   readonly turn = input(0);
   /** A state was picked ('' to show all again). */
   readonly stateChange = output<MatchResultState | ''>();
+  /** The server finished matching the changed cars again: what is on screen may be older. */
+  readonly refreshed = output<void>();
   /** A count of the breakdown was picked: narrow the list to those cars. */
   readonly causeChange = output<MatchResultCause>();
 
   protected readonly states = MATCH_RESULT_STATES;
   private readonly opened = signal(false);
+  /** "Match them again now" was pressed and the server has not said it is done. */
+  protected readonly asked = signal(false);
+  protected readonly refreshError = signal<string | null>(null);
+  /** Bumped to read the counts again while a refresh is running. */
+  private readonly tick = signal(0);
   private readonly countsState = signal<Loaded<MatchResultCounts>>({
     loading: true,
     error: null,
@@ -317,6 +341,7 @@ export class MatchResults {
       conditions: this.conditions(),
       text: this.text(),
       turn: this.turn(),
+      tick: this.tick(),
     }));
     // The numbers on screen stay until the new ones arrive.
     toObservable(filter)
@@ -340,7 +365,23 @@ export class MatchResults {
         ),
         takeUntilDestroyed(),
       )
-      .subscribe((next) => this.countsState.set(next));
+      .subscribe((next) => {
+        this.countsState.set(next);
+        if (next.loading || !next.value) return;
+        // While the server is matching the changed cars again, look again in a moment.
+        const working = !!next.value.refreshing && next.value.changed_since_matched > 0;
+        if (working) {
+          this.wasWorking = true;
+          this.lookAgain();
+          return;
+        }
+        this.asked.set(false);
+        if (this.wasWorking) {
+          // The cars were matched again: the list's rows are older than their results now.
+          this.wasWorking = false;
+          this.refreshed.emit();
+        }
+      });
 
     // The breakdown costs more than the counts: read only while it is open.
     const breakdown = computed(() => (this.opened() ? filter() : null));
@@ -369,6 +410,33 @@ export class MatchResults {
         takeUntilDestroyed(),
       )
       .subscribe((next) => this.overviewState.set(next));
+  }
+
+  /** Have the server match the changed cars again; the counts follow as it works. */
+  protected matchAgain(): void {
+    this.refreshError.set(null);
+    this.asked.set(true);
+    this.api
+      .refreshMatchResults()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.lookAgain(),
+        error: () => {
+          this.asked.set(false);
+          this.refreshError.set('Could not start matching them again.');
+        },
+      });
+  }
+
+  private lookAgain(): void {
+    if (this.looking) return;
+    this.looking = true;
+    timer(REFRESH_POLL_MS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.looking = false;
+        this.tick.update((value) => value + 1);
+      });
   }
 
   protected onToggle(event: Event): void {

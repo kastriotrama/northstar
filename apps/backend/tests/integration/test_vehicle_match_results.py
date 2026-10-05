@@ -629,3 +629,29 @@ def test_a_cause_filter_the_list_cannot_answer_is_refused(
             [VehicleCondition(field=field, values=values, operator=operator)],  # type: ignore[arg-type]
             "", cursor=None, limit=50,
         )
+
+
+# ------------------------------------------------- changes to many cars by a reviewer rule
+
+
+def test_asking_for_a_refresh_matches_the_changed_cars_again(db: Connection, world: _World) -> None:
+    world.refresher.refresh_scope()
+    # What a reviewer rule does: it changes cars without touching their stored results.
+    db.execute("UPDATE core.vehicles SET power_kw = 161, updated_at = clock_timestamp() "
+               "WHERE vin = ANY(%s)", ([VOLVO_VIN, GOLF_VIN],))
+    db.commit()
+    assert world.service.counts(VehicleFilter()).changed_since_matched == 2
+    calls = world.evaluator.calls
+
+    assert world.sync.population_changed() is True
+
+    assert world.evaluator.calls == calls + 2
+    assert world.service.counts(VehicleFilter()).changed_since_matched == 0
+    assert world.sync.refreshing is False
+
+
+def test_the_reviewer_rules_list_reads_the_rule_tables(db: Connection, world: _World) -> None:
+    # No rule was made in this database: the query runs against the real tables.
+    assert world.service.reviewer_rules(50).rules == []
+    db.commit()
+

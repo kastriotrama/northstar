@@ -8,7 +8,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { API_BASE_URL } from '../core/api-config';
 import type {
@@ -23,6 +23,7 @@ import { MatchResults } from './match-results';
 
 const COUNTS = 'http://api.test/v1/vehicles/match-results/counts';
 const OVERVIEW = 'http://api.test/v1/vehicles/match-results/overview';
+const REFRESH = 'http://api.test/v1/vehicles/match-results/refresh';
 const VOLVO: VehicleCondition[] = [
   { field: 'manufacturer', operator: 'equals', values: ['Volvo'] },
 ];
@@ -209,4 +210,43 @@ describe('MatchResults', () => {
     expect(text(fixture)).toContain('Could not load the matching results.');
     expect(state(fixture, 'Resolved').textContent).toContain('7,016');
   });
+
+  it('has the server match the changed cars again and follows it until it is done', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { fixture } = render();
+      let refreshed = 0;
+      fixture.componentInstance.refreshed.subscribe(() => refreshed++);
+      await counts(fixture, countsFixture({ changed_since_matched: 1888 }));
+      const http = TestBed.inject(HttpTestingController);
+      const again = () =>
+        [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find((item) =>
+          item.textContent?.includes('Match them again now'),
+        ) as HTMLButtonElement | undefined;
+
+      again()?.click();
+      fixture.detectChanges();
+      http.expectOne({ method: 'POST', url: REFRESH }).flush({ started: true, refreshing: true });
+      fixture.detectChanges();
+      expect(text(fixture)).toContain('Matching them again');
+      expect(again()).toBeUndefined();
+
+      // It reads the counts again while the server works ...
+      await vi.advanceTimersByTimeAsync(4100);
+      await counts(fixture, countsFixture({ changed_since_matched: 900, refreshing: true }));
+      expect(text(fixture)).toContain('900 cars changed after they were matched');
+      expect(refreshed).toBe(0);
+
+      // ... and stops, and says so, when it is done.
+      await vi.advanceTimersByTimeAsync(4100);
+      await counts(fixture, countsFixture({ changed_since_matched: 0, refreshing: false }));
+      expect(text(fixture)).not.toContain('changed after they were matched');
+      expect(refreshed).toBe(1);
+      await vi.advanceTimersByTimeAsync(9000);
+      http.expectNone(COUNTS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+
