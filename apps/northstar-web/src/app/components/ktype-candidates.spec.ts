@@ -298,6 +298,10 @@ describe('KTypeCandidates: a person’s choice', () => {
     await page.click('Choose anyway…');
     page.http.expectNone(CHOICE_URL);
     expect(page.text()).toContain('KType 000059385 conflicts with this car on power. Choose it anyway?');
+    // The step opens under the card that was clicked, not at the bottom of the panel.
+    const step = page.host.querySelector('.confirm');
+    expect(step?.closest('.candidate')?.textContent).toContain('000059385');
+    expect(page.host.querySelectorAll('.confirm')).toHaveLength(1);
     await page.click('Cancel');
     page.http.expectNone(CHOICE_URL);
     expect(page.host.querySelector('.confirm')).toBeNull();
