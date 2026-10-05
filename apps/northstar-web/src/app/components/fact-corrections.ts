@@ -36,6 +36,7 @@ import {
 } from 'rxjs';
 
 import { Api } from '../core/api';
+import { newOperationId } from '../core/operation-id';
 import { fieldName } from '../core/match-reasons';
 import type {
   CarMatch,
@@ -1381,7 +1382,7 @@ export class FactCorrections {
       what: inForce(target.label, action, said, target.field === STOP_FIELD),
       done,
       body: {
-        operation_id: crypto.randomUUID(),
+        operation_id: newOperationId(),
         field: target.field,
         action,
         value,
@@ -1626,7 +1627,7 @@ export class FactCorrections {
     const reviewer = this.reviewer().trim();
     if (!job || job === 'starting' || !vehicleId || !reviewer || this.saving()) return;
     const request = this.api.decideCorrection({
-      operation_id: crypto.randomUUID(),
+      operation_id: newOperationId(),
       preview_id: job.preview_id,
       event,
       include_changed: event === 'apply' && include,
@@ -1666,7 +1667,7 @@ export class FactCorrections {
     const reason = this.reason().trim();
     if (!vehicleId || !reviewer || !reason || this.saving()) return;
     const request = this.api.withdrawCorrectionDecision(group.decision_id, {
-      operation_id: crypto.randomUUID(),
+      operation_id: newOperationId(),
       reviewer,
       reason,
     });

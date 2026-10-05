@@ -39,7 +39,9 @@ from ingestion.normalization_rules import (
     outcome_status,
     read_tyres,
 )
+from ingestion.vehicle_core_fields import normalize_plate
 from ingestion.vehicle_core_migrations import VEHICLES_TABLE
+from ingestion.vehicle_core_store import current_owners
 from ingestion.vehicle_core_ts import refresh_vehicle_core_records
 from ingestion.vehicle_facts import STAGING_TABLE
 from ingestion.vehicle_facts_migrations import VEHICLE_FACTS_TABLE
@@ -231,14 +233,33 @@ def _sync_registry_status(connection: Connection[Any], rewritten: Mapping[int, R
 
 
 def _refresh_vehicles(connection: Connection[Any], record_ids: Sequence[int]) -> int:
-    """Refresh the vehicles these records created; a record without one mints nothing."""
+    """Refresh the vehicles these records created; a record without one mints nothing.
+
+    A vehicle whose plate another vehicle holds today is left as it is. Its
+    record still names the plate, so merging the record again would open the
+    plate on it a second time, which the database refuses (one current holder
+    per plate). Such a vehicle lost its plate to a newer one and is out of the
+    register; its record's new result is stored all the same, and matching reads
+    the result, not the vehicle's copy of the status.
+    """
 
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT ts_record_id FROM {VEHICLES_TABLE} WHERE ts_record_id = ANY(%s)",
+            f"SELECT vehicle.ts_record_id, vehicle.vehicle_id, raw.raw_record->>'plate' "
+            f"FROM {VEHICLES_TABLE} AS vehicle "
+            f"JOIN {STAGING_TABLE} AS raw ON raw.id = vehicle.ts_record_id "
+            "WHERE vehicle.ts_record_id = ANY(%s)",
             (list(record_ids),),
         )
-        linked = sorted({int(row[0]) for row in cursor.fetchall()})
+        rows = [(int(row[0]), str(row[1]), normalize_plate(row[2])) for row in cursor.fetchall()]
+    owners = current_owners(connection, "plate", [plate for _, _, plate in rows if plate])
+    linked = sorted(
+        {
+            record_id
+            for record_id, vehicle_id, plate in rows
+            if not plate or owners.get(plate, vehicle_id) == vehicle_id
+        }
+    )
     if not linked:
         return 0
     refresh_vehicle_core_records(connection, linked)

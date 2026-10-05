@@ -135,3 +135,48 @@ def test_a_second_run_writes_nothing(db: tuple[Connection, dict[str, int]]) -> N
     # The readable record is no longer stopped; only the typo is still found.
     assert (again.stopped, again.readable, again.written) == (1, 0, 0)
     assert _latest(connection, ids["readable"])[4] == 2
+
+
+def test_a_vehicle_whose_plate_moved_to_another_is_left_as_it_is(
+    db: tuple[Connection, dict[str, int]],
+) -> None:
+    """The full register has cars whose plate a newer vehicle took over. Their record
+    still names the plate; re-merging it would open the plate a second time."""
+
+    connection, ids = db
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT vehicle_id FROM core.vehicles WHERE ts_record_id = %s", (ids["readable"],)
+        )
+        old = cursor.fetchone()[0]  # type: ignore[index]
+        cursor.execute("SELECT vehicle_id FROM core.vehicles WHERE ts_record_id = %s", (ids["fine"],))
+        new = cursor.fetchone()[0]  # type: ignore[index]
+        # The plate leaves the old vehicle and the newer one carries it now.
+        cursor.execute(
+            "UPDATE core.vehicle_identifiers SET valid_to = DATE '2026-09-19' "
+            "WHERE kind = 'plate' AND vehicle_id = ANY(%s)", ([old, new],),
+        )
+        cursor.execute(
+            "UPDATE core.vehicles SET plate = NULL, registry_status = 'deregistered' "
+            "WHERE vehicle_id = %s", (old,),
+        )
+        cursor.execute(
+            "INSERT INTO core.vehicle_identifiers (vehicle_id, kind, value, source) "
+            "VALUES (%s, 'plate', 'AAA111', 'ais')", (new,),
+        )
+    connection.commit()
+
+    summary = reparse_tyre_sizes(connection, dry_run=False)
+
+    # The record's result is rewritten; its vehicle is not touched.
+    assert (summary.readable, summary.written, summary.vehicles_refreshed) == (1, 1, 0)
+    assert _latest(connection, ids["readable"])[0] == "resolved"
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT vehicle_id FROM core.vehicle_identifiers "
+            "WHERE kind = 'plate' AND value = 'AAA111' AND valid_to IS NULL"
+        )
+        assert [row[0] for row in cursor.fetchall()] == [new]
+        cursor.execute("SELECT plate, registry_status FROM core.vehicles WHERE vehicle_id = %s", (old,))
+        assert cursor.fetchone() == (None, "deregistered")
+    connection.commit()
