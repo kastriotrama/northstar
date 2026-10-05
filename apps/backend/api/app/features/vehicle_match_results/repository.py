@@ -14,6 +14,10 @@ from typing import Any, Protocol
 
 from psycopg import Connection
 
+from ingestion.match_chunk_migrations import (
+    MATCH_FIELD_RESOLUTIONS_TABLE,
+    MATCH_RESOLUTION_RULES_TABLE,
+)
 from ingestion.vehicle_core_migrations import VEHICLES_TABLE
 from ingestion.vehicle_core_query import (
     ALIAS,
@@ -226,6 +230,50 @@ class MatchResultRepository:
             ).fetchall()
         total = int(counted[0]) if counted else 0
         return total, [dict(zip(CAR_FIELDS, row, strict=True)) for row in rows]
+
+    def reviewer_rules(self, limit: int) -> list[dict[str, Any]]:
+        """The latest reviewer rules, each with the vehicles it reached and how many are stale.
+
+        A rule's vehicles are the ones its records created. A retired rule's
+        resolutions are superseded, so for it every resolution it ever wrote counts:
+        retiring it changed those vehicles again.
+        """
+
+        names = (
+            "rule_id", "status", "author", "applied_by", "retired_by", "created_at", "applied_at",
+            "retired_at", "conditions", "target_field", "target_value", "override", "note",
+            "records_written", "vehicles", "out_of_date",
+        )
+        with self._connection_factory() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT rule.rule_id::text, rule.status, rule.author, rule.applied_by,
+                       rule.retired_by, rule.created_at, rule.applied_at, rule.retired_at,
+                       rule.conditions, rule.target_field, rule.target_value, rule.override,
+                       rule.note, rule.resolved_rows, reached.vehicles, reached.out_of_date
+                FROM (
+                    SELECT * FROM {MATCH_RESOLUTION_RULES_TABLE}
+                    ORDER BY coalesce(retired_at, applied_at, created_at) DESC, rule_id
+                    LIMIT %s
+                ) AS rule
+                CROSS JOIN LATERAL (
+                    SELECT count(DISTINCT {ALIAS}.vehicle_id) AS vehicles,
+                           count(DISTINCT {ALIAS}.vehicle_id) FILTER (WHERE {_CHANGED})
+                               AS out_of_date
+                    FROM {MATCH_FIELD_RESOLUTIONS_TABLE} AS written
+                    JOIN {VEHICLES_TABLE} AS {ALIAS}
+                      ON {ALIAS}.ts_record_id = written.source_record_id
+                    LEFT JOIN {VEHICLE_MATCH_RESULTS_TABLE} AS m
+                      ON m.vehicle_id = {ALIAS}.vehicle_id
+                    WHERE written.rule_id = rule.rule_id
+                      AND (rule.status = 'retired' OR written.superseded_at IS NULL)
+                ) AS reached
+                ORDER BY coalesce(rule.retired_at, rule.applied_at, rule.created_at) DESC,
+                         rule.rule_id
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
     def latest_run(self) -> StoredRun | None:
         with self._connection_factory() as connection:

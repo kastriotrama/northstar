@@ -181,6 +181,7 @@
 
       @if (view() === 'decisions') {
         <ns-correction-decisions (changed)="onDecisionUndone()" />
+        <ns-reviewer-rules />
       } @else {
       <ns-match-results
         [conditions]="baseConditions()"
@@ -189,6 +190,7 @@
         [turn]="resultsTurn()"
         (stateChange)="onMatchState($event)"
         (causeChange)="onMatchCause($event)"
+        (refreshed)="refreshRows()"
       />
       @if (matchCause(); as cause) {
         <p class="cause" role="status">

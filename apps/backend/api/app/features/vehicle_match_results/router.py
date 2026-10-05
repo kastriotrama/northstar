@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Annotated, Any
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import Connection
 
 from api.app.core.db import get_postgres_connection
@@ -19,6 +19,8 @@ from api.app.features.vehicle_match_results.schemas import (
     MatchResultCarsRequest,
     MatchResultCounts,
     MatchResultOverview,
+    MatchResultRefresh,
+    ReviewerRuleChanges,
 )
 from api.app.features.vehicle_match_results.service import MatchResultService
 from api.app.features.vehicle_match_results.sync import MatchResultSync
@@ -64,7 +66,9 @@ def counts(vehicle_filter: VehicleFilter, service: ServiceDependency) -> MatchRe
     """Cars per matching state under the Vehicles filter: one grouped query, no matcher."""
 
     try:
-        return service.counts(vehicle_filter)
+        counted = service.counts(vehicle_filter)
+        counted.refreshing = match_result_sync().refreshing
+        return counted
     except (UnknownFieldError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except psycopg.Error as error:
@@ -102,3 +106,34 @@ def cars(request: MatchResultCarsRequest, service: ServiceDependency) -> MatchRe
         raise HTTPException(status_code=422, detail=str(error)) from error
     except psycopg.Error as error:
         raise _unavailable() from error
+
+
+@router.post("/refresh", response_model=MatchResultRefresh, status_code=202)
+def refresh_changed_cars() -> MatchResultRefresh:
+    """Match again every car that is new or changed since its result was stored.
+
+    Runs in the background on this server and returns at once; the counts say
+    `refreshing` while it works and `changed_since_matched` falls as it goes.
+    Asking while one runs is safe: it runs once more when it ends.
+    """
+
+    sync = match_result_sync()
+    started = sync.population_changed()
+    return MatchResultRefresh(started=started, refreshing=True)
+
+
+@router.get("/reviewer-rules", response_model=ReviewerRuleChanges)
+def reviewer_rules(
+    service: ServiceDependency, limit: int = Query(default=50, ge=1, le=200)
+) -> ReviewerRuleChanges:
+    """The latest reviewer rules from the TS data screen, as changes to many cars.
+
+    Who made each, what it sets, how many vehicles it reached and how many of
+    those have a match result older than the change.
+    """
+
+    try:
+        return service.reviewer_rules(limit)
+    except psycopg.Error as error:
+        raise _unavailable() from error
+

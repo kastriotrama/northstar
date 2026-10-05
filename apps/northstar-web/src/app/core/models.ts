@@ -1410,6 +1410,30 @@ export interface MatchResultCounts {
   total: number;
   states: Array<{ state: MatchResultState; cars: number }>;
   changed_since_matched: number;
+  /** The changed cars are being matched again on the server right now. */
+  refreshing?: boolean;
+}
+
+/** One reviewer rule from the TS data screen, as a change to many cars. */
+export interface ReviewerRuleChange {
+  rule_id: string;
+  status: string;
+  author: string;
+  applied_by: string | null;
+  retired_by: string | null;
+  created_at: string;
+  applied_at: string | null;
+  retired_at: string | null;
+  /** The rule's conditions in words, e.g. "brand contains KIA and is_4wd = 0". */
+  conditions: string;
+  target_field: string;
+  target_value: string;
+  override: boolean;
+  note: string | null;
+  records_written: number;
+  vehicles: number;
+  /** Vehicles changed after their match result was stored. */
+  out_of_date: number;
 }
 
 /** One count of the breakdown, as a filter of the car list: a state and a clause on its cars. */
