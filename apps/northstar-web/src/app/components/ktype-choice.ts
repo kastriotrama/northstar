@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -52,7 +52,7 @@ function show(value: unknown): string {
  */
 @Component({
   selector: 'ns-ktype-choice',
-  imports: [DatePipe],
+  imports: [DatePipe, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (choice(); as current) {
@@ -85,6 +85,11 @@ function show(value: unknown): string {
           >
             Withdraw choice
           </button>
+          @if (pending(); as waiting) {
+            @if (waiting.needsConfirm && !error() && waiting.body.action === 'withdraw') {
+              <ng-container [ngTemplateOutlet]="confirmStep" />
+            }
+          }
         </div>
 
         @if (current.needs_review) {
@@ -157,8 +162,15 @@ function show(value: unknown): string {
       </button>
     </div>
 
+    <!-- The confirm step opens next to the button that asked for it. Withdrawing is
+         asked at the top of the panel, so its step is there, not down here. -->
     @if (pending(); as waiting) {
-      @if (waiting.needsConfirm && !error()) {
+      @if (waiting.needsConfirm && !error() && waiting.body.action !== 'withdraw') {
+        <ng-container [ngTemplateOutlet]="confirmStep" />
+      }
+    }
+
+    <ng-template #confirmStep>
         <div class="confirm" role="group" aria-label="Confirm the choice">
           <div class="lines" [id]="confirmLinesId">
             @for (line of confirmLines(); track line) {
@@ -177,8 +189,7 @@ function show(value: unknown): string {
           </button>
           <button type="button" [disabled]="saving()" (click)="cancel.emit()">Cancel</button>
         </div>
-      }
-    }
+    </ng-template>
 
     @if (saving()) {
       <p class="muted" role="status">Saving…</p>
@@ -279,7 +290,7 @@ export class KTypeChoice {
   private readonly confirmButton = viewChild<ElementRef<HTMLButtonElement>>('confirmButton');
 
   constructor() {
-    // The confirm step may open far from the button that asked for it: move focus there.
+    // The confirm step opens beside the button that asked for it; focus follows it there.
     effect(() => this.confirmButton()?.nativeElement.focus());
   }
 

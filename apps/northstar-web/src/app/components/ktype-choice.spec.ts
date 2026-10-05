@@ -224,6 +224,25 @@ describe('KTypeChoice', () => {
     expect(withdraw.text()).toContain('Withdraw the choice? The automatic result will apply again.');
   });
 
+  it('asks about withdrawing right under the button, not at the bottom of the panel', () => {
+    const withdraw = render({ lookup: lookup({ choice: choice() }), pending: pendingChoice('withdraw') });
+    // The banner holds the Withdraw button; the confirm step is inside it, so nothing
+    // scrolls away when it opens.
+    const step = withdraw.host.querySelector('.banner .confirm');
+    expect(step?.textContent).toContain('Withdraw the choice? The automatic result will apply again.');
+    expect(withdraw.host.querySelectorAll('.confirm')).toHaveLength(1);
+    expect(withdraw.button('Withdraw choice')?.nextElementSibling).toBe(step);
+    let confirmed = 0;
+    withdraw.fixture.componentInstance.confirm.subscribe(() => confirmed++);
+    withdraw.button('Confirm')?.click();
+    expect(confirmed).toBe(1);
+
+    TestBed.resetTestingModule();
+    const none = render({ lookup: lookup({ choice: choice() }), pending: pendingChoice('none') });
+    expect(none.host.querySelector('.banner .confirm')).toBeNull();
+    expect(none.host.querySelectorAll('.confirm')).toHaveLength(1);
+  });
+
   it('needs a name before anything can be recorded', () => {
     const { fixture, host, button } = render({ lookup: lookup({ choice: choice() }), reviewer: '  ' });
 
