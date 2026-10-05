@@ -162,10 +162,11 @@ function show(value: unknown): string {
       </button>
     </div>
 
-    <!-- The confirm step opens next to the button that asked for it. Withdrawing is
-         asked at the top of the panel, so its step is there, not down here. -->
+    <!-- The confirm step opens next to the button that asked for it: withdrawing under
+         its button at the top, a KType under its own card (the list does that), and
+         "none of these" here, under its button. -->
     @if (pending(); as waiting) {
-      @if (waiting.needsConfirm && !error() && waiting.body.action !== 'withdraw') {
+      @if (waiting.needsConfirm && !error() && waiting.body.action === 'none') {
         <ng-container [ngTemplateOutlet]="confirmStep" />
       }
     }
@@ -350,28 +351,7 @@ export class KTypeChoice {
   /** What the person is about to do, one line per thing worth a second thought. */
   protected readonly confirmLines = computed(() => {
     const body = this.pending()?.body;
-    if (!body) return [];
-    const result = this.lookup();
-    const current = this.choice();
-    if (body.action === 'withdraw') return ['Withdraw the choice? The automatic result will apply again.'];
-    if (body.action === 'none') return ['Record that none of these KTypes is this car?'];
-    const lines: string[] = [];
-    const candidate = result.candidates.find((item) => item.ktype === body.ktype);
-    if (result.terminal === 'resolved' && result.top_ktype && result.top_ktype !== body.ktype) {
-      lines.push(
-        `The matcher resolved this car to KType ${result.top_ktype}. Your choice of KType ${body.ktype} will be shown instead; the matcher's result stays visible.`,
-      );
-    }
-    if (candidate && !candidate.compatible) {
-      const fields = candidate.conflicting_fields.map(fieldName).join(', ');
-      lines.push(`KType ${body.ktype} conflicts with this car on ${fields}. Choose it anyway?`);
-    }
-    if (current?.status === 'chosen') {
-      lines.push(`Replace ${current.reviewer}'s choice of KType ${current.ktype} with KType ${body.ktype}?`);
-    } else if (current?.status === 'none') {
-      lines.push(`Replace ${current.reviewer}'s “none of these” with KType ${body.ktype}?`);
-    }
-    return lines.length ? lines : [`Choose KType ${body.ktype} for this car?`];
+    return body ? choiceConfirmLines(this.lookup(), body) : [];
   });
 
   protected did(entry: KTypeChoiceHistoryEntry): string {
@@ -406,4 +386,28 @@ export class KTypeChoice {
   protected typed(event: Event): string {
     return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
   }
+}
+
+/** What a person is asked before a choice is recorded, one line per thing they should know. */
+export function choiceConfirmLines(result: VehicleMatchLookup, body: KTypeChoiceRequest): string[] {
+  const current = result.choice ?? null;
+  if (body.action === 'withdraw') return ['Withdraw the choice? The automatic result will apply again.'];
+  if (body.action === 'none') return ['Record that none of these KTypes is this car?'];
+  const lines: string[] = [];
+  const candidate = result.candidates.find((item) => item.ktype === body.ktype);
+  if (result.terminal === 'resolved' && result.top_ktype && result.top_ktype !== body.ktype) {
+    lines.push(
+      `The matcher resolved this car to KType ${result.top_ktype}. Your choice of KType ${body.ktype} will be shown instead; the matcher's result stays visible.`,
+    );
+  }
+  if (candidate && !candidate.compatible) {
+    const fields = candidate.conflicting_fields.map(fieldName).join(', ');
+    lines.push(`KType ${body.ktype} conflicts with this car on ${fields}. Choose it anyway?`);
+  }
+  if (current?.status === 'chosen') {
+    lines.push(`Replace ${current.reviewer}'s choice of KType ${current.ktype} with KType ${body.ktype}?`);
+  } else if (current?.status === 'none') {
+    lines.push(`Replace ${current.reviewer}'s “none of these” with KType ${body.ktype}?`);
+  }
+  return lines.length ? lines : [`Choose KType ${body.ktype} for this car?`];
 }

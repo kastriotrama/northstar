@@ -106,6 +106,25 @@ function correctedValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
   return values;
 }
 
+/** What the list row shows about the car's matching, from the lookup made after a save. */
+function matchingValues(lookup: VehicleMatchLookup): Partial<NorVehicleRow> {
+  if (!lookup) return {};
+  const resolved = lookup.terminal === 'resolved' && !!lookup.top_ktype;
+  const states: Record<string, string> = {
+    one: 'one_unconfirmed',
+    several: 'several',
+    none: 'none',
+    not_matchable: 'not_matchable',
+  };
+  const possible = (lookup.candidates ?? []).filter((candidate) => candidate.compatible);
+  return {
+    match_result: resolved ? 'resolved' : (states[lookup.bucket] ?? null),
+    automatic_ktype: resolved ? lookup.top_ktype : null,
+    candidate_ktypes: possible.map((candidate) => candidate.ktype),
+    candidate_confidences: possible.map((candidate) => candidate.confidence),
+  };
+}
+
 const PAGE_SIZE = 50;
 
 /**
@@ -439,6 +458,8 @@ export class CarSearchPage implements OnInit {
           ? {
               ...row,
               ...values,
+              // The car was matched again with the save: its KType column follows.
+              ...matchingValues(lookup),
               // Without a choice, now or before, the KType on the row is not a person's to change.
               ...(choice
                 ? {

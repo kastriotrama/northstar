@@ -7,7 +7,7 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { KTypeCandidate, KTypeChoiceState, VehicleMatchLookup } from '../core/models';
-import { KTypeChoice, type PendingChoice } from './ktype-choice';
+import { KTypeChoice, type PendingChoice, choiceConfirmLines } from './ktype-choice';
 
 function candidate(ktype: string, overrides: Partial<KTypeCandidate> = {}): KTypeCandidate {
   return {
@@ -195,18 +195,26 @@ describe('KTypeChoice', () => {
     expect(button('Keep “none of these”')).toBeTruthy();
   });
 
-  it('asks before overriding the matcher, choosing a ruled-out KType or replacing a choice', () => {
-    const { text, host } = render({
+  it('words what is asked before overriding the matcher, a ruled-out KType or a standing choice', () => {
+    const lines = choiceConfirmLines(
+      lookup({ terminal: 'resolved', choice: choice() }),
+      pendingChoice('choose', '000059385').body,
+    );
+
+    expect(lines).toEqual([
+      "The matcher resolved this car to KType 000010064. Your choice of KType 000059385 will be shown instead; the matcher's result stays visible.",
+      'KType 000059385 conflicts with this car on power. Choose it anyway?',
+      "Replace Anna's choice of KType 000010064 with KType 000059385?",
+    ]);
+  });
+
+  it('leaves the step for choosing a KType to the list, which opens it under that KType', () => {
+    const { host } = render({
       lookup: lookup({ terminal: 'resolved', choice: choice() }),
       pending: pendingChoice('choose', '000059385'),
     });
 
-    expect(text()).toContain(
-      "The matcher resolved this car to KType 000010064. Your choice of KType 000059385 will be shown instead; the matcher's result stays visible.",
-    );
-    expect(text()).toContain('KType 000059385 conflicts with this car on power. Choose it anyway?');
-    expect(text()).toContain("Replace Anna's choice of KType 000010064 with KType 000059385?");
-    expect(host.querySelector('.confirm')?.getAttribute('role')).toBe('group');
+    expect(host.querySelector('.confirm')).toBeNull();
   });
 
   it('asks before recording “none of these” and before withdrawing, and emits the answer', () => {

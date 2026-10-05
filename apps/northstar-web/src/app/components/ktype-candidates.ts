@@ -3,11 +3,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  type ElementRef,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap, tap } from 'rxjs';
@@ -24,7 +27,13 @@ import type {
   VehicleMatchLookup,
 } from '../core/models';
 import { FactCorrections } from './fact-corrections';
-import { type ChoiceError, KTypeChoice, NAME_HINT_ID, type PendingChoice } from './ktype-choice';
+import {
+  type ChoiceError,
+  KTypeChoice,
+  NAME_HINT_ID,
+  type PendingChoice,
+  choiceConfirmLines,
+} from './ktype-choice';
 
 const REVIEWER_STORAGE_KEY = 'match-review-reviewer';
 
@@ -249,6 +258,26 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
               >
                 {{ chooseLabel(candidate) }}
               </button>
+              @if (confirmingChoice(candidate); as lines) {
+                <div class="confirm" role="group" aria-label="Confirm the choice">
+                  <div class="lines" [id]="'confirm-' + candidate.ktype">
+                    @for (line of lines; track line) {
+                      <p>{{ line }}</p>
+                    }
+                  </div>
+                  <button
+                    #chooseConfirm
+                    type="button"
+                    [disabled]="saving()"
+                    [attr.aria-busy]="saving()"
+                    [attr.aria-describedby]="'confirm-' + candidate.ktype"
+                    (click)="confirm()"
+                  >
+                    Confirm
+                  </button>
+                  <button type="button" [disabled]="saving()" (click)="pending.set(null)">Cancel</button>
+                </div>
+              }
             }
           </div>
         } @empty {
@@ -314,6 +343,12 @@ const BUCKET_LABELS: Record<MatchBucket, string> = {
     }
   `,
   styles: `
+    .confirm {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: flex-start; margin-top: 0.3rem;
+      padding: 0.4rem 0.6rem; border-left: 3px solid #d99a00; background: #fffaf0; border-radius: 4px;
+    }
+    .confirm .lines { flex-basis: 100%; }
+    .confirm p { margin: 0; }
     :host {
       display: flex;
       flex-direction: column;
@@ -443,7 +478,11 @@ export class KTypeCandidates {
     lookup: VehicleMatchLookup | null;
   } | null>(null);
 
+  private readonly chooseConfirm = viewChild<ElementRef<HTMLButtonElement>>('chooseConfirm');
+
   constructor() {
+    // The confirm step opens under the card that asked for it; focus follows it there.
+    effect(() => this.chooseConfirm()?.nativeElement.focus());
     toObservable(this.vehicleId)
       .pipe(
         tap(() => this.clearAction()),
@@ -500,6 +539,18 @@ export class KTypeCandidates {
   }
 
   /** One click when nothing is overridden; anything else is asked about first. */
+  /**
+   * The lines to confirm when this candidate's choice waits for a "Confirm"; null otherwise.
+   * Shown under the candidate's own card, so the step opens where the click was.
+   */
+  protected confirmingChoice(candidate: KTypeCandidate): string[] | null {
+    const waiting = this.pending();
+    const result = this.state()?.lookup;
+    if (!waiting?.needsConfirm || !result || this.saveError()) return null;
+    if (waiting.body.action !== 'choose' || waiting.body.ktype !== candidate.ktype) return null;
+    return choiceConfirmLines(result, waiting.body);
+  }
+
   protected choose(candidate: KTypeCandidate): void {
     const result = this.state()?.lookup;
     if (!result) return;
