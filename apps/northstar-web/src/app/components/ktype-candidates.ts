@@ -13,6 +13,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap, tap } from 'rxjs';
 
 import { Api } from '../core/api';
+import { newOperationId } from '../core/operation-id';
 import { describeReason, fieldName } from '../core/match-reasons';
 import type {
   KTypeCandidate,
@@ -521,7 +522,7 @@ export class KTypeCandidates {
     const result = this.state()?.lookup;
     const reviewer = this.reviewer().trim();
     if (!result || !reviewer || this.saving()) return;
-    const operationId = crypto.randomUUID();
+    const operationId = newOperationId();
     const body: KTypeChoiceRequest = {
       operation_id: operationId,
       action,

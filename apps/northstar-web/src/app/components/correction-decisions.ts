@@ -11,6 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Api } from '../core/api';
+import { newOperationId } from '../core/operation-id';
 import type { CorrectionDecisionSummary, CorrectionWithdrawRequest } from '../core/models';
 
 /** The name a person typed anywhere on a review screen; shared so it is typed once. */
@@ -276,7 +277,7 @@ export class CorrectionDecisions {
     if (!waiting || !reviewer || !reason) return;
     this.pending.set({
       decisionId: waiting.decisionId,
-      body: { operation_id: crypto.randomUUID(), reviewer, reason },
+      body: { operation_id: newOperationId(), reviewer, reason },
     });
     this.send();
   }
