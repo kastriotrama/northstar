@@ -97,7 +97,8 @@ would outrank the September 2026 AIS export on every `newest` field.
 | --- | --- |
 | `migrate-vehicle-core` | Schema plus contract check. Runs on every deploy (`infra/production/deploy.sh`). |
 | `backfill-vehicle-core` | Walks the per-plate TS survivors in `vehicle_facts`, then links the other TS copies of each car by plate (722k rows from repeated batches). Resumable (`--since`) and idempotent: a re-run changes nothing. Re-running it after a re-normalization is how TS changes reach the vehicles. Disk-guarded. |
-| `import-ais-vin-export --file …` | Streams the 16 GB STEP XML once per extract. It matches each record by VIN, or by chassis number plus plate for old cars, then merges it by policy. It marks deregistrations, moves plates, handles A-traktor conversions (a changed vehicle type makes the old EU category stale) and corrected VINs. Changed fuel, gearbox and body codes are re-normalized through the real pipeline. Active passenger cars TS never had are completed with the completion rules, normalized and minted. One run per extract (claimed in `ingest_job_runs`): importing the same file again does nothing. |
+| `import-ais-vin-export --file …` | Streams the 16 GB STEP XML once per extract. It matches each record by VIN, or by chassis number plus plate for old cars, then merges it by policy. It marks deregistrations, moves plates, handles A-traktor conversions (a changed vehicle type makes the old EU category stale) and corrected VINs. Changed fuel, gearbox and body codes are re-normalized through the real pipeline. Active passenger cars TS never had are completed with the completion rules, normalized and minted. Two things about the export's own notation: its group code is the registry's make code (two characters, or three for the newer makes: `POL` Polestar, `CUA` Cupra, `LYO` Lynk & Co) and the six-digit group number run together, so it is split from its end; and its car name is the registry's brand text followed by its model text ("CUPRA" + "BORN 150 KW 58/62 KWH"), so where the group's rules do not give both, the name is divided at the brand text. One run per extract (claimed in `ingest_job_runs`): importing the same file again does nothing. |
+| `repair-ais-vehicles [--write]` | Describes the AIS-created vehicles again where an earlier import read their record wrongly: a make code cut after two characters ("POL021900" read as make `PO`, group `L021900`), or a name not divided into brand and model text. It rebuilds the record from what the vehicle still holds, merges only the fields that description decides, and leaves alone what a rule, a reviewer or a person has supplied since. The normalization status is replaced only when the stored values explain the status the vehicle carries. Dry run without `--write`; a second run changes nothing. Run `learn-vehicle-rules --family TSC-BT --activate` first, and `apply-vehicle-rules`, `check-model-fills` and the match-result refresh after. |
 | `learn-vehicle-rules [--activate]` | Learns the 13 rule families (below) from `core.vehicles`. Without `--activate` it is a dry run that only prints counts. |
 | `apply-vehicle-rules` | Fills gaps from the active enrichment rules. The model families need `--catalog-batch`: their fills are checked by the model guard. |
 | `check-model-fills` | Checks every rule-filled model against the car's own model word; `--retract` takes back the contradicted ones. |
@@ -116,7 +117,9 @@ version, which does not scale to ~368k rules.
   weight (`MW-VV`); length (`LEN-VV`).
 - **Completion** (learned from TS, keyed by make + group code, complete the cars
   AIS adds): EU category, registry brand/model/type text, variant, displacement,
-  4WD flag (`TSC-*`).
+  4WD flag (`TSC-*`). `TSC-BT` is keyed differently: one rule per brand text the
+  registry writes beside a model text, by make code (at least 20 cars). It says
+  where an AIS car name of an unknown group divides into brand and model.
 - **Drive layout** (`DRV-MY`, reviewed, not learned): which axle a car drives when
   the registry says it is not four-wheel drive. The registry only says "four-wheel
   drive: yes/no"; front or rear follows from the model. The table in
