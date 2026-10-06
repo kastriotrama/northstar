@@ -403,6 +403,10 @@ _COMPLETIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("TSC-4WD", "is_4wd", ("registry_all_wheel_drive", "drive_type")),
 )
 
+#: What a brand text names on the vehicle, whichever rule supplied the text.
+_NAMED_BY_BRAND: tuple[str, ...] = next(
+    fields for family, _, fields in _COMPLETIONS if family == "TSC-BRAND"
+)
 #: The vehicle fields a completion rule can stand behind.
 COMPLETED_FIELDS: tuple[str, ...] = tuple(
     name for _, _, fields in _COMPLETIONS for name in fields
@@ -451,11 +455,19 @@ def ts_shaped_record(
             raw[ts_key] = value
             for name in fields:
                 by_rule[name] = rule_id
+    # The AIS name is the registry's brand text and model text in a row ("CUPRA" +
+    # "BORN 150 KW 58/62 KWH"). Where the group's rules do not give the two, the
+    # name is divided: at the group's brand text, or else at a brand text the
+    # registry writes for the make. What follows is the model, in AIS's own words.
+    car_name = record.get("car_name")
+    if "registry_brand_text" not in by_rule:
+        divided = completion.brand_text_of(record.make_code, car_name)
+        if divided is not None:
+            raw["brand"], rule_id = divided
+            for field_name in _NAMED_BY_BRAND:
+                by_rule[field_name] = rule_id
     if "registry_brand_text" in by_rule and "model" not in raw:
-        # The group's brand text is known and its model text is not. The AIS name
-        # is the two in a row ("CUPRA" + "BORN 150 KW 58/62 KWH"): what follows
-        # the brand text is the model, in AIS's own words.
-        raw["model"] = _after_brand(record.get("car_name"), raw["brand"])
+        raw["model"] = _after_brand(car_name, raw["brand"])
     return {name: value for name, value in raw.items() if value not in (None, "")}, by_rule
 
 

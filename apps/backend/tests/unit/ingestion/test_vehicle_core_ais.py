@@ -210,3 +210,57 @@ def test_a_name_that_does_not_start_with_the_brand_text_gives_no_model() -> None
 
         assert raw["brand"] == "CUPRA"
         assert "model" not in raw
+
+
+def test_a_name_of_an_unknown_group_is_divided_at_the_makes_shortest_brand_text() -> None:
+    rules = CompletionRules(
+        {
+            "TSC-BT": {
+                ("TO", "TOYOTA RAV4"): ("TOYOTA RAV4", "TSC-BT-long"),
+                ("TO", "TOYOTA"): ("TOYOTA", "TSC-BT-short"),
+                ("VW", "VOLKSWAGEN"): ("VOLKSWAGEN", "TSC-BT-vw1"),
+                ("VW", "VOLKSWAGEN, VW"): ("VOLKSWAGEN, VW", "TSC-BT-vw2"),
+            }
+        }
+    )
+    toyota = AisRecord("V", "P", {"car_name": "TOYOTA TOYOTA RAV4", "group_code": "TO555555"})
+    volkswagen = AisRecord(
+        "V", "P", {"car_name": "VOLKSWAGEN, VW TAYRON", "group_code": "VW555555"}
+    )
+
+    raw, by_rule = ts_shaped_record(toyota, rules)
+    assert (raw["brand"], raw["model"]) == ("TOYOTA", "TOYOTA RAV4")
+    assert by_rule["registry_brand_text"] == "TSC-BT-short"
+    assert by_rule["manufacturer"] == "TSC-BT-short"
+    assert "registry_model_text" not in by_rule
+
+    # "VOLKSWAGEN" is followed by a comma, not by the model: the longer text divides.
+    raw, by_rule = ts_shaped_record(volkswagen, rules)
+    assert (raw["brand"], raw["model"]) == ("VOLKSWAGEN, VW", "TAYRON")
+
+
+def test_a_name_no_brand_text_of_the_make_starts_stays_whole() -> None:
+    rules = CompletionRules({"TSC-BT": {("VO", "VOLVO"): ("VOLVO", "TSC-BT-v")}})
+    for name, group in (("VOLVO", "VO555555"), ("VOLVOX EX30", "VO555555"), ("VOLVO EX30", "PG555555")):
+        record = AisRecord("V", "P", {"car_name": name, "group_code": group})
+
+        raw, by_rule = ts_shaped_record(record, rules)
+
+        assert raw["brand"] == name
+        assert "model" not in raw
+        assert by_rule == {}
+
+
+def test_the_groups_own_brand_text_comes_before_the_makes() -> None:
+    rules = CompletionRules(
+        {
+            "TSC-BRAND": {("VW", "890007"): ("VOLKSWAGEN, VW 1KM", "TSC-BRAND-b")},
+            "TSC-BT": {("VW", "VOLKSWAGEN, VW"): ("VOLKSWAGEN, VW", "TSC-BT-vw")},
+        }
+    )
+    record = AisRecord("V", "P", {"car_name": "VOLKSWAGEN, VW 1KM GOLF", "group_code": "VW890007"})
+
+    raw, by_rule = ts_shaped_record(record, rules)
+
+    assert (raw["brand"], raw["model"]) == ("VOLKSWAGEN, VW 1KM", "GOLF")
+    assert by_rule["registry_brand_text"] == "TSC-BRAND-b"

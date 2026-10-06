@@ -30,6 +30,7 @@ import hashlib
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Literal, Protocol
 
 from psycopg import Connection
@@ -68,6 +69,9 @@ PATTERN_SOURCE = "reviewed-pattern"
 STATISTICS_FAMILY_OF_PATTERNS = "MOD-BT"
 #: The family that learns which brand-text words name which make.
 MAKE_WORD_FAMILY = "MFR-BW"
+
+#: The family that lists the brand texts the registry writes for a make code.
+BRAND_TEXT_FAMILY = "TSC-BT"
 
 #: The family that states a two-wheel-drive car's driven axle from the reviewed table.
 DRIVE_LAYOUT_FAMILY = "DRV-MY"
@@ -149,6 +153,13 @@ KEY_EXPRESSIONS: dict[str, str] = {
     # The brand text's first word, the make as the registry writes it ("POLESTAR" in
     # "POLESTAR POLESTAR 4", "VOLKSWAGEN" in "VOLKSWAGEN, VW").
     "brand_make_word": f"NULLIF(substring({_BRAND} from '^[^ ,&/+]+'), '')",
+    # A brand text the registry writes beside a model text: the make's own name
+    # ("VOLVO", "VOLKSWAGEN, VW"). Older records put make and model in the brand
+    # text ("VOLVO V70") and have no model text; those are not this key.
+    "brand_beside_model": (
+        "CASE WHEN btrim({alias}registry_model_text) <> '' "
+        f"THEN {_BRAND} END"
+    ),
     # The registry's own model text ("EX40", "FIAT TIPO"), as the model families read it.
     "model_text": (
         "CASE WHEN btrim({alias}registry_model_text) <> '' "
@@ -295,6 +306,14 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                "Drive type by manufacturer and VIN characters 1-8",
                min_support=8, min_agreement=0.98, learner="drive_evidence",
                replaces=("2wd",), guard=_DRIVE_GUARD),
+    # The AIS export names a car by the registry's brand text and model text in a
+    # row ("VOLVO" + "EX30"). Where the car's group is new to us, the brand texts the
+    # registry writes for the make say where the name divides. One rule per text.
+    RuleFamily(BRAND_TEXT_FAMILY, "registry_brand_text",
+               ("registry_make_code", "brand_beside_model"),
+               SOURCE_TS, "completion",
+               "Brand texts the registry writes beside a model text, by make code",
+               min_support=20),
     RuleFamily("TSC-EU", "eu_category", ("registry_make_code", "group_code"),
                SOURCE_TS, "completion", "EU category by make and group code"),
     RuleFamily("TSC-BRAND", "registry_brand_text", ("registry_make_code", "group_code"),
@@ -1287,12 +1306,40 @@ def retire_rule(connection: Connection, rule_id: str) -> int:
 
 @dataclass(frozen=True)
 class CompletionRules:
-    """Active completion rules by family, keyed by (make code, group code)."""
+    """Active completion rules by family and key, each as (value, rule id)."""
 
     rules: Mapping[str, Mapping[tuple[str, ...], tuple[str, str]]]
 
     def lookup(self, family: str, key: tuple[str, ...]) -> tuple[str, str] | None:
         return self.rules.get(family, {}).get(key)
+
+    @cached_property
+    def _brand_texts(self) -> dict[str, list[tuple[str, str, str]]]:
+        by_make: dict[str, list[tuple[str, str, str]]] = {}
+        for (make_code, text), (value, rule_id) in self.rules.get(BRAND_TEXT_FAMILY, {}).items():
+            by_make.setdefault(make_code, []).append((text.casefold(), value, rule_id))
+        for texts in by_make.values():
+            texts.sort(key=lambda entry: (len(entry[0]), entry[0]))
+        return by_make
+
+    def brand_text_of(self, make_code: str | None, name: str | None) -> tuple[str, str] | None:
+        """The registry's brand text a car name starts with, as (brand text, rule id).
+
+        Only a name that goes on after the brand text has one: what follows is the
+        model. Of several texts the shortest is the make's own name ("TOYOTA", not
+        "TOYOTA RAV4"), which is how the registry divides the two today.
+        """
+
+        folded = " ".join((name or "").split()).casefold()
+        for text, value, rule_id in self._brand_texts.get(make_code or "", ()):
+            if folded.startswith(f"{text} "):
+                return value, rule_id
+        return None
+
+    def without(self, family: str) -> CompletionRules:
+        """These rules as they were before `family` existed."""
+
+        return CompletionRules({name: rules for name, rules in self.rules.items() if name != family})
 
 
 def load_completion_rules(connection: Connection) -> CompletionRules:

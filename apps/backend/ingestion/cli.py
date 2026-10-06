@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from ingestion.active_rules import load_active_rules
-from ingestion.ais_make_code_repair import repair_ais_make_codes
+from ingestion.ais_vehicle_repair import repair_ais_vehicles
 from ingestion.config import get_ingestion_settings
 from ingestion.context_comparison import (
     ContextComparisonPolicy,
@@ -343,15 +343,14 @@ def build_parser() -> argparse.ArgumentParser:
     check_fills_parser.add_argument("--retract", action="store_true",
                                     help="Take back the contradicted fills.")
 
-    make_code_parser = subparsers.add_parser(
-        "repair-ais-make-codes",
-        help=("Give the vehicles AIS created under a make code cut to two characters the "
-              "registry's make and group code, and what follows from them: the registry "
-              "details of their make and group, and how the record normalizes. Without "
-              "--write nothing is written: the counts are a dry run."),
+    ais_repair_parser = subparsers.add_parser(
+        "repair-ais-vehicles",
+        help=("Describe the vehicles AIS created again where the import read their record "
+              "wrongly: a make code cut to two characters, or a name not divided into brand "
+              "and model. Without --write nothing is written: the counts are a dry run."),
     )
-    make_code_parser.add_argument("--write", action="store_true",
-                                  help="Save the repaired vehicles.")
+    ais_repair_parser.add_argument("--write", action="store_true",
+                                   help="Save the repaired vehicles.")
 
     tyre_parser = subparsers.add_parser(
         "reparse-tyre-sizes",
@@ -534,8 +533,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Fill gaps in NorthStar vehicles from the active enrichment rules."
         )
         print(
-            "repair-ais-make-codes\tcore.vehicles\t"
-            "Give AIS-created vehicles the registry's make code; dry run unless --write."
+            "repair-ais-vehicles\tcore.vehicles\t"
+            "Describe AIS-created vehicles again where the import misread them; "
+            "dry run unless --write."
         )
         for job in list_jobs():
             print(f"{job.name}\t{job.source_name}\t{job.description}")
@@ -1035,14 +1035,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         }, sort_keys=True, default=str, ensure_ascii=False))
         return 0
 
-    if args.command == "repair-ais-make-codes":
+    if args.command == "repair-ais-vehicles":
         try:
             datastores = DatastoreClients.from_settings(settings)
             with datastores.postgres.connect() as connection:
-                repaired = repair_ais_make_codes(connection, dry_run=not args.write)
+                repaired = repair_ais_vehicles(connection, dry_run=not args.write)
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "Repairing AIS make codes stopped safely",
+                "Repairing AIS vehicles stopped safely",
                 extra={"error_code": type(error).__name__},
             )
             return 1
