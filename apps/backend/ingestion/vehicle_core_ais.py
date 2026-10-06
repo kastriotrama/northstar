@@ -127,6 +127,10 @@ _ATTRIBUTES: dict[str, str] = {
 }
 
 
+#: The registry's group number is six digits, in TS and in the export alike.
+GROUP_NUMBER_LENGTH = 6
+
+
 @dataclass(frozen=True)
 class AisRecord:
     """One VIN entity of the export."""
@@ -146,15 +150,20 @@ class AisRecord:
     def vehicle_type(self) -> str | None:
         return clean_code(self.fields.get("vehicle_type"))
 
+    # The export's group code is the registry's make code and its six-digit group
+    # number run together. A make code is two characters ("VW890007") or, for the
+    # newer makes, three ("POL021900" is Polestar; "PO" alone is Pontiac), so the
+    # split is counted from the end.
+
     @property
     def make_code(self) -> str | None:
         group = clean_code(self.fields.get("group_code"))
-        return group[:2] if group and len(group) >= 8 else None
+        return group[:-GROUP_NUMBER_LENGTH] if group and len(group) >= 8 else None
 
     @property
     def group_number(self) -> str | None:
         group = clean_code(self.fields.get("group_code"))
-        number = group[2:] if group and len(group) >= 8 else None
+        number = group[-GROUP_NUMBER_LENGTH:] if group and len(group) >= 8 else None
         return None if number in {None, "000000"} else number
 
 
@@ -394,6 +403,11 @@ _COMPLETIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("TSC-4WD", "is_4wd", ("registry_all_wheel_drive", "drive_type")),
 )
 
+#: The vehicle fields a completion rule can stand behind.
+COMPLETED_FIELDS: tuple[str, ...] = tuple(
+    name for _, _, fields in _COMPLETIONS for name in fields
+)
+
 
 def ts_shaped_record(
     record: AisRecord, completion: CompletionRules
@@ -437,7 +451,21 @@ def ts_shaped_record(
             raw[ts_key] = value
             for name in fields:
                 by_rule[name] = rule_id
+    if "registry_brand_text" in by_rule and "model" not in raw:
+        # The group's brand text is known and its model text is not. The AIS name
+        # is the two in a row ("CUPRA" + "BORN 150 KW 58/62 KWH"): what follows
+        # the brand text is the model, in AIS's own words.
+        raw["model"] = _after_brand(record.get("car_name"), raw["brand"])
     return {name: value for name, value in raw.items() if value not in (None, "")}, by_rule
+
+
+def _after_brand(name: str | None, brand: str) -> str | None:
+    """What an AIS car name says after the registry's brand text, if it starts with it."""
+
+    name, brand = " ".join((name or "").split()), " ".join(brand.split())
+    if not brand or not name.casefold().startswith(f"{brand.casefold()} "):
+        return None
+    return name[len(brand) :].strip() or None
 
 
 def new_vehicle_observations(
@@ -446,6 +474,25 @@ def new_vehicle_observations(
     normalizer: Normalizer,
     extract: AisExtract,
 ) -> dict[str, Observation | None]:
+    return described_in_ts_terms(
+        record, completion, normalizer, ref=extract.ref, observed_on=extract.exported_on
+    )
+
+
+def described_in_ts_terms(
+    record: AisRecord,
+    completion: CompletionRules,
+    normalizer: Normalizer,
+    *,
+    ref: SourceRef,
+    observed_on: date,
+) -> dict[str, Observation | None]:
+    """Everything an AIS record says about a car the registry snapshot does not have.
+
+    `ref` is the AIS source the values are attributed to; a value a completion
+    rule supplied is attributed to that rule instead.
+    """
+
     raw, by_rule = ts_shaped_record(record, completion)
     normalized, status, confidence = normalizer.normalize(raw)
     facts = {
@@ -465,21 +512,21 @@ def new_vehicle_observations(
     }
     ts_like = TsRecord(
         record_id=0,
-        observed_on=extract.exported_on,
+        observed_on=observed_on,
         facts=facts,
         raw=raw,
         normalized=normalized,
         status=status,
         confidence=confidence,
     )
-    observations = ts_observations(ts_like, ref=extract.ref)
+    observations = ts_observations(ts_like, ref=ref)
     observations.update(
         {
-            "engine_code": Observation(clean_engine_code(record.get("engine_code")), extract.ref),
-            "kerb_weight_kg": Observation(clean_int(record.get("kerb_weight")), extract.ref),
-            "max_weight_kg": Observation(clean_int(record.get("max_weight")), extract.ref),
-            "length_mm": Observation(clean_int(record.get("length")), extract.ref),
-            "registry_status": Observation("registered", extract.ref),
+            "engine_code": Observation(clean_engine_code(record.get("engine_code")), ref),
+            "kerb_weight_kg": Observation(clean_int(record.get("kerb_weight")), ref),
+            "max_weight_kg": Observation(clean_int(record.get("max_weight")), ref),
+            "length_mm": Observation(clean_int(record.get("length")), ref),
+            "registry_status": Observation("registered", ref),
         }
     )
     for name, rule_id in by_rule.items():
