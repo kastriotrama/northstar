@@ -115,3 +115,36 @@ def _vehicle_id(connection: Connection, plate: str) -> str:
     with connection.cursor() as cursor:
         cursor.execute("SELECT vehicle_id FROM core.vehicles WHERE plate = %s", (plate,))
         return str(cursor.fetchone()[0])
+
+
+def test_a_displacement_is_filled_from_the_cars_alike_but_never_on_an_electric_car(
+    db: Connection,
+) -> None:
+    from datetime import date
+
+    from ingestion.vehicle_core_merge import VehicleState
+    from ingestion.vehicle_core_store import mint_vehicle_id, save_vehicles
+
+    def car(fuel: str) -> VehicleState:
+        state = VehicleState(mint_vehicle_id(), "ais", date(2026, 9, 19))
+        state.values.update({
+            "registry_status": "registered", "vehicle_scope": "passenger",
+            "registry_make_code": "VO", "variant_code": "BW84", "version_code": "BW84S1F",
+            "fuel": fuel,
+        })
+        return state
+
+    diesel, electric = car("diesel"), car("electricity")
+    save_vehicles(db, [diesel, electric])
+    family = FAMILIES_BY_ID["CCM-VV"]
+    store_rules(db, family, learn_rules(db, family), learned_from="transportstyrelsen")
+
+    assert apply_rules(db, family).filled == 1
+    db.commit()
+
+    filled = load_vehicle(db, diesel.vehicle_id)
+    untouched = load_vehicle(db, electric.vehicle_id)
+    assert filled is not None and untouched is not None
+    assert filled.values["displacement_cc"] == 1969
+    assert filled.field_sources["displacement_cc"].startswith("rule:CCM-VV-")
+    assert untouched.values.get("displacement_cc") is None

@@ -222,6 +222,8 @@ _ELECTRIFICATION_GUARD = (
     f"AND (v.origin_source <> '{SOURCE_TS}' OR v.fuel_secondary = 'electricity') "
     "AND (r.value = 'hybrid' OR v.fuel_secondary = 'electricity')"
 )
+#: A battery electric car has no displacement, whatever its cars alike say.
+_HAS_AN_ENGINE = "NOT (v.fuel = 'electricity' AND v.fuel_secondary IS NULL)"
 #: What a hybrid type implies on a car that carries no second fuel: electricity as
 #: that fuel, and the tokens a hybrid KType is compared on. Filled, and taken
 #: back, together with the type.
@@ -237,6 +239,35 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
     RuleFamily("ENG-TP", "engine_code",
                ("registry_make_code", "registry_type_code", "displacement_cc", "power_kw", "fuel"),
                SOURCE_AIS, "enrichment", "Engine code by make, type, displacement, power and fuel"),
+    # Where the three above are silent, the cars alike by VIN or by model. An
+    # engine code confirms a KType, so these are held to the higher bar.
+    RuleFamily("ENG-VINP", "engine_code", ("manufacturer", "vin_descriptor", "power_kw", "fuel"),
+               SOURCE_AIS, "enrichment",
+               "Engine code by manufacturer, VIN characters 1-8, power and fuel",
+               min_agreement=0.98),
+    RuleFamily("ENG-MP", "engine_code",
+               ("manufacturer", "model_family", "fuel", "power_kw", "displacement_cc",
+                "production_year"),
+               SOURCE_AIS, "enrichment",
+               "Engine code by make, model, fuel, power, displacement and build year",
+               min_agreement=0.98),
+    # Displacement: 1.15M registry records of combustion cars state none, and a
+    # car AIS added has one only where its group is known. It sets KTypes of one
+    # model apart, so a car without it stays tied between them.
+    RuleFamily("CCM-VV", "displacement_cc", ("registry_make_code", "variant_code", "version_code"),
+               SOURCE_TS, "enrichment", "Displacement by make, variant and version",
+               min_agreement=0.98, guard=_HAS_AN_ENGINE),
+    RuleFamily("CCM-ENG", "displacement_cc", ("manufacturer", "engine_code", "power_kw"),
+               SOURCE_TS, "enrichment", "Displacement by manufacturer, engine code and power",
+               min_agreement=0.98, guard=_HAS_AN_ENGINE),
+    RuleFamily("CCM-VINP", "displacement_cc", ("manufacturer", "vin_descriptor", "power_kw", "fuel"),
+               SOURCE_TS, "enrichment",
+               "Displacement by manufacturer, VIN characters 1-8, power and fuel",
+               min_agreement=0.98, guard=_HAS_AN_ENGINE),
+    RuleFamily("CCM-MP", "displacement_cc",
+               ("manufacturer", "model_family", "fuel", "power_kw", "production_year"),
+               SOURCE_TS, "enrichment", "Displacement by make, model, fuel, power and build year",
+               min_agreement=0.98, guard=_HAS_AN_ENGINE),
     RuleFamily("MY-VB", "model_year",
                ("registry_make_code", "registry_vehicle_year", "production_year", "production_month"),
                SOURCE_AIS, "enrichment", "Model year by make, vehicle year and build month"),
@@ -244,8 +275,9 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                SOURCE_AIS, "enrichment", "Max weight by make, variant and version"),
     RuleFamily("LEN-VV", "length_mm", ("registry_make_code", "variant_code", "version_code"),
                SOURCE_AIS, "enrichment", "Length by make, variant and version"),
-    # AIS sends its own make codes for newer makes ("PO" is Pontiac in TS, Polestar in
-    # AIS): the brand text's first word names the make where the code cannot.
+    # The brand text's first word names the make where the make code does not: a
+    # make the reviewed rules do not know by its code, or a code read wrongly (the
+    # AIS import once cut "POL", Polestar, to "PO", Pontiac).
     RuleFamily("MFR-BW", "manufacturer", ("brand_make_word",),
                SOURCE_TS, "enrichment", "Manufacturer by the brand text's first word",
                min_support=10, min_agreement=0.98),
