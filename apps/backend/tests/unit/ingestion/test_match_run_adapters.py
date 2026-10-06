@@ -1616,6 +1616,46 @@ def test_a_ceed_whose_brand_text_names_a_ceed_is_one_family_named_twice(brand: s
     assert evaluation.top_candidate_reference in {"ed-sw", "jd"}
 
 
+def _mini() -> TecDocDryRunEvaluator:
+    # The catalog calls a model by its make, and "MINI" is a label on every generation.
+    def ktype(reference: str, model: str, name: str, type_name: str, **fields: object) -> VehicleCandidate:
+        return VehicleCandidate(reference, "MINI", model, model_aliases=(name, type_name), **fields)  # type: ignore[arg-type]
+
+    return TecDocDryRunEvaluator((
+        ktype("r56", "MINI (R56)", "MINI", "Cooper", year_from=2006, year_to=2013, fuels=_PETROL, power_kw=90),
+        ktype("f56", "MINI (F56)", "MINI", "Cooper", year_from=2013, year_to=2024, fuels=_PETROL, power_kw=100),
+        ktype("j01-e", "MINI COOPER (J01)", "MINI COOPER", "Cooper E", year_from=2023, fuels=_ELECTRIC,
+              power_kw=135),
+        ktype("u25", "MINI COUNTRYMAN (U25)", "MINI COUNTRYMAN", "Countryman E", year_from=2023,
+              fuels=_ELECTRIC, power_kw=150),
+        # The classic Mini is a catalog model called exactly "MINI", under another make.
+        VehicleCandidate("classic", "ROVER", "MINI", model_aliases=("MINI",), year_from=1986, year_to=2000,
+                         fuels=_PETROL, power_kw=46),
+    ))
+
+
+def _cooper_e(brand: str) -> MatchSourceRecord:
+    return _car({"manufacturer": "MINI", "model_family": "MINI", "production_year": 2024,
+                 "fuel_match_tokens": ["electric"], "power_kw": 135},
+                evidence={"brand": brand, "model": "COOPER E"})
+
+
+def test_a_brand_text_that_is_only_the_makes_name_names_no_model() -> None:
+    # "MINI" beside the model text "COOPER E" is the make. Read as the catalog's
+    # MINI it disagreed with the Cooper the model text names, and stopped the car.
+    evaluation = _mini().evaluate(_cooper_e("MINI"))
+
+    assert "model_source_evidence_conflict" not in evaluation.reason_codes
+    assert (evaluation.terminal, evaluation.top_candidate_reference) == ("resolved", "j01-e")
+
+
+def test_a_brand_text_that_names_another_model_still_disagrees() -> None:
+    evaluation = _mini().evaluate(_cooper_e("MINI COUNTRYMAN"))
+
+    assert evaluation.terminal == "review_required"
+    assert evaluation.reason_codes == ("model_source_evidence_conflict",)
+
+
 def _santa_fe_with_brand(brand: str) -> tuple[str, str | None]:
     evaluator = TecDocDryRunEvaluator((
         _ktype("cm", "HYUNDAI", "SANTA FÉ II (CM)", year_from=2005, year_to=2012, fuels=_PETROL, power_kw=128),

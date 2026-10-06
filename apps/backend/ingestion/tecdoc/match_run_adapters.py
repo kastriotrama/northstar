@@ -784,8 +784,20 @@ class TecDocDryRunEvaluator:
             stated = self._alias_index.recover_model_from_evidence(
                 scope_manufacturer, {"model": str(explicit_model)}, reading="legacy"
             )
-            brand_model = self._alias_index.recover_model_from_evidence(
-                scope_manufacturer, {"brand": str(source_evidence.get("brand") or "")}, reading="legacy"
+            # A brand text that is only the make's name names no model, even where
+            # the catalog calls a model by its make: "MINI" beside the model text
+            # "COOPER E" is the make, not the MINI (F56) that every Cooper differs from.
+            brand_text = str(source_evidence.get("brand") or "")
+            brand_model = (
+                None
+                if any(
+                    same_model_text(brand_text, str(make))
+                    for make in (manufacturer, scope_manufacturer)
+                    if make
+                )
+                else self._alias_index.recover_model_from_evidence(
+                    scope_manufacturer, {"brand": brand_text}, reading="legacy"
+                )
             )
             # A label shared by generations ("CEED" on CEE'D (JD) and CEED (CD)) is a
             # family, not one catalog model, so it is compared by family: with brand
