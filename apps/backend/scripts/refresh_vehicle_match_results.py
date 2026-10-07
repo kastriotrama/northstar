@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
 
 from api.app.core.settings import get_settings
 from api.app.features.vehicle_match_results.refresh import MatchResultRefresher, RefreshCounts
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--rebuild", action="store_true", help="Match every car again.")
     mode.add_argument("--sample", type=int, metavar="N", help="A seeded random N cars.")
     mode.add_argument("--vehicle", action="append", metavar="NOR-ID", help="Named cars; repeatable.")
+    mode.add_argument("--vehicles-from", type=Path, metavar="FILE",
+                      help="Named cars, one NOR ID per line: the cars a matcher change can reach.")
     parser.add_argument("--seed", default=SAMPLE_SEED, help="Seed of --sample.")
     parser.add_argument("--scope", default="passenger")
     parser.add_argument("--include-deregistered", action="store_true")
@@ -48,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--page-size", type=int, default=1000)
     parser.add_argument("--force", action="store_true",
-                        help="With --sample or --vehicle: match even cars that did not change.")
+                        help="With --sample, --vehicle or --vehicles-from: match even cars that "
+                             "did not change (after a matcher change they did not, the matcher did).")
     parser.add_argument("--matcher-version", default=None,
                         help="Stored on every row; defaults to the build version.")
     args = parser.parse_args(argv)
@@ -72,9 +76,12 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr, flush=True)
 
     registered_only = not args.include_deregistered
-    if args.vehicle:
+    named = args.vehicle or (
+        args.vehicles_from.read_text(encoding="utf-8").split() if args.vehicles_from else None
+    )
+    if named:
         counts = refresher.refresh_vehicles(
-            [value.strip().upper() for value in args.vehicle], force=args.force,
+            [value.strip().upper() for value in named], force=args.force,
             workers=args.workers, progress=progress,
         )
     elif args.sample:

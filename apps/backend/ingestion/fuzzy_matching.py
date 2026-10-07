@@ -19,8 +19,10 @@ from ingestion.tecdoc.engine_code_aliases import (
     engine_variant_family,
     engines_sharing_registry_name,
     maker_key,
+    registry_motor_family,
     type_name_shares_family,
 )
+from ingestion.tecdoc.power_equivalences import reviewed_power_equivalent
 
 MatchScope = Literal[
     "exact_manufacturer",
@@ -211,6 +213,12 @@ EXACT_ENGINE_RELATIONS: frozenset[str] = frozenset(
 #: car has, and a plug-in hybrid's list is left to the plug-in power decision.
 _LISTED_DRIVETRAINS = frozenset({"battery_electric", "range_extender"})
 _ELECTRIC_ONLY = frozenset({"ELECTRIC"})
+_FOUR_WHEEL_DRIVE = "awd"
+#: `missing_fields` entry of a veteran car's power that no candidate KType carries.
+_VETERAN_POWER = "power_kw_veteran_unverified"
+#: The rounding gap between the registry's power and TecDoc's
+#: (`FuzzyMatchConfig.power_tolerance_kw`), where the engine catalog reads power.
+_POWER_ROUNDING_KW = 2
 
 
 class EngineCodeCatalog:
@@ -304,6 +312,13 @@ class EngineCodeCatalog:
             # `LDD`): the same engine, but a reviewed table rather than the
             # KType's own code, so it never settles a candidate-only KType.
             return "engine_code_alias"
+        if (named := registry_motor_family(maker, code)) is not None and named in {
+            engine_code_family(listed, revision=False) for listed in candidate.engine_codes
+        }:
+            # The registry writes the motor family and no variant (Renault
+            # `5AQ-60` on Zoes whose KTypes carry `5AQ 601` and `5AQ 605`):
+            # family evidence on every KType of that family, and no conflict.
+            return "engine_code_family"
         if (
             engine_code_families(code, manufacturer) & candidate_forms
             or _engine_set_families(candidate.engine_codes, manufacturer) & query_forms
@@ -356,6 +371,8 @@ class EngineCodeCatalog:
             return unsplit
         listed = [engine_code_forms(part, manufacturer) for part in parts]
         if not all(forms & candidate_forms for forms in listed):
+            if self._one_listed_motor_of_a_four_wheel_drive(query, candidate, listed):
+                return "engine_code_family"
             return unsplit
         if self._list_names_the_drivetrain(query, candidate, listed):
             return "engine_code"
@@ -363,6 +380,39 @@ class EngineCodeCatalog:
         if not all(engine_code_forms(each, manufacturer) & named for each in candidate.engine_codes):
             return "engine_code_family"
         return "engine_code_list"
+
+    @staticmethod
+    def _one_listed_motor_of_a_four_wheel_drive(
+        query: VehicleMatchQuery, candidate: VehicleCandidate, listed: list[frozenset[str]]
+    ) -> bool:
+        """True when TecDoc lists one motor of a two-motor car that names both.
+
+        The exception to the strict list rule, and a narrow one: an electric
+        KType with a single code, that code among the car's, both four-wheel
+        drive, and the same power up to rounding (an EV9 AWD stands at 282 kW in
+        the registry, 283 in TecDoc). It is registered `EM18, EM16`; TecDoc gives
+        its four-wheel-drive KTypes `EM16` alone, as it gives the rear-drive ones. The code is then family evidence, never the exact
+        engine: drive and power are what name the KType. Proposed 2026-10-07;
+        awaiting the data owner's confirmation.
+        """
+
+        electric = candidate.electrification in _LISTED_DRIVETRAINS or (
+            candidate.electrification is None
+            and _normalized_values(candidate.fuels) == _ELECTRIC_ONLY
+        )
+        if not electric or len(candidate.engine_codes) != 1:
+            return False
+        only = engine_code_forms(next(iter(candidate.engine_codes)), candidate.manufacturer)
+        if not any(forms & only for forms in listed):
+            return False
+        four_wheel = _normalized_text(_FOUR_WHEEL_DRIVE)
+        return (
+            _normalized_text(query.drive_type or "") == four_wheel
+            and _normalized_text(candidate.drive_type or "") == four_wheel
+            and query.power_kw is not None
+            and candidate.power_kw is not None
+            and abs(query.power_kw - candidate.power_kw) <= _POWER_ROUNDING_KW
+        )
 
     def _unsplit_relation(self, code: str, candidate: VehicleCandidate) -> EngineRelation:
         """The relation a list has when read as one code, without any reviewed rule."""
@@ -760,6 +810,31 @@ class FuzzyMatchConfig:
     # horsepower figure (checked 100-700 hp); 1.2 also took plain 3 kW gaps
     # between engine versions (132/135, 139/142, 295/298).
     horsepower_unit_slack_kw: float = 1.01
+    # --- Proposals of 2026-10-07, in force pending the data owner's confirmation ---
+    # A battery electric car's registry power and TecDoc's are a few kW apart
+    # for one drivetrain (Toyota bZ4X 167 against 165 kW, C-HR+ 255 against 252,
+    # Zeekr 7X 475 against 470): more than `power_tolerance_kw` on a strong
+    # motor. A gap of up to this share of the KType's figure is unverified for a
+    # car and a KType that are both electric only: never a match, never a
+    # conflict. It costs `power_tolerance_penalty`, so a sibling with the exact
+    # figure stays 0.10 ahead. It holds only where that KType's figure is the
+    # one figure of its model that near: real variants are a few kW apart too
+    # (a Tesla Model Y at 255 and at 258 kW), and a car between two of them is
+    # neither's on power alone. 0 is off.
+    electric_power_tolerance: float = 0.02
+    # The reviewed pairs of `tecdoc.power_equivalences` (registry 270 kW is
+    # TecDoc's 280 kW on an Audi A6 e-tron) count as the same figure.
+    reviewed_power_equivalences: bool = True
+    # The registry's power for a car of the 1950s and 60s is no figure TecDoc
+    # lists (a Volvo Amazon stands at 55 kW; TecDoc knows 49, 59, 63 and 66): the
+    # two count horsepower by different standards. For a car built before this
+    # year a differing power is unverified -- never a match, never a conflict --
+    # with the usual penalty, and which KType it is rests on year, displacement
+    # and engine code. Only while no candidate KType carries the car's figure:
+    # where one does, exactly or within rounding, power decides as for any car.
+    # Without that condition every veteran that had resolved on its power tied
+    # with its siblings (38 of 50,000 sample cars lost). 0 is off.
+    veteran_power_before_year: int = 1975
     drive_match_bonus: float = 0.05
     drive_conflict_penalty: float = 0.15
     bodywork_match_bonus: float = 0.05
@@ -797,6 +872,10 @@ class FuzzyMatchConfig:
             raise ValueError("power_tolerance_kw must not be negative")
         if self.horsepower_unit_slack_kw < 0.0:
             raise ValueError("horsepower_unit_slack_kw must not be negative")
+        if not 0.0 <= self.electric_power_tolerance <= 0.1:
+            raise ValueError("electric_power_tolerance must be between 0.0 and 0.1")
+        if self.veteran_power_before_year < 0:
+            raise ValueError("veteran_power_before_year must not be negative")
         effects = (
             self.model_series_conflict_penalty,
             self.phonetic_match_bonus,
@@ -1447,6 +1526,13 @@ class ManufacturerCandidateIndex:
                         ).add(candidate.model)
         self._all = tuple(sorted(by_reference.values(), key=lambda item: item.candidate_reference))
         self._engines = EngineCodeCatalog(self._all)
+        powers: dict[tuple[str, str], set[int]] = {}
+        for candidate in self._all:
+            if candidate.power_kw is not None:
+                powers.setdefault(
+                    (_normalized_text(candidate.manufacturer), _normalized_text(candidate.model)), set()
+                ).add(candidate.power_kw)
+        self._model_powers = {key: frozenset(values) for key, values in powers.items()}
         self._by_manufacturer_key = {
             key: tuple(sorted(values.values(), key=lambda item: item.candidate_reference))
             for key, values in by_manufacturer_key.items()
@@ -1473,6 +1559,24 @@ class ManufacturerCandidateIndex:
         """
 
         return self._engines.knows(code, manufacturer)
+
+    def only_power_near(self, candidate: VehicleCandidate, power_kw: int, share: float) -> bool:
+        """True when this KType's power is the only figure of its model near `power_kw`.
+
+        Near is within `share` of the KType's own figure. Two KTypes of one model
+        a few kW apart are two drivetrains (a Tesla Model Y at 255 and at 258 kW),
+        and a car between them is neither's by that alone.
+        """
+
+        if candidate.power_kw is None:
+            return False
+        key = (_normalized_text(candidate.manufacturer), _normalized_text(candidate.model))
+        near = {
+            power
+            for power in self._model_powers.get(key, frozenset())
+            if abs(power - power_kw) <= share * power
+        }
+        return near == {candidate.power_kw}
 
     def engine_relation(
         self, query: VehicleMatchQuery, candidate: VehicleCandidate
@@ -1759,6 +1863,36 @@ class FuzzyVehicleMatcher:
             for candidate, match in zip(candidates, baseline, strict=True)
             if match.confidence >= self._config.candidate_threshold
         ]
+        # A veteran's power says nothing only while it is no plausible KType's
+        # figure (a Volvo Amazon at 55 kW beside KTypes of 49, 59, 63 and 66).
+        # Where a KType the car could be does carry its power, exactly or within
+        # rounding, the registry and TecDoc count alike for this car, and the
+        # other KTypes contradict it as they always did: otherwise a sibling
+        # 20 kW off that fits the year better ties with the KType the power names.
+        veteran_power = not any(
+            candidate.power_kw is not None
+            and "power_kw" not in match.conflicting_fields
+            and _VETERAN_POWER not in match.missing_fields
+            for candidate, match in plausible
+        )
+        if not veteran_power and any(_VETERAN_POWER in match.missing_fields for _, match in plausible):
+            plausible = [
+                (
+                    candidate,
+                    self._score(
+                        query, candidate, bodywork_discriminates=False, month_lines=frozenset(),
+                        veteran_power=False,
+                    )
+                    if _VETERAN_POWER in match.missing_fields
+                    else match,
+                )
+                for candidate, match in plausible
+            ]
+            plausible = [
+                (candidate, match)
+                for candidate, match in plausible
+                if match.confidence >= self._config.candidate_threshold
+            ]
         # Unit weight produces identical scores in both passes. Avoid repeated
         # scoring without changing bodywork conflicts or their normal penalty.
         needs_bodywork_rescore = bool(
@@ -1800,6 +1934,7 @@ class FuzzyVehicleMatcher:
                 self._score(
                     query, candidate, bodywork_discriminates=rescore_bodywork,
                     month_lines=None if match.conflicting_fields else month_lines,
+                    veteran_power=veteran_power,
                 )
                 for candidate, match in plausible
             ]
@@ -1946,6 +2081,7 @@ class FuzzyVehicleMatcher:
         *,
         bodywork_discriminates: bool = True,
         month_lines: frozenset[str] | None = None,
+        veteran_power: bool = True,
     ) -> FuzzyCandidateMatch:
         query_model = _normalized_text(query.model)
         query_tokens = frozenset(query_model.split())
@@ -2143,11 +2279,29 @@ class FuzzyVehicleMatcher:
             elif query.power_kw == candidate.power_kw:
                 matched_fields.append("power_kw")
                 context_effect += self._config.power_match_bonus
+            elif (
+                self._config.reviewed_power_equivalences
+                and query_fuels == candidate_fuels == _ELECTRIC_ONLY
+                and reviewed_power_equivalent(
+                    candidate.manufacturer, candidate.model, query.power_kw
+                ) == candidate.power_kw
+            ):
+                # One electric drivetrain under its two figures (rated in the
+                # registry, peak in TecDoc): a reviewed pair, so the same power.
+                matched_fields.append("power_kw")
+                context_effect += self._config.power_match_bonus
             elif abs(query.power_kw - candidate.power_kw) <= self._config.power_tolerance_kw:
                 # Within rounding noise: unverified, so neither a match nor a
                 # contradiction. The mild penalty keeps an exactly matching
                 # k-type clear of the automatic margin instead of tying with it.
                 missing_fields.append("power_kw")
+                context_effect -= self._config.power_tolerance_penalty
+            elif query_fuels == candidate_fuels == _ELECTRIC_ONLY and self._index.only_power_near(
+                candidate, query.power_kw, self._config.electric_power_tolerance
+            ):
+                # An electric drivetrain quoted a few kW apart by the two sources,
+                # and no other KType of the model near the car's figure.
+                missing_fields.append("power_kw_electric_unverified")
                 context_effect -= self._config.power_tolerance_penalty
             elif (
                 query.power_kw < candidate.power_kw
@@ -2177,6 +2331,16 @@ class FuzzyVehicleMatcher:
                 # the reviewed US makers and never with electricity, where a
                 # 1.4% gap separates real variants.
                 missing_fields.append("power_kw_horsepower_unit_unverified")
+                context_effect -= self._config.power_tolerance_penalty
+            elif (
+                veteran_power
+                and query.year is not None
+                and query.year < self._config.veteran_power_before_year
+            ):
+                # Horsepower counted by another standard: the registry's figure
+                # for a car this old is none of TecDoc's, so it says nothing.
+                # `match` takes this back where a candidate does carry the figure.
+                missing_fields.append(_VETERAN_POWER)
                 context_effect -= self._config.power_tolerance_penalty
             else:
                 conflicting_fields.append("power_kw")

@@ -279,7 +279,7 @@ def test_the_same_gap_on_any_other_maker_stays_a_conflict(manufacturer: str) -> 
 @pytest.mark.parametrize(
     ("car_fuels", "ktype_fuels"),
     [
-        (frozenset({"electric"}), frozenset({"electric"})),  # Mustang Mach-E style
+        # An electric-only pair is decided by the electric tolerance (test_power_proposals).
         (frozenset({"electricity"}), frozenset({"electricity"})),  # unaligned registry spelling
         (frozenset({"petrol", "electric"}), frozenset({"petrol"})),
         (frozenset({"petrol"}), frozenset({"hybrid_petrol"})),

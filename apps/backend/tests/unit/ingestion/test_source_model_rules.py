@@ -73,7 +73,10 @@ def test_exact_source_scope_and_cache_do_not_leak(changes):
 
 
 def test_ambiguous_ktype_and_candidate_only_are_not_promoted_by_a_family_rule():
-    assert evaluator(catalog(candidate_only=True)).evaluate(record()).terminal == "provisional"
+    # Accepting a candidate-only KType as a car's only fit is its own rule, switched
+    # off here: the family rule alone never promotes one.
+    held = evaluator(catalog(candidate_only=True), accept_sole_candidate_only=False)
+    assert held.evaluate(record()).terminal == "provisional"
     twins = (*catalog(), replace(catalog()[1], candidate_reference="3"))
     result = evaluator(twins).evaluate(record())
     assert result.terminal == "review_required"

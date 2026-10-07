@@ -89,6 +89,32 @@ def engine_code_spellings(maker: str, code: str) -> frozenset[str]:
     return frozenset()
 
 
+# --- Registry codes that name a motor family and no variant (family evidence) --
+
+# Renault's electric motors: the registry writes the family and a two-digit
+# figure (`5AQ-60`, `5AQ-80`), TecDoc the family and a three-digit index
+# (`5AQ 601`, `5AQ 605`, `5AQ 607`). The registry's figure is no cut-off index:
+# `5AQ-60` stands on Zoes of 65, 68 and 80 kW alike, whose KTypes carry 601 and
+# 605, and `5AQ-80` on the 100 kW cars, whose KType carries 605 too. So the
+# registry names the motor family and the car's power says which KType it is
+# (each Zoe KType has its own). Proposed 2026-10-07 from 8,917 Zoes stopped on
+# the engine code; awaiting the data owner's confirmation.
+_REGISTRY_MOTOR_FAMILIES: dict[str, tuple[re.Pattern[str], ...]] = {
+    "RENAULT": (re.compile(r"^(5A[A-Z])-\d{2}$"),),
+}
+
+
+@lru_cache(maxsize=250_000)
+def registry_motor_family(maker: str, code: str) -> str | None:
+    """The motor family a registry code names without saying which variant: `5AQ-60` -> 5AQ."""
+
+    text = code.upper().strip()
+    for pattern in _REGISTRY_MOTOR_FAMILIES.get(maker, ()):
+        if named := pattern.match(text):
+            return named.group(1)
+    return None
+
+
 # --- Families: a variant and the family it belongs to (family evidence) --------
 
 # Each pattern keeps the family in group 1. A family is compatible only with a

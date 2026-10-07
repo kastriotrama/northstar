@@ -597,8 +597,14 @@ class TecDocDryRunEvaluator:
         bodywork_alignment: FuelAlignment | None = None,
         context_policy: ContextComparisonPolicy | None = None,
         source_model_policy: ReviewedSourceModelPolicy | None = None,
+        accept_sole_candidate_only: bool = True,
     ) -> None:
         config = FuzzyMatchConfig()
+        # Whether a candidate-only KType that is the only one a car fits is its
+        # match. Proposed 2026-10-07, in force pending the data owner's
+        # confirmation; on held-out cars with a known KType see
+        # docs/vehicle-match-decisions.md.
+        self._accept_sole_candidate_only = accept_sole_candidate_only
         self._fuel_alignment = fuel_alignment
         self._drive_alignment = drive_alignment
         self._context_policy = context_policy or ContextComparisonPolicy()
@@ -1171,6 +1177,16 @@ class TecDocDryRunEvaluator:
                 # TecDoc could not settle which engine this KType has; the
                 # car's own engine code is one of its engines, which settles it.
                 match_reasons.add("candidate_only_engine_confirmed")
+            elif (
+                terminal == "resolved"
+                and self._accept_sole_candidate_only
+                and _the_only_fit(match_result)
+            ):
+                # Which engine the KType has is still open, but it is the only
+                # KType the car does not contradict, and every gate that would
+                # resolve an approved KType is met. A reason of its own, so
+                # these matches can be listed and checked.
+                match_reasons.add("candidate_only_sole_fit")
             else:
                 match_reasons.add("candidate_only_not_graph_safe")
                 if terminal == "resolved":
@@ -1353,6 +1369,13 @@ def _only_by_export_name(value: str, top: FuzzyCandidateMatch) -> bool:
     return any(
         same_model_text(value, name) for name in REVIEWED_EXPORT_NAMES.get((maker, family), ())
     ) and not any(same_model_text(value, name) for name in (top.model, *tecdoc_model_aliases(top.model)))
+
+
+def _the_only_fit(match_result: Any) -> bool:
+    """The selected KType is the only candidate the car contradicts on nothing."""
+
+    fitting = [candidate for candidate in match_result.candidates if not candidate.conflicting_fields]
+    return len(fitting) == 1 and fitting[0] is match_result.candidates[0]
 
 
 def _engine_confirms(query: ResolvedMatchQuery, match_result: Any) -> bool:
