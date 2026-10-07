@@ -2,6 +2,42 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-07 — Six matching decisions, as proposals in force (branch feature/matching-decisions, on feature/ais-make-codes)
+
+- Six rulings a stakeholder owns, each switchable and marked `claude-proposal-2026-10-07`: (1) a
+  candidate-only KType that is the car's only fit, with every routing gate met, is its match (reason
+  `candidate_only_sole_fit`); (2) a registry MPV fits a TecDoc SUV (a row in `core.tecdoc_resolution_rules`,
+  not code); (3) reviewed pairs of rated and peak power for six electric models
+  (`tecdoc/power_equivalences.py`) and a 2 % power tolerance for electric cars where the KType's figure is
+  the only one of its model that near; (4) Renault `5AQ-60` names the motor family; (5) one listed motor
+  on a four-wheel-drive electric KType is family evidence (Kia EV9); (6) a car built before 1975 is not
+  contradicted by its power while no plausible KType carries the figure. Details and switches:
+  `docs/vehicle-match-decisions.md`. Stakeholder wording: the shared document "Vehicle matching: six
+  decisions needed".
+- Reference check for (1): 20,000 cars with an engine-confirmed candidate-only KType, engine code hidden:
+  11,094 accepted, all to the known KType.
+- Impact reports on the full local register: seeded 30k 70.8 % -> 73.8 % (+908, 0 lost, 0 moved); random
+  20k 70.7 % -> 73.6 % (+578, 0 lost, 0 moved). Matched control groups kept every match.
+- All 1,173,607 cars the decisions can reach were matched again (`refresh_vehicle_match_results
+  --vehicles-from <file> --force`, new option; 3 h 6 min with 6 workers): 191,834 gained, 0 lost, 2 moved
+  (both from a model's van KType to its SUV KType). Register resolved 70.80 % -> 73.79 %; cars AIS added
+  43.56 % -> 55.16 %. By decision: 146,822 / about 20,000 / 8,671 / 8,825 / 0 (6,579 to several) / 7,195
+  (32,147 to several).
+- Vehicles tab: the breakdown counts and lists the cars matched as the only fit ("Matched - to check",
+  `resolved_only_fit` in the overview).
+- Validation: 3,665 backend tests pass in one run (1 expected failure), ruff and mypy clean; web 228 tests
+  pass, build clean.
+- Analysis of the 1.05M cars with several KTypes (not acted on): about 275,000 hybrids tie because the
+  registry's engine power and TecDoc's system power cannot be compared (learning it from matched cars
+  settles only about 7,500 safely; the fix is the engine's own power in the catalog); about 170,000
+  petrol / diesel cars tie on model or year alone (Passat estate, V60 Cross Country, BMW 1 Series);
+  29,500 tie on KTypes that differ in nothing compared (Kia Niro 20,000).
+- Not pushed, not on live. Live gets this as a new slice of the local full database after the work done
+  on live since the last switch is carried over; whether the six decisions go live before the
+  stakeholders confirm is the user's call.
+- Local snapshots: `public.match_results_after_final_20261007` (before the decisions) and
+  `match_results_after_decisions_20261007`.
+
 ## 2026-10-07 — AIS cars: names divided, hybrid type and engine codes from the cars alike, two matcher fixes (branch feature/ais-make-codes)
 
 - Matcher: a brand text that is only the make's name ("MINI") is no longer read as a catalog model in the
@@ -265,26 +301,3 @@ Keep the latest 10 task entries only.
 - Validation: unit suite 2446 passed + 1 expected xfail; builder integration 41 passed (dump/restore through
   the Postgres container); ruff and mypy clean; 500k dry run on `app`: 4.69 GB, 499,516 TS records, 30k
   sample contained. Next: `--size 2000` rehearsal with `--commit`, then the 500k build. Not built yet.
-
-## 2026-10-02 — Batch B: model names, engine codes, tolerances, parsers, promotion gates (local, measured)
-
-- Model names (matcher side): registry spelling of catalog names (CEE'D -> CEED, SANTA FÉ -> SANTA FE,
-  Å/Ä/Ö kept), reviewed export names (Golf Plus, New Beetle, ID. Buzz, CC, e-Citigo, Pagode, Sovereign,
-  Duett, Scenic E-Tech), glued Mazda numbers, SEAT -> CUPRA; model-vs-brand gate compares by family
-  (Pro Cee'd is no Cee'd); a rule-inferred model reached only through an export name needs power or an
-  engine code to resolve.
-- Engine codes: one relation (`engine_relation`): BMW TU marker and replaced type codes per engine head,
-  Saab `/letter`, Mercedes number forms, maker-scoped families (never exact), reviewed alias table
-  (`tecdoc/engine_code_aliases.py`, completeness check), strict comma lists, 204PT shared by two engines.
-- Tolerances: cc within 3 is unverified, not a conflict (never over an exact-cc sibling held back only by
-  its engine code); hp/PS gap (1.01 kW slack) for US makes; Mazda rotary doubled cc; a rounded cc or unit
-  gap needs one exact figure beside it.
-- Code only, no effect until re-normalization / a new catalog batch: tyre and type-approval parsers;
-  promotion gates for single-motor EVs, Table 155 from-only displacement, Petrol/Gas vehicle fuel.
-- Measured vs guards-v4: 30k 19,479 -> 20,289 (67.6%; +829, -19, 4 moved), 20k 12,977 -> 13,543 (67.7%;
-  +583, -17, 4 moved). Lost are honest ties (V70 II/III 1 cc apart, Ceed 2018, Clubman FWD/ALL4, S60
-  T26/T26P) or were wrong (Megane Scenic on a Megane van); moves are Ceed CD -> JD by build month, a 2017
-  Santa Fe -> Grand Santa Fé, a 2008 XC70 -> XC70 II. 7 baseline ties resolved, each on new evidence.
-- Validation: unit 2,385 passed (Golf Variant test fails on purpose), ruff, mypy; three adversarial reviews.
-- Next: 500k live pilot (random registered passenger cars, built locally, loaded onto live); the wrong-fill
-  data step still has to be run by the user (scratch wave1_data.sh).
