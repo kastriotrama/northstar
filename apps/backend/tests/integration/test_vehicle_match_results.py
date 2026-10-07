@@ -392,9 +392,16 @@ def test_the_overview_counts_every_car_and_names_the_causes(db: Connection, worl
     assert [(f.field, f.cars) for f in overview.several_missing_fields] == [("drive_type", 1)]
     assert [(f.field, f.cars) for f in overview.none_conflicting_fields] == [("power_kw", 1)]
     assert overview.none_without_candidates == 0
+    assert overview.resolved_only_fit == 0
     assert {item.value: item.cars for item in overview.terminals} == {
         "resolved": 1, "review_required": 1, "hard_conflict": 1,
     }
+    # A car matched to a candidate-only KType as its only fit is counted on its own.
+    db.execute(
+        "UPDATE core.vehicle_match_results SET reason_codes = reason_codes || ARRAY['candidate_only_sole_fit'] "
+        "WHERE state = 'resolved'"
+    )
+    assert world.service.overview(VehicleFilter()).resolved_only_fit == 1
     assert overview.latest_run is not None
     assert (overview.latest_run.status, overview.latest_run.evaluated) == ("completed", 3)
     assert [(v.value, v.cars) for v in overview.matcher_versions] == [("build-1", 3)]

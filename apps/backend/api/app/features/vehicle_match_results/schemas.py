@@ -95,6 +95,9 @@ class MatchResultOverview(BaseModel):
     none_conflicting_fields: list[FieldCount]
     #: `none`: cars for which the matcher found no candidate at all.
     none_without_candidates: int
+    #: `resolved`: cars matched to a candidate-only KType because it is the only
+    #: KType they fit (reason `candidate_only_sole_fit`): matches to audit.
+    resolved_only_fit: int = 0
     #: Why `not_matchable` cars never reached matching.
     not_matchable_reasons: list[ReasonCount]
     #: Cars whose stored result may be out of date: the vehicle changed after

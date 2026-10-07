@@ -93,6 +93,9 @@ Everything is in Vehicles, Cars: there is no Matching tab.
   the list's own matching clauses, so picking a state never hides the others.
 - "What stands between the open cars and one KType" opens the breakdown (read
   only then). Each of its counts narrows the list to exactly those cars.
+  Its section "Matched — to check" counts the matched cars whose KType is
+  candidate-only and was accepted as the only KType they fit
+  (`docs/vehicle-match-decisions.md`).
 - The KType column shows a person's choice, else the accepted KType, else the
   first two possible KTypes with "+N" (all of them, with confidence, in the
   tooltip), else the state.

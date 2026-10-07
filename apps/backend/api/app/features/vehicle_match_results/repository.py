@@ -76,6 +76,10 @@ CAR_FIELDS: tuple[str, ...] = (
 )
 
 
+#: The matcher's reason on a car matched to a candidate-only KType because it is
+#: the only KType the car fits. Those matches are counted and listed on their own.
+ONLY_FIT_REASON = "candidate_only_sole_fit"
+
 class ConnectionFactory(Protocol):
     def __call__(self) -> AbstractContextManager[Connection[Any]]: ...
 
@@ -155,6 +159,9 @@ class MatchResultRepository:
                 UNION ALL
                 SELECT 'none_without_candidates', '', count(*) FROM cars
                 WHERE state = 'none' AND best_candidate_ktype IS NULL
+                UNION ALL
+                SELECT 'resolved_only_fit', '', count(*) FROM cars
+                WHERE state = 'resolved' AND reason_codes @> ARRAY['{ONLY_FIT_REASON}']
                 """,
                 predicate.parameters,
             ).fetchall()
@@ -179,6 +186,7 @@ class MatchResultRepository:
             "not_matchable_reasons": ranked("not_matchable_reasons"),
             "changed_since_matched": single("changed_since_matched"),
             "none_without_candidates": single("none_without_candidates"),
+            "resolved_only_fit": single("resolved_only_fit"),
             "catalog_batches": ranked("catalog_batches"),
             "matcher_versions": ranked("matcher_versions"),
             "latest_run": run,

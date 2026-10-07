@@ -159,6 +159,7 @@ class MatchResultService:
             several_missing_fields=_fields(counts["several_missing_fields"]),
             none_conflicting_fields=_fields(counts["none_conflicting_fields"]),
             none_without_candidates=counts["none_without_candidates"],
+            resolved_only_fit=counts["resolved_only_fit"],
             not_matchable_reasons=[
                 ReasonCount(reason=reason, cars=cars)
                 for reason, cars in counts["not_matchable_reasons"]

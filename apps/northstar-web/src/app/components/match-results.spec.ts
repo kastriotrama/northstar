@@ -188,6 +188,7 @@ describe('MatchResults', () => {
     click(fixture, 'Cars conflicting on power');
     click(fixture, 'Cars not matchable because: model_evidence_missing');
     click(fixture, 'Cars with 5+ possible KTypes');
+    click(fixture, 'Cars matched to the only KType that fits');
 
     expect(causes.map(({ state: of, field, value }) => [of, field, value])).toEqual([
       ['several', 'match_missing_field', 'engine_code'],
@@ -195,6 +196,7 @@ describe('MatchResults', () => {
       ['none', 'match_conflicting_field', 'power_kw'],
       ['not_matchable', 'match_reason', 'model_evidence_missing'],
       ['several', 'match_candidate_count', '5'],
+      ['resolved', 'match_reason', 'candidate_only_sole_fit'],
     ]);
     expect(causes[0].label).toBe('the car has no engine code');
   });

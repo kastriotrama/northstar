@@ -1397,6 +1397,8 @@ export interface MatchResultOverview {
   several_missing_fields: Array<{ field: string; cars: number }>;
   none_conflicting_fields: Array<{ field: string; cars: number }>;
   none_without_candidates: number;
+  /** Matched cars whose KType is candidate-only and was accepted as the only KType they fit. */
+  resolved_only_fit: number;
   not_matchable_reasons: Array<{ reason: string; cars: number }>;
   /** Cars whose vehicle changed after it was matched: the stored result may be out of date. */
   changed_since_matched: number;

@@ -212,6 +212,25 @@ interface Loaded<T> {
             </section>
 
             <section class="gap">
+              <h4>Matched — to check</h4>
+              @if (o.resolved_only_fit) {
+                <div class="reason">
+                  <span [title]="reason(onlyFit)">the only KType that fits, not yet approved</span>
+                  <button
+                    type="button"
+                    class="link"
+                    aria-label="Cars matched to the only KType that fits"
+                    (click)="narrow('resolved', 'match_reason', onlyFit, 'matched to the only KType that fits')"
+                  >
+                    {{ o.resolved_only_fit | number }}
+                  </button>
+                </div>
+              } @else {
+                <p class="muted">None.</p>
+              }
+            </section>
+
+            <section class="gap">
               <h4>Matcher outcome</h4>
               @for (item of o.terminals; track item.value) {
                 <div class="reason">
@@ -438,6 +457,9 @@ export class MatchResults {
         this.tick.update((value) => value + 1);
       });
   }
+
+  /** The matcher's reason on a car matched to a candidate-only KType as its only fit. */
+  protected readonly onlyFit = 'candidate_only_sole_fit';
 
   protected onToggle(event: Event): void {
     this.opened.set((event.target as HTMLDetailsElement).open);
