@@ -91,6 +91,10 @@ MATCHER_FIELDS: tuple[str, ...] = (
     "drive_type",
     "bodywork_form",
     "fuel_match_tokens",
+    # Whether a hybrid charges from the grid sets a plug-in KType apart from a
+    # full or mild hybrid of the same model. A car AIS added has it from a rule,
+    # on the vehicle alone.
+    "electrification_type",
 )
 
 
