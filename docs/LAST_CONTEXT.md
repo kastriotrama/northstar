@@ -2,6 +2,46 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-07 — AIS cars: names divided, hybrid type and engine codes from the cars alike, two matcher fixes (branch feature/ais-make-codes)
+
+- Matcher: a brand text that is only the make's name ("MINI") is no longer read as a catalog model in the
+  check between model text and brand text. Every car it can touch (19,558 of MINI and Daimler): 59 gained,
+  0 lost, 0 moved; the 30k and random 20k samples: no change.
+- Name division applied locally (`repair-ais-vehicles --write`): 120,763 AIS vehicles got a model text.
+  With the matcher fix: 1,380 gained, 41 lost (17 of them V60 Cross Country that had resolved to the plain
+  V60), 0 moved. AIS cars stopped before matching: 20,169 -> 11,800.
+- Hybrid type (`ELT-GC`, `ELT-VINP`, `ELT-ENG`, `ELT-VAR`, learner "electrification"): the registry states
+  a hybrid in a field AIS does not have, and AIS gives a hybrid that does not charge no second fuel. 263,458
+  fills locally (12,363 on registry cars with electricity and no stated type); 96,732 AIS cars were hidden
+  hybrids and also got electricity as second fuel and the hybrid's fuel tokens. On held-out registry cars
+  the keys were right for 99.96-99.99 %. Result: 13,195 gained, 2,108 lost, 1 moved.
+- Matcher input: `electrification_type` is now among the vehicle fields handed to the matcher
+  (`MATCHER_FIELDS`); a car AIS added had it on the vehicle only. Samples: +4 / -15 (30k), +2 / -14 (20k),
+  0 moved; every lost car was a mild hybrid resolved to a plug-in KType or the reverse.
+- Engine code where the older families are silent: `ENG-VINP` (now with the build year) and `ENG-MP`:
+  16,922 fills locally. Mostly electric Volvo EX40 and Polestar 2 / 4 whose one KType the motor code confirms.
+- Displacement fills (`CCM-*`) were built, measured and removed: 784 gained, 2,306 lost. Right for 99.9 %
+  of the registry cars that state a displacement, wrong often enough for the cars that lack one (a Nissan
+  Almera 1.6 learned as 1,332 cc). 443,054 fills taken back locally.
+- Whole AIS work against the baseline of 2026-10-06, local full database: AIS cars 28,223 gained, 2,462
+  lost, 9 moved; registry cars 950 gained, 50 lost, 6 moved. Resolved: register 70.39 % -> 70.80 %, AIS
+  cars 39.6 % -> 43.6 %; AIS cars stopped before matching 53,756 -> 11,800. The lost AIS cars are mostly
+  wrong matches the hybrid type now prevents (Cupra Terramar 1,276, Cupra Leon 1,245, VW Tiguan 849,
+  Hyundai Tucson 303) and mild hybrids that are tied as their registry twins are (Mercedes CLA / GLA).
+- Validation: 3,622 backend tests pass in one run (1 expected failure), ruff clean, mypy clean.
+- Open, each needs a decision or reviewed knowledge, not code alone: power on veteran cars (about 40,000:
+  Volvo Amazon / PV, Saab 99 / 900, Mustang) and on electric cars (about 15,000 AIS: Audi A6 e-tron,
+  Toyota bZ4X; partly 2025-26 variants the catalog lacks); Peugeot 2008 / 3008 / 5008 body (10,500 AIS, the
+  pending MPV / SUV ruling); Renault Zoe engine codes (8,900: "5AQ-60" against "5AQ 601 / 605"); Kia EV9
+  with two motor codes (5,100); the candidate-only decision (Polestar and others, about 74,000 AIS cars
+  with one KType not accepted). Battery electric AIS cars still carry no hybrid type (no effect on matching).
+- Local snapshots: `public.match_results_baseline_20261006` and `match_results_after_{makecode,names,
+  hybrid,gaps,final}_20261007`; row backups `ais_make_code_before_20261006`, `ais_names_before_20261007`.
+- Not pushed, not on live. On live the order is: deploy, `learn-vehicle-rules --family TSC-BT --family
+  ELT-GC --family ELT-VINP --family ELT-ENG --family ELT-VAR --family ENG-VINP --family ENG-MP --activate`,
+  `repair-ais-vehicles --write`, `check-model-fills --retract`, `apply-vehicle-rules`, then a rebuild of the
+  stored match results (two matcher changes).
+
 ## 2026-10-06 — AIS cars: make code and name read right, and the cars already created repaired (branch feature/ais-make-codes)
 
 - Cause found: the AIS export writes the registry's make code (two characters, three for newer makes) and
@@ -248,19 +288,3 @@ Keep the latest 10 task entries only.
 - Validation: unit 2,385 passed (Golf Variant test fails on purpose), ruff, mypy; three adversarial reviews.
 - Next: 500k live pilot (random registered passenger cars, built locally, loaded onto live); the wrong-fill
   data step still has to be run by the user (scratch wave1_data.sh).
-
-## 2026-10-02 — Wave 1 (precision first): matcher guards measured; wrong-fill guard ready (local, uncommitted)
-
-- Non-tie diagnosis (21 agents, 20k): 3,859 unresolved non-tie cars explained; ~935 resolvable by code/data,
-  ~500 more by stakeholder decisions, ~490 genuine non-matches; ties stay manual (user decision).
-- Matcher guards (`fuzzy_matching`, `match_run_adapters`): plug-in power lead, electrification conflict
-  (TecDoc engine type 046-049 vs registry), conflict-free suggestion over a hard conflict (inside the
-  registry family), reading disagreements (IONIQ 5 -> 6, V60 vs V60 CROSS COUNTRY), no fall-through to
-  another reading once a guard held one back. Measured vs final-v4: 30k 19,640 -> 19,479 (-161),
-  20k 13,079 -> 12,977 (-102); 0 gained, 0 moved; every lost car is a wrong match before except 3 V60 CC
-  B5 and 1 Lexus CT the registry calls a plug-in. Chunk SIGNATURE_VERSION 3.
-- Wrong-fill guard (`vehicle_model_guard`, patterns, rule eras): reviewed rule by rule; dry run takes back
-  20,845 wrong fills (EX30 CC 13,929, MAZDA2->CX-3 2,727, CC->Passat 1,113, 230->SL 801, Sportage->Sorento
-  710...). The data step (retire 96 changed rules, learn/apply/check, refill ~19.3k) awaits user approval;
-  model families snapshot in scratch. Caravelle/Multivan naming pending.
-- Validation: unit 1,895 passed (Golf Variant test fails on purpose), integration 189 passed, ruff, mypy.
