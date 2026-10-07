@@ -304,6 +304,7 @@ def test_vehicle_core_commands_are_registered(capsys: CaptureFixture[str]) -> No
         "import-ais-vin-export",
         "learn-vehicle-rules",
         "apply-vehicle-rules",
+        "repair-ais-vehicles",
     ):
         assert command in output
 
@@ -318,6 +319,11 @@ def test_vehicle_core_backfill_parser_is_resumable() -> None:
 def test_ais_import_requires_a_file() -> None:
     with pytest.raises(SystemExit):
         build_parser().parse_args(["import-ais-vin-export"])
+
+
+def test_repairing_ais_vehicles_is_a_dry_run_unless_told_to_write() -> None:
+    assert build_parser().parse_args(["repair-ais-vehicles"]).write is False
+    assert build_parser().parse_args(["repair-ais-vehicles", "--write"]).write is True
 
 
 def test_learning_rules_is_a_dry_run_unless_activated() -> None:

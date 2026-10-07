@@ -97,8 +97,9 @@ would outrank the September 2026 AIS export on every `newest` field.
 | --- | --- |
 | `migrate-vehicle-core` | Schema plus contract check. Runs on every deploy (`infra/production/deploy.sh`). |
 | `backfill-vehicle-core` | Walks the per-plate TS survivors in `vehicle_facts`, then links the other TS copies of each car by plate (722k rows from repeated batches). Resumable (`--since`) and idempotent: a re-run changes nothing. Re-running it after a re-normalization is how TS changes reach the vehicles. Disk-guarded. |
-| `import-ais-vin-export --file …` | Streams the 16 GB STEP XML once per extract. It matches each record by VIN, or by chassis number plus plate for old cars, then merges it by policy. It marks deregistrations, moves plates, handles A-traktor conversions (a changed vehicle type makes the old EU category stale) and corrected VINs. Changed fuel, gearbox and body codes are re-normalized through the real pipeline. Active passenger cars TS never had are completed with the completion rules, normalized and minted. One run per extract (claimed in `ingest_job_runs`): importing the same file again does nothing. |
-| `learn-vehicle-rules [--activate]` | Learns the 13 rule families (below) from `core.vehicles`. Without `--activate` it is a dry run that only prints counts. |
+| `import-ais-vin-export --file …` | Streams the 16 GB STEP XML once per extract. It matches each record by VIN, or by chassis number plus plate for old cars, then merges it by policy. It marks deregistrations, moves plates, handles A-traktor conversions (a changed vehicle type makes the old EU category stale) and corrected VINs. Changed fuel, gearbox and body codes are re-normalized through the real pipeline. Active passenger cars TS never had are completed with the completion rules, normalized and minted. Two things about the export's own notation: its group code is the registry's make code (two characters, or three for the newer makes: `POL` Polestar, `CUA` Cupra, `LYO` Lynk & Co) and the six-digit group number run together, so it is split from its end; and its car name is the registry's brand text followed by its model text ("CUPRA" + "BORN 150 KW 58/62 KWH"), so where the group's rules do not give both, the name is divided at the brand text. One run per extract (claimed in `ingest_job_runs`): importing the same file again does nothing. |
+| `repair-ais-vehicles [--write]` | Describes the AIS-created vehicles again where an earlier import read their record wrongly: a make code cut after two characters ("POL021900" read as make `PO`, group `L021900`), or a name not divided into brand and model text. It rebuilds the record from what the vehicle still holds, merges only the fields that description decides, and leaves alone what a rule, a reviewer or a person has supplied since. The normalization status is replaced only when the stored values explain the status the vehicle carries. Dry run without `--write`; a second run changes nothing. Run `learn-vehicle-rules --family TSC-BT --activate` first, and `apply-vehicle-rules`, `check-model-fills` and the match-result refresh after. |
+| `learn-vehicle-rules [--activate]` | Learns the rule families (below) from `core.vehicles`. Without `--activate` it is a dry run that only prints counts. |
 | `apply-vehicle-rules` | Fills gaps from the active enrichment rules. The model families need `--catalog-batch`: their fills are checked by the model guard. |
 | `check-model-fills` | Checks every rule-filled model against the car's own model word; `--retract` takes back the contradicted ones. |
 | TS data screen rules | Applying or retiring a resolution rule updates the linked vehicles in the same transaction (`vehicle_core_review`), so a rule is never visible on the TS record and missing on the car. |
@@ -114,9 +115,31 @@ version, which does not scale to ~368k rules.
   by make + variant + version (`ENG-VV`), by make + group code (`ENG-GC`), and by
   make + type + displacement + power + fuel (`ENG-TP`); model year (`MY-VB`); max
   weight (`MW-VV`); length (`LEN-VV`).
+- **Gap fill from the cars alike** (98 % agreement, at least 5 cars):
+  - Engine code where the three families above are silent: by manufacturer + VIN
+    characters 1-8 + power + fuel + build year (`ENG-VINP`), and by make + model +
+    fuel + power + displacement + build year (`ENG-MP`). Learned from AIS.
+  - Displacement is not filled this way. Four keys were tried and measured on the
+    full register: right for 99.9 % of the registry cars that state a
+    displacement, but 1.5-3 % of the cars they filled lost a correct match. The
+    cars that state one are not a fair sample of the cars that lack one.
+  - Hybrid type (`ELT-GC`, `ELT-VINP`, `ELT-ENG`, `ELT-VAR`). The registry says in
+    a field of its own whether a petrol or diesel car is a hybrid or a plug-in
+    hybrid. The AIS export has no such field and gives a hybrid that does not
+    charge from the grid no second fuel, so such a car AIS added reads as a plain
+    petrol car and cannot meet a hybrid KType. These families learn from the
+    registry's hybrids, plug-in hybrids and cars that are neither (a key whose
+    cars are no hybrids has no rule). A fill is made only where the registry is
+    silent: a car AIS added, or a registry car with electricity as second fuel and
+    no stated type; a plug-in only where the car's fuels already include
+    electricity. On a car without a second fuel the fill also sets electricity as
+    that fuel and the hybrid's fuel tokens, marked with the same rule; retiring
+    the rule takes all three back, and the tokens the car had return.
 - **Completion** (learned from TS, keyed by make + group code, complete the cars
   AIS adds): EU category, registry brand/model/type text, variant, displacement,
-  4WD flag (`TSC-*`).
+  4WD flag (`TSC-*`). `TSC-BT` is keyed differently: one rule per brand text the
+  registry writes beside a model text, by make code (at least 20 cars). It says
+  where an AIS car name of an unknown group divides into brand and model.
 - **Drive layout** (`DRV-MY`, reviewed, not learned): which axle a car drives when
   the registry says it is not four-wheel drive. The registry only says "four-wheel
   drive: yes/no"; front or rear follows from the model. The table in

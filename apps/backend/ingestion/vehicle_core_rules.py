@@ -30,6 +30,7 @@ import hashlib
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Literal, Protocol
 
 from psycopg import Connection
@@ -68,6 +69,9 @@ PATTERN_SOURCE = "reviewed-pattern"
 STATISTICS_FAMILY_OF_PATTERNS = "MOD-BT"
 #: The family that learns which brand-text words name which make.
 MAKE_WORD_FAMILY = "MFR-BW"
+
+#: The family that lists the brand texts the registry writes for a make code.
+BRAND_TEXT_FAMILY = "TSC-BT"
 
 #: The family that states a two-wheel-drive car's driven axle from the reviewed table.
 DRIVE_LAYOUT_FAMILY = "DRV-MY"
@@ -109,7 +113,11 @@ class RuleFamily:
     #: "reviewed": stated by a reviewed table (`vehicle_drive_layouts`), key by key.
     #: "drive_evidence": learned from the cars alike that carry a real drive type,
     #: whatever source gave it.
-    learner: Literal["statistics", "patterns", "reviewed", "drive_evidence"] = "statistics"
+    #: "electrification": learned from the registry's own statement of whether a
+    #: combustion car is a hybrid, a plug-in hybrid or neither.
+    learner: Literal[
+        "statistics", "patterns", "reviewed", "drive_evidence", "electrification"
+    ] = "statistics"
     #: Values of the target that count as empty for this family: a generic value
     #: the family's own, more specific one replaces.
     replaces: tuple[str, ...] = ()
@@ -149,6 +157,13 @@ KEY_EXPRESSIONS: dict[str, str] = {
     # The brand text's first word, the make as the registry writes it ("POLESTAR" in
     # "POLESTAR POLESTAR 4", "VOLKSWAGEN" in "VOLKSWAGEN, VW").
     "brand_make_word": f"NULLIF(substring({_BRAND} from '^[^ ,&/+]+'), '')",
+    # A brand text the registry writes beside a model text: the make's own name
+    # ("VOLVO", "VOLKSWAGEN, VW"). Older records put make and model in the brand
+    # text ("VOLVO V70") and have no model text; those are not this key.
+    "brand_beside_model": (
+        "CASE WHEN btrim({alias}registry_model_text) <> '' "
+        f"THEN {_BRAND} END"
+    ),
     # The registry's own model text ("EX40", "FIAT TIPO"), as the model families read it.
     "model_text": (
         "CASE WHEN btrim({alias}registry_model_text) <> '' "
@@ -186,6 +201,32 @@ def key_sql(field: str, alias: str = "") -> str:
     return f"({expression.format(alias=prefix)})" if expression else f"{prefix}{field}"
 
 
+#: What the hybrid-type families learn from: the registry's petrol and diesel cars,
+#: each a hybrid, a plug-in hybrid, or neither ("none": no hybrid type and no
+#: second fuel). A car with electricity as second fuel and no stated type is
+#: left out: the registry did not say which it is.
+NOT_A_HYBRID = "none"
+_ELECTRIFICATION_VALUE = f"coalesce(electrification_type, '{NOT_A_HYBRID}')"
+_ELECTRIFICATION_TRAINING = (
+    "fuel IN ('petrol', 'diesel') AND ("
+    "electrification_type IN ('hybrid', 'plug_in_hybrid') "
+    "OR (electrification_type IS NULL AND fuel_secondary IS NULL))"
+)
+#: Which cars a hybrid-type rule may fill. Only where the registry is silent: a car
+#: AIS added, or a registry car with electricity as second fuel and no stated type
+#: -- a registry car with neither is one the registry says is no hybrid. And a
+#: plug-in only where the car's own fuels already include electricity.
+_ELECTRIFICATION_GUARD = (
+    "v.fuel IN ('petrol', 'diesel') "
+    "AND (v.fuel_secondary IS NULL OR v.fuel_secondary = 'electricity') "
+    f"AND (v.origin_source <> '{SOURCE_TS}' OR v.fuel_secondary = 'electricity') "
+    "AND (r.value = 'hybrid' OR v.fuel_secondary = 'electricity')"
+)
+#: What a hybrid type implies on a car that carries no second fuel: electricity as
+#: that fuel, and the tokens a hybrid KType is compared on. Filled, and taken
+#: back, together with the type.
+IMPLIED_BY_HYBRID_TYPE: tuple[str, ...] = ("fuel_secondary", "fuel_match_tokens")
+
 # Order matters within a target: a more specific key is tried first, so the engine
 # code comes from variant + version before falling back to the group code.
 RULE_FAMILIES: tuple[RuleFamily, ...] = (
@@ -196,6 +237,27 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
     RuleFamily("ENG-TP", "engine_code",
                ("registry_make_code", "registry_type_code", "displacement_cc", "power_kw", "fuel"),
                SOURCE_AIS, "enrichment", "Engine code by make, type, displacement, power and fuel"),
+    # Where the three above are silent, the cars alike by VIN or by model, of the
+    # same build year: a model keeps its VIN characters and a power figure across
+    # an engine change (a 47 kW Golf diesel was the 1Y, then the AEY). An engine
+    # code confirms a KType, so these are held to the higher bar.
+    #
+    # Displacement is not filled this way. It was tried (by variant and version,
+    # by engine code and power, by VIN, by model): right for 99.9 % of the
+    # registry cars that state one, and wrong often enough for the cars that do
+    # not that 1.5-3 % of them lost a correct match -- the cars stating a
+    # displacement are not a fair sample of the cars lacking one.
+    RuleFamily("ENG-VINP", "engine_code",
+               ("manufacturer", "vin_descriptor", "power_kw", "fuel", "production_year"),
+               SOURCE_AIS, "enrichment",
+               "Engine code by manufacturer, VIN characters 1-8, power, fuel and build year",
+               min_agreement=0.98),
+    RuleFamily("ENG-MP", "engine_code",
+               ("manufacturer", "model_family", "fuel", "power_kw", "displacement_cc",
+                "production_year"),
+               SOURCE_AIS, "enrichment",
+               "Engine code by make, model, fuel, power, displacement and build year",
+               min_agreement=0.98),
     RuleFamily("MY-VB", "model_year",
                ("registry_make_code", "registry_vehicle_year", "production_year", "production_month"),
                SOURCE_AIS, "enrichment", "Model year by make, vehicle year and build month"),
@@ -203,8 +265,9 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                SOURCE_AIS, "enrichment", "Max weight by make, variant and version"),
     RuleFamily("LEN-VV", "length_mm", ("registry_make_code", "variant_code", "version_code"),
                SOURCE_AIS, "enrichment", "Length by make, variant and version"),
-    # AIS sends its own make codes for newer makes ("PO" is Pontiac in TS, Polestar in
-    # AIS): the brand text's first word names the make where the code cannot.
+    # The brand text's first word names the make where the make code does not: a
+    # make the reviewed rules do not know by its code, or a code read wrongly (the
+    # AIS import once cut "POL", Polestar, to "PO", Pontiac).
     RuleFamily("MFR-BW", "manufacturer", ("brand_make_word",),
                SOURCE_TS, "enrichment", "Manufacturer by the brand text's first word",
                min_support=10, min_agreement=0.98),
@@ -295,6 +358,33 @@ RULE_FAMILIES: tuple[RuleFamily, ...] = (
                "Drive type by manufacturer and VIN characters 1-8",
                min_support=8, min_agreement=0.98, learner="drive_evidence",
                replaces=("2wd",), guard=_DRIVE_GUARD),
+    # Whether a petrol or diesel car is a hybrid. The registry says so in a field
+    # of its own (ELHYBRID, LADDHYBRID); the AIS export has no such field, and it
+    # gives a hybrid that does not charge from the grid no second fuel either, so a
+    # RAV4 Hybrid AIS added reads as a plain petrol car. The registry's cars alike
+    # say what it is. Most specific key first; a key whose cars disagree states
+    # nothing, and a key whose cars are no hybrids has no rule.
+    RuleFamily("ELT-GC", "electrification_type", ("registry_make_code", "group_code"),
+               SOURCE_TS, "enrichment", "Hybrid type by make and group code",
+               min_agreement=0.98, learner="electrification", guard=_ELECTRIFICATION_GUARD),
+    RuleFamily("ELT-VINP", "electrification_type", ("manufacturer", "vin_descriptor", "power_kw"),
+               SOURCE_TS, "enrichment", "Hybrid type by manufacturer, VIN characters 1-8 and power",
+               min_agreement=0.98, learner="electrification", guard=_ELECTRIFICATION_GUARD),
+    RuleFamily("ELT-ENG", "electrification_type",
+               ("manufacturer", "model_family", "engine_code", "power_kw"),
+               SOURCE_TS, "enrichment", "Hybrid type by make, model, engine code and power",
+               min_agreement=0.98, learner="electrification", guard=_ELECTRIFICATION_GUARD),
+    RuleFamily("ELT-VAR", "electrification_type", ("registry_make_code", "variant_code"),
+               SOURCE_TS, "enrichment", "Hybrid type by make and variant",
+               min_agreement=0.98, learner="electrification", guard=_ELECTRIFICATION_GUARD),
+    # The AIS export names a car by the registry's brand text and model text in a
+    # row ("VOLVO" + "EX30"). Where the car's group is new to us, the brand texts the
+    # registry writes for the make say where the name divides. One rule per text.
+    RuleFamily(BRAND_TEXT_FAMILY, "registry_brand_text",
+               ("registry_make_code", "brand_beside_model"),
+               SOURCE_TS, "completion",
+               "Brand texts the registry writes beside a model text, by make code",
+               min_support=20),
     RuleFamily("TSC-EU", "eu_category", ("registry_make_code", "group_code"),
                SOURCE_TS, "completion", "EU category by make and group code"),
     RuleFamily("TSC-BRAND", "registry_brand_text", ("registry_make_code", "group_code"),
@@ -351,9 +441,16 @@ def learn_statement(family: RuleFamily) -> str:
     # The drive evidence families take a value from whoever gave it; the others
     # learn from one source (the statement's first parameter).
     evidence = _DRIVE_EVIDENCE_FILTER if family.learner == "drive_evidence" else f"{source} = %s"
+    value, stated = f"{family.target_field}::text", ""
+    if family.learner == "electrification":
+        # A car that is no hybrid is evidence too: it has no type to count, so
+        # "none" stands for it here, and a key that comes out as "none" is no rule.
+        not_null = " AND ".join(f"{key_sql(field)} IS NOT NULL" for field in family.key_fields)
+        evidence = f"{evidence} AND {_ELECTRIFICATION_TRAINING}"
+        value, stated = _ELECTRIFICATION_VALUE, f" AND value <> '{NOT_A_HYBRID}'"
     return f"""
         WITH training AS (
-            SELECT {keys}, {family.target_field}::text AS value
+            SELECT {keys}, {value} AS value
             FROM {VEHICLES_TABLE}
             WHERE {not_null} AND {evidence}
         ),
@@ -368,7 +465,7 @@ def learn_statement(family: RuleFamily) -> str:
         )
         SELECT ARRAY[{key_names}], value, n::int, total::int
         FROM ranked
-        WHERE rank = 1 AND total >= %s AND n >= %s * total
+        WHERE rank = 1 AND total >= %s AND n >= %s * total{stated}
     """
 
 
@@ -876,9 +973,11 @@ def apply_rules(
     # not stay on the cars it filled.
     retracted = (
         retract_retired_fills(connection, family)
-        if family.learner in ("reviewed", "drive_evidence")
+        if family.learner in ("reviewed", "drive_evidence", "electrification")
         else 0
     )
+    if family.learner == "electrification":
+        return _apply_hybrid_type(connection, family, source_batch_id, retracted)
     sql_type = FIELDS_BY_NAME[target].sql_type
     cast = {"integer": "::integer", "smallint": "::smallint", "boolean": "::boolean"}.get(sql_type, "")
     key_match = " AND ".join(
@@ -929,6 +1028,94 @@ def apply_rules(
     return ApplySummary(family.family, filled=len(rows), retracted=retracted)
 
 
+def _apply_hybrid_type(
+    connection: Connection, family: RuleFamily, source_batch_id: str | None, retracted: int
+) -> ApplySummary:
+    """Fill the hybrid type, and on a car without a second fuel what the type implies.
+
+    One UPDATE, like `apply_rules`. A hybrid AIS added carries its combustion fuel
+    alone; with the type it gets electricity as second fuel and the hybrid's fuel
+    tokens, each marked with the same rule. The tokens it had stay behind the new
+    ones, so retiring the rule puts them back.
+    """
+
+    key_match = " AND ".join(
+        f"{key_sql(field, 'v')}::text = r.key_values[{index + 1}]"
+        for index, field in enumerate(family.key_fields)
+    )
+    implied = "v.fuel_secondary IS NULL"
+    rule = "'rule:' || r.rule_id"
+    # The source a value has now, written as `merge` writes one it puts behind another.
+    present_source = (
+        "coalesce(v.field_sources ->> 'fuel_match_tokens', v.origin_source "
+        "|| coalesce('@' || to_char(v.origin_observed_on, 'YYYY-MM-DD'), ''))"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(f"ANALYZE {VEHICLE_ENRICHMENT_RULES_TABLE}")
+        cursor.execute(
+            f"""
+            WITH filled AS (
+                UPDATE {VEHICLES_TABLE} AS v
+                SET electrification_type = r.value,
+                    fuel_secondary = CASE WHEN {implied} THEN 'electricity' ELSE v.fuel_secondary END,
+                    fuel_match_tokens = CASE WHEN {implied}
+                        THEN ARRAY[v.fuel, 'electricity', 'hybrid_' || v.fuel]
+                        ELSE v.fuel_match_tokens END,
+                    field_sources = v.field_sources
+                        || jsonb_build_object('electrification_type', {rule})
+                        || CASE WHEN {implied}
+                            THEN jsonb_build_object('fuel_secondary', {rule},
+                                                    'fuel_match_tokens', {rule})
+                            ELSE '{{}}'::jsonb END,
+                    field_alternatives = CASE WHEN {implied} AND v.fuel_match_tokens IS NOT NULL
+                        THEN v.field_alternatives || jsonb_build_object(
+                            'fuel_match_tokens',
+                            coalesce(v.field_alternatives -> 'fuel_match_tokens', '[]'::jsonb)
+                            || jsonb_build_array(jsonb_build_object(
+                                'source', {present_source},
+                                'value', to_jsonb(v.fuel_match_tokens))))
+                        ELSE v.field_alternatives END,
+                    updated_at = now()
+                FROM {VEHICLE_ENRICHMENT_RULES_TABLE} AS r
+                WHERE r.rule_family = %s AND r.status = 'active'
+                  AND v.electrification_type IS NULL
+                  AND {key_match} AND {family.guard}
+                RETURNING v.vehicle_id, r.rule_id, r.value, r.agreement,
+                          v.fuel_secondary = 'electricity' AND v.field_sources ->> 'fuel_secondary' = {rule}
+            )
+            SELECT * FROM filled
+            """,
+            (family.family,),
+        )
+        rows = cursor.fetchall()
+    record_ledger_rows(
+        connection,
+        [
+            LedgerRow(
+                event_id=ledger_event_id("rule", str(rule_id), str(vehicle_id)),
+                source=SOURCE_RULE,
+                target_node_id=str(vehicle_id),
+                attributes_added=(
+                    ("electrification_type", *IMPLIED_BY_HYBRID_TYPE)
+                    if with_implied
+                    else ("electrification_type",)
+                ),
+                confidence=float(agreement),
+                evidence={"electrification_type": {"to": value, "rule_id": rule_id}},
+                source_batch_id=source_batch_id or str(rule_id),
+            )
+            for vehicle_id, rule_id, value, agreement, with_implied in rows
+        ],
+    )
+    return ApplySummary(family.family, filled=len(rows), retracted=retracted)
+
+
+def _fields_of(target: str) -> tuple[str, ...]:
+    """The fields a rule's fill sits on: its target, and what that target implied."""
+
+    return (target, *IMPLIED_BY_HYBRID_TYPE) if target == "electrification_type" else (target,)
+
+
 def retract_retired_fills(connection: Connection, family: RuleFamily) -> int:
     """Take back what the family's retired rules filled; a rule still active keeps its fills.
 
@@ -953,7 +1140,8 @@ def retract_retired_fills(connection: Connection, family: RuleFamily) -> int:
         page = dict(fills[start : start + _RETRACT_PAGE])
         states = load_vehicles(connection, list(page))
         for vehicle_id, state in states.items():
-            retract(state, target, SOURCE_RULE, page[vehicle_id])
+            for name in _fields_of(target):
+                retract(state, name, SOURCE_RULE, page[vehicle_id])
         save_vehicles(connection, states.values())
     return len(fills)
 
@@ -1277,7 +1465,8 @@ def retire_rule(connection: Connection, rule_id: str) -> int:
         vehicle_ids = [str(r[0]) for r in cursor.fetchall()]
     states = load_vehicles(connection, vehicle_ids)
     for state in states.values():
-        retract(state, target, SOURCE_RULE, rule_id)
+        for name in _fields_of(target):
+            retract(state, name, SOURCE_RULE, rule_id)
     save_vehicles(connection, states.values())
     return len(states)
 
@@ -1287,12 +1476,40 @@ def retire_rule(connection: Connection, rule_id: str) -> int:
 
 @dataclass(frozen=True)
 class CompletionRules:
-    """Active completion rules by family, keyed by (make code, group code)."""
+    """Active completion rules by family and key, each as (value, rule id)."""
 
     rules: Mapping[str, Mapping[tuple[str, ...], tuple[str, str]]]
 
     def lookup(self, family: str, key: tuple[str, ...]) -> tuple[str, str] | None:
         return self.rules.get(family, {}).get(key)
+
+    @cached_property
+    def _brand_texts(self) -> dict[str, list[tuple[str, str, str]]]:
+        by_make: dict[str, list[tuple[str, str, str]]] = {}
+        for (make_code, text), (value, rule_id) in self.rules.get(BRAND_TEXT_FAMILY, {}).items():
+            by_make.setdefault(make_code, []).append((text.casefold(), value, rule_id))
+        for texts in by_make.values():
+            texts.sort(key=lambda entry: (len(entry[0]), entry[0]))
+        return by_make
+
+    def brand_text_of(self, make_code: str | None, name: str | None) -> tuple[str, str] | None:
+        """The registry's brand text a car name starts with, as (brand text, rule id).
+
+        Only a name that goes on after the brand text has one: what follows is the
+        model. Of several texts the shortest is the make's own name ("TOYOTA", not
+        "TOYOTA RAV4"), which is how the registry divides the two today.
+        """
+
+        folded = " ".join((name or "").split()).casefold()
+        for text, value, rule_id in self._brand_texts.get(make_code or "", ()):
+            if folded.startswith(f"{text} "):
+                return value, rule_id
+        return None
+
+    def without(self, family: str) -> CompletionRules:
+        """These rules as they were before `family` existed."""
+
+        return CompletionRules({name: rules for name, rules in self.rules.items() if name != family})
 
 
 def load_completion_rules(connection: Connection) -> CompletionRules:

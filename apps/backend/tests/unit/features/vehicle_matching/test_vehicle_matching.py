@@ -302,11 +302,25 @@ def test_a_corrected_fuel_replaces_the_carriers_and_the_tokens_together() -> Non
     assert overlaid == {"fuel": "correction"}
 
 
-def test_electrification_reaches_the_matcher_only_through_a_correction() -> None:
-    """The vehicle's own column is not laid over a car: that would change every car's input."""
+def test_the_vehicles_hybrid_type_is_laid_over_only_where_it_says_something_new() -> None:
+    """A car AIS added has its hybrid type on the vehicle alone, from a rule.
 
-    assert "electrification_type" not in MATCHER_FIELDS
+    A registry car's own record already states the type the vehicle carries, so
+    laying the same value over changes nothing the matcher is handed.
+    """
+
+    assert "electrification_type" in MATCHER_FIELDS
     derived = {"electrification_type": "plug_in_hybrid"}
+    merged, overlaid = overlay_vehicle(
+        dict(derived), {"electrification_type": "plug_in_hybrid"}, {}, "transportstyrelsen"
+    )
+    assert (merged, overlaid) == (derived, {})
+    merged, overlaid = overlay_vehicle(
+        {}, {"electrification_type": "hybrid"}, {"electrification_type": "rule:ELT-GC-1"}, "ais"
+    )
+    assert (merged, overlaid) == (
+        {"electrification_type": "hybrid"}, {"electrification_type": "rule"})
+
 
     merged, overlaid, _ = overlay_corrections(derived, {}, {"electrification_type": _set("hybrid")})
     assert (merged, overlaid) == (

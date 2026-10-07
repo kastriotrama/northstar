@@ -115,3 +115,4 @@ def _vehicle_id(connection: Connection, plate: str) -> str:
     with connection.cursor() as cursor:
         cursor.execute("SELECT vehicle_id FROM core.vehicles WHERE plate = %s", (plate,))
         return str(cursor.fetchone()[0])
+
