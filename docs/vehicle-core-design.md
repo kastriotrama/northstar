@@ -117,13 +117,12 @@ version, which does not scale to ~368k rules.
   weight (`MW-VV`); length (`LEN-VV`).
 - **Gap fill from the cars alike** (98 % agreement, at least 5 cars):
   - Engine code where the three families above are silent: by manufacturer + VIN
-    characters 1-8 + power + fuel (`ENG-VINP`), and by make + model + fuel + power +
-    displacement + build year (`ENG-MP`). Learned from AIS.
-  - Displacement, which 1.15M registry records of combustion cars lack: by make +
-    variant + version (`CCM-VV`), manufacturer + engine code + power (`CCM-ENG`),
-    manufacturer + VIN characters 1-8 + power + fuel (`CCM-VINP`), make + model +
-    fuel + power + build year (`CCM-MP`). Learned from TS; never filled on a battery
-    electric car.
+    characters 1-8 + power + fuel + build year (`ENG-VINP`), and by make + model +
+    fuel + power + displacement + build year (`ENG-MP`). Learned from AIS.
+  - Displacement is not filled this way. Four keys were tried and measured on the
+    full register: right for 99.9 % of the registry cars that state a
+    displacement, but 1.5-3 % of the cars they filled lost a correct match. The
+    cars that state one are not a fair sample of the cars that lack one.
   - Hybrid type (`ELT-GC`, `ELT-VINP`, `ELT-ENG`, `ELT-VAR`). The registry says in
     a field of its own whether a petrol or diesel car is a hybrid or a plug-in
     hybrid. The AIS export has no such field and gives a hybrid that does not
