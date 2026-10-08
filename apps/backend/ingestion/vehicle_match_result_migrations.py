@@ -26,6 +26,8 @@ _RESULTS_NAME = "vehicle_match_results"
 _RUNS_NAME = "vehicle_match_runs"
 VEHICLE_MATCH_RESULTS_TABLE = f"{CORE_SCHEMA_NAME}.{_RESULTS_NAME}"
 VEHICLE_MATCH_RUNS_TABLE = f"{CORE_SCHEMA_NAME}.{_RUNS_NAME}"
+#: Counts over many cars, kept so a screen does not count the register on every look.
+VEHICLE_MATCH_SUMMARIES_TABLE = f"{CORE_SCHEMA_NAME}.vehicle_match_summaries"
 
 #: Where the matcher ended for a car, as the overview counts it.
 #: `resolved`: it accepted one KType. `several`: two or more KTypes conflict
@@ -226,9 +228,27 @@ CREATE TABLE IF NOT EXISTS {VEHICLE_MATCH_RESULTS_TABLE} (
 )
 """
 
+# A stored count is a copy, not a record: any row can be thrown away and is
+# counted again on the next look. `data_token` says what the runs table looked
+# like when the cars were counted, so a look can tell the copy is behind.
+_CREATE_SUMMARIES = f"""
+CREATE TABLE IF NOT EXISTS {VEHICLE_MATCH_SUMMARIES_TABLE} (
+  kind TEXT NOT NULL,
+  filter_key TEXT NOT NULL,
+  filter JSONB NOT NULL,
+  payload JSONB NOT NULL,
+  data_token TEXT NOT NULL,
+  computed_at TIMESTAMPTZ NOT NULL,
+  took_ms INTEGER NOT NULL,
+  CONSTRAINT vehicle_match_summaries_pkey PRIMARY KEY (kind, filter_key),
+  CONSTRAINT vehicle_match_summaries_took_nonnegative CHECK (took_ms >= 0)
+)
+"""
+
 VEHICLE_MATCH_RESULT_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("create_vehicle_match_runs_table", _CREATE_RUNS.strip()),
     ("create_vehicle_match_results_table", _CREATE_RESULTS.strip()),
+    ("create_vehicle_match_summaries_table", _CREATE_SUMMARIES.strip()),
     # The car lists page one state in NOR ID order.
     (
         "create_vehicle_match_results_state_index",
@@ -250,6 +270,16 @@ VEHICLE_MATCH_RESULT_MIGRATIONS: tuple[tuple[str, str], ...] = (
         (
             "CREATE INDEX IF NOT EXISTS vehicle_match_results_candidates_idx "
             f"ON {VEHICLE_MATCH_RESULTS_TABLE} USING gin (candidate_ktypes)"
+        ),
+    ),
+    # The twin of `vehicles_match_overview_idx`: the state counts and the search
+    # for out-of-date rows read a result's state and time from the index alone.
+    # A performance index, not part of the contract.
+    (
+        "create_vehicle_match_results_overview_index",
+        (
+            "CREATE INDEX IF NOT EXISTS vehicle_match_results_overview_idx "
+            f"ON {VEHICLE_MATCH_RESULTS_TABLE} (vehicle_id) INCLUDE (state, evaluated_at)"
         ),
     ),
 )

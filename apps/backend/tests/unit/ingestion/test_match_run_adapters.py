@@ -314,30 +314,53 @@ def test_evaluator_attaches_a_rule_scoped_to_the_ts_manufacturer_name_to_the_cat
     assert "match:phonetic_candidate_requires_review" not in evaluation.reason_codes
 
 
-def test_evaluator_never_reports_candidate_only_ktype_as_resolved() -> None:
-    evaluator = TecDocDryRunEvaluator(
-        (
-            VehicleCandidate(
-                "candidate-only-1",
-                "Volvo",
-                "V60",
-                candidate_type="TecDocKTypeCandidateOnly",
-            ),
-        )
+def _only_a_candidate_only_v60(**options: object) -> TecDocDryRunEvaluator:
+    return TecDocDryRunEvaluator(
+        (VehicleCandidate("candidate-only-1", "Volvo", "V60", candidate_type="TecDocKTypeCandidateOnly"),),
+        **options,  # type: ignore[arg-type]
     )
 
-    evaluation = evaluator.evaluate(
-        MatchSourceRecord(
-            1,
-            {
-                "normalization_status": "resolved",
-                "normalized": {"manufacturer": "Volvo", "model_family": "V60"},
-            },
-        )
-    )
+
+_A_V60 = MatchSourceRecord(
+    1, {"normalization_status": "resolved", "normalized": {"manufacturer": "Volvo", "model_family": "V60"}}
+)
+
+
+def test_a_candidate_only_ktype_that_is_the_cars_only_fit_is_its_match() -> None:
+    evaluation = _only_a_candidate_only_v60().evaluate(_A_V60)
+
+    assert evaluation.terminal == "resolved"
+    assert evaluation.top_candidate_reference == "candidate-only-1"
+    # A reason of its own: these matches can be listed and checked.
+    assert "candidate_only_sole_fit" in evaluation.reason_codes
+    assert "candidate_only_not_graph_safe" not in evaluation.reason_codes
+
+
+def test_accepting_the_only_fit_can_be_switched_off() -> None:
+    evaluation = _only_a_candidate_only_v60(accept_sole_candidate_only=False).evaluate(_A_V60)
 
     assert evaluation.terminal == "provisional"
     assert "candidate_only_not_graph_safe" in evaluation.reason_codes
+
+
+def test_a_candidate_only_ktype_is_not_accepted_beside_another_that_fits() -> None:
+    # Two KTypes the car contradicts on nothing, the second 2 kW off: the first wins
+    # the margin, but it is not the only fit, so which engine it has stays open.
+    def v60(reference: str, power_kw: int) -> VehicleCandidate:
+        return VehicleCandidate(reference, "Volvo", "V60", candidate_type="TecDocKTypeCandidateOnly",
+                                year_from=2018, fuels=frozenset({"diesel"}), power_kw=power_kw)
+
+    evaluator = TecDocDryRunEvaluator((v60("exact", 140), v60("near", 142)))
+    car = MatchSourceRecord(1, {"normalization_status": "resolved", "normalized": {
+        "manufacturer": "Volvo", "model_family": "V60", "production_year": 2019,
+        "fuel_match_tokens": ["diesel"], "power_kw": 140}})
+
+    evaluation = evaluator.evaluate(car)
+
+    assert evaluation.top_candidate_reference == "exact"
+    assert evaluation.terminal == "provisional"
+    assert "candidate_only_not_graph_safe" in evaluation.reason_codes
+    assert "candidate_only_sole_fit" not in evaluation.reason_codes
 
 
 def _candidate_only_evaluation(engine_code: str | None, *, fingerprint: bool = False):  # type: ignore[no-untyped-def]
@@ -380,21 +403,24 @@ def test_the_cars_own_engine_code_confirms_a_candidate_only_ktype() -> None:
     assert "candidate_only_not_graph_safe" not in evaluation.reason_codes
 
 
-@pytest.mark.parametrize(
-    ("engine_code", "fingerprint"),
-    [
-        (None, False),  # no engine code: nothing confirms
-        ("XYZ999", False),  # a code no KType carries: unverified
-        (None, True),  # a reviewed fingerprint's inference is not the car's own code
-    ],
-)
-def test_a_candidate_only_ktype_without_engine_confirmation_stays_provisional(
-    engine_code: str | None, fingerprint: bool
-) -> None:
-    evaluation = _candidate_only_evaluation(engine_code, fingerprint=fingerprint)
+def test_a_code_no_ktype_carries_keeps_a_candidate_only_ktype_provisional() -> None:
+    # The engine code is unverified, so routing holds the car before any acceptance.
+    evaluation = _candidate_only_evaluation("XYZ999")
 
     assert evaluation.terminal == "provisional"
     assert "candidate_only_not_graph_safe" in evaluation.reason_codes
+
+
+@pytest.mark.parametrize("fingerprint", [False, True])
+def test_without_an_engine_code_the_only_fit_is_accepted_but_never_as_engine_confirmed(
+    fingerprint: bool,
+) -> None:
+    # A reviewed fingerprint's inference is not the car's own code: it confirms nothing.
+    evaluation = _candidate_only_evaluation(None, fingerprint=fingerprint)
+
+    assert evaluation.terminal == "resolved"
+    assert "candidate_only_sole_fit" in evaluation.reason_codes
+    assert "candidate_only_engine_confirmed" not in evaluation.reason_codes
 
 
 def test_tecdoc_model_aliases_strip_chassis_code_and_generation_numeral() -> None:
@@ -748,7 +774,8 @@ def test_an_agreeing_or_unknown_electrification_changes_nothing(registered: str,
 def test_the_electrification_check_sends_a_provisional_car_to_review_too() -> None:
     evaluator = TecDocDryRunEvaluator((VehicleCandidate("330i", "BMW", "330I", fuels=frozenset({"petrol"}),
                                                         candidate_type="TecDocKTypeCandidateOnly",
-                                                        electrification="combustion"),))
+                                                        electrification="combustion"),),
+                                      accept_sole_candidate_only=False)
     car = {"manufacturer": "BMW", "model_family": "330I", "fuel_match_tokens": _HYBRID}
 
     assert evaluator.evaluate(_car(car)).terminal == "provisional"
@@ -1510,8 +1537,9 @@ def test_a_registry_duett_is_the_duett_its_year_and_power_name() -> None:
 
     assert _outcome(evaluator, duett(1965, 55)) == ("resolved", "p210-b18")
     assert _outcome(evaluator, duett(1958, 44)) == ("resolved", "p445")
-    # The name adds no tolerance: a 50 kW car still contradicts the 55 kW KType.
-    assert _outcome(evaluator, duett(1965, 50))[0] == "hard_conflict"
+    # The name adds no tolerance. A car this old is not contradicted by its power
+    # (counted by another standard), but a 50 kW car is no match for the 55 kW KType.
+    assert _outcome(evaluator, duett(1965, 50))[0] == "review_required"
     # 1960 is both Duetts' year, with the same 44 kW: a tie, never the P 210 by its name.
     tie = evaluator.evaluate(duett(1960, 44))
     assert tie.terminal == "review_required"

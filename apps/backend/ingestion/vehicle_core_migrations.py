@@ -312,6 +312,20 @@ def _migrations() -> tuple[tuple[str, str], ...]:
             ),
         )
     )
+    # Counting every car by its match state joins each vehicle to its stored result.
+    # At the size of the full register that read both tables end to end; with what
+    # the join needs carried in the index (and its twin on the results) it reads
+    # the two indexes only. A performance index, not an invariant.
+    statements.append(
+        (
+            "create_vehicles_match_overview_index",
+            (
+                "CREATE INDEX IF NOT EXISTS vehicles_match_overview_idx "
+                f"ON {VEHICLES_TABLE} (vehicle_id) "
+                "INCLUDE (vehicle_scope, registry_status, match_state, updated_at)"
+            ),
+        )
+    )
     return tuple(statements)
 
 

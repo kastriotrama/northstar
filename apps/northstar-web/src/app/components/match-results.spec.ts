@@ -188,6 +188,7 @@ describe('MatchResults', () => {
     click(fixture, 'Cars conflicting on power');
     click(fixture, 'Cars not matchable because: model_evidence_missing');
     click(fixture, 'Cars with 5+ possible KTypes');
+    click(fixture, 'Cars matched to the only KType that fits');
 
     expect(causes.map(({ state: of, field, value }) => [of, field, value])).toEqual([
       ['several', 'match_missing_field', 'engine_code'],
@@ -195,6 +196,7 @@ describe('MatchResults', () => {
       ['none', 'match_conflicting_field', 'power_kw'],
       ['not_matchable', 'match_reason', 'model_evidence_missing'],
       ['several', 'match_candidate_count', '5'],
+      ['resolved', 'match_reason', 'candidate_only_sole_fit'],
     ]);
     expect(causes[0].label).toBe('the car has no engine code');
   });
@@ -244,6 +246,32 @@ describe('MatchResults', () => {
       expect(refreshed).toBe(1);
       await vi.advanceTimersByTimeAsync(9000);
       http.expectNone(COUNTS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('says when the cars were counted and reads the new count once it is there', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { fixture } = render();
+      // A kept count of every car, behind since cars were matched: a new one is on its way.
+      await counts(
+        fixture,
+        countsFixture({ counted_at: '2026-10-08T09:30:00', updating: true }),
+      );
+      expect(text(fixture)).toContain('counted 09:30');
+      expect(text(fixture)).toContain('counting again');
+      expect(state(fixture, 'Resolved').textContent).toContain('7,016');
+
+      await vi.advanceTimersByTimeAsync(4100);
+      await counts(
+        fixture,
+        countsFixture({ total: 9000, counted_at: '2026-10-08T09:31:00', updating: false }),
+      );
+      expect(text(fixture)).toContain('All 9,000 cars of this filter, counted 09:31');
+      expect(text(fixture)).not.toContain('counting again');
+      await vi.advanceTimersByTimeAsync(9000);
+      TestBed.inject(HttpTestingController).expectNone(COUNTS);
     } finally {
       vi.useRealTimers();
     }

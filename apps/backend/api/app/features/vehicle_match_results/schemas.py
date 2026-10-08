@@ -73,6 +73,11 @@ class MatchResultCounts(BaseModel):
     changed_since_matched: int
     #: Those cars are being matched again right now.
     refreshing: bool = False
+    #: When these cars were counted: the numbers are a kept copy, of every car of
+    #: the filter. None when they were counted for this answer.
+    counted_at: datetime | None = None
+    #: Cars were matched since `counted_at`: a new count is on its way, ask again.
+    updating: bool = False
 
 
 class MatchResultOverview(BaseModel):
@@ -95,6 +100,9 @@ class MatchResultOverview(BaseModel):
     none_conflicting_fields: list[FieldCount]
     #: `none`: cars for which the matcher found no candidate at all.
     none_without_candidates: int
+    #: `resolved`: cars matched to a candidate-only KType because it is the only
+    #: KType they fit (reason `candidate_only_sole_fit`): matches to audit.
+    resolved_only_fit: int = 0
     #: Why `not_matchable` cars never reached matching.
     not_matchable_reasons: list[ReasonCount]
     #: Cars whose stored result may be out of date: the vehicle changed after
@@ -104,6 +112,10 @@ class MatchResultOverview(BaseModel):
     catalog_batches: list[ValueCount]
     matcher_versions: list[ValueCount]
     latest_run: MatchRunInfo | None
+    #: As on `MatchResultCounts`: when the cars were counted, and whether a new
+    #: count is on its way.
+    counted_at: datetime | None = None
+    updating: bool = False
 
 
 class MatchResultCarsRequest(VehicleFilter):

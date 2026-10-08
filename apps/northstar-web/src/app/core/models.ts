@@ -1397,12 +1397,17 @@ export interface MatchResultOverview {
   several_missing_fields: Array<{ field: string; cars: number }>;
   none_conflicting_fields: Array<{ field: string; cars: number }>;
   none_without_candidates: number;
+  /** Matched cars whose KType is candidate-only and was accepted as the only KType they fit. */
+  resolved_only_fit: number;
   not_matchable_reasons: Array<{ reason: string; cars: number }>;
   /** Cars whose vehicle changed after it was matched: the stored result may be out of date. */
   changed_since_matched: number;
   catalog_batches: Array<{ value: string; cars: number }>;
   matcher_versions: Array<{ value: string; cars: number }>;
   latest_run: MatchResultRun | null;
+  /** As on the counts: when the cars were counted, and whether a new count is coming. */
+  counted_at?: string | null;
+  updating?: boolean;
 }
 
 /** Cars per state under a filter: the strip above the car list. */
@@ -1412,6 +1417,10 @@ export interface MatchResultCounts {
   changed_since_matched: number;
   /** The changed cars are being matched again on the server right now. */
   refreshing?: boolean;
+  /** When the cars were counted: the numbers are a kept count of every car of the filter. */
+  counted_at?: string | null;
+  /** Cars were matched since `counted_at`; a new count is on its way. */
+  updating?: boolean;
 }
 
 /** One reviewer rule from the TS data screen, as a change to many cars. */

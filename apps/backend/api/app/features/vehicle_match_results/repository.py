@@ -10,10 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
+from datetime import datetime
 from typing import Any, Protocol
 
 from psycopg import Connection
+from psycopg.types.json import Jsonb
 
+from api.app.features.vehicle_match_results.summaries import StoredSummary
 from ingestion.match_chunk_migrations import (
     MATCH_FIELD_RESOLUTIONS_TABLE,
     MATCH_RESOLUTION_RULES_TABLE,
@@ -30,6 +33,8 @@ from ingestion.vehicle_ktype_choices import MATCH_STATE_MANUAL, MATCH_STATE_MANU
 from ingestion.vehicle_match_result_migrations import (
     MATCH_STATES,
     VEHICLE_MATCH_RESULTS_TABLE,
+    VEHICLE_MATCH_RUNS_TABLE,
+    VEHICLE_MATCH_SUMMARIES_TABLE,
 )
 from ingestion.vehicle_match_results import StoredRun, latest_run
 
@@ -75,6 +80,10 @@ CAR_FIELDS: tuple[str, ...] = (
     "changed_since_matched", "vehicle_match_state",
 )
 
+
+#: The matcher's reason on a car matched to a candidate-only KType because it is
+#: the only KType the car fits. Those matches are counted and listed on their own.
+ONLY_FIT_REASON = "candidate_only_sole_fit"
 
 class ConnectionFactory(Protocol):
     def __call__(self) -> AbstractContextManager[Connection[Any]]: ...
@@ -155,6 +164,9 @@ class MatchResultRepository:
                 UNION ALL
                 SELECT 'none_without_candidates', '', count(*) FROM cars
                 WHERE state = 'none' AND best_candidate_ktype IS NULL
+                UNION ALL
+                SELECT 'resolved_only_fit', '', count(*) FROM cars
+                WHERE state = 'resolved' AND reason_codes @> ARRAY['{ONLY_FIT_REASON}']
                 """,
                 predicate.parameters,
             ).fetchall()
@@ -179,6 +191,7 @@ class MatchResultRepository:
             "not_matchable_reasons": ranked("not_matchable_reasons"),
             "changed_since_matched": single("changed_since_matched"),
             "none_without_candidates": single("none_without_candidates"),
+            "resolved_only_fit": single("resolved_only_fit"),
             "catalog_batches": ranked("catalog_batches"),
             "matcher_versions": ranked("matcher_versions"),
             "latest_run": run,
@@ -278,6 +291,80 @@ class MatchResultRepository:
     def latest_run(self) -> StoredRun | None:
         with self._connection_factory() as connection:
             return latest_run(connection)
+
+
+#: Stored counts nobody looked at for this long are dropped when one is written.
+_SUMMARY_KEPT = "30 days"
+
+
+class MatchSummaryRepository:
+    """Kept counts (`summaries.py`): one row per kind and filter, replaced when counted again."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._connection_factory = connection_factory
+
+    def read(self, kind: str, filter_key: str) -> StoredSummary | None:
+        with self._connection_factory() as connection:
+            row = connection.execute(
+                f"SELECT payload, data_token, computed_at, took_ms "
+                f"FROM {VEHICLE_MATCH_SUMMARIES_TABLE} WHERE kind = %s AND filter_key = %s",
+                (kind, filter_key),
+            ).fetchone()
+        return StoredSummary(dict(row[0]), str(row[1]), row[2], int(row[3])) if row else None
+
+    def write(
+        self,
+        kind: str,
+        filter_key: str,
+        *,
+        vehicle_filter: dict[str, Any],
+        payload: dict[str, Any],
+        data_token: str,
+        took_ms: int,
+    ) -> StoredSummary:
+        with self._connection_factory() as connection:
+            row = connection.execute(
+                f"""
+                INSERT INTO {VEHICLE_MATCH_SUMMARIES_TABLE}
+                    (kind, filter_key, filter, payload, data_token, computed_at, took_ms)
+                VALUES (%s, %s, %s, %s, %s, clock_timestamp(), %s)
+                ON CONFLICT (kind, filter_key) DO UPDATE SET
+                    filter = EXCLUDED.filter, payload = EXCLUDED.payload,
+                    data_token = EXCLUDED.data_token, computed_at = EXCLUDED.computed_at,
+                    took_ms = EXCLUDED.took_ms
+                RETURNING computed_at
+                """,
+                (kind, filter_key, Jsonb(vehicle_filter), Jsonb(payload), data_token, took_ms),
+            ).fetchone()
+            connection.execute(
+                f"DELETE FROM {VEHICLE_MATCH_SUMMARIES_TABLE} "
+                f"WHERE computed_at < now() - interval '{_SUMMARY_KEPT}'"
+            )
+            connection.commit()
+        assert row is not None
+        return StoredSummary(payload, data_token, row[0], took_ms)
+
+    def data_token(self) -> str:
+        """What the runs table looks like now: it moves whenever cars are matched.
+
+        A saved correction or choice matches its car again and so records a run
+        too. A change that records none (a rule applied, cars loaded) is caught
+        by the copy's age instead.
+        """
+
+        with self._connection_factory() as connection:
+            row = connection.execute(
+                f"SELECT count(*), coalesce(sum(evaluated), 0), coalesce(sum(unchanged), 0), "
+                f"max(coalesce(finished_at, started_at)) FROM {VEHICLE_MATCH_RUNS_TABLE}"
+            ).fetchone()
+        assert row is not None
+        return f"{row[0]}:{row[1]}:{row[2]}:{row[3].isoformat() if row[3] else ''}"
+
+    def now(self) -> datetime:
+        with self._connection_factory() as connection:
+            row = connection.execute("SELECT clock_timestamp()").fetchone()
+        assert row is not None
+        return row[0]  # type: ignore[no-any-return]
 
 
 def narrowing_predicate(

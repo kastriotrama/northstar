@@ -28,6 +28,7 @@ export function overviewFixture(overrides: Partial<MatchResultOverview> = {}): M
     several_missing_fields: [{ field: 'engine_code', cars: 120 }],
     none_conflicting_fields: [{ field: 'power_kw', cars: 222 }],
     none_without_candidates: 72,
+    resolved_only_fit: 310,
     not_matchable_reasons: [{ reason: 'model_evidence_missing', cars: 232 }],
     changed_since_matched: 0,
     catalog_batches: [{ value: 'tecdoc-v4', cars: 10000 }],

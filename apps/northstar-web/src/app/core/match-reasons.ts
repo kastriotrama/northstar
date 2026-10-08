@@ -52,6 +52,8 @@ const REASONS: Record<string, string> = {
     "The chosen KType is candidate-only (TecDoc can't say which engine it has) and the car's engine code does not confirm it.",
   candidate_only_engine_confirmed:
     "A candidate-only KType, confirmed by the car's own engine code.",
+  candidate_only_sole_fit:
+    'A candidate-only KType, accepted because it is the only KType the car fits.',
   model_inferred_by_rule: "The model came from a learned rule, not the car's own text.",
   model_asserted_by_person:
     "The model is the one a person set for this car; the registry's text was not used for it.",

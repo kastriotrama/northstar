@@ -940,8 +940,6 @@ def test_the_model_family_scope_is_for_fully_electric_cars_only(fuels: frozenset
         ("Volkswagen", "EDCC", "ID.3 (E11, E12)", "EDCA", "ID.3 (E11, E12)", "EDCC"),
         # ID.4 `EEWA` sits on an ID.3 KType: the same `ID` model family.
         ("Volkswagen", "EEWA", "ID.4 (E21)", "EDDA", "ID.3 (E11, E12)", "EEWA"),
-        # Zoe `5AQ-80` is Renault's truncated index: its first-token family is in the family.
-        ("Renault", "5AQ-80", "ZOE (BFM_)", "5AQ 605", "ZOE (BFM_)", "5AQ 607"),
         ("Tesla", "3D8", "MODEL S", "L2S", "MODEL S", "3D8"),
     ],
 )
@@ -984,3 +982,85 @@ def test_knows_engine_reads_reviewed_spellings_in_the_makers_scope() -> None:
     assert not index.knows_engine("B205E/B")
     assert index.knows_engine("M52-TUB20")  # through its first-token family M52
     assert not index.knows_engine("EJ254", "Subaru")
+
+
+# --- Proposals of 2026-10-07 ------------------------------------------------------
+
+
+@pytest.mark.parametrize(("car", "catalog"), [("5AQ-60", "5AQ 601"), ("5AQ-60", "5AQ 605"), ("5AQ-80", "5AQ 605")])
+def test_a_renault_registry_code_names_the_motor_family_and_no_variant(car: str, catalog: str) -> None:
+    # The registry writes `5AQ-60` on Zoes of 65, 68 and 80 kW, whose KTypes carry
+    # `5AQ 601` and `5AQ 605`: family evidence, and power says which KType it is.
+    zoe = _ktype("k", "Renault", "ZOE (BFM_)", catalog)
+    other = _ktype("o", "Renault", "ZOE (BFM_)", "5AQ 607")
+
+    score = _score(car, zoe, other, fuels=frozenset({"electric"}))
+
+    assert _engine_fields(score) == {"engine_code_family"}
+    assert not _confirms(score)
+
+
+@pytest.mark.parametrize(
+    ("maker", "car", "catalog"),
+    [
+        # Another motor family, and a combustion engine's variant written the same way.
+        ("Renault", "5AQ-60", "5AM 450"),
+        ("Renault", "H5F-400", "H5F 408"),
+        # The rule is Renault's: another maker's code of that shape still contradicts.
+        ("Dacia", "5AQ-60", "5AQ 601"),
+    ],
+)
+def test_the_motor_family_rule_reaches_no_further(maker: str, car: str, catalog: str) -> None:
+    ktype = _ktype("k", maker, "Model", catalog)
+    carrier = _ktype("o", maker, "Model", "5AQ 601", "H5F 400")
+
+    assert _engine_fields(_score(car, ktype, carrier, fuels=frozenset({"electric"}))) == {"conflict"}
+
+
+def _ev9(reference: str, power_kw: int, drive: str, *codes: str) -> VehicleCandidate:
+    return _ktype(reference, "Kia", "EV9 (MV)", *codes, electrification="battery_electric",
+                  fuels=frozenset({"electric"}), power_kw=power_kw, drive_type=drive, year_from=2023)
+
+
+def test_one_listed_motor_on_a_four_wheel_drive_ktype_is_family_evidence() -> None:
+    # TecDoc gives the four-wheel-drive EV9 `EM16` alone; the car names both motors.
+    awd, rwd = _ev9("awd", 283, "awd", "EM16"), _ev9("rwd", 150, "rwd", "EM16")
+
+    # 282 kW in the registry, 283 in TecDoc: the same figure rounded twice.
+    for registered in (283, 282):
+        score = _score("EM18, EM16", awd, rwd, fuels=frozenset({"electric"}), power_kw=registered,
+                       drive_type="awd", year=2024)
+
+        assert _engine_fields(score) == {"engine_code_family"}
+        assert not _confirms(score)
+
+
+@pytest.mark.parametrize(
+    ("power_kw", "drive", "ktype"),
+    [
+        (283, "awd", _ev9("k", 150, "rwd", "EM16")),  # a rear-drive KType
+        (283, "rwd", _ev9("k", 283, "awd", "EM16")),  # a car that is not four-wheel drive
+        (283, None, _ev9("k", 283, "awd", "EM16")),  # or whose drive is unknown
+        (279, "awd", _ev9("k", 283, "awd", "EM16")),  # another power, beyond rounding
+        (283, "awd", _ev9("k", 283, "awd", "EM16", "EM17")),  # a KType with motors of its own
+        (283, "awd", _ev9("k", 283, "awd", "EM20")),  # a code the car does not list
+    ],
+)
+def test_the_listed_motor_exception_is_narrow(power_kw: int, drive: str | None, ktype: VehicleCandidate) -> None:
+    carrier = _ev9("o", 160, "rwd", "EM18", "EM16", "EM17", "EM20")
+
+    score = _score("EM18, EM16", ktype, carrier, fuels=frozenset({"electric"}), power_kw=power_kw,
+                   drive_type=drive, year=2024)
+
+    assert _engine_fields(score) == {"conflict"}
+
+
+def test_the_listed_motor_exception_is_for_electric_drivetrains_only() -> None:
+    hybrid = _ktype("k", "Toyota", "RAV4 V", "A25A-FXS", electrification="full_hybrid",
+                    fuels=frozenset({"hybrid petrol"}), power_kw=163, drive_type="awd")
+    carrier = _ktype("o", "Toyota", "RAV4 V", "1VM")
+
+    score = _score("A25A-FXS, 1VM", hybrid, carrier, fuels=frozenset({"petrol", "electric", "hybrid petrol"}),
+                   power_kw=163, drive_type="awd")
+
+    assert "engine_code_family" not in _engine_fields(score)

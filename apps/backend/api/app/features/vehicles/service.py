@@ -25,6 +25,7 @@ from api.app.features.vehicles.schemas import (
     VehicleRecord,
     VehicleRow,
     VehicleSourceLink,
+    VehicleTotal,
 )
 from ingestion.vehicle_core_fields import CORE_FIELDS, SOURCE_RULE, parse_source_ref
 from ingestion.vehicle_core_query import VehicleTerm, is_vehicle_id
@@ -139,14 +140,21 @@ class VehicleService:
         *,
         cursor: str | None,
         limit: int,
+        with_total: bool = True,
     ) -> VehiclePage:
-        """A keyset page; `matched_rows` only on the first, where it is worth its count."""
+        """A keyset page; `matched_rows` only on the first, where it is worth its count.
+
+        A page reads only its own rows, whatever the size of the register. The
+        count reads every car of the filter, so a caller that shows the rows
+        first asks without it (`with_total=False`) and for `count` beside it.
+        """
 
         clauses = terms(conditions)
         if cursor is not None and not is_vehicle_id(cursor):
             raise ValueError("cursor must be a vehicle id from a previous page")
         rows = self._repository.page(clauses, text.strip(), after=cursor, limit=limit)
-        matched = self._repository.count(clauses, text.strip()) if cursor is None else None
+        counted = with_total and cursor is None
+        matched = self._repository.count(clauses, text.strip()) if counted else None
         items = [VehicleRow(**row) for row in rows]
         has_more = len(items) == limit
         return VehiclePage(
@@ -155,6 +163,11 @@ class VehicleService:
             next_cursor=items[-1].vehicle_id if items and has_more else None,
             has_more=has_more,
         )
+
+    def count(self, conditions: Sequence[VehicleCondition], text: str) -> VehicleTotal:
+        """How many vehicles the filter matches: what a first page leaves out on request."""
+
+        return VehicleTotal(matched_rows=self._repository.count(terms(conditions), text.strip()))
 
     def facet(
         self, conditions: Sequence[VehicleCondition], text: str, *, field: str, limit: int

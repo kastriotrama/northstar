@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, nullcontext
+from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -18,9 +19,13 @@ import pytest
 from psycopg import Connection
 
 from api.app.features.vehicle_match_results.refresh import MatchResultRefresher
-from api.app.features.vehicle_match_results.repository import MatchResultRepository
+from api.app.features.vehicle_match_results.repository import (
+    MatchResultRepository,
+    MatchSummaryRepository,
+)
 from api.app.features.vehicle_match_results.schemas import MatchResultCarsRequest
 from api.app.features.vehicle_match_results.service import MatchResultService
+from api.app.features.vehicle_match_results.summaries import StoredSummaries
 from api.app.features.vehicle_match_results.sync import MatchResultSync
 from api.app.features.vehicle_matching.service import Matcher
 from api.app.features.vehicles.repository import VehicleRepository
@@ -36,6 +41,7 @@ from ingestion.vehicle_match_result_migrations import (
     run_vehicle_match_result_migrations,
     verify_vehicle_match_result_schema_contract,
 )
+from scripts.count_vehicle_match_summaries import recount_unfiltered
 from tests.integration.throwaway_database import throwaway_database
 from tests.integration.vehicle_core_fixtures import (
     insert_ts_record,
@@ -81,6 +87,7 @@ def _clean(db: Connection) -> Iterator[None]:
     db.rollback()
     db.execute(f"DELETE FROM {RESULTS}")
     db.execute(f"DELETE FROM {RUNS}")
+    db.execute("DELETE FROM core.vehicle_match_summaries")
     db.execute("UPDATE core.vehicles SET match_state = NULL, ktype = NULL "
                "WHERE match_state IS NOT NULL OR ktype IS NOT NULL")
     db.commit()
@@ -204,6 +211,28 @@ def test_the_verifier_refuses_a_missing_index(db: Connection) -> None:
     db.execute("DROP INDEX core.vehicle_match_results_state_idx")
     with pytest.raises(VehicleMatchResultSchemaContractError, match="state_idx"):
         verify_vehicle_match_result_schema_contract(db)
+    db.rollback()
+
+
+def test_the_migrations_leave_the_two_overview_indexes(db: Connection) -> None:
+    """What the state counts read is carried in an index on each side of the join."""
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'core' "
+            "AND indexname IN ('vehicles_match_overview_idx', 'vehicle_match_results_overview_idx')"
+        )
+        definitions = {str(name): str(definition) for name, definition in cursor.fetchall()}
+
+    assert "(vehicle_id) INCLUDE (vehicle_scope, registry_status, match_state, updated_at)" in (
+        definitions["vehicles_match_overview_idx"]
+    )
+    assert "(vehicle_id) INCLUDE (state, evaluated_at)" in (
+        definitions["vehicle_match_results_overview_idx"]
+    )
+    # A performance index: the schema contract does not insist on it.
+    db.execute("DROP INDEX core.vehicle_match_results_overview_idx")
+    verify_vehicle_match_result_schema_contract(db)
     db.rollback()
 
 
@@ -392,9 +421,16 @@ def test_the_overview_counts_every_car_and_names_the_causes(db: Connection, worl
     assert [(f.field, f.cars) for f in overview.several_missing_fields] == [("drive_type", 1)]
     assert [(f.field, f.cars) for f in overview.none_conflicting_fields] == [("power_kw", 1)]
     assert overview.none_without_candidates == 0
+    assert overview.resolved_only_fit == 0
     assert {item.value: item.cars for item in overview.terminals} == {
         "resolved": 1, "review_required": 1, "hard_conflict": 1,
     }
+    # A car matched to a candidate-only KType as its only fit is counted on its own.
+    db.execute(
+        "UPDATE core.vehicle_match_results SET reason_codes = reason_codes || ARRAY['candidate_only_sole_fit'] "
+        "WHERE state = 'resolved'"
+    )
+    assert world.service.overview(VehicleFilter()).resolved_only_fit == 1
     assert overview.latest_run is not None
     assert (overview.latest_run.status, overview.latest_run.evaluated) == ("completed", 3)
     assert [(v.value, v.cars) for v in overview.matcher_versions] == [("build-1", 3)]
@@ -563,6 +599,73 @@ def test_the_vehicles_list_combines_the_state_with_its_other_filters(
         field="manufacturer", limit=10,
     )
     assert [(value.value, value.count) for value in facet.values] == [("Volkswagen", 1)]
+
+
+def test_kept_counts_cover_every_car_and_follow_the_runs(db: Connection, world: _World) -> None:
+    """The strip and the breakdown are answered from a kept copy, counted again after a run."""
+
+    def factory() -> AbstractContextManager[Connection]:
+        return nullcontext(db)
+
+    summaries = StoredSummaries(
+        MatchSummaryRepository(factory), min_age=timedelta(0), run_in_background=False
+    )
+    service = MatchResultService(MatchResultRepository(factory), summaries)
+
+    def states(counted: Any) -> dict[str, int]:
+        return {item.state: item.cars for item in counted.states if item.cars}
+
+    before = service.counts(VehicleFilter())
+    assert (before.total, states(before)) == (3, {"not_evaluated": 3})
+    assert before.counted_at is not None and before.updating is False
+    assert states(service.overview(VehicleFilter())) == {"not_evaluated": 3}
+
+    # Nothing was matched since: the kept copy answers, and says when it was counted.
+    again = service.counts(VehicleFilter())
+    assert again.counted_at == before.counted_at
+
+    # A run moves the token: the next look counts every car again.
+    world.refresher.refresh_scope()
+    after = service.counts(VehicleFilter())
+    assert states(after) == {"resolved": 1, "several": 1, "none": 1}
+    assert after.counted_at is not None and after.counted_at > before.counted_at
+    assert states(service.overview(VehicleFilter())) == states(after)
+
+    # Each filter keeps its own count, and a recount replaces what is kept.
+    assert service.counts(VehicleFilter(text="GLF001")).total == 1
+    counts, overview = service.recount(VehicleFilter())
+    assert counts.total == overview.total == 3
+    rows = db.execute(
+        "SELECT kind, count(*) FROM core.vehicle_match_summaries GROUP BY 1 ORDER BY 1"
+    ).fetchall()
+    db.commit()
+    assert rows == [("counts", 2), ("overview", 1)]
+
+    # A copy kept by code that counted something else is counted again, not served.
+    db.execute("UPDATE core.vehicle_match_summaries SET payload = '{\"cars\": 3}'::jsonb")
+    db.commit()
+    assert service.counts(VehicleFilter()).total == 3
+    assert states(service.overview(VehicleFilter())) == states(after)
+
+
+def test_the_recount_script_leaves_the_counts_the_screen_opens_with(
+    db: Connection, world: _World
+) -> None:
+    def factory() -> AbstractContextManager[Connection]:
+        return nullcontext(db)
+
+    world.refresher.refresh_scope()
+
+    said = recount_unfiltered(factory)
+
+    assert said.startswith("counted 3 cars in ")
+    assert "resolved 1" in said and "several 1" in said and "none 1" in said
+    service = MatchResultService(
+        MatchResultRepository(factory),
+        StoredSummaries(MatchSummaryRepository(factory), run_in_background=False),
+    )
+    kept = service.counts(VehicleFilter())
+    assert kept.total == 3 and kept.counted_at is not None and kept.updating is False
 
 
 def test_the_counts_strip_reads_the_states_alone(db: Connection, world: _World) -> None:

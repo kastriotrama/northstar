@@ -24,6 +24,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
+
+import psycopg
 
 from api.app.core.settings import get_settings
 from api.app.features.vehicle_match_results.refresh import MatchResultRefresher, RefreshCounts
@@ -32,6 +35,7 @@ from api.app.features.vehicle_matching.service import build_matcher
 from ingestion.config import get_ingestion_settings
 from ingestion.datastores import DatastoreClients
 from ingestion.vehicle_match_result_migrations import verify_vehicle_match_result_schema_contract
+from scripts.count_vehicle_match_summaries import recount_unfiltered
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--rebuild", action="store_true", help="Match every car again.")
     mode.add_argument("--sample", type=int, metavar="N", help="A seeded random N cars.")
     mode.add_argument("--vehicle", action="append", metavar="NOR-ID", help="Named cars; repeatable.")
+    mode.add_argument("--vehicles-from", type=Path, metavar="FILE",
+                      help="Named cars, one NOR ID per line: the cars a matcher change can reach.")
     parser.add_argument("--seed", default=SAMPLE_SEED, help="Seed of --sample.")
     parser.add_argument("--scope", default="passenger")
     parser.add_argument("--include-deregistered", action="store_true")
@@ -48,9 +54,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--page-size", type=int, default=1000)
     parser.add_argument("--force", action="store_true",
-                        help="With --sample or --vehicle: match even cars that did not change.")
+                        help="With --sample, --vehicle or --vehicles-from: match even cars that "
+                             "did not change (after a matcher change they did not, the matcher did).")
     parser.add_argument("--matcher-version", default=None,
                         help="Stored on every row; defaults to the build version.")
+    parser.add_argument("--skip-recount", action="store_true",
+                        help="Do not count the cars by state again when the run ends (the "
+                             "Vehicles screen then counts them behind its next answer).")
     args = parser.parse_args(argv)
 
     datastores = DatastoreClients.from_settings(get_ingestion_settings())
@@ -72,9 +82,12 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr, flush=True)
 
     registered_only = not args.include_deregistered
-    if args.vehicle:
+    named = args.vehicle or (
+        args.vehicles_from.read_text(encoding="utf-8").split() if args.vehicles_from else None
+    )
+    if named:
         counts = refresher.refresh_vehicles(
-            [value.strip().upper() for value in args.vehicle], force=args.force,
+            [value.strip().upper() for value in named], force=args.force,
             workers=args.workers, progress=progress,
         )
     elif args.sample:
@@ -91,6 +104,13 @@ def main(argv: list[str] | None = None) -> int:
         )
     print(f"run {counts.run_id}: {counts.evaluated} matched, {counts.unchanged} unchanged of "
           f"{counts.target} on {matcher.batch_id} in {time.monotonic() - started:.0f}s")
+    if not args.skip_recount:
+        # The Vehicles screen opens with kept counts: leave it the ones after this run.
+        try:
+            print(recount_unfiltered(connect))
+        except psycopg.Error as error:
+            # The run is stored; the screen counts again behind its next answer.
+            print(f"the counts were not kept ({type(error).__name__})", file=sys.stderr)
     return 0
 
 
