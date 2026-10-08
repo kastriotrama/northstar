@@ -15,8 +15,8 @@ by driven axles, which is what makes a pair the same drivetrain rather than a
 neighbour. A model whose figures do not line up that way is not listed (BMW
 iX1: one registry figure, two KTypes it could be).
 
-Proposed 2026-10-07 from the cars stopped on power in the full register;
-awaiting the data owner's confirmation (`REVIEWED_BY`).
+Proposed 2026-10-07 from the cars stopped on power in the full register and
+reported accepted on 2026-10-08 (`REVIEWED_BY`).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from functools import lru_cache
 
 from ingestion.tecdoc.engine_code_aliases import maker_key
 
-REVIEWED_BY = "claude-proposal-2026-10-07 (awaiting data-owner review)"
+REVIEWED_BY = "claude-proposal-2026-10-07 (accepted 2026-10-08, reported by Kastriot Rama)"
 
 _NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9]+")
 

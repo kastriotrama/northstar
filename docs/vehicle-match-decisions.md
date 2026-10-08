@@ -1,9 +1,10 @@
-# Six matching decisions (proposed 2026-10-07)
+# Six matching decisions (proposed 2026-10-07, accepted 2026-10-08)
 
 Six rulings that let cars resolve which the matcher stopped before. Each is a
-choice a stakeholder owns, not a technical invariant. They are **in force in the
-code as proposals** (`claude-proposal-2026-10-07`) and await the data owner's
-confirmation; each can be switched off on its own.
+choice a stakeholder owns, not a technical invariant. They were put in force in
+the code as proposals on 2026-10-07 and reported accepted on 2026-10-08 (by
+Kastriot Rama; the stakeholder document holds the answers). Each can still be
+switched off on its own.
 
 The stakeholder wording, with one yes/no question per decision, is in the
 shared document "Vehicle matching: six decisions needed".
@@ -23,7 +24,7 @@ shared document "Vehicle matching: six decisions needed".
 None of these makes an engine code confirm a KType it did not confirm before,
 and none changes how an approved KType with an exact engine code resolves.
 
-## Why each is safe enough to propose
+## Why each is safe enough
 
 1. **Candidate-only.** Checked against cars with a known answer: 20,000 cars
    whose candidate-only KType the car's own engine code confirmed were matched
