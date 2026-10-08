@@ -250,5 +250,31 @@ describe('MatchResults', () => {
       vi.useRealTimers();
     }
   });
+  it('says when the cars were counted and reads the new count once it is there', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { fixture } = render();
+      // A kept count of every car, behind since cars were matched: a new one is on its way.
+      await counts(
+        fixture,
+        countsFixture({ counted_at: '2026-10-08T09:30:00', updating: true }),
+      );
+      expect(text(fixture)).toContain('counted 09:30');
+      expect(text(fixture)).toContain('counting again');
+      expect(state(fixture, 'Resolved').textContent).toContain('7,016');
+
+      await vi.advanceTimersByTimeAsync(4100);
+      await counts(
+        fixture,
+        countsFixture({ total: 9000, counted_at: '2026-10-08T09:31:00', updating: false }),
+      );
+      expect(text(fixture)).toContain('All 9,000 cars of this filter, counted 09:31');
+      expect(text(fixture)).not.toContain('counting again');
+      await vi.advanceTimersByTimeAsync(9000);
+      TestBed.inject(HttpTestingController).expectNone(COUNTS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 

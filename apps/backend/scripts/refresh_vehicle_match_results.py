@@ -26,6 +26,8 @@ import sys
 import time
 from pathlib import Path
 
+import psycopg
+
 from api.app.core.settings import get_settings
 from api.app.features.vehicle_match_results.refresh import MatchResultRefresher, RefreshCounts
 from api.app.features.vehicle_matching.repository import SAMPLE_SEED, VehicleMatchingRepository
@@ -33,6 +35,7 @@ from api.app.features.vehicle_matching.service import build_matcher
 from ingestion.config import get_ingestion_settings
 from ingestion.datastores import DatastoreClients
 from ingestion.vehicle_match_result_migrations import verify_vehicle_match_result_schema_contract
+from scripts.count_vehicle_match_summaries import recount_unfiltered
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
                              "did not change (after a matcher change they did not, the matcher did).")
     parser.add_argument("--matcher-version", default=None,
                         help="Stored on every row; defaults to the build version.")
+    parser.add_argument("--skip-recount", action="store_true",
+                        help="Do not count the cars by state again when the run ends (the "
+                             "Vehicles screen then counts them behind its next answer).")
     args = parser.parse_args(argv)
 
     datastores = DatastoreClients.from_settings(get_ingestion_settings())
@@ -98,6 +104,13 @@ def main(argv: list[str] | None = None) -> int:
         )
     print(f"run {counts.run_id}: {counts.evaluated} matched, {counts.unchanged} unchanged of "
           f"{counts.target} on {matcher.batch_id} in {time.monotonic() - started:.0f}s")
+    if not args.skip_recount:
+        # The Vehicles screen opens with kept counts: leave it the ones after this run.
+        try:
+            print(recount_unfiltered(connect))
+        except psycopg.Error as error:
+            # The run is stored; the screen counts again behind its next answer.
+            print(f"the counts were not kept ({type(error).__name__})", file=sys.stderr)
     return 0
 
 

@@ -13,7 +13,10 @@ from psycopg import Connection
 from api.app.core.db import get_postgres_connection
 from api.app.core.settings import get_settings
 from api.app.features.vehicle_match_results.refresh import MatchResultRefresher
-from api.app.features.vehicle_match_results.repository import MatchResultRepository
+from api.app.features.vehicle_match_results.repository import (
+    MatchResultRepository,
+    MatchSummaryRepository,
+)
 from api.app.features.vehicle_match_results.schemas import (
     MatchResultCarPage,
     MatchResultCarsRequest,
@@ -23,6 +26,7 @@ from api.app.features.vehicle_match_results.schemas import (
     ReviewerRuleChanges,
 )
 from api.app.features.vehicle_match_results.service import MatchResultService
+from api.app.features.vehicle_match_results.summaries import StoredSummaries
 from api.app.features.vehicle_match_results.sync import MatchResultSync
 from api.app.features.vehicle_matching.router import _matcher_cache
 from api.app.features.vehicles.schemas import VehicleFilter
@@ -50,8 +54,16 @@ def match_result_sync() -> MatchResultSync:
     return MatchResultSync(lambda: refresher, connect)
 
 
+@lru_cache(maxsize=1)
+def _summaries() -> StoredSummaries:
+    """One per process: it holds the worker that counts again behind an answer."""
+
+    settings = get_settings()
+    return StoredSummaries(MatchSummaryRepository(lambda: get_postgres_connection(settings)))
+
+
 def get_service() -> MatchResultService:
-    return MatchResultService(_repository())
+    return MatchResultService(_repository(), _summaries())
 
 
 ServiceDependency = Annotated[MatchResultService, Depends(get_service)]

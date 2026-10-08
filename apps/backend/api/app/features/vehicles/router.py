@@ -21,6 +21,7 @@ from api.app.features.vehicles.schemas import (
     VehicleFilter,
     VehiclePage,
     VehicleRecord,
+    VehicleTotal,
 )
 from api.app.features.vehicles.service import (
     InvalidVehicleIdError,
@@ -63,11 +64,29 @@ def search_vehicles(
     service: ServiceDependency,
     cursor: str | None = Query(default=None, max_length=30),
     limit: int = Query(default=50, ge=1, le=200),
+    total: bool = Query(
+        default=True,
+        description="False leaves `matched_rows` out of the first page: ask `/total` beside it.",
+    ),
 ) -> VehiclePage:
     """Find vehicles by their merged values, identifiers (current or past) or NOR ID."""
 
     try:
-        return service.search(request.conditions, request.text, cursor=cursor, limit=limit)
+        return service.search(
+            request.conditions, request.text, cursor=cursor, limit=limit, with_total=total
+        )
+    except (UnknownFieldError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except psycopg.Error as error:
+        raise _unavailable() from error
+
+
+@router.post("/total", response_model=VehicleTotal)
+def total_vehicles(request: VehicleFilter, service: ServiceDependency) -> VehicleTotal:
+    """How many vehicles the filter matches. A page of them never waits for this."""
+
+    try:
+        return service.count(request.conditions, request.text)
     except (UnknownFieldError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except psycopg.Error as error:

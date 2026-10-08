@@ -35,8 +35,12 @@ const API_BASE = 'http://api.test';
 
 const VEHICLE_ID = 'NOR-01J8Z3Y5W2QK4T7B9C1D3E5F7G';
 
+/** Every vehicle the filter matches: far more than the page on screen. */
+const TOTAL = 6427730;
+
 const PAGE: NorVehiclePage = {
-  matched_rows: 1,
+  // The page is asked for without its total; the number comes from `/total`.
+  matched_rows: null,
   next_cursor: null,
   has_more: false,
   items: [
@@ -151,6 +155,9 @@ async function settle(fixture: ReturnType<typeof render>) {
     .forEach((request) => request.flush({ field: 'x', values: [] }));
   const searches = http.match((request) => request.url.endsWith('/v1/vehicles/search'));
   searches.forEach((request) => request.flush(PAGE));
+  http
+    .match((request) => request.url.endsWith('/v1/vehicles/total'))
+    .forEach((request) => request.flush({ matched_rows: TOTAL }));
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -171,6 +178,20 @@ describe('CarSearchPage', () => {
     expect(text).toContain('deregistered');
     expect(row?.querySelector('.review')?.textContent).toContain('suv');
     expect(row?.querySelector('.rule')?.textContent).toContain('D5244T');
+  });
+
+  it('shows a page of rows without counting, and the number of all vehicles beside it', async () => {
+    const fixture = render();
+    const searches = await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+
+    // The rows were asked for without the total ...
+    expect(searches.length).toBeGreaterThan(0);
+    expect(searches[0].request.params.get('total')).toBe('false');
+    expect(host.querySelectorAll('tbody tr').length).toBe(1);
+    // ... and the heading still counts every vehicle of the filter.
+    expect(host.querySelector('.card__head')?.textContent).toContain('6,427,730 vehicles');
+    expect(host.querySelector('.toolbar')?.textContent).toContain('of 6,427,730');
   });
 
   it('opens a vehicle with its plate history and where each value came from', async () => {

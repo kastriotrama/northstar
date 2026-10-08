@@ -73,6 +73,11 @@ class MatchResultCounts(BaseModel):
     changed_since_matched: int
     #: Those cars are being matched again right now.
     refreshing: bool = False
+    #: When these cars were counted: the numbers are a kept copy, of every car of
+    #: the filter. None when they were counted for this answer.
+    counted_at: datetime | None = None
+    #: Cars were matched since `counted_at`: a new count is on its way, ask again.
+    updating: bool = False
 
 
 class MatchResultOverview(BaseModel):
@@ -107,6 +112,10 @@ class MatchResultOverview(BaseModel):
     catalog_batches: list[ValueCount]
     matcher_versions: list[ValueCount]
     latest_run: MatchRunInfo | None
+    #: As on `MatchResultCounts`: when the cars were counted, and whether a new
+    #: count is on its way.
+    counted_at: datetime | None = None
+    updating: bool = False
 
 
 class MatchResultCarsRequest(VehicleFilter):

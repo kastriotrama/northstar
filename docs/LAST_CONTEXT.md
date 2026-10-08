@@ -2,6 +2,34 @@
 
 Keep the latest 10 task entries only.
 
+## 2026-10-08 — Vehicles at the size of the full register: rows by the page, main numbers from a kept count (branch feature/matching-decisions)
+
+- Asked for: do not read all 6.4 million cars on every look; load cars as they are asked for, while the
+  main numbers still cover every car.
+- The list already read one keyset page at a time; what read every car was counting. Now the first page
+  is asked for without its total (`total=false`) and the number comes beside it (`POST /v1/vehicles/total`);
+  the strip and the breakdown answer from `core.vehicle_match_summaries` (one kept count per kind and
+  filter) and are counted again in the background when the runs table moved or the copy is ten minutes
+  old (`vehicle_match_results/summaries.py`). The answer says `counted_at` and `updating`; the screen
+  shows "counted HH:mm" and reads again while a new count is coming. A refresh run counts the unfiltered
+  view again when it ends; `scripts.count_vehicle_match_summaries` does it alone after a load.
+- Two covering indexes for the state counts and the out-of-date search (`vehicles_match_overview_idx`,
+  `vehicle_match_results_overview_idx`), performance only, outside the schema contract.
+- Measured on the local register (7.19M vehicles): counts 11 s and breakdown 37 s per look before; 0.03 s
+  each from the kept copy; a page of 50 rows 0.04 s.
+- The six matching decisions were reported accepted on 2026-10-08 (docs and `REVIEWED_BY` say so).
+- Local data, not code: the 11 reviewer rules made on live on 2026-10-05 were applied to the local full
+  register under their live rule ids (62,000 records). Car by car against the snapshot before: 2,211
+  gained, 2,555 lost, 15,914 moved (Kia Niro to KType 133723). The lost ones are the rule's own effect
+  and the same on live for the pilot cars: engine code G4FT on the Hyundai Tucson leaves 2,088 cars
+  (156 of 198 on live) without a KType, and one VW power rule 436 ID.3. Worth a look by the reviewer.
+  For the pilot's cars the local results equal live's per rule and state, apart from decision 1.
+- Checked for shipping the register to live without the TS tables: 12,000 of 12,000 registry cars match
+  the same when evaluated without their TS record.
+- Validation: backend unit and integration tests, ruff, mypy; web 230 tests and build.
+- Next: the registered passenger cars live lacks (5,927,730) go to live with identifiers, source links
+  and stored results; then the pilot's cars the decisions can reach are matched again there.
+
 ## 2026-10-07 — Six matching decisions, as proposals in force (branch feature/matching-decisions, on feature/ais-make-codes)
 
 - Six rulings a stakeholder owns, each switchable and marked `claude-proposal-2026-10-07`: (1) a
@@ -274,30 +302,3 @@ Keep the latest 10 task entries only.
 - Validation: backend unit and integration suites, ruff, mypy, `nx build` and `nx test` (see the PR).
 - Risk / next: **live's choices are not carried into a pilot rebuild yet** (export/import/pinning are not
   built; the runbook stops a switch when live holds any choice). Flagged choices cannot be listed.
-
-## 2026-10-02 — Pilot database builder: a verified 500k slice of the full build (local, uncommitted)
-
-- New `scripts/build_pilot_database.py` (logic in `ingestion/pilot_database.py`): reads the full build
-  read-only in one snapshot, creates a NEW database on the same server, builds its schema from the 14
-  migration sets, copies class A whole (rules, reviewer decisions, pinned catalog batch, job runs), class B
-  for a seeded slice (vehicles and every row of their TS records), leaves class C empty, recounts chunk and
-  build counters, moves sequences past the full build's ids, ANALYZEs, then verifies (row counts and content
-  checksums per table, slice size and population, catalog batch, foreign keys and undeclared references).
-  Dry run by default; `--commit` builds; `--replace` drops only a database this script made.
-- Dry run on the full build (seed `northstar-live-pilot-v1`, 500,000 of 6,427,730 registered passenger
-  cars): 499,230 TS records, class A 869,902 rows / 0.43 GB, class B 4,158,929 rows / 4.27 GB, 4.69 GB
-  estimated; 76 s. `--commit` was not run on the full build.
-- Validation: 33 integration tests on throwaway databases, 43 new unit tests; unit suite 2,428 passed (the
-  Golf Variant test fails on purpose); ruff, mypy clean. Docs: "Pilot database" in `PRODUCTION_DEPLOYMENT.md`.
-- Risk / next: run `--commit` and time it; live-only rules are not in the pilot (diff live's rule tables
-  first); one closed review item is on a car outside this seed's slice; batch pickers show full-build counts.
-- Review follow-up (same day): default seed is now the match impact seed (imported `SAMPLE_SEED`), so the
-  30k sample is the first 30,000 of the slice; a verified build writes a manifest (file via `--manifest`
-  and `public.northstar_pilot_manifest` in the pilot) and `--verify DATABASE --manifest FILE` re-checks any
-  database read-only (for live after `pg_restore`); a dry run exits 1 when the target is not a pilot build;
-  class B predicates are pinned by a unit test; unit test file renamed to
-  `test_build_pilot_database_script.py` so pytest collects both. Docs: restore with `--exit-on-error`,
-  `ANALYZE`, `--verify`, rule-table comparison SQL, switch by rename, follow-up after go-live.
-- Validation: unit suite 2446 passed + 1 expected xfail; builder integration 41 passed (dump/restore through
-  the Postgres container); ruff and mypy clean; 500k dry run on `app`: 4.69 GB, 499,516 TS records, 30k
-  sample contained. Next: `--size 2000` rehearsal with `--commit`, then the 500k build. Not built yet.

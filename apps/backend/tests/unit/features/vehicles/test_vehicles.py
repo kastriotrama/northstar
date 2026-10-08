@@ -178,6 +178,20 @@ def test_the_first_page_carries_the_count_and_a_keyset_cursor() -> None:
     assert repository.counted == 1
 
 
+def test_a_page_asked_for_without_its_total_does_not_count_the_cars() -> None:
+    repository = _Repository()
+    service = VehicleService(repository)  # type: ignore[arg-type]
+    condition = VehicleCondition(field="fuel", values=["diesel"])
+
+    page = service.search([condition], "volvo", cursor=None, limit=2, with_total=False)
+
+    assert page.matched_rows is None and len(page.items) == 2
+    assert repository.counted == 0
+    # The number is asked for beside the page.
+    assert service.count([condition], " volvo ").matched_rows == 2
+    assert repository.counted == 1
+
+
 def test_a_cursor_that_is_not_a_vehicle_id_is_refused() -> None:
     with pytest.raises(ValueError):
         VehicleService(_Repository()).search([], "", cursor="42", limit=5)  # type: ignore[arg-type]
@@ -240,6 +254,8 @@ def test_ts_record_endpoints_moved_off_the_vehicles_prefix(client: TestClient) -
     assert "/v1/ts-records/{source_record_id}/full" in paths
     assert "/v1/vehicles/{vehicle_id}" in paths
     assert "/v1/vehicles/count" not in paths
+    # The NOR vehicles' own count has another name, so an old TS client cannot mistake it.
+    assert "/v1/vehicles/total" in paths
 
 
 def test_a_list_row_carries_the_match_state_of_a_persons_choice() -> None:

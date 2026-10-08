@@ -97,11 +97,17 @@ class VehicleRow(BaseModel):
 
 class VehiclePage(BaseModel):
     items: list[VehicleRow]
-    #: Sent on the first page only.
+    #: Sent on the first page only, and not when the page was asked for without it.
     matched_rows: int | None
     #: Keyset cursor: the last row's `vehicle_id`. Never an offset.
     next_cursor: str | None
     has_more: bool
+
+
+class VehicleTotal(BaseModel):
+    """How many vehicles a filter matches, asked for beside a page that left it out."""
+
+    matched_rows: int
 
 
 class FacetValue(BaseModel):

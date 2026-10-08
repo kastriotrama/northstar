@@ -7,8 +7,10 @@ refresher's job (`refresh.py`).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar
+
+from pydantic import ValidationError
 
 from api.app.features.vehicle_match_results.repository import (
     OVERVIEW_STATES,
@@ -30,10 +32,18 @@ from api.app.features.vehicle_match_results.schemas import (
     StateCount,
     ValueCount,
 )
+from api.app.features.vehicle_match_results.summaries import (
+    SUMMARY_COUNTS,
+    SUMMARY_OVERVIEW,
+    StoredSummaries,
+)
 from api.app.features.vehicle_matching.service import CANDIDATE_LIMIT
 from api.app.features.vehicles.schemas import VehicleFilter
 from api.app.features.vehicles.service import terms
 from ingestion.vehicle_match_results import StoredRun
+
+#: The strip or the breakdown: both are answered from a kept count the same way.
+_Counted = TypeVar("_Counted", MatchResultCounts, MatchResultOverview)
 
 _OPERATOR_WORDS = {
     "equals": "=",
@@ -127,10 +137,66 @@ def _car(row: dict[str, Any]) -> MatchResultCar:
 
 
 class MatchResultService:
-    def __init__(self, repository: MatchResultRepository) -> None:
+    def __init__(
+        self, repository: MatchResultRepository, summaries: StoredSummaries | None = None
+    ) -> None:
         self._repository = repository
+        #: Without it every look counts the cars (tests, a database without the table).
+        self._summaries = summaries
 
     def counts(self, vehicle_filter: VehicleFilter) -> MatchResultCounts:
+        """The strip above the list, from the kept count when there is one."""
+
+        return self._kept(SUMMARY_COUNTS, vehicle_filter, MatchResultCounts, self.count_now)
+
+    def overview(self, vehicle_filter: VehicleFilter) -> MatchResultOverview:
+        """The breakdown, from the kept count when there is one."""
+
+        return self._kept(SUMMARY_OVERVIEW, vehicle_filter, MatchResultOverview, self.overview_now)
+
+    def _kept(
+        self,
+        kind: str,
+        vehicle_filter: VehicleFilter,
+        model: type[_Counted],
+        count_now: Callable[[VehicleFilter], _Counted],
+    ) -> _Counted:
+        if self._summaries is None:
+            return count_now(vehicle_filter)
+
+        def count() -> dict[str, Any]:
+            return count_now(vehicle_filter).model_dump(mode="json")
+
+        kept = self._summaries.get(kind, vehicle_filter, count)
+        try:
+            counted = model.model_validate(kept.payload)
+        except ValidationError:
+            # Kept by code that counted something else: count again rather than fail.
+            kept = self._summaries.recount(kind, vehicle_filter, count)
+            counted = model.model_validate(kept.payload)
+        return counted.model_copy(
+            update={"counted_at": kept.counted_at, "updating": kept.updating}
+        )
+
+    def recount(self, vehicle_filter: VehicleFilter) -> tuple[MatchResultCounts, MatchResultOverview]:
+        """Count the filter's cars now and keep both counts: after a load or a long run."""
+
+        if self._summaries is None:
+            return self.count_now(vehicle_filter), self.overview_now(vehicle_filter)
+        counts = self._summaries.recount(
+            SUMMARY_COUNTS, vehicle_filter,
+            lambda: self.count_now(vehicle_filter).model_dump(mode="json"),
+        )
+        overview = self._summaries.recount(
+            SUMMARY_OVERVIEW, vehicle_filter,
+            lambda: self.overview_now(vehicle_filter).model_dump(mode="json"),
+        )
+        return (
+            MatchResultCounts.model_validate(counts.payload),
+            MatchResultOverview.model_validate(overview.payload),
+        )
+
+    def count_now(self, vehicle_filter: VehicleFilter) -> MatchResultCounts:
         counts = self._repository.counts(terms(vehicle_filter.conditions), vehicle_filter.text)
         by_state = dict(counts["states"])
         return MatchResultCounts(
@@ -142,7 +208,7 @@ class MatchResultService:
             changed_since_matched=counts["changed_since_matched"],
         )
 
-    def overview(self, vehicle_filter: VehicleFilter) -> MatchResultOverview:
+    def overview_now(self, vehicle_filter: VehicleFilter) -> MatchResultOverview:
         counts = self._repository.overview(terms(vehicle_filter.conditions), vehicle_filter.text)
         by_state = dict(counts["states"])
         return MatchResultOverview(

@@ -282,20 +282,38 @@ export class CarSearchPage implements OnInit {
         switchMap(() => {
           this.loading.set(true);
           this.error.set(null);
-          return this.api.searchVehicles(this.request(), { limit: PAGE_SIZE }).pipe(
-            catchError((err: { error?: { detail?: unknown } }) => {
-              this.error.set(this.detail(err) ?? 'Vehicle search is unavailable right now.');
-              return of(null);
-            }),
-          );
+          // A page reads only its own rows, however many vehicles there are; the
+          // number of all matching vehicles is asked for beside it (below).
+          return this.api
+            .searchVehicles(this.request(), { limit: PAGE_SIZE, total: false })
+            .pipe(
+              catchError((err: { error?: { detail?: unknown } }) => {
+                this.error.set(this.detail(err) ?? 'Vehicle search is unavailable right now.');
+                return of(null);
+              }),
+            );
         }),
       )
       .subscribe((page) => {
         this.loading.set(false);
         if (!page) return;
         this.rows.set(page.items);
-        this.matched.set(page.matched_rows);
         this.nextCursor.set(page.next_cursor);
+      });
+
+    // Counting the matching vehicles reads every one of them, so the rows do not
+    // wait for it: the number arrives on its own and covers the whole filter.
+    this.search$
+      .pipe(
+        debounceTime(250),
+        switchMap(() => {
+          this.matched.set(null);
+          return this.api.vehicleTotal(this.request()).pipe(catchError(() => of(null)));
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((total) => {
+        if (total) this.matched.set(total.matched_rows);
       });
 
     // The rows are read again at once and twice more a little later: the cars of a

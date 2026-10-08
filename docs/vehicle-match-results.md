@@ -107,6 +107,41 @@ The on-screen "run the matcher on a sample" tool is gone; its API
 (`/v1/vehicles/matching/summary`) is still there. Use
 `scripts/match_impact_report.py` to measure a matcher change.
 
+## At the size of the full register
+
+A page of cars reads only its own rows (keyset paging on the NOR ID), so the
+list costs the same with 500,000 cars or 6.4 million: the first 50 rows and
+every "load more" take a few hundredths of a second. What reads every car of a
+filter is counting them, so the counts are kept apart from the rows:
+
+- **The rows never wait for a count.** The Vehicles list asks for its first
+  page with `total=false` and for the number of matching vehicles beside it
+  (`POST /v1/vehicles/total`).
+- **The main numbers are a kept count of every car.** The strip
+  (`/match-results/counts`) and the breakdown (`/match-results/overview`)
+  answer from `core.vehicle_match_summaries`, one row per kind and filter. A
+  look is answered at once from the kept copy; when cars were matched since
+  (the runs table moved) or the copy is older than ten minutes, it is counted
+  again in the background and the next look gets the new numbers. The answer
+  carries `counted_at` and `updating`, and the screen says "counted 09:30" and
+  reads again while a new count is on its way. A filter nobody counted yet is
+  counted on its first look.
+- **A run leaves the counts behind it.** `refresh_vehicle_match_results` counts
+  the unfiltered view again when it ends (`--skip-recount` to leave that to the
+  screen), and `python -m scripts.count_vehicle_match_summaries` does it alone,
+  after a load.
+
+A kept count is never a part of the cars: it always covers every car of its
+filter, and only its age differs. Measured on the local copy of the register
+(7.19 million vehicles): counts 11 s and breakdown 37 s when counted on every
+look; 0.03 s each from the kept copy.
+
+Two covering indexes (`vehicles_match_overview_idx`,
+`vehicle_match_results_overview_idx`) carry what the state counts and the
+search for out-of-date rows read. On a database that already holds the full
+register, create them with `CREATE INDEX CONCURRENTLY` under these names before
+deploying, so the migration finds them and does not build them under a lock.
+
 ## Kept current when a person saves
 
 A saved correction or KType choice refreshes that car's row before the answer

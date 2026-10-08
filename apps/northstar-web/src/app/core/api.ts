@@ -570,14 +570,27 @@ export class Api {
     return this.http.get<VehicleFieldInfo[]>(`${this.base}/v1/vehicles/fields`);
   }
 
-  /** Vehicles by merged value, identifier (current or past) or NOR ID. Keyset-paged. */
+  /**
+   * Vehicles by merged value, identifier (current or past) or NOR ID. Keyset-paged: a page
+   * reads only its own rows. `total: false` leaves the count of all matching vehicles out
+   * of the first page, so the rows do not wait for it (ask `vehicleTotal` beside it).
+   */
   searchVehicles(
     request: VehicleSearchRequest,
-    options: { cursor?: string | null; limit?: number } = {},
+    options: { cursor?: string | null; limit?: number; total?: boolean } = {},
   ): Observable<NorVehiclePage> {
     return this.http.post<NorVehiclePage>(`${this.base}/v1/vehicles/search`, request, {
-      params: params({ cursor: options.cursor ?? undefined, limit: options.limit ?? 50 }),
+      params: params({
+        cursor: options.cursor ?? undefined,
+        limit: options.limit ?? 50,
+        total: options.total === false ? 'false' : undefined,
+      }),
     });
+  }
+
+  /** How many vehicles the filter matches: counts every one of them, so asked for apart. */
+  vehicleTotal(request: VehicleSearchRequest): Observable<{ matched_rows: number }> {
+    return this.http.post<{ matched_rows: number }>(`${this.base}/v1/vehicles/total`, request);
   }
 
   /** Top values of one field inside the filter, counted as if it were not filtered on. */

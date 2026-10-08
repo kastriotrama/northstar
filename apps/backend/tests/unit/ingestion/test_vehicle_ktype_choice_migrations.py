@@ -66,3 +66,12 @@ def test_the_match_state_index_is_partial_and_not_an_invariant() -> None:
     assert sql.startswith("CREATE INDEX IF NOT EXISTS vehicles_match_state_idx")
     assert "(match_state, vehicle_id) WHERE match_state IS NOT NULL" in sql
     assert "vehicles_match_state_idx" not in REQUIRED_INDEXES
+
+
+def test_the_match_overview_index_carries_what_the_state_counts_read() -> None:
+    statements = dict(VEHICLE_CORE_MIGRATIONS)
+
+    sql = statements["create_vehicles_match_overview_index"]
+    assert sql.startswith("CREATE INDEX IF NOT EXISTS vehicles_match_overview_idx")
+    assert "(vehicle_id) INCLUDE (vehicle_scope, registry_status, match_state, updated_at)" in sql
+    assert "vehicles_match_overview_idx" not in REQUIRED_INDEXES

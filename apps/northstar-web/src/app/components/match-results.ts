@@ -72,6 +72,15 @@ interface Loaded<T> {
         }
       </div>
 
+      @if (c.counted_at) {
+        <p class="counted" role="status">
+          All {{ c.total | number }} cars of this filter, counted {{ c.counted_at | date: 'HH:mm' }}.
+          @if (c.updating) {
+            <span class="working">Cars were matched since; counting again…</span>
+          }
+        </p>
+      }
+
       @if (countOf(c, 'not_evaluated') || c.changed_since_matched) {
         <p class="fresh" role="status">
           @if (countOf(c, 'not_evaluated')) {
@@ -283,6 +292,7 @@ interface Loaded<T> {
     .state--several, .state--one_unconfirmed { border-left-color: #d99a00; }
     .state--none, .state--chosen_none { border-left-color: #c0392b; }
     .fresh { margin: 0; font-size: 0.78rem; color: #7a5300; }
+    .counted { margin: 0; font-size: 0.78rem; color: var(--p-text-muted-color, #5f6b7a); }
     .again { margin-left: 0.3rem; font: inherit; cursor: pointer; }
     .working { margin-left: 0.3rem; font-style: italic; }
     .why > summary { cursor: pointer; font-weight: 600; font-size: 0.8rem; }
@@ -387,6 +397,8 @@ export class MatchResults {
       .subscribe((next) => {
         this.countsState.set(next);
         if (next.loading || !next.value) return;
+        // The numbers are a kept count that is behind: the new one is read when it is there.
+        if (next.value.updating) this.lookAgain();
         // While the server is matching the changed cars again, look again in a moment.
         const working = !!next.value.refreshing && next.value.changed_since_matched > 0;
         if (working) {
@@ -428,7 +440,10 @@ export class MatchResults {
         }),
         takeUntilDestroyed(),
       )
-      .subscribe((next) => this.overviewState.set(next));
+      .subscribe((next) => {
+        this.overviewState.set(next);
+        if (!next.loading && next.value?.updating) this.lookAgain();
+      });
   }
 
   /** Have the server match the changed cars again; the counts follow as it works. */

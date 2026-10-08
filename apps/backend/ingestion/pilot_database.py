@@ -80,6 +80,7 @@ from ingestion.vehicle_ktype_choice_migrations import (
 from ingestion.vehicle_match_result_migrations import (
     VEHICLE_MATCH_RESULTS_TABLE,
     VEHICLE_MATCH_RUNS_TABLE,
+    VEHICLE_MATCH_SUMMARIES_TABLE,
     run_vehicle_match_result_migrations,
 )
 
@@ -285,6 +286,10 @@ PILOT_TABLES: tuple[TableSpec, ...] = (
            where="operation_id IN (SELECT operation_id FROM core.match_review_rule_decisions)"),
     _whole("core.match_review_rule_decisions", "reviewer decisions on match patterns"),
     # -- left out
+    # Kept counts are of the source's cars, not the slice's: the pilot counts its own
+    # on the first look.
+    _left_out(VEHICLE_MATCH_SUMMARIES_TABLE, "kept counts of the source's cars",
+              may_hold_rows=True),
     _left_out("core.match_run_checkpoints", "run telemetry"),
     _left_out("core.match_run_reason_counts", "run telemetry"),
     _left_out("core.match_run_blocker_counts", "run telemetry"),
